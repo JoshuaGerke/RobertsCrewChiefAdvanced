@@ -86,6 +86,11 @@ namespace CrewChiefV4.AiTeam
         private readonly string baseUrl;
         public readonly AiUsageStats Stats;
 
+        private bool IsOpenRouter
+        {
+            get { return baseUrl.IndexOf("openrouter.ai", StringComparison.OrdinalIgnoreCase) >= 0; }
+        }
+
         public OpenAiCompatibleClient(string baseUrl, Func<string> apiKeyProvider, TimeSpan timeout, AiUsageStats stats, HttpMessageHandler handler = null)
         {
             this.baseUrl = (baseUrl ?? "").TrimEnd('/');
@@ -112,7 +117,15 @@ namespace CrewChiefV4.AiTeam
             }
             if (!string.IsNullOrWhiteSpace(reasoningEffort))
             {
-                body["reasoning_effort"] = reasoningEffort.Trim();
+                // OpenRouter erwartet {"reasoning": {"effort": …}}, OpenAI das Feld reasoning_effort
+                if (IsOpenRouter)
+                {
+                    body["reasoning"] = new JObject { ["effort"] = reasoningEffort.Trim() };
+                }
+                else
+                {
+                    body["reasoning_effort"] = reasoningEffort.Trim();
+                }
             }
             if (jsonMode)
             {
@@ -138,9 +151,10 @@ namespace CrewChiefV4.AiTeam
             {
                 string msg = e.Message ?? "";
                 bool changed = false;
-                if (body["reasoning_effort"] != null && msg.IndexOf("reasoning", StringComparison.OrdinalIgnoreCase) >= 0)
+                if ((body["reasoning_effort"] != null || body["reasoning"] != null) && msg.IndexOf("reasoning", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     body.Remove("reasoning_effort");
+                    body.Remove("reasoning");
                     changed = true;
                 }
                 if (body["max_completion_tokens"] != null && msg.IndexOf("max_completion_tokens", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -247,6 +261,12 @@ namespace CrewChiefV4.AiTeam
         private HttpRequestMessage NewRequest(HttpMethod method, string path)
         {
             var request = new HttpRequestMessage(method, baseUrl + path);
+            if (IsOpenRouter)
+            {
+                // optionale App-Kennung, damit die Aufrufe im OpenRouter-Dashboard zugeordnet sind
+                request.Headers.TryAddWithoutValidation("X-Title", "Robert's Crew Chief Advanced");
+                request.Headers.TryAddWithoutValidation("HTTP-Referer", "https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced");
+            }
             string key = apiKeyProvider == null ? null : apiKeyProvider();
             if (!string.IsNullOrEmpty(key))
             {

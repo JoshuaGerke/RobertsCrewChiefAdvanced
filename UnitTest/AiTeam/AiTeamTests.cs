@@ -441,6 +441,87 @@ namespace UnitTest.AiTeamTests
             StringAssert.EndsWith("/audio/transcriptions", server.Urls[1]);
         }
 
+        // ---------- ElevenLabs und OpenRouter ----------
+
+        [Test]
+        public async Task ElevenLabs_Anfrageformat_pcm_24000()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 9, 8, 7, 6 }) });
+            var stats = new AiUsageStats();
+            var client = new ElevenLabsClient(() => "el-key", TimeSpan.FromSeconds(5), stats, server);
+            byte[] pcm = await client.SpeechPcmAsync("voice123", "eleven_flash_v2_5", "Links frei.", TeamMember.Sara, CancellationToken.None);
+            CollectionAssert.AreEqual(new byte[] { 9, 8, 7, 6 }, pcm);
+            Assert.AreEqual("https://api.elevenlabs.io/v1/text-to-speech/voice123?output_format=pcm_24000", server.Urls[0]);
+            Assert.AreEqual("el-key", server.XiKeys[0]);
+            var body = JObject.Parse(server.Requests[0]);
+            Assert.AreEqual("eleven_flash_v2_5", (string)body["model_id"]);
+            Assert.AreEqual("de", (string)body["language_code"]);
+            Assert.AreEqual(1, stats.TtsCalls);
+        }
+
+        [Test]
+        public async Task ElevenLabs_multilingual_v2_ohne_language_code()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[2]) });
+            var client = new ElevenLabsClient(() => "k", TimeSpan.FromSeconds(5), null, server);
+            await client.SpeechPcmAsync("v", "eleven_multilingual_v2", "Test", TeamMember.Ben, CancellationToken.None);
+            Assert.IsNull(JObject.Parse(server.Requests[0])["language_code"]);
+        }
+
+        [Test]
+        public void ElevenLabs_Fehler_wird_lesbar_gemeldet()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(401, "{\"detail\":{\"status\":\"invalid_api_key\",\"message\":\"Invalid API key\"}}"));
+            var client = new ElevenLabsClient(() => "falsch", TimeSpan.FromSeconds(5), null, server);
+            var e = Assert.ThrowsAsync<AiApiException>(() => client.SpeechPcmAsync("v", "eleven_flash_v2_5", "Test", TeamMember.Ben, CancellationToken.None));
+            StringAssert.Contains("Invalid API key", e.Message);
+        }
+
+        [Test]
+        public void ElevenLabs_Stimmenliste()
+        {
+            var voices = ElevenLabsClient.ParseVoices("{\"voices\":[{\"voice_id\":\"b\",\"name\":\"Zoe\",\"labels\":{\"gender\":\"female\",\"accent\":\"german\"}},{\"voice_id\":\"a\",\"name\":\"Anton\"}]}");
+            Assert.AreEqual(2, voices.Count);
+            Assert.AreEqual("Anton", voices[0].Name);
+            Assert.AreEqual("Zoe – female, german", voices[1].ToString());
+        }
+
+        [Test]
+        public async Task OpenRouter_bekommt_reasoning_Objekt_und_App_Kennung()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"message\":{\"content\":\"Funk steht.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://openrouter.ai/api/v1", () => "or-key", TimeSpan.FromSeconds(5), null, server);
+            await client.ChatAsync("openai/gpt-6-luna", new JArray(), null, "none", 20, false, CancellationToken.None);
+            var body = JObject.Parse(server.Requests[0]);
+            Assert.AreEqual("none", (string)body.SelectToken("reasoning.effort"));
+            Assert.IsNull(body["reasoning_effort"]);
+            Assert.AreEqual("https://openrouter.ai/api/v1/chat/completions", server.Urls[0]);
+            Assert.AreEqual("Robert's Crew Chief Advanced", server.Titles[0]);
+        }
+
+        [Test]
+        public void Zwei_Schluessel_getrennt_gespeichert()
+        {
+            string a = Path.Combine(Path.GetTempPath(), "rcca_a_" + Guid.NewGuid().ToString("N") + ".bin");
+            string b = Path.Combine(Path.GetTempPath(), "rcca_b_" + Guid.NewGuid().ToString("N") + ".bin");
+            try
+            {
+                AiSecretStore.Save("sk-or-1", a);
+                AiSecretStore.Save("el-2", b);
+                Assert.AreEqual("sk-or-1", AiSecretStore.Load(a));
+                Assert.AreEqual("el-2", AiSecretStore.Load(b));
+            }
+            finally
+            {
+                AiSecretStore.Delete(a);
+                AiSecretStore.Delete(b);
+            }
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)
@@ -459,6 +540,8 @@ namespace UnitTest.AiTeamTests
             public readonly List<string> Requests = new List<string>();
             public readonly List<string> Urls = new List<string>();
             public readonly List<string> AuthHeaders = new List<string>();
+            public readonly List<string> XiKeys = new List<string>();
+            public readonly List<string> Titles = new List<string>();
             public Exception Throw;
 
             protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -469,6 +552,9 @@ namespace UnitTest.AiTeamTests
                 }
                 Urls.Add(request.RequestUri.ToString());
                 AuthHeaders.Add(request.Headers.Authorization == null ? "" : request.Headers.Authorization.ToString());
+                IEnumerable<string> values;
+                XiKeys.Add(request.Headers.TryGetValues("xi-api-key", out values) ? values.First() : "");
+                Titles.Add(request.Headers.TryGetValues("X-Title", out values) ? values.First() : "");
                 Requests.Add(request.Content == null ? "" : await request.Content.ReadAsStringAsync());
                 return Responses.Dequeue();
             }

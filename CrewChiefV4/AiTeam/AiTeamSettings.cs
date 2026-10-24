@@ -5,7 +5,7 @@ namespace CrewChiefV4.AiTeam
     // Reihenfolge muss zu den ui_text-Einträgen *_listprop_value_N passen
     public enum AiRadioMode { MINIMAL, NORMAL, ACTIVE }
 
-    public enum AiTtsProvider { OPENAI_COMPATIBLE, WINDOWS }
+    public enum AiTtsProvider { OPENAI_COMPATIBLE, WINDOWS, ELEVENLABS }
 
     /// <summary>
     /// Alle Einstellungen des KI-Teams (Ben, Mik, Sara). Werden über den normalen
@@ -15,13 +15,19 @@ namespace CrewChiefV4.AiTeam
     public class AiTeamSettings
     {
         public bool Enabled = true;
-        public string BaseUrl = "https://api.openai.com/v1";
-        public string FastModel = "gpt-6-luna";
-        public string DeepModel = "gpt-6.1-sol";
+        // Voreinstellung: OpenRouter (ein Schlüssel für Chat und Spracherkennung) + ElevenLabs für die Stimmen
+        public string BaseUrl = "https://openrouter.ai/api/v1";
+        public string FastModel = "openai/gpt-6-luna";
+        public string DeepModel = "openai/gpt-6.1-sol";
         public string ReasoningEffort = "none";
-        public string SttModel = "gpt-transcribe";
-        public string TtsModel = "gpt-4o-mini-tts";
-        public AiTtsProvider TtsProvider = AiTtsProvider.OPENAI_COMPATIBLE;
+        public string SttModel = "openai/gpt-transcribe";
+        public string TtsModel = "openai/gpt-4o-mini-tts-2025-12-15";
+        public AiTtsProvider TtsProvider = AiTtsProvider.ELEVENLABS;
+        public string ElevenLabsModel = "eleven_flash_v2_5";
+        // Standardstimmen aus der ElevenLabs-Grundausstattung, im Fenster "KI-Team" per Liste änderbar
+        public string ElevenLabsVoiceBen = "JBFqnCBsd6RMkjVDRZzb";
+        public string ElevenLabsVoiceMik = "nPczCjzI2devNBz1zQrb";
+        public string ElevenLabsVoiceSara = "EXAVITQu4vr4xnSDxMaL";
         public string VoiceBen = "cedar";
         public string VoiceMik = "ash";
         public string VoiceSara = "marin";
@@ -50,6 +56,10 @@ namespace CrewChiefV4.AiTeam
             s.SttModel = GetString(() => u.getString("ai_team_stt_model"), s.SttModel);
             s.TtsModel = GetString(() => u.getString("ai_team_tts_model"), s.TtsModel);
             s.TtsProvider = GetEnum(() => u.getString("ai_team_tts_provider_listprop"), s.TtsProvider);
+            s.ElevenLabsModel = GetString(() => u.getString("ai_team_elevenlabs_model"), s.ElevenLabsModel);
+            s.ElevenLabsVoiceBen = GetString(() => u.getString("ai_team_elevenlabs_voice_ben"), s.ElevenLabsVoiceBen);
+            s.ElevenLabsVoiceMik = GetString(() => u.getString("ai_team_elevenlabs_voice_mik"), s.ElevenLabsVoiceMik);
+            s.ElevenLabsVoiceSara = GetString(() => u.getString("ai_team_elevenlabs_voice_sara"), s.ElevenLabsVoiceSara);
             s.VoiceBen = GetString(() => u.getString("ai_team_voice_ben"), s.VoiceBen);
             s.VoiceMik = GetString(() => u.getString("ai_team_voice_mik"), s.VoiceMik);
             s.VoiceSara = GetString(() => u.getString("ai_team_voice_sara"), s.VoiceSara);
@@ -75,6 +85,16 @@ namespace CrewChiefV4.AiTeam
                 case TeamMember.Mik: return VoiceMik;
                 case TeamMember.Sara: return VoiceSara;
                 default: return VoiceBen;
+            }
+        }
+
+        public string ElevenLabsVoiceFor(TeamMember member)
+        {
+            switch (member)
+            {
+                case TeamMember.Mik: return ElevenLabsVoiceMik;
+                case TeamMember.Sara: return ElevenLabsVoiceSara;
+                default: return ElevenLabsVoiceBen;
             }
         }
 

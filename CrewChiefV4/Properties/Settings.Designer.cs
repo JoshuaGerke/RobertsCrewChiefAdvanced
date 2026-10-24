@@ -6821,7 +6821,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("https://api.openai.com/v1")]
+        [global::System.Configuration.DefaultSettingValueAttribute("https://openrouter.ai/api/v1")]
         public string ai_team_api_base_url {
             get {
                 return ((string)(this["ai_team_api_base_url"]));
@@ -6833,7 +6833,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("gpt-6-luna")]
+        [global::System.Configuration.DefaultSettingValueAttribute("openai/gpt-6-luna")]
         public string ai_team_fast_model {
             get {
                 return ((string)(this["ai_team_fast_model"]));
@@ -6845,7 +6845,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("gpt-6.1-sol")]
+        [global::System.Configuration.DefaultSettingValueAttribute("openai/gpt-6.1-sol")]
         public string ai_team_deep_model {
             get {
                 return ((string)(this["ai_team_deep_model"]));
@@ -6869,7 +6869,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("gpt-transcribe")]
+        [global::System.Configuration.DefaultSettingValueAttribute("openai/gpt-transcribe")]
         public string ai_team_stt_model {
             get {
                 return ((string)(this["ai_team_stt_model"]));
@@ -6881,7 +6881,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("gpt-4o-mini-tts")]
+        [global::System.Configuration.DefaultSettingValueAttribute("openai/gpt-4o-mini-tts-2025-12-15")]
         public string ai_team_tts_model {
             get {
                 return ((string)(this["ai_team_tts_model"]));
@@ -6893,13 +6893,61 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("OPENAI_COMPATIBLE")]
+        [global::System.Configuration.DefaultSettingValueAttribute("ELEVENLABS")]
         public string ai_team_tts_provider_listprop {
             get {
                 return ((string)(this["ai_team_tts_provider_listprop"]));
             }
             set {
                 this["ai_team_tts_provider_listprop"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("eleven_flash_v2_5")]
+        public string ai_team_elevenlabs_model {
+            get {
+                return ((string)(this["ai_team_elevenlabs_model"]));
+            }
+            set {
+                this["ai_team_elevenlabs_model"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("JBFqnCBsd6RMkjVDRZzb")]
+        public string ai_team_elevenlabs_voice_ben {
+            get {
+                return ((string)(this["ai_team_elevenlabs_voice_ben"]));
+            }
+            set {
+                this["ai_team_elevenlabs_voice_ben"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("nPczCjzI2devNBz1zQrb")]
+        public string ai_team_elevenlabs_voice_mik {
+            get {
+                return ((string)(this["ai_team_elevenlabs_voice_mik"]));
+            }
+            set {
+                this["ai_team_elevenlabs_voice_mik"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("EXAVITQu4vr4xnSDxMaL")]
+        public string ai_team_elevenlabs_voice_sara {
+            get {
+                return ((string)(this["ai_team_elevenlabs_voice_sara"]));
+            }
+            set {
+                this["ai_team_elevenlabs_voice_sara"] = value;
             }
         }
         

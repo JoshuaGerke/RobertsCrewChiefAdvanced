@@ -33,6 +33,7 @@ namespace CrewChiefV4.AiTeam
 
         private AiTeamSettings settings = AiTeamSettings.Load();
         private OpenAiCompatibleClient client;
+        private ElevenLabsClient elevenLabs;
         private AudioPlayer audioPlayer;
         private readonly AiMicRecorder recorder = new AiMicRecorder();
         private readonly AiPushToTalk pushToTalk;
@@ -72,7 +73,7 @@ namespace CrewChiefV4.AiTeam
             if (settings.Enabled)
             {
                 pushToTalk.Start();
-                if (HasApiKey)
+                if (HasApiKey || elevenLabs.HasKey)
                 {
                     PrewarmSaraPhrases();
                 }
@@ -90,6 +91,7 @@ namespace CrewChiefV4.AiTeam
         {
             settings = newSettings;
             client = new OpenAiCompatibleClient(settings.BaseUrl, () => AiSecretStore.Load(), TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
+            elevenLabs = new ElevenLabsClient(AiSecretStore.LoadElevenLabs, TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
             pushToTalk.SetKey(settings.PttKey);
             lock (phraseCache)
             {
@@ -679,26 +681,22 @@ namespace CrewChiefV4.AiTeam
                     return cached;
                 }
             }
+            // Kette: gewählte Quelle → (ElevenLabs fällt aus) OpenAI-kompatible Stimme → Windows-Stimme
             byte[] pcm = null;
             bool usedFallback = false;
-            if (settings.TtsProvider == AiTtsProvider.OPENAI_COMPATIBLE && HasApiKey)
+            if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey)
             {
-                try
-                {
-                    using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
-                    {
-                        timeout.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
-                        pcm = await client.SpeechPcmAsync(settings.TtsModel, settings.VoiceFor(member), text, AiPersonas.VoiceInstructions(member), timeout.Token).ConfigureAwait(false);
-                    }
-                }
-                catch (Exception e) when (!ct.IsCancellationRequested)
-                {
-                    Log("Cloud-Stimme nicht verfügbar, nutze Windows-Stimme: " + e.Message);
-                }
+                pcm = await TryTtsAsync("ElevenLabs", t => elevenLabs.SpeechPcmAsync(settings.ElevenLabsVoiceFor(member), settings.ElevenLabsModel, text, member, t), ct).ConfigureAwait(false);
+                usedFallback = pcm == null;
             }
-            if (pcm == null || pcm.Length == 0)
+            if (pcm == null && settings.TtsProvider != AiTtsProvider.WINDOWS && HasApiKey)
             {
-                usedFallback = settings.TtsProvider == AiTtsProvider.OPENAI_COMPATIBLE;
+                pcm = await TryTtsAsync("Cloud-Stimme", t => client.SpeechPcmAsync(settings.TtsModel, settings.VoiceFor(member), text, AiPersonas.VoiceInstructions(member), t), ct).ConfigureAwait(false);
+                usedFallback |= settings.TtsProvider == AiTtsProvider.ELEVENLABS && pcm != null;
+            }
+            if (pcm == null)
+            {
+                usedFallback = settings.TtsProvider != AiTtsProvider.WINDOWS;
                 pcm = WindowsTts.Render(text, settings.WindowsVoiceFor(member), member);
             }
             if (settings.RadioEffect)
@@ -718,6 +716,31 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             return pcm;
+        }
+
+        private async Task<byte[]> TryTtsAsync(string source, Func<CancellationToken, Task<byte[]>> call, CancellationToken ct)
+        {
+            try
+            {
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+                    byte[] pcm = await call(timeout.Token).ConfigureAwait(false);
+                    return pcm != null && pcm.Length > 0 ? pcm : null;
+                }
+            }
+            catch (Exception e) when (!ct.IsCancellationRequested)
+            {
+                Log(source + " nicht verfügbar, nehme die nächste Stimmenquelle: " + e.Message);
+                return null;
+            }
+        }
+
+        public bool HasElevenLabsKey { get { return elevenLabs.HasKey; } }
+
+        public Task<List<ElevenLabsVoice>> ListElevenLabsVoicesAsync()
+        {
+            return elevenLabs.ListVoicesAsync(CancellationToken.None);
         }
 
         /// <summary>Testfunktion für das KI-Team-Fenster: ein Mini-Aufruf mit gemessener Latenz.</summary>
