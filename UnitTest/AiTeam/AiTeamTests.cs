@@ -31,6 +31,7 @@ namespace UnitTest.AiTeamTests
             {
                 CrewChiefV4.CrewChief.Debug = new CrewChiefV4.Debugging();
             }
+            CrewChiefV4.DataFiles.MakeFolders();
         }
 
         // ---------- Routing (Kapitel 6.1) ----------
@@ -313,9 +314,19 @@ namespace UnitTest.AiTeamTests
         public void KI_Clip_wird_als_abspielbare_QueuedMessage_akzeptiert()
         {
             string id = AiAudioStore.Put(AiAudio.PcmToWav(new byte[4800], 24000), "Ben: Test");
-            var msg = new CrewChiefV4.QueuedMessage("ai_team_test_" + id, 30,
-                messageFragments: new List<CrewChiefV4.MessageFragment> { CrewChiefV4.MessageFragment.Text(CrewChiefV4.Audio.SoundCache.AI_AUDIO_IDENTIFIER + id) },
-                type: CrewChiefV4.Audio.SoundType.VOICE_COMMAND_RESPONSE);
+            CrewChiefV4.QueuedMessage msg;
+            try
+            {
+                msg = new CrewChiefV4.QueuedMessage("ai_team_test_" + id, 30,
+                    messageFragments: new List<CrewChiefV4.MessageFragment> { CrewChiefV4.MessageFragment.Text(CrewChiefV4.Audio.SoundCache.AI_AUDIO_IDENTIFIER + id) },
+                    type: CrewChiefV4.Audio.SoundType.VOICE_COMMAND_RESPONSE);
+            }
+            catch (TypeInitializationException e) when (e.ToString().Contains("AudioPlayer.GetDefaultOutputDeviceID"))
+            {
+                // GitHub-Runner ohne Soundkarte: Crew Chiefs AudioPlayer lässt sich dort nicht initialisieren
+                Assert.Ignore("Kein Audioausgabegerät vorhanden: " + e.GetBaseException().Message);
+                return;
+            }
             Assert.IsTrue(msg.canBePlayed);
             CollectionAssert.Contains(msg.messageFolders, CrewChiefV4.Audio.SoundCache.AI_AUDIO_IDENTIFIER + id);
             byte[] wav;
