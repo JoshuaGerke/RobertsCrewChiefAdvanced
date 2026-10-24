@@ -781,7 +781,7 @@ namespace CrewChiefV4
         }
 
         /// <summary>Ob der Knopf für diese Aktion gerade gedrückt gehalten wird.</summary>
-        public Boolean isActionHeld(String action)
+        public Boolean isActionHeld(String action, Boolean logErrors = true)
         {
             ButtonAssignment ba = buttonAssignments.FirstOrDefault(ba1 => ba1.action == action);
             if (ba != null && ba.buttonIndex != -1 && ba.controller != null && ba.controller.guid != Guid.Empty)
@@ -802,7 +802,7 @@ namespace CrewChiefV4
                             {
                                 return ba.usePovData ? joystick.GetCurrentState().PointOfViewControllers[ba.buttonIndex] == ba.povValue : joystick.GetCurrentState().Buttons[ba.buttonIndex];
                             }
-                            catch (Exception e) { Log.Exception(e); }
+                            catch (Exception e) { if (logErrors) Log.Exception(e); }
                         }
                     }
                 }

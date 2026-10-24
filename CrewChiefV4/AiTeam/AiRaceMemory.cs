@@ -76,7 +76,8 @@ namespace CrewChiefV4.AiTeam
                     SessionId = current.SessionData.SessionId;
                     laps.Clear();
                     events.Clear();
-                    fuelAtLapStart = current.FuelData.FuelUseActive ? current.FuelData.FuelLeft : -1;
+                    // erst ab der ersten Überfahrt messen, sonst zählen Einführungsrunde und Startaufstellung mit
+                    fuelAtLapStart = -1;
                     pitDuringLap = false;
                 }
                 if (current.PitData.InPitlane)

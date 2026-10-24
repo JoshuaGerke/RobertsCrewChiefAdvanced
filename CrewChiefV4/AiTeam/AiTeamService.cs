@@ -38,6 +38,7 @@ namespace CrewChiefV4.AiTeam
         private readonly AiPushToTalk pushToTalk;
         private readonly SemaphoreSlim requestLock = new SemaphoreSlim(1, 1);
         private CancellationTokenSource currentRequest;
+        private int pressSequence;
 
         private readonly object dialogSync = new object();
         private readonly List<JObject> dialog = new List<JObject>();
@@ -162,7 +163,7 @@ namespace CrewChiefV4.AiTeam
         private static bool ControllerHeld()
         {
             var mw = MainWindow.instance;
-            return mw != null && mw.controllerConfiguration != null && mw.controllerConfiguration.isActionHeld(ControllerConfiguration.TALK_TO_AI_TEAM);
+            return mw != null && mw.controllerConfiguration != null && mw.controllerConfiguration.isActionHeld(ControllerConfiguration.TALK_TO_AI_TEAM, false);
         }
 
         private void OnPushToTalkPressed()
@@ -171,21 +172,23 @@ namespace CrewChiefV4.AiTeam
             {
                 return;
             }
-            // Der Fahrer will sprechen: laufende KI-Anfrage abbrechen und laufenden KI-Funkspruch stoppen
+            // Der Fahrer will sprechen: Aufnahme zuerst, dann laufende KI-Anfrage und KI-Funkspruch stoppen
+            Interlocked.Increment(ref pressSequence);
+            recorder.Start(settings.Microphone);
             var running = currentRequest;
             if (running != null)
             {
                 running.Cancel();
             }
-            if (SoundCache.currentlyPlayingSound != null && SoundCache.currentlyPlayingSound.isAiAudio)
+            var playing = SoundCache.currentlyPlayingSound;
+            if (playing != null && playing.isAiAudio)
             {
-                SoundCache.InterruptCurrentlyPlayingSound(false);
+                try { SoundCache.InterruptCurrentlyPlayingSound(false); } catch (Exception) { }
             }
             if (audioPlayer != null)
             {
                 audioPlayer.playStartListeningBeep();
             }
-            recorder.Start(settings.Microphone);
             Status("Höre zu …");
         }
 
@@ -203,10 +206,22 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             DateTime releasedUtc = DateTime.UtcNow;
-            Task.Run(() => HandleSpeechAsync(wav, releasedUtc));
+            int sequence = pressSequence;
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await HandleSpeechAsync(wav, releasedUtc, sequence).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    Log("Funkspruch konnte nicht verarbeitet werden: " + e);
+                    Status("Fehler: " + e.Message);
+                }
+            });
         }
 
-        private async Task HandleSpeechAsync(byte[] wav, DateTime releasedUtc)
+        private async Task HandleSpeechAsync(byte[] wav, DateTime releasedUtc, int sequence)
         {
             if (!HasApiKey)
             {
@@ -231,6 +246,11 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             Log("Erkannt (" + (long)(DateTime.UtcNow - releasedUtc).TotalMilliseconds + " ms): " + text);
+            if (sequence != pressSequence)
+            {
+                Log("Verworfen, der Fahrer hat inzwischen neu gefunkt.");
+                return;
+            }
             if (string.IsNullOrWhiteSpace(text))
             {
                 Status("Nichts verstanden.");
@@ -257,7 +277,7 @@ namespace CrewChiefV4.AiTeam
                 if (local != null)
                 {
                     Stats.AddLocalAnswer();
-                    await SpeakAsync(TeamMember.Sara, local, true, CancellationToken.None).ConfigureAwait(false);
+                    local = await SpeakSaraSpotterAnswerAsync(routed.Question).ConfigureAwait(false);
                     RememberExchange(routed.Member, routed.Question, local);
                     return local;
                 }
@@ -388,7 +408,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 if (toolCalls == null || toolCalls.Count == 0)
                 {
-                    string text = AiPersonas.CleanForRadio((string)message["content"], maxChars, true);
+                    string text = AiPersonas.CleanForRadio(ContentText(message["content"]), maxChars, true);
                     return string.IsNullOrWhiteSpace(text) ? "Dazu hab ich gerade keine belastbare Aussage." : text;
                 }
                 messages.Add(new JObject { ["role"] = "assistant", ["content"] = message["content"], ["tool_calls"] = toolCalls });
@@ -406,6 +426,20 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             return "Ich komm mit der Auswertung gerade nicht zu einem sauberen Ergebnis.";
+        }
+
+        /// <summary>content ist meist ein String, manche kompatiblen Server liefern aber eine Liste von Textteilen.</summary>
+        public static string ContentText(JToken content)
+        {
+            if (content == null || content.Type == JTokenType.Null)
+            {
+                return null;
+            }
+            if (content.Type == JTokenType.Array)
+            {
+                return string.Join(" ", content.Select(part => part.Type == JTokenType.Object ? (string)part["text"] : (string)part).Where(t => !string.IsNullOrEmpty(t)));
+            }
+            return content.Type == JTokenType.String ? (string)content : content.ToString();
         }
 
         public static bool NeedsDeepModel(string question)
@@ -545,11 +579,23 @@ namespace CrewChiefV4.AiTeam
 
         // ---------------- Sprachausgabe ----------------
 
-        public async Task SpeakAsync(TeamMember member, string text, bool isReply, CancellationToken ct)
+        public Task SpeakAsync(TeamMember member, string text, bool isReply, CancellationToken ct)
+        {
+            return SpeakAsync(member, text, isReply, ct, null);
+        }
+
+        /// <param name="stillValid">Wird direkt vor dem Einreihen geprüft (Sara: Spotterlage neu bewerten). false = nicht abspielen.</param>
+        /// <returns>true, wenn der Funkspruch eingereiht wurde.</returns>
+        private async Task<bool> SpeakAsync(TeamMember member, string text, bool isReply, CancellationToken ct, Func<string, bool> stillValid)
         {
             if (string.IsNullOrWhiteSpace(text))
             {
-                return;
+                return false;
+            }
+            // Ohne nAudio kann der Spotter laufende Clips nicht unterbrechen – dann nur kurze Funksprüche
+            if (!AudioPlayer.playWithNAudio && text.Length > 160)
+            {
+                text = AiPersonas.CleanForRadio(text, 160, false);
             }
             Console.WriteLine("[KI-Team] " + TeamRouter.DisplayName(member) + ": " + text);
             Status(TeamRouter.DisplayName(member) + ": " + text);
@@ -560,28 +606,36 @@ namespace CrewChiefV4.AiTeam
             }
             catch (OperationCanceledException)
             {
-                return;
+                return false;
             }
             catch (Exception e)
             {
                 Log("Sprachausgabe fehlgeschlagen: " + e.Message);
-                return;
+                return false;
             }
             if (ct.IsCancellationRequested || audioPlayer == null)
             {
-                return;
+                return false;
             }
-            // Während einer Überlappung kurz warten – Sara hat Vorrang (die Spotteransagen unterbrechen ohnehin alles)
-            for (int i = 0; i < 25 && Spotter().HasOverlap && !ct.IsCancellationRequested; i++)
+            if (stillValid == null)
             {
-                await Task.Delay(200).ConfigureAwait(false);
+                // Ben/Mik: während einer Überlappung kurz warten, Sara hat Vorrang (Spotteransagen unterbrechen ohnehin alles)
+                for (int i = 0; i < 25 && Spotter().HasOverlap && !ct.IsCancellationRequested; i++)
+                {
+                    await Task.Delay(200).ConfigureAwait(false);
+                }
+            }
+            else if (!stillValid(text))
+            {
+                return false;
             }
             byte[] wav = AiAudio.PcmToWav(pcm, AiAudio.OpenAiPcmSampleRate);
             string id = AiAudioStore.Put(wav, TeamRouter.DisplayName(member) + ": " + text);
             var fragments = new List<MessageFragment> { MessageFragment.Text(SoundCache.AI_AUDIO_IDENTIFIER + id) };
             if (isReply)
             {
-                var message = new QueuedMessage("ai_team_reply_" + id, 30, messageFragments: fragments,
+                // Saras Lagemeldungen verfallen nach 2 s, alles andere nach 30 s
+                var message = new QueuedMessage("ai_team_reply_" + id, stillValid != null ? 2 : 30, messageFragments: fragments,
                     type: SoundType.VOICE_COMMAND_RESPONSE, priority: 5);
                 audioPlayer.playMessageImmediately(message);
             }
@@ -592,6 +646,26 @@ namespace CrewChiefV4.AiTeam
                 audioPlayer.playMessage(message);
             }
             Memory.AddRadio(member, text, DateTime.UtcNow);
+            return true;
+        }
+
+        /// <summary>
+        /// Saras Spotterantwort: direkt vor dem Abspielen mit frischen Spotterdaten neu bewerten.
+        /// Hat sich die Lage geändert, die neue Antwort sprechen; klappt das nicht, nur "keine sicheren Daten".
+        /// </summary>
+        private async Task<string> SpeakSaraSpotterAnswerAsync(string question)
+        {
+            Func<string> evaluate = () => SaraLocal.TryAnswer(question, Spotter(), CrewChief.currentGameState, DateTime.UtcNow) ?? SaraLocal.NoDataAnswer;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                string answer = evaluate();
+                if (await SpeakAsync(TeamMember.Sara, answer, true, CancellationToken.None, t => t == evaluate()).ConfigureAwait(false))
+                {
+                    return answer;
+                }
+            }
+            await SpeakAsync(TeamMember.Sara, SaraLocal.NoDataAnswer, true, CancellationToken.None).ConfigureAwait(false);
+            return SaraLocal.NoDataAnswer;
         }
 
         private async Task<byte[]> RenderAsync(TeamMember member, string text, CancellationToken ct)
@@ -606,6 +680,7 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             byte[] pcm = null;
+            bool usedFallback = false;
             if (settings.TtsProvider == AiTtsProvider.OPENAI_COMPATIBLE && HasApiKey)
             {
                 try
@@ -623,6 +698,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (pcm == null || pcm.Length == 0)
             {
+                usedFallback = settings.TtsProvider == AiTtsProvider.OPENAI_COMPATIBLE;
                 pcm = WindowsTts.Render(text, settings.WindowsVoiceFor(member), member);
             }
             if (settings.RadioEffect)
@@ -630,7 +706,7 @@ namespace CrewChiefV4.AiTeam
                 pcm = AiAudio.ApplyRadioEffect(pcm, AiAudio.OpenAiPcmSampleRate);
             }
             // kurze Standardsätze (vor allem Saras) zwischenspeichern
-            if (text.Length <= 60)
+            if (text.Length <= 60 && !usedFallback)
             {
                 lock (phraseCache)
                 {

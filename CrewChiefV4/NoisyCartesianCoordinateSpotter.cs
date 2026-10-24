@@ -310,6 +310,8 @@ namespace CrewChiefV4
         public void clearState()
         {
             System.Threading.Interlocked.Exchange(ref evaluatedAtTicks, 0);
+            evaluatedCarsOnLeft = 0;
+            evaluatedCarsOnRight = 0;
             carsOnLeftAtPreviousTick = 0;
             carsOnRightAtPreviousTick = 0;
             timeWhenChannelShouldBeClosed = DateTime.UtcNow;
@@ -559,7 +561,11 @@ namespace CrewChiefV4
             playNextMessage(carsOnLeft, carsOnRight, now);
             carsOnLeftAtPreviousTick = carsOnLeft;
             carsOnRightAtPreviousTick = carsOnRight;
-            recordEvaluation(carsOnLeft, carsOnRight, now);
+            // irsdk_LROff = iRacing liefert gerade keine Spotterdaten, das ist kein "frei"
+            if (carLeftRight != CarLeftRight.irsdk_LROff)
+            {
+                recordEvaluation(carsOnLeft, carsOnRight, now);
+            }
 
             if (carsOnLeftAtPreviousTick > 0 || carsOnRightAtPreviousTick > 0)
             {

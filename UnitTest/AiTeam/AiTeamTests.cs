@@ -89,6 +89,23 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Alte_Ueberlappung_blockiert_den_Funk_nicht_dauerhaft()
+        {
+            var fresh = new SpotterSnapshot { SpotterRunning = true, CarsLeft = 1, EvaluatedUtc = DateTime.UtcNow };
+            var stale = new SpotterSnapshot { SpotterRunning = true, CarsLeft = 1, EvaluatedUtc = DateTime.UtcNow.AddSeconds(-5) };
+            Assert.IsTrue(fresh.HasOverlap);
+            Assert.IsFalse(stale.HasOverlap);
+        }
+
+        [Test]
+        public void Modellantwort_als_Liste_von_Textteilen()
+        {
+            Assert.AreEqual("Reifen ok. Weiter so.", AiTeamService.ContentText(JArray.Parse("[{\"type\":\"text\",\"text\":\"Reifen ok.\"},{\"type\":\"text\",\"text\":\"Weiter so.\"}]")));
+            Assert.AreEqual("Funk steht.", AiTeamService.ContentText(new JValue("Funk steht.")));
+            Assert.IsNull(AiTeamService.ContentText(JValue.CreateNull()));
+        }
+
+        [Test]
         public void Sara_Abstand_nach_hinten_aus_Telemetrie()
         {
             var gs = new GameStateData(1);

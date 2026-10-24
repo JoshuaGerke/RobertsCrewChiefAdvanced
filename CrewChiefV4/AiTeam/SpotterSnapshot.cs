@@ -26,9 +26,10 @@ namespace CrewChiefV4.AiTeam
             return SpotterRunning && EvaluatedUtc != DateTime.MinValue && nowUtc - EvaluatedUtc <= MaxAgeForClearance;
         }
 
+        /// <summary>Nur eine frische Auswertung zählt – alte Zählerstände (Spotter pausiert, Auto steht) blockieren sonst den Funk dauerhaft.</summary>
         public bool HasOverlap
         {
-            get { return CarsLeft > 0 || CarsRight > 0; }
+            get { return IsFresh(DateTime.UtcNow) && (CarsLeft > 0 || CarsRight > 0); }
         }
     }
 }

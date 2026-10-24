@@ -95,7 +95,13 @@ namespace CrewChiefV4.AiTeam
             }
             // Nachlauf, damit das letzte Wort nicht abgeschnitten wird
             Thread.Sleep(150);
-            toStop.StopRecording();
+            using (var stopped = new ManualResetEventSlim(false))
+            {
+                toStop.RecordingStopped += (s, e) => stopped.Set();
+                toStop.StopRecording();
+                // StopRecording ist asynchron: erst nach RecordingStopped sind alle Puffer geschrieben
+                stopped.Wait(1000);
+            }
             toStop.Dispose();
             duration = DateTime.UtcNow - startedUtc;
             byte[] pcm;
