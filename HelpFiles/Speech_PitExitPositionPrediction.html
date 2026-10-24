@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body link="#0000EE" vlink="#551A8B" text="#000000" bgcolor="#dddddd" alink="#EE0000">
+<div style="font-family:'Lucida Sans Unicode';font-size:13px;" class="main">
+Version 4.9.3.0 adds rudimentary race and track position predictions for pit exit. This is based on a benchmark pitstop time which uses the time difference between your best lap's sector3 and sector1 times, and the corresponding times on your in lap & out lap.<br>
+<br>
+Benchmark pit times can be measured during a practice session with the 'time this stop' / 'practice pitstop' / 'time this pitstop' / 'pitstop benchmark' voice command, or by pressing the <b>Pitstop prediction</b> button before make your practice stop. Do some hot laps to get a baseline laptime, then issue this after your 'box this lap' command, and do a full race-simulation pitstop. Maintain race pace on your outlap until you finish sector1. Crew Chief will calculate how much time you lost and use this when you pit in the race. If you don't measure your own benchmark pit time Crew Chief will measure the time your opponents lose due to pitting and use this instead - note that this means pit exit prediction data won't be available until after at least one of your opponents have completed a pitstop.<br>
+<br>
+If Crew Chief has usable benchmark data and you request a pitstop <i>before you reach sector3</i>, it'll tell you where you should come out and what the traffic will be like when you hit sector3. You can also request this data at any time with the 'Where will be be after a stop?' / 'Estimate pit exit positions' / 'What will happen if I pit?', or by pressing the <b>Pitstop prediction</b> button during a race, even if you've not requested a pitstop (Crew Chief will derive its estimates on every lap regardless or whether you actually pit).<br>
+<br>
+At the time of writing there's more work to be done here and some more features that may be added.<br>
+<br>
+</div>
+
+</body>
+</html>

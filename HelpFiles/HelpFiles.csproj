@@ -1,0 +1,128 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{FC7491A6-3A64-448B-A6A3-33C47F88D9EF}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>HelpFiles</RootNamespace>
+    <AssemblyName>HelpFiles</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'DebugLMUtrace|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\DebugLMUtrace\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="About_Contact.html" />
+    <Content Include="About_Credits.html" />
+    <Content Include="About_Customising_NameRequests.html" />
+    <Content Include="About_Customising_TrackLandmarks.html" />
+    <Content Include="About_Customising_VoicePacks.html" />
+    <Content Include="About_Donations.html" />
+    <Content Include="About_KnownIssues.html" />
+    <Content Include="About_Licenses.html" />
+    <Content Include="About_Telemetry.html" />
+    <Content Include="About_Updating.html" />
+    <Content Include="blank.html" />
+    <Content Include="CrewChief.png" />
+    <Content Include="GameSpecific_CommandLineSwitches.html" />
+    <Content Include="GameSpecific_ForEachGame_AssettoCorsa.html" />
+    <Content Include="GameSpecific_ForEachGame_AssettoCorsaCompetizione.html" />
+    <Content Include="GameSpecific_ForEachGame_F1_2018.html" />
+    <Content Include="GameSpecific_ForEachGame_GTR2.html" />
+    <Content Include="GameSpecific_ForEachGame_iRacing.html" />
+    <Content Include="GameSpecific_ForEachGame_ProjectCars.html" />
+    <Content Include="GameSpecific_ForEachGame_ProjectCars2.html" />
+    <Content Include="GameSpecific_ForEachGame_RaceRoomRacingExperience.html" />
+    <Content Include="GameSpecific_ForEachGame_rFactor.html" />
+    <Content Include="GameSpecific_ForEachGame_rFactor2.html" />
+    <Content Include="GettingStarted_GameSpecific_AssettoCorsa.html" />
+    <Content Include="GettingStarted_GameSpecific_AssettoCorsaCompetizione.html" />
+    <Content Include="GettingStarted_GameSpecific_F1_2018.html" />
+    <Content Include="GettingStarted_GameSpecific_GTR2.html" />
+    <Content Include="GettingStarted_GameSpecific_iRacing.html" />
+    <Content Include="GettingStarted_GameSpecific_ProjectCars.html" />
+    <Content Include="GettingStarted_GameSpecific_ProjectCars2.html" />
+    <Content Include="GettingStarted_GameSpecific_RaceRoomRacingExperience.html" />
+    <Content Include="GettingStarted_GameSpecific_rFactor.html" />
+    <Content Include="GettingStarted_GameSpecific_rFactor2.html" />
+    <Content Include="GettingStarted_GameSpecific_RichardBurnsRally.html" />
+    <Content Include="GettingStarted_General.html" />
+    <Content Include="GettingStarted_nAudio.html" />
+    <Content Include="index.html" />
+    <Content Include="menu.html" />
+    <Content Include="Overlays_InGame.html" />
+    <Content Include="Overlays_Subtitles.html" />
+    <Content Include="Overlays_VR.html" />
+    <Content Include="Properties_Profiles.html" />
+    <Content Include="Properties_Properties.html" />
+    <None Include="ReadMe.md" />
+    <Content Include="Speech_DriverNames.html" />
+    <Content Include="Speech_PaceNotes.html" />
+    <Content Include="Speech_PitExitPositionPrediction.html" />
+    <Content Include="Speech_Swearing.html" />
+    <Content Include="Speech_TextToSpeech.html" />
+    <Content Include="styles.css" />
+    <Content Include="VoiceRecognition_CommandMacros.html" />
+    <Content Include="VoiceRecognition_FreeDictationChatMessages.html" />
+    <Content Include="VoiceRecognition_InstallationTraining.html" />
+    <Content Include="VoiceRecognition_RallyStageNotes.html" />
+    <Content Include="VoiceRecognition_VoiceCommandsAll.html" />
+    <Content Include="VoiceRecognition_VoiceCommandsCheatSheet.html" />
+    <Content Include="VoiceRecognition_VoiceCommandsGrouped.html" />
+    <Content Include="VoiceRecognition_VoiceCommandsPitstopManagement.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack">
+      <Version>1.11.24</Version>
+    </PackageReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

@@ -1,0 +1,5 @@
+1.wav,"this stop won't count, you've left the pit too soon"
+2.wav,"you needed to wait, this won't count as your mandatory stop"
+3.wav,"you needed to wait longer, this won't count as your stop"
+4.wav,"you've left the box too soon, you'll need to come back and do it again"
+5.wav,"you've exited too soon, this one won't count"

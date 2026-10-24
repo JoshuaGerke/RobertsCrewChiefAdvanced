@@ -1,0 +1,1285 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);MSB3042</NoWarn>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{4240B0E2-69BC-4260-9706-C0CC5AAE04A5}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>CrewChiefV4</RootNamespace>
+    <AssemblyName>CrewChiefV4</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <RuntimeIdentifiers>win</RuntimeIdentifiers>
+    <FileAlignment>512</FileAlignment>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <TargetFrameworkProfile />
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+    <ForceDesignerDPIUnaware>true</ForceDesignerDPIUnaware>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;removePrefixed_ToEnableSwitch,  _FAKE_GAME, _SOUNDPACK_TEST</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>7.2</LangVersion>
+    <ForceDesignerDPIUnaware>true</ForceDesignerDPIUnaware>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>removePrefixed_ToEnableSwitch,  _SOUNDPACK_TEST</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>7.2</LangVersion>
+    <ForceDesignerDPIUnaware>true</ForceDesignerDPIUnaware>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>engineer_edited.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'PIT_MANAGER_DEBUG|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\PIT_MANAGER_DEBUG\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;PIT_MANAGER_DEBUG</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>7.2</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <ForceDesignerDPIUnaware>true</ForceDesignerDPIUnaware>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'PIT_MANAGER_DEBUG_release|AnyCPU'">
+    <OutputPath>bin\PIT_MANAGER_DEBUG_release\</OutputPath>
+    <DefineConstants>PIT_MANAGER_DEBUG</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>7.2</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <ForceDesignerDPIUnaware>true</ForceDesignerDPIUnaware>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'DebugLMUtrace|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\DebugLMUtrace\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;removePrefixed_ToEnableSwitch,  _FAKE_GAME</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>7.2</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="AutoUpdater.NET, Version=1.3.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\AutoUpdater.NET.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Speech, Version=11.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\Program Files\Microsoft SDKs\Speech\v11.0\Assembly\Microsoft.Speech.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="System" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Speech" />
+    <Reference Include="System.Windows.Forms.DataVisualization" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ACC\ACCData.cs" />
+    <Compile Include="ACC\ACCGameStateMapper.cs" />
+    <Compile Include="ACC\ACCPitMenuManager.cs" />
+    <Compile Include="ACC\ACCSharedMemoryReader.cs" />
+    <Compile Include="ACC\ACCSpotter.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\ACCUdpRemoteClient.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\BroadcastingEnums.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\BroadcastingNetworkProtocol.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\BroadcastingEvent.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\CarInfo.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\DriverInfo.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\LapInfo.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\RealtimeCarUpdate.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\RealtimeUpdate.cs" />
+    <Compile Include="ACC\ksBroadcastingNetwork\Structs\TrackData.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\BroadcastingEventViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\BroadcastingViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\CarViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\LapTime.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\ClientConnectionViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\ClientPanelViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\DriverViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\SessionInfoViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\TrackViewModel.cs" />
+    <Compile Include="ACC\UDPHandler\ViewModels\UdpUpdateViewModel.cs" />
+    <Compile Include="ACE\ACEData.cs" />
+    <Compile Include="ACE\ACEGameStateMapper.cs" />
+    <Compile Include="ACE\ACESharedMemoryReader.cs" />
+    <Compile Include="ACE\ACESpotter.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\ACEUdpRemoteClient.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\BroadcastingEnums.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\BroadcastingNetworkProtocol.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\BroadcastingEvent.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\CarInfo.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\DriverInfo.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\LapInfo.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\RealtimeCarUpdate.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\RealtimeUpdate.cs" />
+    <Compile Include="ACE\ksBroadcastingNetwork\Structs\TrackData.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\BroadcastingEventViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\BroadcastingViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\CarViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\ClientConnectionViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\ClientPanelViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\DriverViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\LapTime.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\SessionInfoViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\TrackViewModel.cs" />
+    <Compile Include="ACE\UDPHandler\ViewModels\UdpUpdateViewModel.cs" />
+    <Compile Include="ACS128\ACSData.cs" />
+    <Compile Include="ACS128\ACSGameStateMapper.cs" />
+    <Compile Include="ACS128\ACSSharedMemoryReader.cs" />
+    <Compile Include="ACS128\ACSSpotter.cs" />
+    <Compile Include="ACS\ACSData.cs" />
+    <Compile Include="ACS\ACSGameStateMapper.cs" />
+    <Compile Include="ACS\ACSSharedMemoryReader.cs" />
+    <Compile Include="ACS\ACSSpotter.cs" />
+    <Compile Include="ControllerNames.cs" />
+    <Compile Include="Events\Fuel.TopicWindow.cs" />
+    <Compile Include="Events\PubSub\EventBus.cs" />
+    <Compile Include="Events\PubSub\GameEvent.Generated.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>GameEvent.Generated.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Events\PubSub\GameEvent.Generated1.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>GameEvent.Generated.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Events\PubSub\GameEventBool.Generated.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>GameEvent.Generated.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Events\PubSub\GameStateEventDetector.cs" />
+    <Compile Include="Events\PubSub\GameStateEventDetector.Custom.cs" />
+    <Compile Include="Events\PubSub\GameStateEventDetector.Generated.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>GameEvent.Generated.tt</DependentUpon>
+    </Compile>
+    <Compile Include="Events\TyreMonitor_legacy.cs" />
+    <Compile Include="LMU\LMUSharedMemoryReader.cs" />
+    <Compile Include="LMU\LMUData.cs" />
+    <Compile Include="LFS\LFSData.cs" />
+    <Compile Include="LFS\LFSEnums.cs" />
+    <Compile Include="LFS\LFSGameStateMapper.cs" />
+    <Compile Include="LFS\LFSInSimReader.cs" />
+    <Compile Include="LFS\LFSOutSimReader.cs" />
+    <Compile Include="LFS\LFSSpotter.cs" />
+    <Compile Include="SpeechWizardRecogniser.cs" />
+    <Compile Include="TrackData\TrackData.cs" />
+    <Compile Include="TrackData\TrackDataDebug.cs" />
+    <Compile Include="TrackSpline\SplineViewerControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="TrackSpline\TelemetrySampleCollector.cs" />
+    <Compile Include="TrackSpline\TrackSpline.cs" />
+    <Compile Include="AMS2\enums.cs" />
+    <Compile Include="AMS2\AMS2GameStateMapper.cs" />
+    <Compile Include="AMS2\AMS2SharedMemoryReader.cs" />
+    <Compile Include="AMS2\AMS2Spotter.cs" />
+    <Compile Include="AMS2\AMS2Struct.cs" />
+    <Compile Include="AMS2\AMS2UDPreader.cs" />
+    <Compile Include="AMS2\AMS2UDPTelemetryDataStruct.cs" />
+    <Compile Include="Audio\BackgroundPlayer.cs" />
+    <Compile Include="Audio\MediaPlayerBackgroundPlayer.cs" />
+    <Compile Include="Audio\NAudioBackgroundPlayerWasapi.cs" />
+    <Compile Include="Audio\NAudioBackgroundPlayerWaveOut.cs" />
+    <Compile Include="Audio\NAudioLoopStream.cs" />
+    <Compile Include="Audio\NAudioOut.cs" />
+    <Compile Include="Audio\PlaybackModerator.cs" />
+    <Compile Include="Audio\SoundPackVersionsHelper.cs" />
+    <Compile Include="Audio\Sounds.cs" />
+    <Compile Include="Audio\SoundMetadata.cs" />
+    <Compile Include="Audio\SubtitleManager.cs" />
+    <Compile Include="Audio\AudioPlayer.cs" />
+    <Compile Include="CarData.cs" />
+    <Compile Include="CircularBuffer.cs" />
+    <Compile Include="ColloquialTime.cs" />
+    <Compile Include="CommandManager.cs" />
+    <Compile Include="commands\CommandMacro.cs" />
+    <Compile Include="commands\KeyPresser.cs" />
+    <Compile Include="commands\MacroManager.cs" />
+    <Compile Include="commands\Rf2ChatTransceiver.cs" />
+    <Compile Include="ControllerConfiguration.cs" />
+    <Compile Include="ControlVolumeOfProcess.cs" />
+    <Compile Include="DataFiles.cs" />
+    <Compile Include="Debugging.cs" />
+    <Compile Include="Dirt\DirtData.cs" />
+    <Compile Include="DriverNameHelper.cs" />
+    <Compile Include="DriverTrainingService.cs" />
+    <Compile Include="Events\AbstractEvent.cs" />
+    <Compile Include="Events\AlarmClock.cs" />
+    <Compile Include="Events\Battery.cs" />
+    <Compile Include="Events\CoDriver.cs" />
+    <Compile Include="Events\CommonActions.cs" />
+    <Compile Include="Events\CommonDataContainers.cs" />
+    <Compile Include="Events\ConditionsMonitor.cs" />
+    <Compile Include="Events\DriverSwaps.cs" />
+    <Compile Include="Events\FlagsMonitor.cs" />
+    <Compile Include="Events\FrozenOrderMonitor.cs" />
+    <Compile Include="Events\Fuel.cs" />
+    <Compile Include="Events\IRacingBroadcastMessageEvent.cs" />
+    <Compile Include="Events\Mqtt.cs" />
+    <Compile Include="Events\MulticlassWarnings.cs" />
+    <Compile Include="Events\NullEvent.cs" />
+    <Compile Include="Events\OpponentMessages.cs" />
+    <Compile Include="Events\Opponents.cs" />
+    <Compile Include="Events\OvertakingAidsMonitor.cs" />
+    <Compile Include="Events\Ratings.cs" />
+    <Compile Include="Events\SessionEndMessages.cs" />
+    <Compile Include="Events\Spotter.cs" />
+    <Compile Include="Events\Strategy.cs" />
+    <Compile Include="Events\Timings.cs" />
+    <Compile Include="Events\VROverlayController.cs" />
+    <Compile Include="Events\WatchedOpponents.cs" />
+    <Compile Include="Extensions.cs" />
+    <Compile Include="F1_2019\F12019GameStateMapper.cs" />
+    <Compile Include="F1_2019\F12019Spotter.cs" />
+    <Compile Include="F1_2019\F12019StructWrapper.cs" />
+    <Compile Include="F1_2019\F12019UDPreader.cs" />
+    <Compile Include="F1_2019\longtomjr\enums.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\CarMotionData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\CarSetupData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\CarStatusData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\CarTelemetryData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\EventDataDetails.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\FastestLap.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\LapData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\MarshalZone.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketHeader.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketCarSetupData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketCarStatusData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketCarTelemetryData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketEventData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketEventDataWithDetails.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketLapData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketMotionData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketParticipantsData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\PacketStructs\PacketSessionData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\ParticipantData.cs" />
+    <Compile Include="F1_2018\F12018GameStateMapper.cs" />
+    <Compile Include="F1_2018\F12018Spotter.cs" />
+    <Compile Include="F1_2018\F12018StructWrapper.cs" />
+    <Compile Include="F1_2018\F12018UDPreader.cs" />
+    <Compile Include="F1_2018\longtomjr\enums.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\CarMotionData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\CarSetupData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\CarStatusData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\CarTelemetryData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\LapData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\MarshalZone.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketHeader.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketCarSetupData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketCarStatusData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketCarTelemetryData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketEventData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketLapData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketMotionData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketParticipantsData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\PacketStructs\PacketSessionData.cs" />
+    <Compile Include="F1_2018\longtomjr\Structs\ParticipantData.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\RaceWinner.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\TeamMateInPits.cs" />
+    <Compile Include="F1_2019\longtomjr\Structs\Retirement.cs" />
+    <Compile Include="Dirt\DirtGameStateMapper.cs" />
+    <Compile Include="Dirt\DirtStructWrapper.cs" />
+    <Compile Include="Dirt\DirtUDPreader.cs" />
+    <Compile Include="F1_2020\F12020GameStateMapper.cs" />
+    <Compile Include="F1_2020\F12020Spotter.cs" />
+    <Compile Include="F1_2020\F12020StructWrapper.cs" />
+    <Compile Include="F1_2020\F12020UDPreader.cs" />
+    <Compile Include="F1_2020\longtomjr\enums.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\CarMotionData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\CarSetupData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\CarStatusData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\CarTelemetryData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\EventDataDetails.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\FastestLap.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\LapData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\MarshalZone.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketHeader.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketCarSetupData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketCarStatusData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketCarTelemetryData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketEventData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketEventDataWithDetails.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketLapData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketMotionData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketParticipantsData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\PacketStructs\PacketSessionData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\ParticipantData.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\Penalty.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\RaceWinner.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\Retirement.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\SpeedTrap.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\TeamMateInPits.cs" />
+    <Compile Include="F1_2020\longtomjr\Structs\WeatherForecastSample.cs" />
+    <Compile Include="F1_2022\F12022GameStateMapper.cs" />
+    <Compile Include="F1_2022\F12022Spotter.cs" />
+    <Compile Include="F1_2022\F12022StructWrapper.cs" />
+    <Compile Include="F1_2022\F12022UDPreader.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\Accuracy.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\BrakingAssist.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\DriverStatus.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\DrsAllowed.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\DynamicRacingLine.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\DynamicRacingLineType.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\ErsDeployMode.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\EventStringCode.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\Formula.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\FuelMix.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\GearboxAssist.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\PacketId.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\PitStatus.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\Platform.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\ReadyStatus.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\ResultStatus.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\SafetyCarStatus.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\Sector.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\SessionLength.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\SessionType.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\SpeedUnit.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\TemperatureUnit.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\TractionControlStatus.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\TyreCompound.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\ValueVariationType.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\VehicleFiaFlag.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\VisualTyreCompound.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\Weather.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\WeatherForecastSessionType.cs" />
+    <Compile Include="F1_2022\Protocol\Enums\ZoneFlag.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\Buttons.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\CarDamageData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\CarMotionData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\CarSetupData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\CarStatusData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\CarTelemetryData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\DriveThroughPenaltyServed.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\EventDataDetails.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\FastestLap.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\FinalClassificationData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\Flashback.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\LapData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\LapHistoryData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\LobbyInfoData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\MarshalZone.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketHeader.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketCarDamageData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketCarSetupData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketCarStatusData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketCarTelemetryData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketEventData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketEventDataWithDetails.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketFinalClassificationData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketLapData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketLobbyInfoData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketMotionData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketParticipantsData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketSessionData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\PacketStructs\PacketSessionHistoryData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\ParticipantData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\Penalty.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\RaceWinner.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\Retirement.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\SpeedTrap.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\StartLights.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\StopAndGoPenaltyServed.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\TeamMateInPits.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\TyreStintHistoryData.cs" />
+    <Compile Include="F1_2022\Protocol\Structs\WeatherForecastSample.cs" />
+    <Compile Include="F1_2022\Utility\EventDetailFactory.cs" />
+    <Compile Include="F1_2022\Utility\SpatialData.cs" />
+    <Compile Include="F1_2023\F12023GameStateMapper.cs" />
+    <Compile Include="F1_2023\F12023Spotter.cs" />
+    <Compile Include="F1_2023\F12023StructWrapper.cs" />
+    <Compile Include="F1_2023\F12023UDPreader.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\Accuracy.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\BrakingAssist.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\DriverStatus.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\DrsAllowed.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\DynamicRacingLine.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\DynamicRacingLineType.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\ErsDeployMode.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\EventStringCode.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\Formula.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\FuelMix.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\GearboxAssist.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\PitStatus.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\Platform.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\ReadyStatus.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\ResultStatus.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\SafetyCarStatus.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\Sector.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\SessionLength.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\SessionType.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\SpeedUnit.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\TemperatureUnit.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\WeatherForecastSessionType.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\TractionControlStatus.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\TyreCompound.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\ValueVariationType.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\VehicleFiaFlag.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\VisualTyreCompound.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\Weather.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\ZoneFlag.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\Buttons.cs" />
+    <Compile Include="F1_2023\Protocol\Enums\PacketId.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\CarDamageData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\DriveThroughPenaltyServed.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\FinalClassificationData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\Flashback.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\LapHistoryData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\LobbyInfoData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\Overtake.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketCarDamageData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketFinalClassificationData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketLobbyInfoData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketMotionExData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketSessionHistoryData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketTyreSetsData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\StartLights.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\CarMotionData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\CarSetupData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\CarStatusData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\CarTelemetryData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\EventDataDetails.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\FastestLap.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\LapData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\MarshalZone.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketHeader.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketCarSetupData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketCarStatusData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketCarTelemetryData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketEventData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketEventDataWithDetails.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketLapData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketMotionData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketParticipantsData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\PacketStructs\PacketSessionData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\ParticipantData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\Penalty.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\RaceWinner.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\Retirement.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\SpeedTrap.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\StopAndGoPenaltyServed.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\TeamMateInPits.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\TyreSetData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\TyreStintHistoryData.cs" />
+    <Compile Include="F1_2023\Protocol\Structs\WeatherForecastSample.cs" />
+    <Compile Include="F1_2021\F12021GameStateMapper.cs" />
+    <Compile Include="F1_2021\F12021Spotter.cs" />
+    <Compile Include="F1_2021\F12021StructWrapper.cs" />
+    <Compile Include="F1_2021\F12021UDPreader.cs" />
+    <Compile Include="F1_2021\longtomjr\enums.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\CarMotionData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\CarSetupData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\CarStatusData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\CarTelemetryData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\EventDataDetails.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\FastestLap.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\LapData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\MarshalZone.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketHeader.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketCarSetupData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketCarStatusData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketCarTelemetryData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketEventData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketEventDataWithDetails.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketLapData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketMotionData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketParticipantsData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\PacketStructs\PacketSessionData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\ParticipantData.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\Penalty.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\RaceWinner.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\Retirement.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\SpeedTrap.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\TeamMateInPits.cs" />
+    <Compile Include="F1_2021\longtomjr\Structs\WeatherForecastSample.cs" />
+    <Compile Include="F1_2023\Utility\EventDetailFactory.cs" />
+    <Compile Include="F1_2023\Utility\SpatialData.cs" />
+    <Compile Include="AllGames\Game.cs" />
+    <Compile Include="AllGames\GameDataSerializer.cs" />
+    <Compile Include="AllGames\GameDefinition.cs" />
+    <Compile Include="AllGames\GameDefinitionTable.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>GameDefinitionTable.tt</DependentUpon>
+    </Compile>
+    <Compile Include="AllGames\GameStateReaderFactory.cs" />
+    <Compile Include="GameState\DummyGameDataReader.cs" />
+    <Compile Include="GameState\DummyGameStateMapper.cs" />
+    <Compile Include="GameState\GlobalBehaviourSettings.cs" />
+    <Compile Include="GameState\ReflectionGameStateAccessor.cs" />
+    <Compile Include="GlobalResources.cs" />
+    <Compile Include="iRacing\Bitfields\CameraState.cs" />
+    <Compile Include="iRacing\Bitfields\EngineWarning.cs" />
+    <Compile Include="iRacing\Bitfields\PitServiceFlag.cs" />
+    <Compile Include="iRacing\Bitfields\SessionFlag.cs" />
+    <Compile Include="iRacing\Drivers\Driver.cs" />
+    <Compile Include="iRacing\Drivers\DriverCarInfo.cs" />
+    <Compile Include="iRacing\Drivers\DriverLiveInfo.cs" />
+    <Compile Include="iRacing\Drivers\DriverResults.cs" />
+    <Compile Include="iRacing\Enums.cs" />
+    <Compile Include="iRacing\iRacingData.cs" />
+    <Compile Include="iRacing\iRacingGameStateMapper.cs" />
+    <Compile Include="iRacing\iRSDKSharp\CiRSDKHeader.cs" />
+    <Compile Include="iRacing\iRSDKSharp\CVarBuf.cs" />
+    <Compile Include="iRacing\iRSDKSharp\CVarHeader.cs" />
+    <Compile Include="iRacing\iRSDKSharp\iRacingDiskSDK.cs" />
+    <Compile Include="iRacing\iRSDKSharp\iRacingSDK.cs" />
+    <Compile Include="iRacing\iRSDKSharp\YamlParser.cs" />
+    <Compile Include="iRacing\SessionInfo.cs" />
+    <Compile Include="iRacing\iRacingSharedMemoryReader.cs" />
+    <Compile Include="iRacing\iRacingSpotter.cs" />
+    <Compile Include="iRacing\Parser.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="iRacing\SessionData.cs" />
+    <Compile Include="iRacing\Sim.cs" />
+    <Compile Include="iRacing\Track.cs" />
+    <Compile Include="JsonFiles.cs" />
+    <Compile Include="LMU\LMUPitMenuAbstractionLayer.cs" />
+    <Compile Include="LMU\LMU_REST_API.cs" />
+    <Compile Include="LMU\LMU_REST_API_classes.cs" />
+    <Compile Include="LogFluentExtensions.cs" />
+    <Compile Include="Logging.cs" />
+    <Compile Include="NumberProcessing\CarNumber.cs" />
+    <Compile Include="NumberProcessing\SpokenNumberParser.cs" />
+    <Compile Include="NumberReaderPtBr.cs" />
+    <Compile Include="NumberReaderIt2.cs" />
+    <Compile Include="Overlay\Charts.cs" />
+    <Compile Include="Overlay\CommonSubscriptions.cs" />
+    <Compile Include="Overlay\CrewChiefOverlay.cs" />
+    <Compile Include="Events\OverlayController.cs" />
+    <Compile Include="Overlay\OverlayDataSource.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementButton.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementCheckBox.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementGroupBox.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementImage.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementListBox.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementRadioButton.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementText.cs" />
+    <Compile Include="Overlay\OverlayElements\ElementTextBox.cs" />
+    <Compile Include="Overlay\OverlayElements\OverlayElemets.cs" />
+    <Compile Include="Overlay\OverlayElements\OverlayHeader.cs" />
+    <Compile Include="Overlay\OverlaySettings.cs" />
+    <Compile Include="Overlay\SubtitleOverlay.cs" />
+    <Compile Include="PitManager\IPitMenu.cs" />
+    <Compile Include="PitManager\IPitMenuAbstractionLayer.cs" />
+    <Compile Include="PitManager\IPitMenuController.cs" />
+    <Compile Include="LMU\LMUPitMenuAPI.cs" />
+    <Compile Include="LMU\LMUPitMenuController.cs" />
+    <Compile Include="PitManager\PitManager.cs" />
+    <Compile Include="PitManager\PitManagerEventHandlersTable_ACC.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>PitManagerEventHandlersTable_ACC.tt</DependentUpon>
+    </Compile>
+    <Compile Include="PitManager\PitManagerEventHandlersTable_iRacing.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>PitManagerEventHandlersTable_iRacing.tt</DependentUpon>
+    </Compile>
+    <Compile Include="PitManager\PitManagerEventHandlersTable_LMU.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>PitManagerEventHandlersTable_LMU.tt</DependentUpon>
+    </Compile>
+    <Compile Include="PitManager\PitManagerEventHandlersTable_R3E.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>PitManagerEventHandlersTable_R3E.tt</DependentUpon>
+    </Compile>
+    <Compile Include="PitManager\PitManagerEventHandlersTable_RF2.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>PitManagerEventHandlersTable_RF2.tt</DependentUpon>
+    </Compile>
+    <Compile Include="PitManager\PitManagerEventHandlers_LMU.cs" />
+    <Compile Include="PitManager\PitManagerEventHandlers_RF2.cs" />
+    <Compile Include="PitManager\PitManagerResponseHandlers.cs" />
+    <Compile Include="PitManager\PitManagerVoiceCmds.cs" />
+    <Compile Include="PluginInstaller_deprecated.cs" />
+    <Compile Include="PMR\ConversionHelper.cs" />
+    <Compile Include="PMR\DataStore.cs" />
+    <Compile Include="PMR\PMRGameStateMapper.cs" />
+    <Compile Include="PMR\PMRSpotter.cs" />
+    <Compile Include="PMR\PMRUDPReader.cs" />
+    <Compile Include="PMR\UDPProtocol.cs" />
+    <Compile Include="PMR\UDPThread.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+    <Compile Include="R3E\R3EPitMenuManager.cs" />
+    <Compile Include="R3E\R3ERatings.cs" />
+    <Compile Include="R3E\R3ESerializer.cs" />
+    <Compile Include="RBR\RBRData.cs" />
+    <Compile Include="RBR\RBRGameStateMapper.cs" />
+    <Compile Include="RBR\RBRSharedMemoryReader.cs" />
+    <Compile Include="RF2\MappedBuffer.cs" />
+    <Compile Include="RF2\RF2PitMenuAbstractionLayer.cs" />
+    <Compile Include="RF2\RF2PitMenuAPI.cs" />
+    <Compile Include="RF2\RF2PitMenuController.cs" />
+    <Compile Include="RF2\rF2HWControl.cs" />
+    <Compile Include="SpeechCommands.cs" />
+    <Compile Include="SpeechTrace.cs" />
+    <Compile Include="TrackSpline\TrackSplineManager.cs" />
+    <Compile Include="UserInterface\CheckableListPropertyControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UserInterface\ControllerNamesDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\DarkMode\DarkModeCS.cs" />
+    <Compile Include="UserInterface\DarkMode\FlatComboBox.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UserInterface\DarkMode\FlatProgressBar.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UserInterface\DarkMode\FlatTabControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UserInterface\DarkMode\Messenger.cs" />
+    <Compile Include="UserInterface\GameEventDebugForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\MainWindowConsole.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\Loading.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\Loading.Designer.cs">
+      <DependentUpon>Loading.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\MainWindowMenu.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UserInterface\MainWindowLayout.cs" />
+    <Compile Include="UserInterface\MessageBoxWithCopy.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\Models\DebugTraces.cs" />
+    <Compile Include="UserInterface\Models\PitMenuDebug.cs" />
+    <Compile Include="UserInterface\Models\SpeechWizard.cs" />
+    <Compile Include="UserInterface\Models\OpponentNameSelection.cs" />
+    <Compile Include="UserInterface\Models\MyName.cs" />
+    <Compile Include="UserInterface\Models\OpponentNames.cs" />
+    <Compile Include="UserInterface\MyName-V.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\MyName-V.Designer.cs">
+      <DependentUpon>MyName-V.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\OpponentNames-V.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\OpponentNames-V.Designer.cs">
+      <DependentUpon>OpponentNames-V.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\OpponentNameSelection-V.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\OpponentNameSelection-V.Designer.cs">
+      <DependentUpon>OpponentNameSelection-V.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\PitMenuDebug-V.cs">
+      <NoWarn>MSB3042</NoWarn>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\PitMenuDebug-V.Designer.cs">
+      <DependentUpon>PitMenuDebug-V.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\PlaybackTrace-V.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\PlaybackTrace-V.Designer.cs">
+      <DependentUpon>PlaybackTrace-V.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\SendLogTraceDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\SendLogTraceDialog.Designer.cs">
+      <DependentUpon>SendLogTraceDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\SoundPacks.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <None Include="Events\PubSub\GameStateEvents.csv" />
+    <None Include="Events\PubSub\GameStateEvents.xlsx" />
+    <None Include="GameState\GameDefinition.xlsx" />
+    <Compile Include="UserInterface\SpeechWizard-V.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\SpeechWizard-V.Designer.cs">
+      <DependentUpon>SpeechWizard-V.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\ToastManager.cs" />
+    <Compile Include="UserInterface\ToastControl.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\FuelLevelBar.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowFuel.Layout.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowTyres.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowTyres.Designer.cs">
+      <DependentUpon>TopicWindowTyres.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowBrakes.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowBrakes.Designer.cs">
+      <DependentUpon>TopicWindowBrakes.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowFuel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\TopicWindows\TopicWindowFuel.Designer.cs">
+      <DependentUpon>TopicWindowFuel.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\TraceWindow-V.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\VMs\SpeechWizard-VM.cs" />
+    <Compile Include="UserInterface\VMs\OpponentNameSelection-VM.cs" />
+    <Compile Include="UserInterface\VMs\MyName-VM.cs" />
+    <Compile Include="UserInterface\VMs\OpponentNames_VM.cs" />
+    <Compile Include="UserInterface\VMs\PitMenuDebug-VM.cs" />
+    <Compile Include="UserInterface\Wait.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\Wait.Designer.cs">
+      <DependentUpon>Wait.cs</DependentUpon>
+    </Compile>
+    <Compile Include="VROverlayWindow\CaptureScreen.cs" />
+    <Compile Include="VROverlayWindow\ChromaKey.cs" />
+    <Compile Include="VROverlayWindow\CursorInteraction.cs" />
+    <Compile Include="VROverlayWindow\DeviceManager.cs" />
+    <Compile Include="VROverlayWindow\DeviceState.cs" />
+    <Compile Include="VROverlayWindow\Extentions.cs" />
+    <Compile Include="VROverlayWindow\GDIStuff.cs" />
+    <Compile Include="VROverlayWindow\MathUtil.cs" />
+    <Compile Include="VROverlayWindow\openvr_api.cs" />
+    <Compile Include="VROverlayWindow\RECT.cs" />
+    <Compile Include="VROverlayWindow\SteamVR.cs" />
+    <Compile Include="VROverlayWindow\TouchController.cs" />
+    <Compile Include="VROverlayWindow\TouchControllerButton.cs" />
+    <Compile Include="VROverlayWindow\TouchControllerHand.cs" />
+    <Compile Include="VROverlayWindow\TrackedDevices.cs" />
+    <Compile Include="VROverlayWindow\VROverlayConfiguration.cs" />
+    <Compile Include="VROverlayWindow\Win32Stuff.cs" />
+    <Compile Include="VROverlayWindow\VROverlayWindow.cs" />
+    <Compile Include="SharedMemory.cs" />
+    <Compile Include="SRE\ChoicesWrapper.cs" />
+    <Compile Include="SRE\GrammarBuilderWrapper.cs" />
+    <Compile Include="SRE\GrammarWrapper.cs" />
+    <Compile Include="SRE\MicrosoftChoicesWrapper.cs" />
+    <Compile Include="SRE\MicrosoftGrammarBuilderWrapper.cs" />
+    <Compile Include="SRE\MicrosoftGrammarWrapper.cs" />
+    <Compile Include="SRE\MicrosoftSREWrapper.cs" />
+    <Compile Include="SRE\SREWrapper.cs" />
+    <Compile Include="SRE\SREWrapperFactory.cs" />
+    <Compile Include="SRE\SystemChoicesWrapper.cs" />
+    <Compile Include="SRE\SystemGrammarBuilderWrapper.cs" />
+    <Compile Include="SRE\SystemGrammarWrapper.cs" />
+    <Compile Include="SRE\SystemSREWrapper.cs" />
+    <Compile Include="ThreadManager.cs" />
+    <Compile Include="UserInterface\ActionEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\ActionEditor.Designer.cs">
+      <DependentUpon>ActionEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\HelpWindow.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\HelpWindow.Designer.cs" />
+    <Compile Include="UserInterface\MacroEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\MacroEditor.Designer.cs">
+      <DependentUpon>MacroEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\PropertyFilter.cs" />
+    <Compile Include="UserInterface\ListPropertyControl.cs" />
+    <Compile Include="UserInterface\ListPropertyControl.Designer.cs">
+      <DependentUpon>ListPropertyControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\VROverlay.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\VROverlay.Designer.cs">
+      <DependentUpon>VROverlay.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserSettings.cs" />
+    <Compile Include="AdditionalDataProvider.cs" />
+    <Compile Include="NoisyCartesianCoordinateSpotter.cs" />
+    <Compile Include="NumberProcessing\TimeSpanWrapper.cs" />
+    <Compile Include="NumberReaderIt.cs" />
+    <Compile Include="NumberReaderEn.cs" />
+    <Compile Include="NumberProcessing\NumberReader.cs" />
+    <Compile Include="NumberProcessing\NumberReaderFactory.cs" />
+    <Compile Include="PCars2\enums.cs" />
+    <Compile Include="PCars2\PCars2UDPreader.cs" />
+    <Compile Include="PCars2\PCars2Struct.cs" />
+    <Compile Include="PCars2\PCars2GameStateMapper.cs" />
+    <Compile Include="PCars2\PCars2SharedMemoryReader.cs" />
+    <Compile Include="PCars2\PCars2Spotterv2.cs" />
+    <Compile Include="PCars\PCarsUDPreader.cs" />
+    <Compile Include="PCars\PCarsSpotterv2.cs" />
+    <Compile Include="PCars2\PCars2UDPTelemetryDataStruct.cs" />
+    <Compile Include="PCars\PCarsUDPTelemetryDataStruct.cs" />
+    <Compile Include="PluginInstaller.cs" />
+    <Compile Include="R3E\R3ESharedMemoryReader.cs" />
+    <Compile Include="AllGames\GameDataReader.cs" />
+    <Compile Include="PCars\PCarsStruct.cs" />
+    <Compile Include="PCars\PCarsSharedMemoryReader.cs" />
+    <Compile Include="PCars\PCarsGameStateMapper.cs" />
+    <Compile Include="PCars\_eNums\eAPIStructLengths.cs" />
+    <Compile Include="PCars\_eNums\eCarFlags.cs" />
+    <Compile Include="PCars\_eNums\eCrashDamageState.cs" />
+    <Compile Include="PCars\_eNums\eCurrentSector.cs" />
+    <Compile Include="PCars\_eNums\eFlagColors.cs" />
+    <Compile Include="PCars\_eNums\eFlagReason.cs" />
+    <Compile Include="PCars\_eNums\eGameState.cs" />
+    <Compile Include="PCars\_eNums\eHeaderVersion.cs" />
+    <Compile Include="PCars\_eNums\ePitMode.cs" />
+    <Compile Include="PCars\_eNums\ePitSchedule.cs" />
+    <Compile Include="PCars\_eNums\eRaceState.cs" />
+    <Compile Include="PCars\_eNums\eSessionState.cs" />
+    <Compile Include="PCars\_eNums\eTerrain.cs" />
+    <Compile Include="PCars\_eNums\eTyreFlags.cs" />
+    <Compile Include="PCars\_eNums\eTyres.cs" />
+    <Compile Include="PCars\_eNums\eVector.cs" />
+    <Compile Include="PCars\_eNums\_EnumGetDescription.cs" />
+    <Compile Include="AllGames\GameDataReadException.cs" />
+    <Compile Include="R3E\R3ESpotterv2.cs" />
+    <Compile Include="RF2\RF2Data.cs" />
+    <Compile Include="RF2\RF2GameStateMapper.cs" />
+    <Compile Include="RF2\RF2SharedMemoryReader.cs" />
+    <Compile Include="RF2\RF2Spotter.cs" />
+    <Compile Include="RF2\RF2WeatherForecast.cs" />
+    <Compile Include="RF1\RF1Data.cs" />
+    <Compile Include="RF1\RF1GameStateMapper.cs" />
+    <Compile Include="RF1\RF1SharedMemoryReader.cs" />
+    <Compile Include="RF1\RF1Spotter.cs" />
+    <Compile Include="RingBufferException.cs" />
+    <Compile Include="RingBufferStream.cs" />
+    <Compile Include="UpdateHelper.cs" />
+    <Compile Include="UserInterface\FloatPropertyControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UserInterface\FloatPropertyControl.Designer.cs">
+      <DependentUpon>FloatPropertyControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GameState\GameStateData.cs" />
+    <Compile Include="GameState\GameStateMapper.cs" />
+    <Compile Include="UserInterface\PropertiesForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\PropertiesForm.Designer.cs">
+      <DependentUpon>PropertiesForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Events\LapCounter.cs" />
+    <Compile Include="Events\EngineMonitor.cs" />
+    <Compile Include="R3E\RaceRoomData.cs" />
+    <Compile Include="Events\DamageReporting.cs" />
+    <Compile Include="CrewChief.cs" />
+    <Compile Include="Events\LapTimes.cs" />
+    <Compile Include="Events\PitStops.cs" />
+    <Compile Include="Events\PearlsOfWisdom.cs" />
+    <Compile Include="Events\Penalties.cs" />
+    <Compile Include="Events\Position.cs" />
+    <Compile Include="Events\PushNow.cs" />
+    <Compile Include="QueuedMessage.cs" />
+    <Compile Include="R3E\R3EGameStateMapper.cs" />
+    <Compile Include="Events\RaceTime.cs" />
+    <Compile Include="Events\SmokeTest.cs" />
+    <Compile Include="SpeechRecogniser.cs" />
+    <Compile Include="UserInterface\MainWindow.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserInterface\MainWindow.Designer.cs">
+      <DependentUpon>MainWindow.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Events\TyreMonitor.cs" />
+    <Compile Include="UserInterface\StringPropertyControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UserInterface\StringPropertyControl.Designer.cs">
+      <DependentUpon>StringPropertyControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\BooleanPropertyControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UserInterface\BooleanPropertyControl.Designer.cs">
+      <DependentUpon>BooleanPropertyControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\IntPropertyControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UserInterface\IntPropertyControl.Designer.cs">
+      <DependentUpon>IntPropertyControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UserInterface\Spacer.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="UserInterface\Spacer.Designer.cs">
+      <DependentUpon>Spacer.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Configuration.cs" />
+    <Compile Include="Utilities.cs" />
+    <Compile Include="GTR2\GTR2GameStateMapper.cs" />
+    <Compile Include="GTR2\GTR2SharedMemoryReader.cs" />
+    <Compile Include="GTR2\GTR2Spotter.cs" />
+    <Compile Include="GTR2\GTR2Data.cs" />
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\ActionEditor.resx">
+      <DependentUpon>ActionEditor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\CheckableListPropertyControl.resx">
+      <DependentUpon>CheckableListPropertyControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\FloatPropertyControl.resx">
+      <DependentUpon>FloatPropertyControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\HelpWindow.resx" />
+    <EmbeddedResource Include="UserInterface\IntPropertycontrol.resx">
+      <DependentUpon>IntPropertyControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\Loading.resx">
+      <DependentUpon>Loading.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\MacroEditor.resx">
+      <DependentUpon>MacroEditor.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\MyName-V.resx">
+      <DependentUpon>MyName-V.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\OpponentNames-V.resx">
+      <DependentUpon>OpponentNames-V.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\OpponentNameSelection-V.resx">
+      <DependentUpon>OpponentNameSelection-V.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\PitMenuDebug-V.resx">
+      <DependentUpon>PitMenuDebug-V.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\PlaybackTrace-V.resx">
+      <DependentUpon>PlaybackTrace-V.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\PropertiesForm.resx">
+      <DependentUpon>PropertiesForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\MainWindow.resx">
+      <DependentUpon>MainWindow.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\SendLogTraceDialog.resx">
+      <DependentUpon>SendLogTraceDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\Spacer.resx">
+      <DependentUpon>Spacer.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\ListPropertyControl.resx">
+      <DependentUpon>ListPropertyControl.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\SpeechWizard-V.resx">
+      <DependentUpon>SpeechWizard-V.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\StringPropertyControl.resx">
+      <DependentUpon>StringPropertyControl.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\BooleanPropertyControl.resx">
+      <DependentUpon>BooleanPropertyControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\TopicWindows\TopicWindowTyres.resx">
+      <DependentUpon>TopicWindowTyres.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\TopicWindows\TopicWindowBrakes.resx">
+      <DependentUpon>TopicWindowBrakes.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\TopicWindows\TopicWindowFuel.resx">
+      <DependentUpon>TopicWindowFuel.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\VROverlay.resx">
+      <DependentUpon>VROverlay.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UserInterface\Wait.resx">
+      <DependentUpon>Wait.cs</DependentUpon>
+    </EmbeddedResource>
+    <None Include="carClassData.json" />
+    <None Include="chart_subscriptions.json" />
+    <None Include="controllerConfigurationData.json" />
+    <Compile Include="Overlay\OverlaySubscription.cs" />
+    <None Include="AllGames\GameDefinition.csv" />
+    <None Include="iracing_formation.json" />
+    <None Include="LMU\LMU_receivePitMenu_REST_API_contents.json" />
+    <None Include="LMU\LMU_receivePitMenu_REST_API_contents_VE.json" />
+    <None Include="mqtt_telemetry.json" />
+    <None Include="PitManager\Documentation\rF2_PitManager.graphml" />
+    <None Include="PitManager\GamePitManagerDict.csv" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="saved_command_macros.json" />
+    <None Include="tools\buildRelease.ps1" />
+    <None Include="tools\CC_sourceWrangler\CC_sourceWrangler.pyproj" />
+    <None Include="tools\GetUnvocalizedCorners.ps1" />
+    <None Include="tools\Patch.ps1" />
+    <None Include="trackLandmarksData.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Service References\" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.0">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Client.3.5">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1 Client Profile</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Windows.Installer.4.5">
+      <Visible>False</Visible>
+      <ProductName>Windows Installer 4.5</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="engineer_edited.ico" />
+    <Content Include="AllGames\GameDefinitionTable.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>GameDefinitionTable.cs</LastGenOutput>
+    </Content>
+    <Content Include="Events\PubSub\GameEvent.Generated.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>GameEvent.Generated1.cs</LastGenOutput>
+    </Content>
+    <Content Include="openvr_api.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="PitManager\Documentation\rF2_PitManager.jpg" />
+    <Content Include="PitManager\PitManagerEventHandlersTable_ACC.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>PitManagerEventHandlersTable_ACC.cs</LastGenOutput>
+    </Content>
+    <Content Include="PitManager\PitManagerEventHandlersTable_iRacing.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>PitManagerEventHandlersTable_iRacing.cs</LastGenOutput>
+    </Content>
+    <Content Include="PitManager\PitManagerEventHandlersTable_LMU.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>PitManagerEventHandlersTable_LMU.cs</LastGenOutput>
+    </Content>
+    <Content Include="PitManager\PitManagerEventHandlersTable_R3E.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>PitManagerEventHandlersTable_R3E.cs</LastGenOutput>
+    </Content>
+    <Content Include="PitManager\PitManagerEventHandlersTable_RF2.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>PitManagerEventHandlersTable_RF2.cs</LastGenOutput>
+    </Content>
+    <Content Include="Resources\cursor.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="sounds_config.txt" />
+    <Content Include="speech_recognition_config.txt" />
+    <Content Include="tools\CC_sourceWrangler\CC_sourceWrangler.py" />
+    <Content Include="tools\CC_sourceWrangler\CC_sourceWrangler.sln" />
+    <Content Include="ui_text\en.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ui_text\fr.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameOverlay.Net\source\GameOverlay.csproj">
+      <Project>{c132c263-be80-4ebc-ba8a-95521ffbeb39}</Project>
+      <Name>GameOverlay</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FuzzySharp">
+      <Version>2.0.2</Version>
+    </PackageReference>
+    <PackageReference Include="InputSimulatorPlus">
+      <Version>1.0.7</Version>
+    </PackageReference>
+    <PackageReference Include="InSimDotNet">
+      <Version>2.9.4.1</Version>
+    </PackageReference>
+    <PackageReference Include="MathNet.Numerics">
+      <Version>4.8.1</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Web.WebView2">
+      <Version>1.0.2535.41</Version>
+    </PackageReference>
+    <PackageReference Include="MQTTnet">
+      <Version>3.1.2</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio">
+      <Version>2.0.1</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio.Asio">
+      <Version>2.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio.Core">
+      <Version>2.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio.Midi">
+      <Version>2.0.1</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio.Wasapi">
+      <Version>2.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio.WinForms">
+      <Version>2.0.1</Version>
+    </PackageReference>
+    <PackageReference Include="NAudio.WinMM">
+      <Version>2.0.1</Version>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
+    </PackageReference>
+    <PackageReference Include="Phonix">
+      <Version>1.0.2</Version>
+    </PackageReference>
+    <PackageReference Include="RestSharp">
+      <Version>112.1.0</Version>
+    </PackageReference>
+    <PackageReference Include="Serilog">
+      <Version>3.1.1</Version>
+    </PackageReference>
+    <PackageReference Include="SharpDX.Direct2D1">
+      <Version>4.2.0</Version>
+    </PackageReference>
+    <PackageReference Include="SharpDX.Direct3D11">
+      <Version>4.2.0</Version>
+    </PackageReference>
+    <PackageReference Include="SharpDX.DirectInput">
+      <Version>4.2.0</Version>
+    </PackageReference>
+    <PackageReference Include="SharpDX.Mathematics">
+      <Version>4.2.0</Version>
+    </PackageReference>
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe">
+      <Version>6.1.2</Version>
+    </PackageReference>
+    <PackageReference Include="System.Text.Json">
+      <Version>8.0.6</Version>
+    </PackageReference>
+    <PackageReference Include="Verint.Microsoft.Speech.x64">
+      <Version>11.0.7400.345</Version>
+    </PackageReference>
+    <PackageReference Include="WebSocketSharp-netstandard">
+      <Version>1.0.1</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

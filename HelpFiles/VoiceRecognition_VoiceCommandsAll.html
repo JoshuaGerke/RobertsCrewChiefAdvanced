@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body vlink="#551A8B" text="#000000" link="#0000EE" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main"> Crew Chief understands lots of command including:<br>
+      <br>
+      "How's my [fuel / tyre wear / body work / aero / engine /
+      transmission / suspension / pace / delta best ]"<br>
+      "How are my [tyre temps / tyre temperatures / brakes / brake temps
+      / brake temperatures / engine temps / engine temperatures]" (gives
+      a good / bad type response)<br>
+      "What are my [brake temps / tyre temps]" (gives the actual temps)<br>
+      "What's my [oil temp / water temp]" (gives the actual temps)<br>
+      "What's my [gap in front / gap ahead / gap behind / last lap /
+      last lap time / lap time / position / fuel level / best lap / best
+      lap time]"<br>
+      "What's the fastest lap" (reports the fastest lap in the session
+      for the player's car class)<br>
+      "Keep quiet / I know what I'm doing / leave me alone" (switches
+      off messages)<br>
+      "Keep me informed / keep me posted / keep me updated" (switches
+      messages back on)<br>
+      "How long's left / how many laps are left / how many laps to go"<br>
+      "Spot / don't spot" (switches the spotter on and off - note even
+      in "leave me alone" mode the spotter still operates unless you
+      explicitly switch it off)<br>
+      "Do I still have a penalty / do I have a penalty / have I served
+      my penalty"<br>
+      "Do I have to pit / do I need to pit / do I have a mandatory pit
+      stop / do I have a mandatory stop / do I have to make a pit stop"<br>
+      "Where's [opponent driver last name]"<br>
+      "What's [opponent driver last name]'s last lap"<br>
+      "What's [opponent driver last name]'s best lap"<br>
+      "What's [opponent driver last name]'s irating"<br>
+      "What's [opponent driver last name]'s license class"<br>
+      "What's [opponent race position]'s last lap" (for example, "what's
+      p 4's best lap", or "what's position 4's last lap")<br>
+      "What's [opponent race position]'s best lap"<br>
+      "What's [opponent race position]'s irating"<br>
+      "What's [opponent race position]'s license class"<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s last lap"<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s best lap"<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s irating"<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s license class"<br>
+      "What's [the car behind / the guy behind]'s last lap"<br>
+      "What's [the car behind / the guy behind]'s best lap"<br>
+      "What's [the car behind / the guy behind]'s irating"<br>
+      "What's [the car behind / the guy behind]'s license class"<br>
+      "What tyre(s) is [opponent driver last name / opponent race
+      position] on"<br>
+      "What are my sector times"<br>
+      "What's my last sector time"<br>
+      "Who's leading" (this one only works if you have the driver name
+      recording for the lead car)<br>
+      "Who's [ahead / ahead in the race / in front / in front in the
+      race / behind / behind in the race]" (gives the name of the car in
+      front / behind in the race or on the timing sheet for qual /
+      practice. This one only works if you have the driver name
+      recording for that driver)<br>
+      "Who's [ahead on track / in front on track / behind on track]"
+      (gives the name of the car in front / behind in on track,
+      regardless of his race / qual position. This one only works if you
+      have the driver name recording for that driver)<br>
+      "Tell me the gaps / give me the gaps / tell me the deltas / give
+      me the deltas" (switch on 'deltas' mode where the time deltas in
+      front and behind get read out on each lap. Note that these
+      messages will play even if you have disabled messages)<br>
+      "Don't tell me the gaps / don't tell me the deltas / no more gaps
+      / no more deltas" (switch off deltas mode)<br>
+      "Repeat last message / say again" (replays the last message)<br>
+      "What are my [brake / tyre] [temperatures / temps]"<br>
+      "What time is it / what's the time" (reports current real-world
+      time)<br>
+      "What's my fuel usage / what's my fuel consumption / what's my
+      fuel use" (reports the per-lap or per-minute average fuel
+      consumption)<br>
+      "What tyres am I on / what tyre am / on / what tyre type am i on"
+      (reports the tyre name you're currently using, if available)<br>
+      "Calculate fuel for [X minutes / laps] / how much fuel do I need
+      for [X minutes / laps] / how much fuel for [X minutes / laps]"
+      (estimates how much fuel you'll probably need for this many
+      minutes or laps)<br>
+      "Give me tyre pace differences / what are the tyre speeds / whats
+      the difference between tyres / compare tyre compounds" (Raceroom
+      only - gives lap time deltas for the best lap on each tyre type
+      that's been used during the session, across all drivers in the
+      same car class as the player)<br>
+      "This is the formation lap / formation lap / rolling start":
+      Enable manual rolling-start mode (used by some online leagues)<br>
+      "Standing start / no formation lap": Disable manual rolling-start
+      mode<br>
+      "Where should I attack / where am I faster / where can I attack":
+      If Crew Chief has enough data, will report the corner name where
+      you're gaining the most time on the guy in front<br>
+      "Where should I defend / where am I slower / where is he faster /
+      where will he attack": If Crew Chief has enough data, will report the
+      corner name where you're losing the most time to the guy behind<br>
+      "Read corner names / corner names / tell me the corner names":
+      read out each corner name when you hit the mid-point of the
+      corner, for this lap only (useful to test corner name mappings)<br>
+      "Damage report" / "How's my car" / "Is my car ok?": report any
+      damage the car has sustained<br>
+      "Car status": report any damage the car has sustained, tyre and
+      brake temperature status and fuel / battery status<br>
+      "Session status" / "Race status": report race position, gaps, time
+      / laps left in session<br>
+      "Full update" / "Full status" / "Update me": combines all of the
+      above three status reports (will produce a very verbose response)<br>
+      "How much fuel to the end" / "how much fuel do we need": report
+      how many litres or gallons of fuel Crew Chief thinks you'll need to
+      finish the race<br>
+      "Is the car ahead in my class" / "is the car ahead my class" / "is
+      the car ahead the same class as me" / "is the car in front in my
+      class" / "is the car in front my class" / "is the car in front the
+      same class as me" - responds yes or no<br>
+      "Is the car behind in my class" / "is the car behind my class" /
+      "is the car behind the same class as me" - responds yes or no<br>
+      "What class is the car ahead" / "what class is the guy ahead" /
+      "what class is the car in front" / "what class is the guy in
+      front" - reports class name, or "faster" / "slower" if Crew Chief
+      doesn't have the class name<br>
+      "What class is the car behind" / "what class is the guy behind"-
+      reports class name, or "faster" / "slower" if Crew Chief doesn't have
+      the class name<br>
+      "Time this stop" / "practice pitstop" / "time this pitstop" /
+      "pitstop benchmark": time the next pitstop (sector 3 + sector 1
+      time) to work out home much tome overall a pitstop costs -
+      practice session only<br>
+      "Where will I be after a stop?" / "Estimate pit exit positions" /
+      "What will happen if I pit?": play estimate of traffic and race
+      positions on pit exit, if you were to pit on this lap<br>
+      "Don't talk in the [corners / braking zones]" / "no messages in
+      the [corners / braking zones]": delay non-critical messages if the
+      player is in a challenging section of the track<br>
+      "Talk to me anywhere" / "messages at any point": disable message
+      delay in challenging parts of the track<br>
+      "Set alarm to [hour] [minutes] [optional am/pm]" / "alarm me at
+      [hour] [minutes] [optional am/pm]": sets the alarm clock at the
+      given time, supports both 12 and 24 hour format and multiple
+      alarms<br>
+      "Clear alarm clock" / "clear alarms": clears all the alarms set<br>
+      "Enable cut track warnings" / "play cut track warnings:warn about
+      cuts"<br>
+      "No cut track warnings" / "no more cut warnings:no more cut track
+      warnings"<br>
+      "Monitor [opponent driver last name]" (adds this driver to a list
+      of drivers which Crew Chief will keep you informed about)<br>
+      "Team mate [opponent driver last name]" (adds this driver to a
+      list of drivers which Crew Chief will keep you informed about)<br>
+      "Rival [opponent driver last name]" (adds this driver to a list of
+      drivers which Crew Chief will keep you informed about)<br>
+      "Cancel monitored drivers" / "stop monitoring drivers" / "stop
+      monitoring all" (clears all monitored drivers)<br>
+      "Stop monitoring [opponent driver last name]"<br>
+      <h3>iRacing-specific commands:</h3>
+      "Pitstop add [X liters]" (adds X amount of fuel next pitstop)<br>
+      "Pitstop tearoff / pitstop windscreen" (enable next pitstop)<br>
+      "Pitstop fast repair / pitstop repair" (enable fast repair next
+      pitstop)<br>
+      "Pitstop clear all" (clears all selected pitstop options)<br>
+      "Pitstop clear tyres" / "pitstop don't change tyres" / "box, clear
+      tyres" / "box, don't change tyres" (clears all tyre selections
+      next pitstop)<br>
+      "Pitstop clear tearoff / pitstop clear windscreen" (clears tearoff
+      selection next pitstop)<br>
+      "Pitstop clear fast repair" (clears fast repair selection next
+      pitstop)<br>
+      "Pitstop clear fuel" (clears fuel refuelling next pitstop)<br>
+      "Pitstop change all tyres" / "box, change all tyres" (change all
+      tyres next pitstop)<br>
+      "Pitstop change left front tyre" (change left front tyre next
+      pitstop)<br>
+      "Pitstop change right front tyre" (change right front tyre next
+      pitstop)<br>
+      "Pitstop change left rear tyre" (change left rear tyre next
+      pitstop)<br>
+      "Pitstop change right rear tyre" (change right rear tyre next
+      pitstop)<br>
+      "Pitstop change left side tyres"(change left side tyres next
+      pitstop)<br>
+      "Pitstop change right side tyres"(change right side tyres next
+      pitstop)<br>
+      "Pitstop change tyres pressure [ new value ]" (change all tyre
+      pressures next pitstop)<br>
+      "Pitstop change left front tyre pressure [ new value ]" (change
+      left front tyre pressure next pitstop)<br>
+      "Pitstop change right front tyre pressure [ new value ]" (change
+      right front tyre pressure next pitstop)<br>
+      "Pitstop change left rear tyre pressure [ new value ]" (change
+      left rear tyre pressure next pitstop)<br>
+      "Pitstop change right rear tyre pressure [ new value ]" (change
+      right rear tyre pressure next pitstop)<br>
+      "Pitstop fuel to the end" / "pitstop fuel to the end of the race"
+      (add the fuel amount Crew Chief calculates you'll need to finish the
+      race)<br>
+      <br>
+      "What's the sof" / "what is the strength of field"<br>
+      "How many incidents do i have" / "what's my incident count"<br>
+      "What's the incident limit"<br>
+      <h3>R3E-specific commands:</h3>
+      "Pitstop clear tyres" / "pitstop don't change tyres" / "box, clear
+      tyres" / "box, don't change tyres"<br>
+      "Pitstop change all tyres" / "box, change all tyres"<br>
+      "Pitstop change front tyres only" / "box, change front tyres only"<br>
+      "Pitstop change rear tyres only" / "box, change rear tyres only"<br>
+      "Pitstop next tyre compound" / "box, next tyre compound"<br>
+      "Pitstop fix front aero only" / "box, fix front aero only"<br>
+      "Pitstop fix rear aero only" / "box, fix rear aero only"<br>
+      "Pitstop fix all aero" / "box, fix all aero"<br>
+      "Pitstop don't fix aero" / "box, don't fix aero"<br>
+      "Pitstop fix suspension" / "box, fix suspension"<br>
+      "Pitstop don't fix suspension" / "box, don't fix suspension"<br>
+      "Pitstop serve penalty" / "box, serve penalty"<br>
+      "Pitstop don't serve penalty" / "box, don't serve penalty"<br>
+      "Pitstop refuel" / "box, refuel"<br>
+      "Pitstop don't refuel" / "box, don't refuel"<br>
+      "Pitstop next tyre compound" / "box, next tyre compound"<br>
+      "Pitstop hard tyres" / "box, hard tyres"<br>
+      "Pitstop medium tyres" / "box, medium tyres"<br>
+      "Pitstop soft tyres" / "box, soft tyres"<br>
+      "Pitstop prime tyres" / "box, prime tyres" / "pitstop primary
+      tyres" / "box, primary tyres"<br>
+      "Pitstop option tyres:" / "box, option tyres"<br>
+      "Pitstop alternate tyres" / "box, alternate tyres"<br>
+      "What are the pit actions" / "what's the pitstop plan" (reports
+      the selected actions for the next pitstop)<br>
+      <br>
+      "What's [opponent driver last name]'s ranking" (if available)<br>
+      "What's [opponent driver last name]'s reputation" (if available)<br>
+      "What's [opponent driver last name]'s rating" (if available)<br>
+      "What's [opponent race position]'s ranking" (if available)<br>
+      "What's [opponent race position]'s reputation" (if available)<br>
+      "What's [opponent race position]'s rating" (if available)<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s ranking" (if available)<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s reputation" (if available)<br>
+      "What's [the car in front / the guy in front / the car ahead / the
+      guy ahead]'s rating" (if available)<br>
+      "What's [the car behind / the guy behind]'s ranking" (if
+      available)<br>
+      "What's [the car behind / the guy behind]'s reputation" (if
+      available)<br>
+      "What's [the car behind / the guy behind]'s rating" (if available)<br>
+      <h3>rFactor 2-specific</h3>
+      <i>Select Multi-Function Display screen</i><br>
+      Display<br>
+      &nbsp; sectors / sector times<br>
+      &nbsp; pit menu<br>
+      &nbsp; tyres<br>
+      &nbsp; temps / temperatures<br>
+      &nbsp; race info<br>
+      &nbsp; standings<br>
+      &nbsp; penalties<br>
+      <br>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,1604 @@
+{
+  "CONTROL_auto_reverse": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "COPY_practice1_time": null,
+  "COPY_qualify_laps": null,
+  "COPY_qualify_time": null,
+  "COPY_warmup_time": null,
+  "DISPLAYOPT_showroom": {
+    "currentValue": 0,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Light_Studio",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_antilock_brakes": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_auto_blip": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_auto_clutch": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_auto_headlights": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_auto_lift": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_auto_wipers": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_automatic_pit_speed_limit": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_autopit": {
+    "currentValue": 0,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_brake_help": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_hold_brakes": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_hold_clutch": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_invulnerable": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_opposite_lock": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_repeat_shifts": {
+    "currentValue": 1,
+    "maxValue": 4,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "100ms",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_shift_mode": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_spin_recovery": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_stability_control": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_start_engine": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_steering_help": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_throttle_control": {
+    "currentValue": 2,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Medium",
+    "valueType": "LONG"
+  },
+  "DRIVEAIDS_vis_fast_line": {
+    "currentValue": 3,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_MULTI_race_finish_criteria": null,
+  "GAMEOPT_MULTI_race_laps": null,
+  "GAMEOPT_MULTI_race_time": null,
+  "GAMEOPT_ai_aggression": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Normal",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_ai_driverstrength": {
+    "currentValue": 96,
+    "maxValue": 105,
+    "minValue": 75,
+    "stepValue": 1,
+    "stringValue": "Advanced (96%)",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_broadcast_custom_cameras": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_broadcast_group_lap1range": {
+    "currentValue": 0.800000011920929,
+    "maxValue": 2,
+    "minValue": 0.25,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.80",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_broadcast_group_mode": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Race Only",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_broadcast_group_range": {
+    "currentValue": 0.5,
+    "maxValue": 2,
+    "minValue": 0.25,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.50",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_broadcast_group_zoommax": {
+    "currentValue": 2,
+    "maxValue": 5,
+    "minValue": 1,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "2.00",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_broadcast_group_zoomstrength": {
+    "currentValue": 0.8999999761581421,
+    "maxValue": 3,
+    "minValue": 0.25,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.90",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_broadcast_persistent_zoom": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_broadcast_trackingchange_blend": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_broadcast_trackingchange_maxtimediff": {
+    "currentValue": 5,
+    "maxValue": 60,
+    "minValue": 0,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "5.00",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_broadcast_trackingchange_timedelay": {
+    "currentValue": 0.20000000298023224,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.20",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_damagemultiplier": {
+    "currentValue": 100,
+    "maxValue": 100,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "100",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_delete_save_data_race_end": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_kph": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "kph",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_kw": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Percentage",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_remember_onboard_changes": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_spotter_detail": {
+    "currentValue": 0,
+    "maxValue": 4,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_spotter_laptimes": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Never",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_transparent_trainer_lap": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_transparent_trainer_lead_time": {
+    "currentValue": 0.5,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 0.05000000074505806,
+    "stringValue": "0.50 s",
+    "valueType": "FLOAT"
+  },
+  "GAMEOPT_units": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "metric",
+    "valueType": "LONG"
+  },
+  "GAMEOPT_wait_for_plugins": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_HUD_ultrawide_ratio": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Normal",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_TextureFilter": {
+    "currentValue": 3,
+    "maxValue": 5,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "X4 Anisotropic",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_VR_IPD_scale": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_VR_hud_depth": {
+    "currentValue": 0.5,
+    "maxValue": 1,
+    "minValue": 0.10000000149011612,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.50",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_VR_hud_scale": {
+    "currentValue": 0.3500000238418579,
+    "maxValue": 2,
+    "minValue": 0.25,
+    "stepValue": 0.05000000074505806,
+    "stringValue": "0.35",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_VR_menu_depth": {
+    "currentValue": 0.5,
+    "maxValue": 1,
+    "minValue": 0.10000000149011612,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.50",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_VR_menu_scale": {
+    "currentValue": 0.699999988079071,
+    "maxValue": 2,
+    "minValue": 0.25,
+    "stepValue": 0.05000000074505806,
+    "stringValue": "0.70",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_car_vibration_mult1": {
+    "currentValue": 1,
+    "maxValue": 7,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Aero (Linear)",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_labels": {
+    "currentValue": 2,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Multiplayer",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_flags": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_hud": {
+    "currentValue": 2,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Full",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_info_car": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_info_timing": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_notifications_chat": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_notifications_game": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_notifications_race": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_radar": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_standings": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_driver_overlay_trackmap": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Hidden",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_env_reflections": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Medium",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_exaggerate_yaw": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": -1,
+    "stepValue": 0.00800000037997961,
+    "stringValue": "0.00",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_head_physics": {
+    "currentValue": 0.10000000149011612,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "0.10",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_live_tv_displays": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_lookahead_radians": {
+    "currentValue": 0,
+    "maxValue": 0.20000000298023224,
+    "minValue": 0,
+    "stepValue": 0.0020000000949949026,
+    "stringValue": "0.00",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_max_framerate": {
+    "currentValue": 0,
+    "maxValue": 3.4028234663852886e+38,
+    "minValue": 0,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.00",
+    "valueType": "FLOAT"
+  },
+  "GRAPHOPT_motionblur": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Trackside Only",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_center_BezelGap": {
+    "currentValue": 37,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "37 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_center_EyeDistance": {
+    "currentValue": 600,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "600 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_center_ScreenHeight": {
+    "currentValue": 340,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "340 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_center_ScreenWidth": {
+    "currentValue": 540,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "540 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_center_SideAngle": {
+    "currentValue": 150,
+    "maxValue": 900,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "15.0 deg",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_left_BezelGap": {
+    "currentValue": 37,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "37 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_left_EyeDistance": {
+    "currentValue": 600,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "600 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_left_ScreenHeight": {
+    "currentValue": 340,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "340 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_left_ScreenWidth": {
+    "currentValue": 540,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "540 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_left_SideAngle": {
+    "currentValue": 150,
+    "maxValue": 900,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "15.0 deg",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_mode": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Shared",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_right_BezelGap": {
+    "currentValue": 37,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "37 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_right_EyeDistance": {
+    "currentValue": 600,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "600 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_right_ScreenHeight": {
+    "currentValue": 340,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "340 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_right_ScreenWidth": {
+    "currentValue": 540,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "540 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_right_SideAngle": {
+    "currentValue": 150,
+    "maxValue": 900,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "15.0 deg",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_shared_BezelGap": {
+    "currentValue": 37,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "37 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_shared_EyeDistance": {
+    "currentValue": 600,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "600 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_shared_ScreenHeight": {
+    "currentValue": 340,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "340 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_shared_ScreenWidth": {
+    "currentValue": 540,
+    "maxValue": 100000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "540 mm",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_multiview_shared_SideAngle": {
+    "currentValue": 150,
+    "maxValue": 900,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "15.0 deg",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_opponent_detail": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Medium",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_player_detail": {
+    "currentValue": 2,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "High",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_rain_drops": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Medium",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_rearview": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_road_reflections": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Medium",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_screenshot_depth_alpha": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_screenshot_file_type": {
+    "currentValue": 1,
+    "maxValue": 4,
+    "minValue": 1,
+    "stepValue": 1,
+    "stringValue": "BMP",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_shadow_blur": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_shadows": {
+    "currentValue": 0,
+    "maxValue": 4,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_soft_particles": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_specialfx": {
+    "currentValue": 0,
+    "maxValue": 4,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_ssao": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_stabilize_horizon": {
+    "currentValue": 0,
+    "maxValue": 5,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_starting_view": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Cockpit",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_steering_wheel": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_texture": {
+    "currentValue": 2,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "High",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_track": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Medium",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_vfov": {
+    "currentValue": 9,
+    "maxValue": 100,
+    "minValue": 9,
+    "stepValue": 1,
+    "stringValue": "Default",
+    "valueType": "LONG"
+  },
+  "GRAPHOPT_visible_vehicles": {
+    "currentValue": 22,
+    "maxValue": 105,
+    "minValue": 6,
+    "stepValue": 1,
+    "stringValue": "22",
+    "valueType": "LONG"
+  },
+  "MP_NETWORK_connection_type": {
+    "currentValue": 1,
+    "maxValue": 6,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "ADSL2+ 16M",
+    "valueType": "LONG"
+  },
+  "MP_NETWORK_downstream": {
+    "currentValue": 8000,
+    "maxValue": 2500000,
+    "minValue": 1000,
+    "stepValue": 1,
+    "stringValue": "8.00 Mbps",
+    "valueType": "LONG"
+  },
+  "MP_NETWORK_upstream": {
+    "currentValue": 1000,
+    "maxValue": 2500000,
+    "minValue": 1000,
+    "stepValue": 1,
+    "stringValue": "1.00 Mbps",
+    "valueType": "LONG"
+  },
+  "MULTI_download_custom_skins": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "REPLAYOPT_instant_replay": {
+    "currentValue": 20,
+    "maxValue": 180,
+    "minValue": 10,
+    "stepValue": 1,
+    "stringValue": "20",
+    "valueType": "LONG"
+  },
+  "REPLAYOPT_record_hotlaps": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "REPLAYOPT_record_replays": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "REPLAYOPT_replay_fidelity": {
+    "currentValue": 3,
+    "maxValue": 4,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "High",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_HTTP_server_document_path": {
+    "stringValue": "Packages",
+    "valueType": "STRING"
+  },
+  "SERVEROPT_HTTP_server_max_file_size": {
+    "currentValue": 500,
+    "maxValue": 1000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "500",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_HTTP_server_send_rate": {
+    "currentValue": -1,
+    "maxValue": -1,
+    "minValue": 56000,
+    "stepValue": 1,
+    "stringValue": "-1",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_admin_func": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Non-Admin's Never Call Vote When Admin Present",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_admin_password": {
+    "stringValue": "",
+    "valueType": "STRING"
+  },
+  "SERVEROPT_aid_max": null,
+  "SERVEROPT_allow_ai_toggling": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_allow_any_event": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Clients Can Vote For Tracks In Server List",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_allow_hotlap_completion": {
+    "currentValue": 16,
+    "maxValue": 63,
+    "minValue": 1,
+    "stepValue": 1,
+    "stringValue": "16",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_allow_loose_content_transfer": {
+    "currentValue": 0,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Nothing",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_allow_race_rejoin": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "No",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_allows_driver_hotswap": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_allows_spectator_chat": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_assign_parking": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_client_fuel_visible": {
+    "currentValue": 2,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On Server",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_client_wait": {
+    "currentValue": 32,
+    "maxValue": 255,
+    "minValue": 17,
+    "stepValue": 1,
+    "stringValue": "32",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_closed_qualify_session": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Open",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_closed_race_session": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 1,
+    "stepValue": 1,
+    "stringValue": "Open To Spectate",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_coll_threshold": {
+    "currentValue": 0.699999988079071,
+    "maxValue": 10,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "0.70",
+    "valueType": "FLOAT"
+  },
+  "SERVEROPT_dedicated_loading_prio": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Normal",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_dedicated_loading_sleep": {
+    "currentValue": 0,
+    "maxValue": 100,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "0",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_default_name": {
+    "stringValue": "",
+    "valueType": "STRING"
+  },
+  "SERVEROPT_delay_after_race": {
+    "currentValue": 90,
+    "maxValue": 900000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "90.00",
+    "valueType": "FLOAT"
+  },
+  "SERVEROPT_delay_between_sessions": {
+    "currentValue": 30,
+    "maxValue": 900000,
+    "minValue": 5,
+    "stepValue": 1,
+    "stringValue": "30.00",
+    "valueType": "FLOAT"
+  },
+  "SERVEROPT_enable_autodownloads": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_enforce_real_name": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Display Nickname",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_force_driving_view": {
+    "currentValue": 0,
+    "maxValue": 5,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "No View Restrictions",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_isolation_code": {
+    "currentValue": 0,
+    "maxValue": 2147483647,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "0",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_join_password": {
+    "stringValue": "",
+    "valueType": "STRING"
+  },
+  "SERVEROPT_lessen_restrictions": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_max_clients": {
+    "currentValue": 30,
+    "maxValue": 500,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "30",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_max_kbps_per_client": {
+    "currentValue": 2000,
+    "maxValue": 50000,
+    "minValue": 50,
+    "stepValue": 1,
+    "stringValue": "2000",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_max_vehicles": {
+    "currentValue": 16,
+    "maxValue": 104,
+    "minValue": 2,
+    "stepValue": 1,
+    "stringValue": "16",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_maximum_AI": {
+    "currentValue": 32,
+    "maxValue": 104,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "32",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_minimum_AI": {
+    "currentValue": 0,
+    "maxValue": 104,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "0",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_must_be_stopped": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_pause_if_no_humans": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_pause_start_of_first_session": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_pit_speed_override": {
+    "currentValue": 0,
+    "maxValue": 256,
+    "minValue": 0,
+    "stepValue": 0.10000000149011612,
+    "stringValue": "0.00",
+    "valueType": "FLOAT"
+  },
+  "SERVEROPT_plugin_heartbeat_rate": {
+    "currentValue": 4,
+    "maxValue": 7,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "0.4",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_practice1_time": {
+    "currentValue": 20,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "20",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_qualify_laps": {
+    "currentValue": 255,
+    "maxValue": 255,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "255",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_qualify_time": {
+    "currentValue": 10,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "10",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_session_end_timeout": {
+    "currentValue": 300,
+    "maxValue": 1000000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "300",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_superadmin_password": {
+    "stringValue": "",
+    "valueType": "STRING"
+  },
+  "SERVEROPT_test_day": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_unique_vehicles": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_unthrottle_id": null,
+  "SERVEROPT_unthrottle_prefix": {
+    "stringValue": "",
+    "valueType": "STRING"
+  },
+  "SERVEROPT_vote_max_race_restarts": {
+    "currentValue": 1,
+    "maxValue": 2147483647,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "1",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_vote_min_voters": {
+    "currentValue": 1,
+    "maxValue": 104,
+    "minValue": 1,
+    "stepValue": 1,
+    "stringValue": "1",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_vote_pct_addai": {
+    "currentValue": 49,
+    "maxValue": 100,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "49",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_vote_pct_nextsession": {
+    "currentValue": 58,
+    "maxValue": 100,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "58",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_vote_pct_other": {
+    "currentValue": 66,
+    "maxValue": 100,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "66",
+    "valueType": "LONG"
+  },
+  "SERVEROPT_warmup_time": {
+    "currentValue": 5,
+    "maxValue": 2000,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "5",
+    "valueType": "LONG"
+  },
+  "SOUNDOPT_Channels": {
+    "currentValue": -1,
+    "maxValue": 1,
+    "minValue": -1,
+    "stepValue": 1,
+    "stringValue": "Auto",
+    "valueType": "LONG"
+  },
+  "SOUNDOPT_engine_vol": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_external_vol_ratio": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0.5,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_hrtf": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": -1,
+    "stepValue": 1,
+    "stringValue": "1 SADIE H06",
+    "valueType": "LONG"
+  },
+  "SOUNDOPT_master_vol": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_max_effects": {
+    "currentValue": 256,
+    "maxValue": 255,
+    "minValue": 32,
+    "stepValue": 1,
+    "stringValue": "256",
+    "valueType": "LONG"
+  },
+  "SOUNDOPT_mic_mode": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Broadcast",
+    "valueType": "LONG"
+  },
+  "SOUNDOPT_onboard_vol": {
+    "currentValue": 0.25,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "0.25",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_options_vol": {
+    "currentValue": 0.30000001192092896,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "0.30",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_player_vol_ratio": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 1,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_soundfx_vol": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_spotter_vol": {
+    "currentValue": 0.699999988079071,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "0.70",
+    "valueType": "FLOAT"
+  },
+  "SOUNDOPT_tire_vol_ratio": {
+    "currentValue": 1,
+    "maxValue": 4,
+    "minValue": 0,
+    "stepValue": 0.009999999776482582,
+    "stringValue": "1.00",
+    "valueType": "FLOAT"
+  },
+  "VIDEOOPT_APPLY_CHANGES": null,
+  "VIDEOOPT_MULTIVIEW": {
+    "currentValue": 0,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_POSTFXAA": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDEOMODE": {
+    "currentValue": 10,
+    "maxValue": 10,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "2560 x 1440 ",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDMaxHRes": {
+    "currentValue": 99999,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDMaxVRes": {
+    "currentValue": 99999,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDMinHRes": {
+    "currentValue": 800,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDMinVRes": {
+    "currentValue": 600,
+    "maxValue": 0,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDdriver": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Monitor #1",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDfsaa": {
+    "currentValue": 0,
+    "maxValue": 3,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "None",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDrefresh": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "75 Hz",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDvsync": {
+    "currentValue": 0,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDwidescreenHUD": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDwidescreenUI": {
+    "currentValue": 0,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Off",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VIDwindowMode": {
+    "currentValue": 1,
+    "maxValue": 2,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "Borderless",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_VR_setting": {
+    "currentValue": 1,
+    "maxValue": 1,
+    "minValue": 0,
+    "stepValue": 1,
+    "stringValue": "On",
+    "valueType": "LONG"
+  },
+  "VIDEOOPT_postprocess_level": {
+    "currentValue": 1,
+    "maxValue": 3,
+    "minValue": 1,
+    "stepValue": 1,
+    "stringValue": "Low",
+    "valueType": "LONG"
+  }
+}

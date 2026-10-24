@@ -1,0 +1,955 @@
+{
+	"buttonAssignments": [
+		{
+			"action": "what's the car ahead's last lap time",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": true
+		},
+		{
+			"action": "what's the car behind's last lap time",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": true
+		},
+		{
+			"action": "HOWS_MY_TYRE_WEAR",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_TRANSMISSION",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_AERO",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_ENGINE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_SUSPENSION",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_BRAKES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_FUEL",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_BATTERY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_PACE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_SELF_PACE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_TYRE_TEMPS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_ARE_MY_TYRE_TEMPS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_BRAKE_TEMPS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_ARE_MY_BRAKE_TEMPS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_ENGINE_TEMPS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_GAP_IN_FRONT",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_GAP_BEHIND",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_WAS_MY_LAST_LAP_TIME",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_BEST_LAP_TIME",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_THE_FASTEST_LAP_TIME",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_POSITION",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_FUEL_LEVEL",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_FUEL_USAGE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SET_FUEL_STRATEGY_CAUTIOUS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SET_FUEL_STRATEGY_RESET",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SET_FUEL_STRATEGY_RISKY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_IRATING",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_LICENSE_CLASS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_TYRES_AM_I_ON",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_ARE_THE_RELATIVE_TYRE_PERFORMANCES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_LONG_WILL_THESE_TYRES_LAST",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_PITLANE_SPEED_LIMIT",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_MUCH_FUEL_TO_END_OF_RACE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_THE_TIME",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHOS_IN_FRONT_IN_THE_RACE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHOS_BEHIND_IN_THE_RACE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHOS_IN_FRONT_ON_TRACK",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHOS_BEHIND_ON_TRACK",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHOS_LEADING",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHERE_AM_I_FASTER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHERE_AM_I_SLOWER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_LONGS_LEFT",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HAVE_I_SERVED_MY_PENALTY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "DO_I_HAVE_A_PENALTY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "DO_I_STILL_HAVE_A_PENALTY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "DO_I_HAVE_A_MANDATORY_PIT_STOP",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_ARE_MY_SECTOR_TIMES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_LAST_SECTOR_TIME",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_THE_AIR_TEMP",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_THE_TRACK_TEMP",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_BRAKE_BIAS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "RADIO_CHECK",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "IS_MY_PIT_BOX_OCCUPIED",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PLAY_POST_PIT_POSITION_ESTIMATE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PRACTICE_PIT_STOP",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_LEFT_FRONT_CAMBER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_RIGHT_FRONT_CAMBER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_LEFT_REAR_CAMBER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_RIGHT_REAR_CAMBER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_FRONT_CAMBER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_REAR_CAMBER",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_TYRE_PRESSURES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_FRONT_TYRE_PRESSURES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_REAR_TYRE_PRESSURES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_LEFT_FRONT_CAMBER_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_RIGHT_FRONT_CAMBER_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_LEFT_REAR_CAMBER_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_RIGHT_REAR_CAMBER_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_FRONT_CAMBER_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOWS_MY_REAR_CAMBER_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_TYRE_PRESSURES_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_FRONT_TYRE_PRESSURES_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_ARE_MY_REAR_TYRE_PRESSURES_RIGHT_NOW",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_TEAROFF",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_FAST_REPAIR",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CLEAR_ALL",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CLEAR_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CLEAR_WIND_SCREEN",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CLEAR_FAST_REPAIR",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CLEAR_FUEL",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_ALL_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_FRONT_LEFT_TYRE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_FRONT_RIGHT_TYRE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_REAR_LEFT_TYRE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_REAR_RIGHT_TYRE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_LEFT_SIDE_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_CHANGE_RIGHT_SIDE_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_HARD_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_MEDIUM_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_SOFT_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_WET_TYRES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_NEXT_TYRE_COMPOUND",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_MANY_INCIDENT_POINTS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_THE_INCIDENT_LIMIT",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HOW_MANY_DRS_ACTIVATIONS_LEFT",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_THE_SOF",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "PIT_STOP_FUEL_TO_THE_END",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "IS_CAR_AHEAD_MY_CLASS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "IS_CAR_BEHIND_MY_CLASS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_CLASS_IS_CAR_AHEAD",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHAT_CLASS_IS_CAR_BEHIND",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HIDE_OVERLAY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HIDE_CONSOLE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HIDE_CHART",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_OVERLAY",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_CONSOLE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+
+		{
+			"action": "SHOW_CHART",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_All_OVERLAYS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "CLEAR_CHART",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "CLEAR_DATA",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "REFRESH_CHART",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_STACKED_CHARTS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_SINGLE_CHART",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_TIME",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_DISTANCE",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_SUBTITLES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HIDE_SUBTITLES",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "TOGGLE_VR_OVERLAYS",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "SHOW_VR_SETTING",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "HIDE_VR_SETTING",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_RATING",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_RANK",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "WHATS_MY_REPUTATION",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "what's the car ahead's rank",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": false
+		},
+		{
+			"action": "what's the car ahead's rating",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": false
+		},
+		{
+			"action": "what's the car ahead's reputation",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": false
+		},
+		{
+			"action": "what's the car behind's rank",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": false
+		},
+		{
+			"action": "what's the car behind's rating",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": false
+		},
+		{
+			"action": "what's the car behind's reputation",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": true,
+			"availableAction": false
+		},
+		{
+			"action": "monitor the car ahead",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "monitor the car behind",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "STOP_WATCHING_ALL",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": false
+		},
+		{
+			"action": "toggle_rally_recce_mode",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false
+		},
+		{
+			"action": "reset_vr_view",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false
+		}
+	]
+}

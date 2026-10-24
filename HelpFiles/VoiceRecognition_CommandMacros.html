@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body vlink="#551A8B" text="#000000" link="#0000EE" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main">
+      Crew Chief can send sequences of key presses in response to voice
+      command or a button / key press. These can be used for anything you like, but their
+      primary function is to ease the pain of navigating the awkward
+      in-game pit menus. Crew Chief comes with a default set of command
+      macros which for AMS2, iRacing, PCars2 and Raceroom. The default commands can
+      be found in [install folder]/saved_command_macros.json. Crew Chief
+      includes a macro edit function which allows existing macros to be
+      customised and new ones created. This will create a file
+      Documents/CrewChiefV4/save_commands_macros.json with the macros
+      you've modified or created, and will override the default file.<br>
+      <br>
+      Because macros are pretty simple (sending a pre-defined sequence
+      of keys) you need to ensure the in-game key bindings match what
+      the macro is expecting.<br>
+      <br>
+      <h3>Raceroom</h3>
+      Expected in-game key bindings:<br>
+      <table width="274" height="224" cellspacing="2" cellpadding="2"
+        border="1">
+        <tbody>
+          <tr>
+            <td valign="top">Pit Menu Toggle</td>
+            <td valign="top" align="center">Q<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit Menu Select</td>
+            <td valign="top" align="center">E<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit Menu Up<br>
+            </td>
+            <td valign="top" align="center">W<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit Menu Down</td>
+            <td valign="top" align="center">S<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit Menu Decrease</td>
+            <td valign="top" align="center">A<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit Menu Increase</td>
+            <td valign="top" align="center">D<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit Request Toggle</td>
+            <td valign="top" align="center">R<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Real-time Chat</td>
+            <td valign="top" align="center">C<br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <br>
+      You can request a pit stop by saying "pit request", "in this lap"
+      or "box this lap". This will open the pit menu, select 'pit
+      request' and close it again after a few seconds' delay (so you can
+      see what's selected).<br>
+      <br>
+      You can also cycle pit presets with the voice commands "next
+      strategy", "next pit preset", "previous strategy", "previous pit
+      preset".<br>
+      <br>
+      If you want to manually navigate the pit menu with voice commands,
+      use "pit menu toggle", "pit menu up", "pit menu down", "pit menu
+      left", "pit menu right" and "pit menu select".<br>
+      <br>
+      There are more sophisticated macros that can handle refuelling
+      ("fuel to the end" and "add fuel, X litres"). They work by moving
+      the pit menu to the fuel item, de-selecting 'fuel' and then
+      changing the amount to zero by pressing 'Pit menu Decrease' many
+      (about 100) times. They then press 'Pit menu Increase' the correct
+      number of times to set the required (or calculated) fuel amount.
+      Because many key presses are sent in quick succession, some users
+      my encounter issues with these macros (but I've not had any
+      problems myself) - it takes a few seconds to complete these macros
+      to ensure you do them in plenty of time, before you reach the pit
+      lane.<br>
+      <br>
+      <br>
+      <h3>PCars2</h3>
+      Expected in-game key bindings:<br>
+      <table width="271" height="200" cellspacing="2" cellpadding="2"
+        border="1">
+        <tbody>
+          <tr>
+            <td valign="top">Pit Request Toggle</td>
+            <td valign="top" align="center">Q<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Car Management</td>
+            <td valign="top" align="center">E<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">ICM Menu Up</td>
+            <td valign="top" align="center">W<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">ICM Menu Down</td>
+            <td valign="top" align="center">S<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">ICM Menu Left</td>
+            <td valign="top" align="center">A<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">ICM Menu Right</td>
+            <td valign="top" align="center">D<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">In-game Chat Box</td>
+            <td valign="top" align="center">T<br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      You can request a pit stop by saying "pit request", "in this lap"
+      or "box this lap". This will open the pit menu, select 'pit
+      request' and close it again.<br>
+      <br>
+      In pCars 2, you can select strategies with the voice commands
+      "strategy one" / "strat one", up to "strategy four" / "strat
+      four". In R3E you can cycle through pit presets with "next
+      strategy" / "next pit preset" and "previous strategy", "previous
+      pit preset".<br>
+      <br>
+      If you want to manually navigate the pit menu with voice commands,
+      use "pit menu toggle", "pit menu up", "pit menu down", "pit menu
+      left" and "pit menu right".<br>
+      <br>
+      <h3>iRacing</h3>
+      Expected in-game key bindings:<br>
+      <table width="283" height="488" cellspacing="2" cellpadding="2"
+        border="1">
+        <tbody>
+          <tr>
+            <td valign="top">Lap Timing Black Box</td>
+            <td valign="top" align="center">F1<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Standings Black Box</td>
+            <td valign="top" align="center">F2<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Relative Black Box</td>
+            <td valign="top" align="center">F3<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Fuel Black Box</td>
+            <td valign="top" align="center">F4<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Tires Black Box</td>
+            <td valign="top" align="center">F5<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Tire Info Black Box</td>
+            <td valign="top" align="center">F6<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Pit-stop Adjustments Black Box</td>
+            <td valign="top" align="center">F7<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">In-car Adjustments Black Box</td>
+            <td valign="top" align="center">F8<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Mirror Adjustments Black Box</td>
+            <td valign="top" align="center">F9<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Radio Adjustments Black Box</td>
+            <td valign="top" align="center">F10<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Select Next Control</td>
+            <td valign="top" align="center">UP<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Select Previous Control</td>
+            <td valign="top" align="center">DOWN<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Increment Selected Control</td>
+            <td valign="top" align="center">RIGHT<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Decrement Selected Control</td>
+            <td valign="top" align="center">LEFT<br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top">Toggle Selected Control</td>
+            <td valign="top" align="center">SPACE<br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      You can change the black boxes by saying one of the following
+      commands: "black box lap time", "black box standings", "black box
+      relative",<br>
+      "black box fuel", "black box tires", "black box tire info", "black
+      box pit stop", "black box car", "black box mirror" or "black box
+      radio"<br>
+      <br>
+      You can navigate them by saying one of the following commands:
+      "menu next", "menu previous", "menu increase", "menu decrease" or
+      "menu toggle"<br>
+      <br>
+      <br>
+      <h3>Advanced command macros</h3>
+      As you can see from the previous section, key press macros are
+      fiddly and a bit dumb - Crew Chief has only limited knowledge of what
+      state the pit menu is in so it has to either make assumptions or
+      work quite hard to put the menu into a known state.<br>
+      <br>
+      There are 2 macros for adding fuel. One uses the logic of the
+      app's 'Fuel' event to calculate how much fuel is needed to finish
+      the race ("fuel to the end" voice command), the other uses the
+      amount of fuel requested in the voice command ("add fuel, 100
+      litres" or whatever). These macros opens the pit menu, navigate to
+      the fuel option and attempt to reset it to zero litres. Because
+      they can't know how much fuel might already be set on this menu
+      they have to press the 'decrease' button lots (150) times. This
+      ensure it's at zero before they then add the calculated or
+      requested amount of fuel.<br>
+      <br>
+      *<i>Note that these will only work correctly if you use Litres as
+        your unit.</i><br>
+      <br>
+      Another point to note here is that these fuelling macros press
+      'decrease' 150 times quite quickly to ensure the fuel amount is
+      zero before they start increasing it. When things are configured
+      correctly it works well, but it's a lot of key presses and if
+      something goes wrong the end result may be undesirable.<br>
+      <br>
+      The macro feature can also be used to automate chat messages.
+      There are examples for pCars2 and R3E. Again, these just send
+      sequences of key presses.<br>
+      <br>
+      There are a few special key press commands in the macro editor
+      screen to help ease the pain of wiring these things up:<br>
+      <br>
+      &nbsp;- To send a fixed number of multiple key presses use "<b>{MULTIPLE,153}KEY_A</b>"
+      (presses the A key 153 times).<br>
+      &nbsp;- To send a number of multiple key presses based on some app
+      logic for example, use "<b>{MULTIPLE,fuel}KEY_D</b>" (presses D
+      however many times the Fuel event told it to). This requires
+      specific application code to work but I'm happy to take requests
+      :).<br>
+      &nbsp;- To send a number of multiple presses based on the voice
+      command that triggered the macro, the voice command needs to use a
+      special format with the number range to recognise in curly braces
+      - e.g. "<b>add fuel, {1,150} litres</b>" (recognises "add fuel 0
+      litres" up to "add fuel 150 litres", in steps of 1). Use "<b>{MULTIPLE,VOICE_TRIGGER}KEY_D</b>"
+      to press (in this example) D the number of times recognised in the
+      voice command.<br>
+      &nbsp;- To send a sequence of key presses from some free text, use
+      "<b>{FREE_TEXT}sorry, my bad</b>". Each of the keys after <b>{FREE_TEXT}</b>
+      will be pressed in sequence. Only letters, commas, hypens and
+      full-stops are supported. This is to make chat macros more
+      straightforward (e.g. <b>["Real-time Chat", "{FREE_TEXT}good
+        pass", "ENTER"]</b>).<br>
+      <br>
+      Hopefully the game devs will make these menus or the actions they
+      trigger easier to use for 3rd party apps. But until they do, these
+      complicated automated interactions are always going to be flaky.<br>
+      <br>
+      <br>
+      <br>
+      <h3>R3E Pit Menu Interactions</h3>
+      R3E exposes some additional information describing the state of
+      the popup pit menu - I use this where I can to make the macros a
+      little more reliable. Crew Chief is also able to navigate the menu by
+      pressing sequences of key to make specific pit requests. This
+      depends on the in-game key bindings matching the keys set up in
+      Crew Chief's command macros. By default, these macros require the
+      in-game pit menu actions to be bound to W (menu up), A (menu left
+      / decrease), S (menu down), D (menu right / increase), Q (menu
+      toggle), E (menu select) and R (request pit). It uses the menu
+      navigation command macros (single button presses to move the
+      cursor) to locate and select Crew Chiefroprate commands for most
+      actions like selecting / deselecting tyres and repairs. Choosing a
+      refuelling amount is not possible with this new approach - it
+      still relies on the auto fuelling macros. The commands which use
+      this new approach are:<br>
+      <br>
+      "pitstop clear tyres" / "pitstop don't change tyres" / "box, clear
+      tyres" / "box, don't change tyres"<br>
+      "pitstop change all tyres" / "box, change all tyres"<br>
+      "pitstop change front tyres only" / "box, change front tyres only"<br>
+      "pitstop change rear tyres only" / "box, change rear tyres only"<br>
+      "pitstop fix front aero only" / "box, fix front aero only"<br>
+      "pitstop fix rear aero only" / "box, fix rear aero only"<br>
+      "pitstop fix all aero" / "box, fix all aero"<br>
+      "pitstop don't fix aero" / "box, don't fix aero"<br>
+      "pitstop fix suspension" / "box, fix suspension"<br>
+      "pitstop don't fix suspension" / "box, don't fix suspension"<br>
+      "pitstop serve penalty" / "box, serve penalty"<br>
+      "pitstop don't serve penalty" / "box, don't serve penalty"<br>
+      "pitstop refuel" / "box, refuel"<br>
+      "pitstop don't refuel" / "box, don't refuel"<br>
+      "what are the pit actions" / "what's the pitstop plan" (reports
+      the selected actions for the next pitstop)<br>
+      <br>
+      Crew Chief will also read out the planned pit actions automatially
+      when you get near the pit entrance after requesting a stop.<br>
+      <br>
+      <br>
+      <br>
+    </div>
+  </body>
+</html>

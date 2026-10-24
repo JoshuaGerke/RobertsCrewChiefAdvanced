@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" InitialTargets="EnsureWixToolsetInstalled" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProductVersion>3.10</ProductVersion>
+    <ProjectGuid>5fb1e841-b992-4820-b212-31129f73aae6</ProjectGuid>
+    <SchemaVersion>2.0</SchemaVersion>
+    <OutputName>CrewChiefV4</OutputName>
+    <OutputType>Package</OutputType>
+    <Cultures>;</Cultures>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+    <DefineConstants>Debug</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+    <SuppressIces>ICE61</SuppressIces>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Components.wxs" />
+    <Compile Include="ComponentsGenerated.wxs" />
+    <Compile Include="Directories.wxs" />
+    <Compile Include="Product.wxs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CrewChiefV4\CrewChiefV4.csproj">
+      <Name>CrewChiefV4</Name>
+      <Project>{4240b0e2-69bc-4260-9706-c0cc5aae04a5}</Project>
+      <Private>True</Private>
+      <DoNotHarvest>True</DoNotHarvest>
+      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
+      <RefTargetDir>INSTALLFOLDER</RefTargetDir>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Common.wxl" />
+  </ItemGroup>
+  <ItemGroup>
+    <WixExtension Include="WixUIExtension">
+      <HintPath>$(WixExtDir)\WixUIExtension.dll</HintPath>
+      <Name>WixUIExtension</Name>
+    </WixExtension>
+  </ItemGroup>
+  <Import Project="$(WixTargetsPath)" Condition=" '$(WixTargetsPath)' != '' " />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets" Condition=" '$(WixTargetsPath)' == '' AND Exists('$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets') " />
+  <Target Name="EnsureWixToolsetInstalled" Condition=" '$(WixTargetsImported)' != 'true' ">
+    <Error Text="The WiX Toolset v3.11 (or newer) build tools must be installed to build this project. To download the WiX Toolset, see http://wixtoolset.org/releases/" />
+  </Target>
+  <Target Name="BeforeBuild">
+    <!--clean skeleton directory before copying files to skeleton dir -->
+    <Exec Command="rd /s /q ..\CrewChiefV4\bin\PublishedComponents" />
+    <!-- copy all the files to skeleton directory before we run HeatDirectory, exclude the main executable as HeatDirectory 
+		generates new file ids every time so we include it in Components.wsx and we need an uniq id for auto launch.
+	-->
+    <Exec Command="mkdir ..\CrewChiefV4\bin\PublishedComponents" />
+    <Exec Command="mkdir ..\CrewChiefV4\bin\PublishedComponents\plugins" />
+    <Exec Command="mkdir ..\CrewChiefV4\bin\PublishedComponents\Resources" />
+    <Exec Command="mkdir ..\CrewChiefV4\bin\PublishedComponents\ui_text" />
+    <Exec Command="xcopy ..\CrewChiefV4\plugins ..\CrewChiefV4\bin\PublishedComponents\plugins /e /k" />
+    <Exec Command="xcopy ..\CrewChiefV4\Resources ..\CrewChiefV4\bin\PublishedComponents\Resources /e /k" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\AutoUpdater.NET.dll ..\CrewChiefV4\bin\PublishedComponents\AutoUpdater.NET.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\openvr_api.dll ..\CrewChiefV4\bin\PublishedComponents\openvr_api.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\CrewChiefV4.exe.config ..\CrewChiefV4\bin\PublishedComponents\CrewChiefV4.exe.config" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\CrewChiefV4.pdb ..\CrewChiefV4\bin\PublishedComponents\CrewChiefV4.pdb" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\FuzzySharp.dll ..\CrewChiefV4\bin\PublishedComponents\FuzzySharp.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\Phonix.dll ..\CrewChiefV4\bin\PublishedComponents\Phonix.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\MathNet.Numerics.dll ..\CrewChiefV4\bin\PublishedComponents\MathNet.Numerics.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.Core.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.Core.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.Asio.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.Asio.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.Midi.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.Midi.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.Wasapi.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.Wasapi.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.WinForms.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.WinForms.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\NAudio.WinMM.dll ..\CrewChiefV4\bin\PublishedComponents\NAudio.WinMM.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\Newtonsoft.Json.dll ..\CrewChiefV4\bin\PublishedComponents\Newtonsoft.Json.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\SharpDX.DirectInput.dll ..\CrewChiefV4\bin\PublishedComponents\SharpDX.DirectInput.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\SharpDX.dll ..\CrewChiefV4\bin\PublishedComponents\SharpDX.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\websocket-sharp.dll ..\CrewChiefV4\bin\PublishedComponents\websocket-sharp.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\Microsoft.Speech.dll ..\CrewChiefV4\bin\PublishedComponents\Microsoft.Speech.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\GameOverlay.dll ..\CrewChiefV4\bin\PublishedComponents\GameOverlay.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\SharpDX.Direct2D1.dll ..\CrewChiefV4\bin\PublishedComponents\SharpDX.Direct2D1.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\SharpDX.Direct3D11.dll ..\CrewChiefV4\bin\PublishedComponents\SharpDX.Direct3D11.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\SharpDX.Mathematics.dll ..\CrewChiefV4\bin\PublishedComponents\SharpDX.Mathematics.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\SharpDX.DXGI.dll ..\CrewChiefV4\bin\PublishedComponents\SharpDX.DXGI.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\WindowsInput.dll ..\CrewChiefV4\bin\PublishedComponents\WindowsInput.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\MQTTnet.dll ..\CrewChiefV4\bin\PublishedComponents\MQTTnet.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\RestSharp.dll ..\CrewChiefV4\bin\PublishedComponents\RestSharp.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\Microsoft.Bcl.AsyncInterfaces.dll ..\CrewChiefV4\bin\PublishedComponents\Microsoft.Bcl.AsyncInterfaces.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\System.Text.Encodings.Web.dll ..\CrewChiefV4\bin\PublishedComponents\System.Text.Encodings.Web.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\System.Text.Json.dll ..\CrewChiefV4\bin\PublishedComponents\System.Text.Json.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\System.Threading.Tasks.Extensions.dll ..\CrewChiefV4\bin\PublishedComponents\System.Threading.Tasks.Extensions.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\System.ValueTuple.dll ..\CrewChiefV4\bin\PublishedComponents\System.ValueTuple.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\System.Runtime.CompilerServices.Unsafe.dll ..\CrewChiefV4\bin\PublishedComponents\System.Runtime.CompilerServices.Unsafe.dll" />
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\InSimDotNet.dll ..\CrewChiefV4\bin\PublishedComponents\InSimDotNet.dll" />
+    
+    <Exec Command="copy ..\CrewChiefV4\carClassData.json ..\CrewChiefV4\bin\PublishedComponents\carClassData.json" />
+    <Exec Command="copy ..\CrewChiefV4\controllerConfigurationData.json ..\CrewChiefV4\bin\PublishedComponents\controllerConfigurationData.json" />
+    <Exec Command="copy ..\CrewChiefV4\saved_command_macros.json ..\CrewChiefV4\bin\PublishedComponents\saved_command_macros.json" />
+    <Exec Command="copy ..\CrewChiefV4\chart_subscriptions.json ..\CrewChiefV4\bin\PublishedComponents\chart_subscriptions.json" />
+    <Exec Command="copy ..\CrewChiefV4\sounds_config.txt ..\CrewChiefV4\bin\PublishedComponents\sounds_config.txt" />
+    <Exec Command="copy ..\CrewChiefV4\speech_recognition_config.txt ..\CrewChiefV4\bin\PublishedComponents\speech_recognition_config.txt" />
+    <Exec Command="copy ..\CrewChiefV4\trackLandmarksData.json ..\CrewChiefV4\bin\PublishedComponents\trackLandmarksData.json" />
+    <Exec Command="copy ..\CrewChiefV4\ui_text\en.txt ..\CrewChiefV4\bin\PublishedComponents\ui_text\en.txt" />
+    <Exec Command="copy ..\CrewChiefV4\mqtt_telemetry.json ..\CrewChiefV4\bin\PublishedComponents\mqtt_telemetry.json" />
+    <Exec Command="copy ..\CrewChiefV4\iracing_formation.json ..\CrewChiefV4\bin\PublishedComponents\iracing_formation.json" />
+    <Exec Command="copy ..\help.txt ..\CrewChiefV4\bin\PublishedComponents\help.txt" />
+    <Exec Command="copy ..\Newtonsoft_Json_licence.txt ..\CrewChiefV4\bin\PublishedComponents\Newtonsoft_Json_licence.txt" />
+    <Exec Command="copy ..\README.txt ..\CrewChiefV4\bin\PublishedComponents\README.txt" />
+    <Exec Command="copy ..\SharpDX_licence.txt ..\CrewChiefV4\bin\PublishedComponents\SharpDX_licence.txt" />
+    <Exec Command="copy ..\openvr_licence.txt ..\CrewChiefV4\bin\PublishedComponents\openvr_licence.txt" />
+    <Exec Command="copy ..\zlib_licence.txt ..\CrewChiefV4\bin\PublishedComponents\zlib_licence.txt" />
+    <!-- Get assembly version -->
+    <GetAssemblyIdentity AssemblyFiles="..\CrewChiefV4\bin\$(Configuration)\CrewChiefV4.exe">
+      <Output TaskParameter="Assemblies" ItemName="AssemblyVersion" />
+    </GetAssemblyIdentity>
+    <!-- Define some variables we need -->
+    <PropertyGroup>
+      <DefineConstants>BuildVersion=%(AssemblyVersion.Version);BasePath=..\CrewChiefV4\bin\PublishedComponents</DefineConstants>
+    </PropertyGroup>
+    <!-- Harvest file components from skeleton directory -->
+    <HeatDirectory OutputFile="ComponentsGenerated.wxs" DirectoryRefId="INSTALLFOLDER" ComponentGroupName="PublishedComponents" SuppressCom="true" Directory="..\CrewChiefV4\bin\PublishedComponents" SuppressFragments="true" SuppressRegistry="true" SuppressRootDirectory="true" AutoGenerateGuids="false" GenerateGuidsNow="true" ToolPath="$(WixToolPath)" PreprocessorVariable="var.BasePath" />
+    <!--finally copy main executable -->
+    <Exec Command="copy ..\CrewChiefV4\bin\$(Configuration)\CrewChiefV4.exe ..\CrewChiefV4\bin\PublishedComponents\CrewChiefV4.exe" />
+  </Target>
+  <Target Name="AfterBuild">
+    <!-- Get assembly version -->
+    <GetAssemblyIdentity AssemblyFiles="..\CrewChiefV4\bin\PublishedComponents\CrewChiefV4.exe">
+      <Output TaskParameter="Assemblies" ItemName="AssemblyVersion" />
+    </GetAssemblyIdentity>
+    <!-- Rename and move final MSI -->
+    <Exec Command="if not exist Installs mkdir Installs" />
+    <Exec Command="copy /y bin\$(Configuration)\$(OutputName).msi Installs\$(OutputName)-%(AssemblyVersion.Version).msi" />
+  </Target>
+</Project>

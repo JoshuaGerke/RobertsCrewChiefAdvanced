@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder">
+      </Directory>
+      <!--Install Folder -->
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="ProgramFilesHK" Name="!(loc.Company)">
+          <Directory Id="INSTALLFOLDER" Name= "!(loc.ProductName)" />
+        </Directory>
+      </Directory>
+      <!-- Registry entries -->
+      <Component Id="RegValInstallLocation_comp" Guid="{1C9FFE34-AA34-4AC4-AC7C-B6947C270DEC}">
+        <!-- Do NOT use the application's default registry key here, because THIS key will be removed on uninstall
+                 (important when installing a newer version, because that is uninstall followed by install) -->
+        <RegistryKey Root="HKLM" Key="Software\!(loc.Company)\InstalledProducts\!(loc.ProductName)">
+          <RegistryValue Name="InstallLocation" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+    </Directory>
+  </Fragment>
+  
+</Wix>

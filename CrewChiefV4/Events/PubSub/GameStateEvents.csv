@@ -1,0 +1,17 @@
+Event,GameState Property,Condition
+AiTookControl,,
+LastLapStarted,SessionData.IsLastLap,changes
+NewLapStarted,SessionData.CompletedLaps,increases
+PlayerEnteredPits,PitData.InPitlane,becomesTrue
+PlayerIsAtPitExit,,
+PlayerLeftPits,PitData.InPitlane,becomesFalse
+PlayerStartedDriving,inCar,becomesTrue
+PlayerStoppedDriving,inCar,becomesFalse
+PlayerTookControl,,
+Sector1Completed,,
+Sector2Completed,,
+Sector3Completed,,
+SectorChanged,SessionData.SectorNumber,changes
+SessionChanged,SessionData.IsNewSession,isSet
+SessionFinished,,
+SessionPhaseChanged,SessionData.SessionPhase,changes

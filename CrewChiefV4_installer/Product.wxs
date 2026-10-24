@@ -1,0 +1,131 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+	<!--Change ProductCode when building a new version, this is the only variable that needs to be changed in this file
+      BuildVersion gets auto generate by pulling it from the file assembly after building
+  -->
+  <?define ProductCode = {0FDE11BE-4D3F-4D87-846C-49692FA0B762} ?>
+  <!--Keep our existing UpgradeCode (731ED4D4-F49C-4844-8C4F-FDE17802FDA8) from install shield this allows up to overwrite previous installation made by install shield-->
+  <?define UpgradeCode = {731ED4D4-F49C-4844-8C4F-FDE17802FDA8} ?>  
+  <Product Id="$(var.ProductCode)" 
+           Name="!(loc.ProductName)" 
+           Language="1033" 
+           Version="$(var.BuildVersion)"
+           Manufacturer="!(loc.Company)" 
+           UpgradeCode="$(var.UpgradeCode)"
+    >
+		<Package InstallerVersion="200" 
+             Compressed="yes" 
+             InstallScope="perMachine"
+             Platform="x86"
+             Manufacturer="!(loc.Company)" 
+             Description="!(loc.Description)"
+             />
+
+		<MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeErrorMessage)"  AllowSameVersionUpgrades="yes" />
+		
+    <MediaTemplate 
+      EmbedCab="yes"
+      />
+    <!-- Determine the directory of a previous installation (if one exists). If not INSTALLDIR stays empty -->
+    <Property Id="INSTALLFOLDER">
+      <RegistrySearch Id="DetermineInstallLocation" Type="raw" Root="HKLM" Key="Software\!(loc.Company)\InstalledProducts\!(loc.ProductName)" Name="InstallLocation" />
+    </Property>
+    <!--Setup icon so it will display in add/remove programs-->
+    <Icon Id="icon.ico" SourceFile="$(var.CrewChiefV4.ProjectDir)\engineer_edited.ico"/>
+    <!--Display some additional info about the app in add/remove programs-->
+    <Property Id ="ARPPRODUCTICON">icon.ico</Property>    
+    <Property Id ="ARPHELPLINK">https://thecrewchief.org</Property>
+    <!-- legacy URL to preserve property file migration between versions. The AppData/local/Britton_IT_ltd/CrewChiefV4.exe_Url_ltwjk4vypogatqgrzioneuqoankc3spb
+    folder path includes a hash of this nonsense URL. If we change it, the properties files end up in a different subfolder and the version-to-version upgrade
+    process will break, resetting everyone's properties to default when they update the app after changing this URL. -->
+    <Property Id="ARPURLINFOABOUT">http://www.BrittonITLtd.com</Property>
+    
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <UI Id="WixUI_InstallDir">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">LicenseAccepted = "1"</Publish>
+      
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1">NOT Installed</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+
+    </UI>
+    
+    <UIRef Id ="WixUI_Common"/>
+
+    <!-- Change the installer UI background images -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.ProjectDir)\Assets\License.rtf" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.ProjectDir)\Assets\Background.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.ProjectDir)\Assets\Banner.bmp" />
+    
+    <Feature Id="ProductFeature" Title="CrewChiefV4" Level="1">		
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="PublishedComponents" />
+      <ComponentRef Id="RegValInstallLocation_comp" />
+          
+		</Feature>
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch !(loc.ProductName)" />
+
+    <CustomAction Id="LaunchApplication"
+        FileKey="CrewChiefV4.exe"
+        ExeCommand="/X" 
+        Return="asyncNoWait"
+        Impersonate="yes" />
+	</Product>
+  
+</Wix>
+
+
+
+
+
+
+
+
+
+
+
+

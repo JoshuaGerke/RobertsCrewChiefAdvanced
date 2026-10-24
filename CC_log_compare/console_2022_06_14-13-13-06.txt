@@ -1,0 +1,103 @@
+C:\Users\name\Documents\CrewChiefV4\debugLogs\console_2022_06_14-13-13-06.txt
+Profile: defaultSettings.json
+VOICE_OPTION: NOT_PRESSED
+
+Non-default Properties:
+acs_install_path: 'D:\games\SteamLibrary\steamapps\common\assettocorsa'
+add_additional_fuel: 1
+alarm_clock_times: '5:11 PM;1:15'
+allow_composite_personalisations: True
+ams_install_path: 'C:\Program Files (x86)\Steam\steamapps\common\Automobilista'
+asr_install_path: 'D:\games\ASRX'
+asr_launch_exe: 'd:\games\ ASRX\ARCA.exe'
+enable_alarm_clock_voice_recognition: True
+enable_console_autoscroll: True
+enable_rf2_pit_lane_approach_heuristics: True
+enable_tyre_temp_warnings: False
+frequency_of_opponent_practice_and_qual_lap_times: 7
+frequency_of_opponent_race_lap_times: 5
+frequency_of_pearls_of_wisdom: 7
+frequency_of_player_prac_and_qual_lap_time_reports: 8
+frequency_of_player_race_lap_time_reports: 5
+frequency_of_prac_and_qual_sector_delta_reports: 8
+frequency_of_race_sector_delta_reports: 5
+gtr2_install_path: 'D:\games\SteamLibrary\steamapps\common\GTR 2 - FIA GT Racing Game'
+interrupt_setting_listprop: 'IMPORTANT_MESSAGES'
+iracing_launch_exe: 'C:\Progam Files (x86)\iRacing\ui\iRacingUI.exe'
+launch_acs: True
+launch_asr: True
+log_type_debug: True
+log_type_verbose: True
+max_complaints_per_session: 50
+minimum_voice_recognition_confidence_system_sre: 0.2
+pcars_enable_rain_prediction: True
+pcars2_launch_exe: 'steam://launch/378860/othervr'
+pcars2_launch_params: '-vrnomirror'
+pit_box_position_countdown: True
+prefer_max_consumption_in_fuel_calculations: True
+rbr_install_path: ''
+report_ambient_temp_changes_greater_than: 20
+report_track_temp_changes_greater_than: 20
+rf1_install_path: 'd:\games\SteamLibrary\steamapps\common\rFactor '
+rf1_launch_exe: 'd:\games\SteamLibrary\steamapps\common\rFactor\rFactor.exe'
+rf2_enable_auto_fuel_to_end_of_race: True
+rf2_install_path: 'C:\Program Files (x86)\Steam\steamapps\common\rFactor 2'
+run_immediately: True
+save_sre_debug_data: True
+scroll_bars_on_main_window: True
+speech_recognition_country: 'GB'
+use_naudio: False
+
+13:12:12.846 : Loading screen opened
+13:12:12.847 : Set rFactor 2 (64 bit) mode from previous launch
+13:12:12.852 : Starting app.  Version: 4.16.2.3
+13:12:12.947 : Using sound pack version 188, driver names version 140 and personalisations version 147
+13:12:12.954 : Preparing sound effects
+13:12:12.957 : Prepare sound effects completed
+13:12:12.958 : Preparing driver names
+13:12:13.040 : Prepare driver names completed
+13:12:13.041 : No name has been selected for personalised messages
+13:12:13.042 : Preparing voice messages
+13:12:13.045 : Spotter Jim (default) has oval-specific sounds - these will be used for tracks marked as 'oval'
+13:12:13.360 : Prepare voice message completed
+13:12:13.361 : Finished preparing sounds cache, found 9992 driver names and 3019 sound sets. Loaded 408 message sounds with 397 active SoundPlayer objects
+13:12:13.444 : Reading driver name mappings
+13:12:13.448 : Read 2164 driver name mappings
+13:12:13.473 : Reading driver name mappings
+13:12:13.475 : Read 422 driver name mappings
+13:12:13.532 : Loading controller settings
+13:12:13.532 : Load controller settings complete
+13:12:14.451 : Took 1.09s to lazy load remaining message sounds, there are now 9201 loaded message sounds with 397 active SoundPlayer objects
+13:12:14.453 : Skipped 99 sweary sounds
+13:12:15.158 : Device Connected -  Name: "Driving: Logitech G25 Racing Wheel USB"    GUID: "3e89d0a0-e679-11e7-8001-444553540000"
+13:12:15.166 : Device Connected -  Name: "Keyboard"    GUID: "6f1d2b61-d5a0-11cf-bfc7-444553540000"
+13:12:15.296 : Using game definition rFactor 2 (64 bit)
+13:12:15.333 : Loading user-configured command macros from Documents/CrewChiefV4/ folder
+13:12:15.344 : Loading default command macros from installation folder
+13:12:15.432 : Loaded 142 default car class definitions and 0 user defined car class definitions
+13:12:15.478 : Multiple Track Definitions found for rF2 track: Dijon-Prenois Approx length: 3193.000  Duplicate approx length: 3717.000
+13:12:15.479 : Multiple Track Definitions found for rF2 track: Daytona International Speedway Approx length: 4000.000  Duplicate approx length: 5800.000
+13:12:15.479 : Multiple Track Definitions found for rF2 track: Paul Ricard HTTT Approx length: 5582.000  Duplicate approx length: 5657.000
+13:12:15.480 : Multiple Track Definitions found for rF2 track: Paul Ricard HTTT Approx length: 3752.000  Duplicate approx length: 5657.000
+13:12:15.480 : Multiple Track Definitions found for rF2 track: Lausitzring Approx length: 3356.000  Duplicate approx length: 4528.000
+13:12:15.481 : Multiple Track Definitions found for rF2 track: Road America 2016 Approx length: 6439.000  Duplicate approx length: 6494.400
+13:12:15.481 : No user defined landmarks found
+13:12:15.487 : Skipping update check in debug mode
+13:12:15.489 : ThreadManager: Wating for root threads to start...
+13:12:15.490 : ThreadManager: Root threads started
+13:12:15.495 : Loading screen closed
+13:12:15.523 : Creating buffer: $rFactor2SMMP_Telemetry$  size: 241680 bytes
+13:12:15.524 : Creating buffer: $rFactor2SMMP_Scoring$  size: 75312 bytes
+13:12:15.525 : Creating buffer: $rFactor2SMMP_Rules$  size: 45272 bytes
+13:12:15.526 : Creating buffer: $rFactor2SMMP_Extended$  size: 10152 bytes
+13:12:15.528 : Starting queue monitor
+13:12:15.533 : Monitor starting
+13:12:15.536 : Using NumberReaderEn for soundPackLanguage en
+13:12:15.549 : Listening for buttons
+13:12:15.573 : Loading user-configured chart subscriptions from Documents/CrewChiefV4/ folder
+13:12:15.581 : Added 22 common subs to 16 game-specific subs
+13:12:15.583 : Polling for shared data every 100ms
+13:12:15.585 : Alarm has been set to 06/14/2022 17:11:00
+13:12:15.587 : Alarm has been set to 06/14/2022 01:15:00
+13:12:15.979 : Playing sounds, events: COMPOUND_smoke_test_chief
+13:12:15.979 : (radio_check/test)

@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+    <title></title>
+  </head>
+  <body link="#0000EE" vlink="#551A8B" text="#000000" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main">
+      <h4>Pitstop management</h4>
+      <table width="764" cellspacing="2" cellpadding="2" border="1"
+        height="144">
+        <tbody>
+          <tr>
+            <td width="60%" valign="top"><font color="#000099"><b>Fuel</b></font></td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">iRacing<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">R3E<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">rFactor 2<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><font
+                color="#000099"><b>ACC</b></font><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop add [X litres /
+              gallons]</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center">X</td>
+            <td width="10%" valign="top" align="center">X</td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box fill to [X litres
+              / gallons]</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop clear fuel</td>
+            <td valign="top" align="center">X</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center">X</td>
+            <td width="10%" valign="top"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop fuel to the end /
+              pitstop fuel to the end of the race*</td>
+            <td valign="top" align="center">X</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center">X</td>
+            <td width="10%" valign="top" align="center">X</td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, refuel</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X</td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, don't refuel</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X</td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center">X</td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Fuel to the end / fuel to the
+              end of the race</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center">X</td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Add fuel [X litres]</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center">X</td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      * See also the Properties <font size="-1"><i><b>iracing_enable_auto_fuel_to_end_of_race</b>
+        </i>and <i><b>rf2</b></i><i><b>_enable_auto_fuel_to_end_of_race
+          </b></i></font><i><br>
+      </i><br>
+      <table width="764" cellspacing="2" cellpadding="2" border="1"
+        height="706">
+        <tbody>
+          <tr>
+            <td width="60%" valign="top"><font color="#000099"><b>Tyres</b></font><br>
+            </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">iRacing<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">R3E<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">rFactor 2<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><font
+                color="#000099"><b>ACC</b></font></td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, change all tyres</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, clear tyres -
+              Pitstop / box, don't change tyres</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, change front
+              tyres only</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, change rear
+              tyres only</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop change left side tyres</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop change right side tyres</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop change left front tyre</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop change right front tyre</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop change left rear tyre</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop change right rear tyre</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, next tyre
+              compound</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, hard tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, medium tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, soft tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, supersoft tyres</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, ultrasoft tyres</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, hypersoft tyres</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, prime tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, primary tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, option tyres:</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, alternate tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, intermediate
+              tyres</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, dry tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, wet tyres</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, monsoon tyres</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box tyre set [ new
+              value ]</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box change tyre
+              pressures [ new value ]</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box change front tyre
+              pressures [ new value ]</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box change rear tyre
+              pressures [ new value ]</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box change left front
+              tyre pressure [ new value ]</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / boxchange right front
+              tyre pressure [ new value ]</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box change left rear
+              tyre pressure [ new value ]</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box change right rear
+              tyre pressure [ new value ]</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      In rFactor 2 the tyre types are translated from <b>hard/medium/soft</b>
+      etc. to whatever is available for the vehicle.<br>
+      That requires quite a bit of magic so you may not end up with the
+      tyres you expect. If that happens <b><i>Pitstop, next tyre
+          compound</i> </b>will select the next type of tyre or if
+      you're adventurous you may try editing <i><tt>&lt;</tt></i><tt><i>Documents&gt;</i>\CrewChiefV4\rF2\TyreDictionary.json
+
+
+
+
+
+
+      </tt>where you'll find each tyre type and a list of words from the
+      names of tyres available in rF2.<!-- When you ask for say Soft
+      tyres Crew Chief works down the list <br>
+      <b>Algorithm:</b><br>
+      Check the first list item for each key in the tyre dictionary<br>
+      * if the word is in the Pit Menu then that key is DONE<br>
+      * if not, check the 2nd list item and so on<br>
+      If there are no exact matches in the whole dictionary then see if
+      one of the tyre dictionary values is a sub-string of one of the
+      game's entries e.g. "soft" in "Soft COMPOUND"<br>--> <br>
+      <br>
+      <table width="764" cellspacing="2" cellpadding="2" border="1"
+        height="284">
+        <tbody>
+          <tr>
+            <td width="60%" valign="top"><font color="#000099"><b>Repairs</b></font></td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">iRacing<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">R3E<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">rFactor 2<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><font
+                color="#000099"><b>ACC</b></font></td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop fast repair / pitstop
+              repair</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop clear fast repair</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix front aero
+              only</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix rear aero
+              only</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix all aero</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, don't fix aero</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix suspension</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, don't fix
+              suspension</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix / repair
+              body<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix / repair all</td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, fix / repair
+              none<br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <table width="764" cellspacing="2" cellpadding="2" border="1"
+        height="87">
+        <tbody>
+          <tr>
+            <td width="60%" valign="top"><b><font color="#000099">Penalties</font></b><br>
+            </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">iRacing<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">R3E<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">rFactor 2<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><font
+                color="#000099"><b>ACC</b></font></td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, serve penalty</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop / box, don't serve
+              penalty</td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <table width="764" cellspacing="2" cellpadding="2" border="1"
+        height="116">
+        <tbody>
+          <tr>
+            <td width="60%" valign="top"><b><font color="#000099">Misc</font></b><br>
+            </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">iRacing<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">R3E<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><b><font
+                  color="#000099">rFactor 2<br>
+                </font></b> </td>
+            <td width="10%" valign="top" align="center"><font
+                color="#000099"><b>ACC</b></font></td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop clear all (clears all
+              selected pitstop options)</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop tearoff / pitstop
+              windscreen</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td width="60%" valign="top">Pitstop clear tearoff / pitstop
+              clear windscreen</td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td valign="top" align="center"><br>
+            </td>
+            <td width="10%" valign="top" align="center"><br>
+            </td>
+          </tr>
+          <tr>
+            <td valign="top"><font color="#009900"><font color="#000000">What are the pit actions? / What's the pitstop plan</font>?</font></td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top" align="center">X<br>
+            </td>
+            <td valign="top"><br>
+            </td>
+            <td valign="top"><br>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <p><font color="#009900"><br>
+        </font><br>
+      </p>
+    </div>
+  </body>
+</html>

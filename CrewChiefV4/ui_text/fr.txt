@@ -1,0 +1,61 @@
+# Fichier de localisation français pour CrewChiefV4 - Live for Speed
+
+# Propriété: Port InSim LFS
+lfs_insim_port = Port InSim LFS
+lfs_insim_port_help = Port utilisé pour se connecter à l'InSim de Live for Speed (29999 par défaut).
+lfs_insim_port_filter = LFS
+lfs_insim_port_category = UI_STARTUP_AND_PATHS;NEW_PROPERTY
+lfs_insim_port_metadata = RESTART_REQUIRED
+
+# Propriété: Hôte InSim LFS
+lfs_insim_host = IP hôte InSim LFS
+lfs_insim_host_help = Adresse IP de l'hôte LFS (127.0.0.1 par défaut pour une partie locale).
+lfs_insim_host_filter = LFS
+lfs_insim_host_category = UI_STARTUP_AND_PATHS;NEW_PROPERTY
+lfs_insim_host_metadata = RESTART_REQUIRED
+
+# Propriété: Port UDP OutSim LFS
+lfs_outsim_port = Port UDP OutSim LFS
+lfs_outsim_port_help = Port UDP utilisé pour recevoir la télémétrie pneumatique OutSim de Live for Speed (30000 par défaut). Doit correspondre au port OutSim dans cfg.txt de LFS.
+lfs_outsim_port_filter = LFS
+lfs_outsim_port_category = UI_STARTUP_AND_PATHS;NEW_PROPERTY
+lfs_outsim_port_metadata = RESTART_REQUIRED
+
+# Propriété: Télémétrie OutSim LFS
+lfs_outsim_enabled = Activer la télémétrie pneus OutSim LFS
+lfs_outsim_enabled_help = Active la réception des paquets OutSim pour la température des pneus. Nécessite OutSim Mode 1 ou 2 et OutSim Opts 1ff dans cfg.txt de LFS.
+lfs_outsim_enabled_filter = LFS
+lfs_outsim_enabled_category = FUEL_TEMPS_AND_DAMAGES;NEW_PROPERTY
+
+# Propriété: Lancer LFS
+launch_lfs = Lancer LFS
+launch_lfs_help = Si activé, l'application tentera de lancer Live for Speed au démarrage de CrewChief.
+launch_lfs_filter = LFS
+launch_lfs_category = UI_STARTUP_AND_PATHS;NEW_PROPERTY
+
+# Propriété: Chemin exécutable LFS
+lfs_launch_exe = Chemin de l'exécutable LFS
+lfs_launch_exe_help = Chemin vers l'exécutable LFS (ex: C:\LFS\LFS.exe).
+lfs_launch_exe_filter = LFS
+lfs_launch_exe_category = UI_STARTUP_AND_PATHS;NEW_PROPERTY
+
+# Propriété: Paramètres de lancement LFS
+lfs_launch_params = Paramètres de lancement LFS
+lfs_launch_params_help = Paramètres à passer lors du lancement de LFS (ex: /insim=29999).
+lfs_launch_params_filter = LFS
+lfs_launch_params_category = UI_STARTUP_AND_PATHS;NEW_PROPERTY
+
+# Propriété: Longueur véhicule spotter LFS
+lfs_spotter_car_length = Longueur véhicule spotter LFS
+lfs_spotter_car_length_help = Longueur du véhicule en mètres pour la détection de chevauchement du spotter (4.5m par défaut).
+lfs_spotter_car_length_filter = LFS
+lfs_spotter_car_length_category = SPOTTER;NEW_PROPERTY
+
+# Messages in-game InSim pour LFS
+lfs_msg_connected = ^3[CrewChief] Connecté à LFS. Info : 1L annoncé = 1% réservoir (menu F12)
+lfs_msg_session_started = ^3[CrewChief] Session démarrée. Info : 1L annoncé = 1% réservoir (menu F12)
+lfs_msg_half_tank = ^3[CrewChief] Mi-réservoir : {0:0.0}%
+lfs_msg_fuel_status = ^3[CrewChief] Fuel : {0:0.0}% | Conso : {1:0.0}%/tour | Reste : {2} tours
+lfs_msg_fuel_status_simple = ^3[CrewChief] Fuel : {0:0.0}% restant
+lfs_msg_fuel_warning = ^1[CrewChief] ATTENTION FUEL : {0:0.0}% restant (~{1} tour{2})
+lfs_msg_refuel = ^3[CrewChief] Ravitaillement F12 : +{0}% (Actuel : {1:0.0}%)

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body vlink="#551A8B" text="#000000" link="#0000EE" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main">
+      <h3>Choosing Audio methods</h3>
+      Crew Chief offers the choice of using <b>nAudio </b>instead of
+      the standard Windows audio library.&nbsp; There are two Properties
+      for selecting the audio method:<br>
+      <h4>Use nAudio for playback</h4>
+      Recommended. Using nAudio for playback allows device selection and
+      higher volumes. It can also play messages in stereo.<br>
+      <i>However, </i>nAudio has been known to cause some issues so
+      it's worth disabling it if Crew Chief is misbehaving.<br>
+      <br>
+      nAudio offers two output interface types - <b>WaveOut </b>and <b>WASAPI</b>.
+      WaveOut is more compatible, but WASAPI is more responsive/direct
+      playback.<br>
+      <br>
+      If not using nAudio for playback you might need to change your
+      default sound 'playback' device in the Windows Control Panel so
+      Crew Chief sends audio to the right device. Windows 10 also
+      includes the option to route audio from a specific application to
+      a chosen output device.<br>
+      <h4>Use nAudio for speech recognition</h4>
+      Not recommended. It allows speech recognition device selection but
+      voice recognition <b>Trigger word</b> and <b>Press and release
+        button</b> are not available with nAudio. Also Crew Chief works
+      better if this setting is disabled and instead your preferred
+      microphone is set as the default sound recording device in the
+      Windows sounds Control Panel.<br>
+    </div>
+  </body>
+</html>

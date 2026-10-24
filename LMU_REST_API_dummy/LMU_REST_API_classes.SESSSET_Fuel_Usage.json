@@ -1,0 +1,10 @@
+{
+  "SESSSET_Fuel_Usage": {
+    "currentValue": 3,
+    "numStepsTotal": 3,
+    "settingID": 40,
+    "stringValue": "X3",
+    "uiSelectionType": "Arrow",
+    "valueType": "LONG"
+  }
+}

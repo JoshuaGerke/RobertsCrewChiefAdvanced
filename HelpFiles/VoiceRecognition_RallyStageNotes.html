@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body vlink="#551A8B" text="#000000" link="#0000EE" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main">
+      Crew Chief can act as co-driver in Dirt Rally, Dirt Rally 2 and Richard Burns Rally. Crew Chief can read built-in stage notes for tracks which have them (Richard Burns Rally only) but you can create your own stage notes as you drive a stage using voice commands.<br><br>
+      <h3>Setup</h3>
+      Dirt Rally and Dirt Rally 2<br><br>
+      These need to have UDP data enabled. For Dirt Rally you need to edit Documents\My Games\DiRT Rally\hardwaresettings\hardware_settings_config.xml. For Dirt Rally 2 it's Documents\My Games\DiRT Rally 2.0\hardwaresettings\hardware_settings_config.xml (or Documents\My Games\DiRT Rally 2.0\hardwaresettings\hardware_settings_config_vr.xml). Modify the udp element (under the motion_platform element) so it looks like this:<br>
+&lt;udp enabled="true" extradata="3" ip="127.0.0.1" port="20777" delay="1" /&gt;<br><br>
+
+      Richard Burns Rally<br><br>
+      Copy the file C:\Program Files (x86)\Britton IT Ltd\CrewChiefV4\plugins\RBR\CrewChief.dll to C:\RBR\Plugins\, overwriting the file if it's already there (this dll was updated recently).
+      <br><br>
+      <h3>Voice Recognition settings</h3>
+      Creating stage notes using voice commands is quite challenging for the voice recognition system. Before you start it's a good idea to ensure you're getting the best voice recognition accuracy possible. Optimal settings will vary for each user but I find that it works best using the built-in Windows speech recogniser (enable the "Prefer Windows speech recogniser") - you need to complete all the training steps in the Windows Speech Recognition control panel (the "Train your computer to understand you better" option). Note that this training will only work if you use the same microphone you'll use while you're actually playing.
+      <br><br>
+      There's a separate confidence threshold setting for rally voice commands ('min rally voice recognition confidence', one the Windows recogniser and one for the Microsoft recogniser). This is significantly lower than the regular confidence threshold because there are many permutations of words in rally voice commands.
+      <br><br>
+      Stage notes can be created with the 'always on' voice recognition mode but there's a risk that the recogniser will interpret background noises as commands so may create unwanted stage note entries. Using 'hold button' seems to work best.
+      <br><br>
+      <h3>Basic Approach</h3>
+      There are a few options and 'gotchas' to be aware of when creating stage notes, but if you just want to give it a try, do this:
+      <br>
+      <ul>
+      <li>set up voice recognition</li>
+      <li>select the right game in Crew Chief (allow it to restart if it asks) and launch and start Crew Chief</li>
+      <li>launch the game and mute the built-in codriver</li>
+      <li>start a rally stage (note that 'shakedown' in Dirt / Dirt 2 isn't sufficient here - it doesn't allow you to drive the whole stage)</li>
+      <li>make the voice command "start stage recce" before you start</li>
+      <li>drive (slowly...) around the first corner or other obstacle</li>
+      <li>as you exit the corner or pass the obstacle slow or stop and make a voice command (e.g. "right 3, tightens")</li>
+      <li>Crew Chief will confirm the command back to you</li>
+      <li>repeat for the next obstacle (leaving at least a second or so between commands) until you reach the end of the stage</li>
+      <li>make the voice command "finish stage recce" [this is essential - it triggers the saving process]</li>
+      </ul>
+      <br>
+      If all goes well, restart the stage, drive it at warp 9, crash into a tree and die horribly. Then marvel at how often you mixed up left and right on your recce run.
+      <br><br>
+      <h3>Under the Hood</h3>
+      It's very helpful to have a basic grasp of what Crew Chief's doing here. When you pass a corner or a crest or whatever and make a stage note command, Crew Chief records the command along with distance into the stage where your car currently is (i.e. the distance at the end of the corner / obstacle). It uses this to estimate when the corner / obstacle started (it assumes corners are 40 metres long, corners you describe as 'long' are 80 metres long and other obstacles are 10 metres long). This sounds sketchy but it's not too bad. You need to have driven the corner to understand what it'll do (if Crew Chief expected the command at the beginning of a corner you might miss important 'tightens', 'keep in' or other details) and it also allows for an accurate placement of the next distance call.
+      <br><br>
+      Crew Chief uses the distance when you first begin making the command (unless you're using 'always on' voice recognition mode - then it has to use the distance when you finish the command). Moving while making the commands is fine but it makes corrections harder - if you have to correct a command you have less time to do it before the next command needs to be made.
+      <br><br>
+      On playback Crew Chief uses the estimated start point (along with your current position and car speed) to determine when it needs to play a stage note, so these start points can be approximate.
+      <br><br>
+      The stage notes are stored in Documents\CrewChiefV4\[game name]\[stage name]\pacenotes.json, this is JSON and can be edited and shared. When you start a stage Crew Chief will load the pacenotes.json file (in RBR this process replaces any game-provided pace notes for that run). Corrections in corrections.json will be applied to which ever stage notes you're using (game-provided or user-created). If you want to go back to the game-provided stage notes, rename or move the pacenotes.json file.
+      <br><br>
+      <h3>Corrections During Stage Recce</h3>
+      Inevitably Crew Chief will fail to recognise some commands, misrecognise some or (and this is more common than I'd like to admit) you'll get left / right mixed up and create a stage note that is so wrong it'll definitely kill you if you don't fix it.
+      <br>
+      During stage recce, if Crew Chief says "I didn't catch that" or "pardon?", just wait a second then make the command again. If it keeps failing to recognise, try phrasing the command differently (e.g. "medium left" instead of "left 4"). If Crew Chief hears you and responds, but the response is clearly wrong (Crew Chief misinterpreted or you were confused and made the wrong request) make the command again but this time start it with the word "correction, ...". Crew Chief will replace the stage note just created with a new one.
+      <br>
+      For example:
+      <br>
+      <ul>
+      <li>me: "left 4 crest, caution"</li>
+      <li>app: "OK, caution ford over crest" [four and ford do sound quite similar, and Crew Chief will always put 'caution' first in stage notes]</li>
+      <li>me: "correction, left 4 crest, caution"</li>
+      <li>app: "Copy that, caution ford over crest" [grrrr stupid app]</li>
+      <li>me: "correction, medium left, crest, caution"</li>
+      <li>app: "Acknowledged, caution left 4 over crest" [yay, finally]</li>
+      </ul>
+      <br>
+      As you can see, correcting a stage note can be a bit of a faff (usually a single correction or repeat is enough but not always). This is why it's important to slow right down after the corner / obstacle to give yourself time in case you need to make a correction.
+      <br><br>
+      <h3>Corrections While Driving a Stage</h3>
+      You can also correct stage notes while driving. This is a bit limited and (apart from adjusting call positions) applies only to corners. After a corner you can make a voice command "Correction, ..." and say what the corner should have been. This can be a different tightness or a different modifier (or both). Some examples:
+      <br>
+      <ul>
+      <li>app: "left 4, cut" [drive the corner, nearly hit a tree on the apex and slide wide, soil pants]</li>
+      <li>me: "correction, 3, don't cut" [app creates a new entry in its 'corrections' file for this stage to replace the '4' with a '3' and replace 'cut' with 'dont cut']</li>
+      </ul>
+      <br>
+      You can just add a modifier too - "correction, long" or whatever. Crew Chief tries to find the stage note for the corner you just drove and it applies the correction. Corrections can also be used to adjust the position of the last-played stage note. "correction, earlier" and "correction, later" will move the last stage note's trigger point back or forward by 50 metres. A single correction can be any combination of these (e.g. "correction, 3, don't cut, earlier").
+      <br><br>
+      Note that Crew Chief won't confirm corrections - there's just too much going on to allow it to waste time reading them back to you.
+      <br><br>
+      Another form of correction is an insert. You can make a command "insert caution jump", for example, and Crew Chief will add a stage note.
+      <br><br>
+      Corrections and inserts are stored in Documents\CrewChiefV4\[game name]\[stage name]\corrections.json, this is JSON and can be edited. Note that corrections can be used for user-created stage notes and (for RBR) game-provided stage notes.
+      <br><br>
+      <h3>Available Commands</h3>
+      These are the currently supported commands, the set may grow but it's a trade-off between a rich vocabulary and putting too much pressure on the speech recogniser.
+      <br>
+      <ul>
+      <li>earlier calls / more notice                            [call all stage notes earlier]</li>
+      <li>later calls                                            [call all stage notes later]</li>
+      <li>corner number first / use corner number first        [change calling style]</li>
+      <li>corner description / use corner description            [change calling style]</li>
+      <li>corner direction first / use corner direction first    [change calling style]</li>
+      <li>start stage reccy / start reccy / start recording pace notes / start recording stage notes        [starts stage recce mode]</li>
+      <li>finish stage reccy / finish reccy / finish recording pace notes / finish recording stage notes    [finishes stage recce mode and saves created stage notes]</li>
+      <li>correction                [starts a correction, recce or normal mode]</li>
+      <li>insert                    [starts an insert, doesn't apply to recce mode]</li>
+      <li>earlier / sooner        [part of a correction, moves the last stage note so it triggers earlier, doesn't apply to recce mode]</li>
+      <li>later                    [part of a correction, moves the last stage note so it triggers later, doesn't apply to recce mode]</li>
+      </ul>
+      <h4>Corner types</h4>
+      <ul>
+      <li>left</li>
+      <li>right</li>
+      <li>one / acute</li>
+      <li>two / kay</li>
+      <li>three / slow</li>
+      <li>four / medium</li>
+      <li>five / fast</li>
+      <li>six / slight</li>
+      <li>square</li>
+      <li>hairpin</li>
+      <li>flat</li>
+      </ul><h4>Corner modifiers</h4>
+      <ul>
+      <li>cut</li>
+      <li>don't cut</li>
+      <li>tightens</li>
+      <li>tightens bad</li>
+      <li>widens / opens</li>
+      <li>long</li>
+      <li>maybe</li>
+      <li>tightens then opens</li>
+      <li>opens then tightens</li>
+      </ul><h4>Obstacles (note that some of the modifiers above can also be used on there own as obstacles)</h4>
+      <ul>
+      <li>narrows</li>
+      <li>gate / through gate</li>
+      <li>opens</li>
+      <li>bad camber</li>
+      <li>bridge</li>
+      <li>over bridge</li>
+      <li>ford</li>
+      <li>crest</li>
+      <li>over crest</li>
+      <li>jump</li>
+      <li>big jump</li>
+      <li>over jump</li>
+      <li>over junction / junction / past junction / through junction</li>
+      <li>caution</li>
+      <li>slippy / slippery</li>
+      <li>onto tarmac / tarmac</li>
+      <li>onto snow / snow</li>
+      <li>onto gravel / gravel</li>
+      <li>onto concrete / concrete</li>
+      <li>onto loose gravel / loose gravel</li>
+      <li>ruts</li>
+      <li>deep ruts</li>
+      <li>tunnel</li>
+      <li>left entry chicane</li>
+      <li>right entry chicane</li>
+      <li>care</li>
+      <li>danger / double caution</li>
+      <li>keep middle / keep center</li>
+      <li>keep left</li>
+      <li>keep right</li>
+      <li>keep in</li>
+      <li>keep out</li>
+      <li>bumps / bumpy</li>
+      <li>over rails</li>
+      <li>tightens then opens</li>
+      <li>opens then tightens</li>
+      <li>rocks inside / logs inside / tree inside [generates a 'keep out' note]</li>
+      <li>rocks outside / logs outside / tree inside [generates a 'keep in' note]</li>
+      <li>uphill</li>
+      <li>downhill</li>
+      <li>brake / braking</li>
+      </ul>
+    </div>
+  </body>
+</html>

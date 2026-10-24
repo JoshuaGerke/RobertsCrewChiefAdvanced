@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body link="#0000EE" vlink="#551A8B" text="#000000" bgcolor="#dddddd" alink="#EE0000">
+<div style="font-family:'Lucida Sans Unicode';font-size:13px;" class="main">
+(experimental, iRacing, pCars2 and R3E only)<br>
+<br>
+Crew Chief can attempt to recognise a chat message if it's using the Windows speech recognition engine (the one built into Windows that requires training). This feature can be enabled with the 'Enable free dictation chat messages' property. Crew Chief will expect the message to start with the 'Chat free dictation start word' property value (default is "chat"). If this feature is enabled and you make a voice command that starts with this word, Crew Chief will attempt to recognise all the speech input after this word. It will execute the "start chat macro" macro (presses the chat key - 't' or 'c' depending on the game), then it'll type the characters of the recognised speech, then execute the "end chat macro" macro (presses the 'enter' key).<br>
+<br>
+For example, if you make a voice command "chat, good luck everyone" Crew Chief will press the key to activate the in-game chat, type 'good luck everyone' and press end. If it works. Note that this is heavily dependent on the accuracy of the free dictation speech recogniser and is just as likely to type 'good book ever known' or other such nonsense. I *strongly* recommend going through the speech recognition training process fully before using this feature. It's also a good idea to test it with Notepad or another text editor running in the foreground first so you can see what it would actually be typing when you make a command.<br>
+<br>
+</div>
+
+</body>
+</html>

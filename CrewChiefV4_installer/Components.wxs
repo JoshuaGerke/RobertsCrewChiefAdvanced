@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents">
+      <!-- Shortcut -->
+      <ComponentRef Id="MainAppShortcut" />
+      <!-- </Component> -->
+      <ComponentRef Id="CrewChiefV4.exe" />
+    </ComponentGroup>
+    
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="CrewChiefV4.exe" Guid="{D44A6FE6-867D-48A5-BB31-B37F2C09F8CE}">
+        <File Id="CrewChiefV4.exe" KeyPath="yes" Source="$(var.BasePath)\CrewChiefV4.exe" />
+      </Component>
+    </DirectoryRef>
+    
+    <DirectoryRef Id="ProgramMenuFolder">      
+      <Component Id="MainAppShortcut" Guid="{07268607-267C-4B93-9EA8-95F62B4497C7}">
+
+        <Shortcut Id="MainAppShortcut"
+                  Name="!(loc.ProductName)"
+                  Target="[INSTALLFOLDER]!(loc.ProductName).exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="icon.ico"
+                  Description="!(loc.Description)"
+                  />
+
+        <!-- Our unique key for this component/shortcut -->
+        <RegistryValue Id="RegShortcutKey" Root="HKCU" Key="SOFTWARE\!(loc.Company)\!(loc.ProductName)" Name="Shortcut" Value="1" Type="integer" KeyPath="yes" />
+
+        <!--Remove start menu items -->
+        <RemoveFolder Id="ProgramMenuFolder" On="uninstall"/>
+
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

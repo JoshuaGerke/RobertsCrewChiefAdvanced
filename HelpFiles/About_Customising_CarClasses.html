@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body vlink="#551A8B" text="#000000" link="#0000EE" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main">
+      <h4>Why would I want to customise car classes?</h4>
+      The main reason for caring about car classes in Crew Chief is to
+      have a good Crew Chief experience for vehicle classes in mods that Crew Chief <i>does
+        not support out of the box</i>. Crew Chief uses the Class definition for
+      information about wheel sizes, brake types etc. There's a lot of
+      awesome 3rd party content, but not all use the class names and the
+      Crew Chief team can't cover them all. That's where this mechanism becomes
+      helpful.<br style="color: rgb(51, 51, 51); font-family: Verdana,
+        Arial, Tahoma, Calibri, Geneva, sans-serif; font-size: 13px;
+        font-style: normal; font-variant-ligatures: normal;
+        font-variant-caps: normal; font-weight: 400; letter-spacing:
+        normal; orphans: 2; text-align: left; text-indent: 0px;
+        text-transform: none; white-space: normal; widows: 2;
+        word-spacing: 0px; -webkit-text-stroke-width: 0px;
+        background-color: rgb(250, 250, 250); text-decoration-style:
+        initial; text-decoration-color: initial;">
+      <h4>Single-class vs Multi-class event</h4>
+      Crew Chief uses Car Class to distinguish between multi-class and
+      single-class races. If race is a multi-class race, Crew Chief will compare
+      your lap times with lap times of vehicles of the&nbsp;same class.
+      The problem is that sometimes mods are authored in a way that the
+      car class name is different for vehicles in the same class. For
+      example, there might be "A GT3" class name for vehicle of brand A,
+      and "B GT3" for vehicle of brand B. If you would like Crew Chief
+      to treat both as the same class you will need to map "A GT3" and
+      "B GT3" class names to Crew Chief GT3 class. That way, such a race becomes
+      a single class race.<br style="color: rgb(51, 51, 51);
+        font-family: Verdana, Arial, Tahoma, Calibri, Geneva,
+        sans-serif; font-size: 13px; font-style: normal;
+        font-variant-ligatures: normal; font-variant-caps: normal;
+        font-weight: 400; letter-spacing: normal; orphans: 2;
+        text-align: left; text-indent: 0px; text-transform: none;
+        white-space: normal; widows: 2; word-spacing: 0px;
+        -webkit-text-stroke-width: 0px; background-color: rgb(250, 250,
+        250); text-decoration-style: initial; text-decoration-color:
+        initial;">
+      <h4>What can be customised using this mechanism?</h4>
+      <ul>
+        <li>Mapping a vehicle to a pre-defined Crew Chief class. For example, if
+          your vehicle class is "Super Mod GT3", you can map it to GT3
+          class.</li>
+        <li>You can customise the pre-defined Crew Chief car classes. For
+          example, if you are driving a vehicle with very large wheels,
+          Crew Chief might announce that you're locking your wheels all the time
+          (because the wheel rotates way slower than we expect). This
+          Car Class configuration mechanism allows you to specify wheel
+          sizes.</li>
+      </ul>
+      More detail in this forum post <a
+        href="http://thecrewchief.org/showthread.php?27-Customizing-Car-Classes">Customising
+        Car Classes</a>
+    </div>
+  </body>
+</html>

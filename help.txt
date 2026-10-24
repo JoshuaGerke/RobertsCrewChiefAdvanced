@@ -1,0 +1,603 @@
+Getting started
+-----------------------
+
+Crew Chief requires the .Net framework, version 4.6. This is included in Windows 10 but Windows 7 and Window 8 users will need to install it.
+
+When you first start Crew Chief the app will be installed with no sounds. The UI should have 2 big buttons, highlighted in green. Pressing these will download the sound pack (voice messages) and optional (but highly recommended) driver names. Press them both and when they're both complete, you'll be prompted to restart the application.
+
+For Raceroom and Project Cars, Crew Chief is self contained and needs no other software and almost no configuration. For rFactor 1 based games, rFactor 2 and Assetto Corsa there are a couple of extra steps required. 
+
+For voice recognition (entirely optional but quite handy and very cool) see below.
+
+If you're stuck or just want to catch up on what's going on with the app, there's a Crew Chief forum here: https://thecrewchief.org
+
+
+Raceroom:
+
+To use Crew Chief with Raceroom simply select Raceroom from Crew Chief's Game menu and click the Start button.
+
+
+Project Cars:
+
+Project Cars can be run in 3 modes - 32 bit, 64 bit or Network. I recommend trying Nework first (the app will have access to more accurate information). In Project Cars' Gameplay menu, set UDP to 2 or 3. Select Project Cars (network data) from Crew Chief's Game menu and click the Start button. For some users this might not work due to the way the game sends data in this mode. If it doesn't work for you try selecting Project Cars (64 bit) or Project Cars (32 bit) from the Game menu, depending on which version of the game you're running (for most users this will be 64 bit). Be aware that in these modes the app has to time opponent laps itself, so the opponent laptime reporting will not be as accurate as it is for Network mode.
+
+
+Automobilista / RF1 / Game Stock Car Extreme / Formula Truck / Copa Petrobras de Marcas:
+
+You need Dan Allongo's plugin for these games. The app will check if this plugin is installed in the correct game folder. If it isn't, the app will offer to install it for you when you start the app with Automobilista / RF1 / Game Stock Car Extreme / Formula Truck / Copa Petrobras de Marcas selected. In most cases all you need do is click the "OK" button in the popup.
+
+If this process fails for any reason, copy the rFactorSharedMemoryMap.dll from the app's plugins folder - usually C:\Program Files (x86)\Britton IT Ltd\CrewChiefV4\plugins\rfactor1\Plugins\rFactorSharedMemoryMap.dll to the Automobilista / RF1 / Game Stock Car Extreme / Formula Truck / Copa Petrobras de Marcas 'Plugins' folder (usually something like C:\Program Files (x86)\Steam\steamapps\common\Automobilista\Plugins). Once you've done this just select the game from Crew Chief's Game menu and press the Start button.
+
+The source code for this plugin is here: https://github.com/dallongo/rFactorSharedMemoryMap
+
+
+rFactor 2:
+
+You need Vytautas Leonavičius' plugin for rFactor 2. The app will check if this plugin is installed in the correct game folder. If it isn't, the app will offer to install it for you when you start the app with rF2 selected. In most cases all you need do is click the "OK" button in the popup.
+
+If this process fails for any reason, copy the rFactor2SharedMemoryMapPlugin64.dll from the app's plugins folder - usually C:\Program Files (x86)\Britton IT Ltd\CrewChiefV4\plugins\rFactor 2\Bin64\Plugins\rFactor2SharedMemoryMapPlugin64.dll to the rFactor2 'Plugins' folder (usually something like C:\Program Files (x86)\Steam\steamapps\common\rFactor2\Bin64\Plugins). You need to enable this plugin from the game's Options->Plugins UI.
+
+Note: 32 bit rFactor 2 is no longer supported.
+
+
+Assetto Corsa:
+
+You need Morten Roslev's Python plugin for Assetto Corsa. The app will check if this plugin is installed in the correct game folder. If it isn't, the app will offer to install it for you when you start the app with Assetto Corsa selected. In most cases all you need do is click the "OK" button in the popup.
+
+If this process fails for any reason, copy the folder called 'CrewChiefEx' from the app's plugins folder - usually C:\Program Files (x86)\Britton IT Ltd\CrewChiefV4\plugins\assettocorsa\apps\python\CrewChiefEx to the Asstto Corsa python folder (usually something like C:\Program Files (x86)\Steam\steamapps\common\assettocorsa\apps\python). You might need to enable this plugin in the Assetto Corsa UI. Once you've done this just select the game from Crew Chief's Game menu and press the Start button.
+
+iRacing:
+
+To use Crew Chief with iRacing simply select iRacing from Crew Chief's Game menu and click the Start button.
+
+For the best experience Crew Chief needs at least as many cars enabled in iRacing graphics settings(Max Cars) as the session allows, if this value is lower then the app is more likely to give wrong realtime position messages. Also to make sure iRacing is sending enough data, goto https://members.iracing.com/membersite/account/Home.do half way down the page is a setting called "Connection Type" this needs to be as high as you internet connection allows.      
+
+
+Startup issues
+------------------
+If the app refuses to start, or starts then closes itself, try deleting the app's configuration files. To do this go to C:\Users\[user name]\AppData\Local\Britton_IT_Ltd\ and delete all the subfolders in there, and go to your Documents folder and delete the CrewChiefV4 folder. This will reset all the app's settings to default. Note that the 'AppData' folder is hidden by default on Windows - you may need to change the View settings in the File Explorer Options from Windows Control Panel - look for a setting called "Show hidden files and folders".
+
+There may also be an error logged in the Windows Event logs - look for .Net errors in the Application Logs section.
+
+
+
+Properties
+-------------------
+The app includes a rather rudamentary preferences screen accessed by the "Properties" button. Many many aspects of that app's behaviour can be customised here but it's important to note that you don't have to make any changes to these properties to get the app to work correctly - the defaults are sensisble settings and the app doesn't need any configuration (except for swearing - see below).
+
+We've added a search capability to the window.  Most of CC options apply to all simulators, but you can also search for game specific preferences by typing ACS, AMS, R3E, rF1, rF2 or pCars to filter accordingly.
+
+
+
+Swearing
+-----------------
+Because swearing is cool and I'm a 12 year old stuck in a middle-aged body, this has its own help section. Swearing is disabled by default so once you've got the app working you'll want to enable it because swearing is cool. Look for a checkbox in the Properties screen called "Use sweary messages" (search for "sweary" using the search box) and tick it. The app will swear where appropriate - it's not like listening to an Eddie Murphy gig and doesn't happen very often but it does help add a bit of personality to the messages.
+
+
+
+Personalisations
+------------------------
+The "My name" dropdown menu in the top right of the main UI allows you to select from a list of names which the app will use to address you, from time to time. These are incorporated into existing messages so for example, rather than just saying "box now" the app will say "box now, please Jim". There are lots of variations and they sound quite good, if you are lucky enough to have a first name that's in this list. How often you hear these personalised messages is controlled by the "Min time between personalised messages" property. The old default value (30s) is a bit low - 60s sounds better. The Personalisations come in the form of a mini-sound pack which is downloaded and managed by the app (they used to require lots of manual faffing) - if new personalisations are available the "Download personalisations" button will he highlighted in green. Swapping between personalisations requires an app restart.
+
+
+Pit exit position prediction
+----------------------------
+Version 4.9.3.0 adds rudamentary race and track position predictions for pit exit. This is based on a benchmark pitstop time which uses the time difference between your best lap's sector3 and sector1 times, and the corresponding times on your inlap & outlap.
+
+Benchmark pit times can be measured during a practice session with the 'time this stop' / 'practice pitstop' / 'time this pitstop' / 'pitstop benchmark' voice command, or by pressing the "Pitstop prediction" button before make your practice stop. Do some hot laps to get a baseline laptime, then issue this after your 'box this lap' command, and do a full race-simulation pitstop. Maintain race pace on your outlap until you finish sector1. The app will calculate how much time you lost and use this when you pit in the race. If you don't measure your own benchmark pit time the app will measure the time your opponents lose due to pitting and use this instead - note that this means pit exit prediction data won't be available until after at least one of your opponents have completed a pitstop.
+
+If the app has usable benchmark data and you request a pitstop *before you reach sector3*, it'll tell you where you should come out and what the traffic will be like when you hit sector3. You can also request this data at any time with the 'Where will be be after a stop?' / 'Estimate pit exit positions' / 'What will happen if I pit?', or by pressing the "Pitstop prediction" button during a race, even if you've not requested a pitstop (the app will derive its estimates on every lap regardless or whether you actually pit).
+
+At the time of writing there's more work to be done here and some more features that may be added.
+
+
+Voice Recognition
+-------------------------
+There are two voice recognition systems which Crew Chief can use. The first of these is optimised for noisy environments and poor quality sound input. This is the default option. It requires no training and works with a wide range of microphone types and accents, but it requires a separate runtime installation and a language pack. This system is referred to as the "Microsoft speech recognition engine". The other system uses the speech recognition system built in to Windows. This requires a better quality voice input signal than the default system but can be trained to recognise a user's individual voice. It does not require the installation of any additional components. This system is referred to as the "Windows speech recognition engine".
+
+Which is best depends on the quality of your microphone, your voice, the amount of background noise, and countless other factors. It's worth trying both and seeing which gives the best results.
+
+If you want to use the Windows speech recognition engine simply ensure that the 'Prefer Windows speech recogniser' option is checked on the Properties screen. You will get better results if you work through the speech recognition training process in Windows.
+
+If you want to use the default Microsoft voice recognition system, you'll need to install the Microsoft Speech Recognition runtime which is here: https://www.microsoft.com/en-gb/download/details.aspx?id=27225
+From this page click 'Download' and select the right version - for most users this will be x64_SpeechPlatformRuntime\SpeechPlatformRuntime.msi
+Once you've installed this, you'll also need to install a language pack - https://www.microsoft.com/en-gb/download/details.aspx?id=27224 
+Again, from this page click 'Download' and select the right version - for most users this will be MSSpeech_SR_en-US_TELE.msi (US users) or MSSpeech_SR_en-GB_TELE.msi (UK users).
+
+Note that the app will fall back to using the Windows speech recognition engine if it can't find a working installation of the Microsoft speech recognition engine.
+
+Crew Chief will use the "Default" recording device for voice recognition - this can be selected in the "Recording devices" section of the Window Sounds control panel.
+
+Voice recognition can be configured to be always-on (it listens continuously and responds when it recognises a command) or in response to a button press. To assign a button to a activate voice recognition, press the 'Scan for controllers' button at the bottom of Crew Chief UI. This will populate the 'Available controllers' list. Then select the controller you want to use from this list and select the 'Talk to crew chief' item from the 'Available actions' list. Then click the 'Assign control' button and press the wheel / controller / keyboard button you want to use for this action. By default you have to hold this button down while you talk - this can be changed by selecting a different 'Voice recognition mode'.
+
+If you want to test voice recognition, set it all up and press the Start button in Crew Chief, then press your voice recognition button and ask "Can you head me?". If the app can understand you it'll respond with "Yes, I can hear you".
+
+The app understands lots of command including:
+
+"how's my [fuel / tyre wear / body work / aero / engine / transmission / suspension / pace / delta best ]"
+"how are my [tyre temps / tyre temperatures / brakes / brake temps / brake temperatures / engine temps / engine temperatures]" (gives a good / bad type response)
+"What are my [brake temps / tyre temps]" (gives the actual temps)
+"what's my [gap in front / gap ahead / gap behind / last lap / last lap time / lap time / position / fuel level / best lap / best lap time]"
+"what's the fastest lap" (reports the fastest lap in the session for the player's car class)
+"keep quiet / I know what I'm doing / leave me alone" (switches off messages)
+"keep me informed / keep me posted / keep me updated" (switches messages back on)
+"how long's left / how many laps are left / how many laps to go"
+"spot / don't spot" (switches the spotter on and off - note even in "leave me alone" mode the spotter still operates unless you explicitly switch it off)
+"do I still have a penalty / do I have a penalty / have I served my penalty"
+"do I have to pit / do I need to pit / do I have a mandatory pit stop / do I have a mandatory stop / do I have to make a pit stop"
+"where's [opponent driver last name]"
+"what's [opponent driver last name]'s last lap"
+"what's [opponent driver last name]'s best lap"
+"what's [opponent driver last name]'s irating"
+"what's [opponent driver last name]'s licens class"
+"what's [opponent race position]'s last lap" (for example, "what's p 4's best lap", or "what's position 4's last lap")
+"what's [opponent race position]'s best lap"
+"what's [opponent race position]'s irating"
+"what's [opponent race position]'s licens class"
+"what's [the car in front / the guy in front / the car ahead / the guy ahead]'s last lap"
+"what's [the car in front / the guy in front / the car ahead / the guy ahead]'s best lap"
+"what's [the car in front / the guy in front / the car ahead / the guy ahead]'s irating"
+"what's [the car in front / the guy in front / the car ahead / the guy ahead]'s licens class"
+"what's [the car behind / the guy behind]'s last lap"
+"what's [the car behind / the guy behind]'s best lap"
+"what's [the car behind / the guy behind]'s irating"
+"what's [the car behind / the guy behind]'s licens class"
+"what tyre(s) is [opponent driver last name / opponent race position] on"
+"what are my sector times"
+"what's my last sector time"
+"who's leading" (this one only works if you have the driver name recording for the lead car)
+"who's [ahead / ahead in the race / in front / in front in the race / behind / behind in the race]" (gives the name of the car in front / behind in the race or on the timing sheet for qual / practice. This one only works if you have the driver name recording for that driver)
+"who's [ahead on track / in front on track / behind on track]" (gives the name of the car in front / behind in on track, regardless of his race / qual position. This one only works if you have the driver name recording for that driver)
+"tell me the gaps / give me the gaps / tell me the deltas / give me the deltas" (switch on 'deltas' mode where the time deltas in front and behind get read out on each lap. Note that these messages will play even if you have disabled messages)
+"don't tell me the gaps / don't tell me the deltas / no more gaps / no more deltas" (switch off deltas mode)
+"repeat last message / say again" (replays the last message)
+"What are my [brake / tyre] [temperatures / temps]"
+"What time is it / what's the time" (reports current real-world time)
+"What's my fuel usage / what's my fuel consumption / what's my fuel use" (reports the per-lap or per-minute average fuel consumption)
+"What tires am I on / what tire am / on / what tire type am i on" (reports the tyre name you're currently using, if available)
+"Calculate fuel for [X minutes / laps] / how much fuel do I need for [X minutes / laps] / how much fuel for [X minutes / laps]" (estimates how much fuel you'll probably need for this many minutes or laps)
+"Give me tyre pace differences / what are the tire speeds / whats the difference between tires / compare tire compounds" (Raceroom only - gives lap time deltas for the best lap on each tyre type that's been used during the session, across all drivers in the same car class as the player)
+"This is the formation lap / formation lap / rolling start": Enable manual rolling-start mode (used by some online leagues)
+"Standing start / no formation lap": Disable manual rolling-start mode
+"Where should I attack / where am I faster / where can I attack": If the app has enough data, will report the corner name where you're gaining the most time on the guy in front
+"Where should I defend / where am I slower / where is he faster / where will he attack": If the app has enough data, will report the corner name where you're losing the most time to the guy behind
+"Read corner names / corner names / tell me the corner names": read out each corner name when you hit the mid-point of the corner, for this lap only (useful to test corner name mappings)
+"Damage report" / "How's my car" / "Is my car ok?": report any damage the car has sustained
+"Car status": report any damage the car has sustained, tyre and brake temperature status and fuel / battery status
+"Session status" / "Race status": report race position, gaps, time / laps left in session
+"Full update" / "Full status" / "Update me": combines all of the above three status reports (will produce a very verbose response)
+"how much fuel to the end" / "how much fuel do we need": report how many litres or gallons of fuel the app thinks you'll need to finish the race
+"is the car ahead in my class" / "is the car ahead my class" / "is the car ahead the same class as me" / "is the car in front in my class" / "is the car in front my class" / "is the car in front the same class as me" - responds yes or no
+"is the car behind in my class" / "is the car behind my class" / "is the car behind the same class as me" - responds yes or no
+"what class is the car ahead" / "what class is the guy ahead" / "what class is the car in front" / "what class is the guy in front" - reports class name, or "faster" / "slower" if the app doesn't have the class name
+"what class is the car behind" / "what class is the guy behind"- reports class name, or "faster" / "slower" if the app doesn't have the class name
+"what's the sof" / "what is the strength of field" (iRacing only)
+"how many incidents do i have" / "what's my incident count" (iRacing only)
+"what's the incident limit" (iRacing only) 
+"time this stop" / "practice pitstop" / "time this pitstop" / "pitstop benchmark": time the next pitstop (sector 3 + sector 1 time) to work out home much tome overall a pitstop costs - practice session only
+"where will I be after a stop?" / "Estimate pit exit positions" / "What will happen if I pit?": play estimate of traffic and race positions on pit exit, if you were to pit on this lap
+"don't talk in the [corners / braking zones]" / "no messages in the [corners / braking zones]": delay non-critical messages if the player is in a challenging section of the track
+"talk to me anywhere" / "messages at any point": disable message delay in challenging parts of the track
+"set alarm to [hour] [minutes] [optional am/pm]" / "alarm me at [hour] [minutes] [optional am/pm]": sets the alarm clock at the given time, supports both 12 and 24 hour format and multiple alarms
+"clear alarm clock" / "clear alarms": clears all the alarms set
+"enable cut track warnings" / "play cut track warnings:warn about cuts"
+"no cut track warnings" / "no more cut warnings:no more cut track warnings"
+
+
+iRacing-specific pit commands:
+
+"pitstop add [X liters]" (adds X amount of fuel next pitstop, this option is iRacing only)
+"pitstop tearoff / pitstop windscreen" (enable next pitstop, this option is iRacing only)
+"pitstop fast repair / pitstop repair" (enable fast repair next pitstop, this option is iRacing only)
+"pitstop clear all" (clears all selected pitstop options, this option is iRacing only)
+"pitstop clear tyres" / "pitstop don't change tyres" / "box, clear tyres" / "box, don't change tyres" (clears all tyre selections next pitstop, this option is iRacing)
+"pitstop clear tearoff / pitstop clear windscreen" (clears tearoff selection next pitstop, this option is iRacing only)
+"pitstop clear fast repair" (clears fast repair selection next pitstop, this option is iRacing only)
+"pitstop clear fuel" (clears fuel refueling next pitstop, this option is iRacing only)
+"pitstop change all tyres" / "box, change all tyres" (change all tyres next pitstop, this option is iRacing)
+"pitstop change left front tyre" (change left front tyre next pitstop, this option is iRacing only)
+"pitstop change right front tyre" (change right front tyre next pitstop, this option is iRacing only)
+"pitstop change left rear tyre" (change left rear tyre next pitstop, this option is iRacing only)
+"pitstop change right rear tyre" (change right rear tyre next pitstop, this option is iRacing only)
+"pitstop change left side tyres"(change left side tyres next pitstop, this option is iRacing only)
+"pitstop change right side tyres"(change right side tyres next pitstop, this option is iRacing only)
+"pitstop change tyres pressure [ new value ]" (change right rear tyre pressure next pitstop, this option is iRacing only)
+"pitstop change left front tyre pressure [ new value ]" (change left front tyre next pressure pitstop, this option is iRacing only)
+"pitstop change right front tyre pressure [ new value ]" (change right front tyre pressure next pitstop, this option is iRacing only)
+"pitstop change left rear tyre pressure [ new value ]" (change left rear tyre pressure next pitstop, this option is iRacing only)
+"pitstop change right rear tyre pressure [ new value ]" (change right rear tyre pressure next pitstop, this option is iRacing only)
+"pitstop fuel to the end" / "pitstop fuel to the end of the race" (add the fuel amount the app calculates you'll need to finish the race, this option is iRacing only)
+
+
+R3E-specific pit commands:
+
+"pitstop clear tyres" / "pitstop don't change tyres" / "box, clear tyres" / "box, don't change tyres"
+"pitstop change all tyres" / "box, change all tyres"
+"pitstop change front tyres only" / "box, change front tyres only"
+"pitstop change rear tyres only" / "box, change rear tyres only"
+"pitstop next tyre compound" / "box, next tyre compound"
+"pitstop fix front aero only" / "box, fix front aero only"
+"pitstop fix rear aero only" / "box, fix rear aero only"
+"pitstop fix all aero" / "box, fix all aero"
+"pitstop don't fix aero" / "box, don't fix aero"
+"pitstop fix suspension" / "box, fix suspension"
+"pitstop don't fix suspension" / "box, don't fix suspension"
+"pitstop serve penalty" / "box, serve penalty"
+"pitstop don't serve penalty" / "box, don't serve penalty"
+"pitstop refuel" / "box, refuel"
+"pitstop don't refuel" / "box, don't refuel"
+"pitstop next tyre compound" / "box, next tyre compound"
+"pitstop hard tyres" / "box, hard tyres"
+"pitstop medium tyres" / "box, medium tyres"
+"pitstop soft tyres" / "box, soft tyres"
+"pitstop prime tyres" / "box, prime tyres" / "pitstop primary tyres" / "box, primary tyres"
+"pitstop option tyres:" / "box, option tyres"
+"pitstop alternate tyres" / "box, alternate tyres"
+"what are the pit actions" / "what's the pitstop plan" (reports the selected actions for the next pitstop)
+
+
+Free dictation chat messages (experimental, iRacing, pCars2 and R3E only)
+-------------------------------------------------------------------------
+The app can attempt to recognise a chat message if it's using the Windows speech recognition engine (the one built into Windows that requires training). This feature can be enabled with the 'Enable free dictation chat messages' property. The app will expect the message to start with the 'Chat free dictation start word' property value (default is "chat"). If this feature is enabled and you make a voice command that starts with this word, the app will attempt to recognise all the speech input after this word. It will execute the "start chat macro" macro (presses the chat key - 't' or 'c' depending on the game), then it'll type the characters of the recognised speech, then execute the "end chat macro" macro (presses the 'enter' key).
+
+For example, if you make a voice command "chat, good luck everyone" the app will press the key to activate the in-game chat, type 'good luck everyone' and press end. If it works. Note that this is heavily dependent on the accuracy of the free dictation speech recogniser and is just as likely to type 'good book ever known' or other such nonsense. I *strongly* recommend going through the speech recognition training process fully before using this feature. It's also a good idea to test it with Notepad or another text editor running in the foreground first so you can see what it would actually be typing when you make a command. 
+
+
+
+Text to speech
+--------------
+The app contains lots of opponent driver name recordings (several thousand) but this is only a small faction of the opponent names you're likely to encounter. The app can use Windows' built in text to speech functionality to create sounds for missing driver names. These TTS names will sound wrong and immersion-breaking, but they can be quite useful. Windows 10 includes a default voice called David (on English versions) which is the least-worst option. Windows 7's TTS voice is hopeless. I don't know what other versions sound like.
+
+There are 3 basic TTS modes - disabled (the default, no TTS is used, if the app doesn't have a driver name recording it refer to the driver using generic terms, or drop some messages relating to this driver). 'Only when necessary' mode (enable TTS, enable "Only use TTS when there is no alternative") will use TTS only when the app has no alternative, so you'll hardly ever hear TTS names. If you ask "who's in front?" and the app has no driver name sound for this opponent, it *will* use a TTS sound instead of saying something daft like "I can't pronounce that". If you disable 'Only when necessary' mode, the app will use TTS names rather than generic terms in exactly the same way as it would use real driver name recordings. So you'll hear quite a lot of TTS names which will sound pretty bad.
+
+TTS sounds tend to be much quieter than the recorded sounds, and aren't filtered or compressed. To make their volume balance with other sounds there's a "TTS volume boost" property which increases the TTS sound volume by this factor (so 1 means 'no increase', 2 - the default - means double the volume). The default is 2 and seems to work well. The TTS engine tends to add some silence before and lots of silence after the TTS sound. The app will attempt to trim this ("Trim end of TTS sounds" and "Trim start of TTS sounds" properties). Note that in some circumstance this can result in a Wave file that can't be played. It seems to be most sensitive to trimming the start - the app will only allow the start to be trimmed if the resulting sound is more than 1 second long. If you find the app hanging when playing TTS sounds, reduce these trim values.
+
+
+Command macros
+--------------
+The app can send sequences of key presses in response to voice command. These can be used for anything you like, but their primary function is to ease the pain of navigating the awkward in-game pit menus. The app comes with a default set of command macros which (at the time of writing) are for PCars2 and Raceroom only. More will be added for other games. The default commands can be found in [install folder]/saved_command_macros.json. The app includes a macro edit function which allows existing macros to be customised and new ones created. This will create a file Documents/CrewChiefV4/save_commands_macros.json with the macros you've modified or created, and will override the default file.
+
+Because macros are pretty simple (sending a pre-defined sequence of keys) you need to ensure the in-game key bindings match what the macro is expecting.
+
+Raceroom
+
+expected in-game key bindings:
+"Pit Menu Toggle":		q
+"Pit Menu Select":		e
+"Pit Menu Up":			w
+"Pit Menu Down":		s
+"Pit Menu Decrease":	a
+"Pit Menu Increase":	d
+"Pit Request Toggle":	r
+"Real-time Chat":		c
+
+Ensure that there are at least *two* Pitstop Presets defined (from the in-game pit menu). This is necessary because if there's only one preset (or zero) the game doesn't allow the 'Pit preset' menu item to be highlighted, which messes up the button press sequences.
+
+You can request a pit stop by saying "pit request", "in this lap" or "box this lap". This will open the pit menu, select 'pit request' and close it again after a few seconds' delay (so you can see what's selected).
+
+You can also cycle pit presets with the voice commands "next strategy", "next pit preset", "previous strategy", "previous pit preset".
+
+If you want to manually navigate the pit menu with voice commands, use "pit menu toggle", "pit menu up", "pit menu down", "pit menu left", "pit menu right" and "pit menu select".
+
+There are more sophisticated macros that can handle refuelling ("fuel to the end" and "add fuel, X litres"). They work by moving the pit menu to the fuel item, de-selecting 'fuel' and then changing the amount to zero by pressing 'Pit menu Decrease' many (about 100) times. They then press 'Pit menu Increase' the correct number of times to set the required (or calculated) fuel amount. Because many key presses are sent in quick succession, some users my encounter issues with these macros (but I've not had any problems myself) - it takes a few seconds to complete these macros to ensure you do them in plenty of time, before you reach the pit lane.
+
+
+PCars2
+
+expected in-game key bindings:
+"Car Management":		e
+"ICM Menu Up":			w
+"ICM Menu Down":		s
+"ICM Menu Left":		a
+"ICM Menu Right":		d
+"Pit Request Toggle":	q
+"In-game Chat Box":		t
+
+You can request a pit stop by saying "pit request", "in this lap" or "box this lap". This will open the pit menu, select 'pit request' and close it again.
+
+In pCars 2, you can select strategies with the voice commands "strategy one" / "strat one", up to "strategy four" / "strat four". In R3E you can cycle through pit presets with "next strategy" / "next pit preset" and "previous strategy", "previous pit preset".
+
+If you want to manually navigate the pit menu with voice commands, use "pit menu toggle", "pit menu up", "pit menu down", "pit menu left" and "pit menu right".
+
+iRacing
+
+expected in-game key bindings:
+"Lap Timing Black Box":				F1
+"Standings Black Box":				F2 
+"Relative Black Box":				F3
+"Fuel Black Box":					F4
+"Tires Black Box":					F5
+"Tire Info Black Box":				F6
+"Pit-stop Adjustments Black Box":	F7
+"In-car Adjustments Black Box":		F8
+"Mirror Adjustments Black Box":		F9
+"Radio Adjustments Black Box":		F10
+"Select Next Control":				UP
+"Select Previous Control":			DOWN
+"Increment Selected Control":		RIGHT
+"Decrement Selected Control":		LEFT
+"Toggle Selected Control":			SPACE_BAR
+
+You can change the black boxes by saying one of the following commands: "black box lap time", "black box standings", "black box relative",
+"black box fuel", "black box tires", "black box tire info", "black box pit stop", "black box car", "black box mirror" or "black box radio"
+
+You can navigate the by saying one of the following commands: "menu next", "menu previous", "menu increase", "menu decrease" or "menu toggle"
+
+
+Advanced command macros
+--------------
+As you can see from the previous section, key press macros are fiddly and a bit dumb - the app has only limited knowledge of what state the pit menu is in so it has to either make assumptions or work quite hard to put the menu into a known state. 
+
+There are 2 macros for adding fuel. One uses the logic of the app's 'Fuel' event to calculate how much fuel is needed to finish the race ("fuel to the end" voice command), the other uses the amount of fuel requested in the voice command ("add fuel, 100 litres" or whatever). These macros opens the pit menu, navigate to the fuel option and attempt to reset it to zero litres. Because they can't know how much fuel might already be set on this menu they have to press the 'decrease' button lots (150) times. This ensure it's at zero before they then add the calculated or requested amount of fuel.
+
+*Note that these will only work correctly if you use Litres as your unit*.
+
+Another point to note here is that these fuelling macros press 'decrease' 150 times quite quickly to ensure the fuel amount is zero before they start increasing it. When things are configured correctly it works well, but it's a lot of key presses and if something goes wrong the end result may be undesirable.
+
+The macro feature can also be used to automate chat messages. There are examples for pCars2 and R3E. Again, these just send sequences of key presses.
+
+There are a few special key press commands in the macro editor screen to help ease the pain of wiring these things up: 
+
+ - To send a fixed number of multiple key presses use "{MULTIPLE,153}KEY_A" (presses the A key 153 times).
+ - To send a number of multiple key presses based on some app logic for example, use "{MULTIPLE,fuel}KEY_D" (presses D however many times the Fuel event told it to). This requires specific application code to work but i'm happy to take requests :).
+ - To send a number of multiple presses based on the voice command that triggered the macro, the voice command needs to use a special format with the number range to recognise in curly braces - e.g. "add fuel, {1,150} litres" (recognises "add fuel 0 litres" up to "add fuel 150 litres", in steps of 1). Use "{MULTIPLE,VOICE_TRIGGER}KEY_D" to press (in this example) D the number of times recognised in the voice command.
+ - To send a sequence of key presses from some free text, use "{FREE_TEXT}sorry, my bad". Each of the keys after {FREE_TEXT} will be pressed in sequence. Only letters, commas, hypens and full-stops are supported. This is to make chat macros more straightforward (e.g. ["Real-time Chat", "{FREE_TEXT}good pass", "ENTER"]).
+
+Hopefully the game devs will make these menus or the actions they trigger easier to use for 3rd party apps. But until they do, these complicated automated interactions are always going to be flaky.
+
+
+
+R3E Pit Menu Interactions
+-------------------------
+R3E exposes some additional information describing the state of the popup pit menu - I use this where I can to make the macros a little more reliable. The app is also able to navigate the menu by pressing sequences of key to make specific pit requests. This depends on the in-game key bindings matching the keys set up in the app's command macros. By default, these macros require the in-game pit menu actions to be bound to w (menu up), a (menu left / decrease), s (menu down), d (menu right / increase), q (menu toggle), e (menu select) and r (request pit). It uses the menu navigation command macros (single button presses to move the cursor) to locate and select the approprate commands for most actions like selecting / deselecting tyres and repairs. Choosing a refuelling amount is not possible with this new approach - it still relies on the auto fuelling macros. The commands which use this new approach are:
+
+"pitstop clear tyres" / "pitstop don't change tyres" / "box, clear tyres" / "box, don't change tyres"
+"pitstop change all tyres" / "box, change all tyres"
+"pitstop change front tyres only" / "box, change front tyres only"
+"pitstop change rear tyres only" / "box, change rear tyres only"
+"pitstop fix front aero only" / "box, fix front aero only"
+"pitstop fix rear aero only" / "box, fix rear aero only"
+"pitstop fix all aero" / "box, fix all aero"
+"pitstop don't fix aero" / "box, don't fix aero"
+"pitstop fix suspension" / "box, fix suspension"
+"pitstop don't fix suspension" / "box, don't fix suspension"
+"pitstop serve penalty" / "box, serve penalty"
+"pitstop don't serve penalty" / "box, don't serve penalty"
+"pitstop refuel" / "box, refuel"
+"pitstop don't refuel" / "box, don't refuel"
+"what are the pit actions" / "what's the pitstop plan" (reports the selected actions for the next pitstop)
+
+The app will also read out the planned pit actions automatially when you get near the pit entrance after requesting a stop.
+
+
+
+Pace notes
+-----------------
+The app can record and playback messages recorded by the player as they drive around. The distance around the lap when a recording is made is saved, so when these messages are played back they trigger at the same point on the track. This allows you to drive slowly round and make audio notes about how to handle particular sections of track, and these are played back as if an instructor was sitting along side you.
+
+These pace notes can be shared between users - just ensure they're copied into the correct folder structure under your Documents folder. The app expects them to be in /Documents/CrewChiefV4/pace_notes/[game-name]/[car-name]/[track-name]/ (e.g. /Documents/CrewChiefV4/pace_notes/pCARS2/F3/Donington GP/. If you omit the car-name part of this path, the pace notes will be available for any car class.
+
+
+Recording pace notes:
+To record new pace notes, you need to run the speech recognition feature in 'hold button' mode, and you need to assign a button to the "Start / stop recording pace notes" action.
+
+Start a practice session and press the 'Start / stop recording pace notes' button. The app will play a voice confirmation and will now record any voice commands you make instead of passing them to the speech recogniser. Note that the radio beep will be different when recording pace notes. The voice recordings along with the distance-round-track (and lap number if multi-lap pace notes are enabled) will be saved in a folder inside the CrewChiefV4 folder in your Documents folder (which is automatically generated), with the game name, car name and track name (e.g. /Documents/CrewChiefV4/pace_notes/pCARS2/F3/Donington GP/).
+
+Drive slowly around the track and when you reach a point on the track where you want to record a pace note (say, you're approaching a braking zone), hold the "Talk to Crew Chief" button down and record your advice (perhaps something like "brake at the 100 metre board, put the left side wheels in the pit exit lane. 3rd gear, turn in late and hard") and release the button when you're done. Drive to the next point where you want to record something and repeat the process. Keep doing this until you're satisfied you've got all the pace notes recorded that you want - note that you can do this over multiple laps, or even multiple sessions (if the app spots existing pace notes in your Documents folder for the same game / car / track combination it will add to it). When you're done, press the "Start / stop recording pace notes" button again and the app will save all the data.
+
+In PCars, PCars2, R3E, AC and iRacing it should be possible to record pace notes while watching a replay, instead of driving.
+
+Doing this creates a set of .wav files and a metadata.json file which contains supporting information allowing the wav files and the track distance to be matched up. The wav files can be filtered and modified as you like - just ensure they aren't renamed.
+
+
+Playing back pace notes:
+If there are pace notes for the game / car / track combination you're using in your Documents folder, you can start this running with the voice command "start pace notes" and stop it with the voice command "stop pace notes", or you can assign a button to the "Start / stop playing pace notes" action. When the pace notes are being played, each of the messages in the session will be played when you reach the point on the track where it was recorded. They will continue to be played until you press the button again or make the "stop pace notes" voice command.
+
+
+There's a sample pace notes set available for Raceroom's Macau circuit in the WTCC 2014 - 2017 cars. You can view it in action here https://youtu.be/hz7lu23ckUE. You can download it here https://d1o4ya81faadx8.cloudfront.net/ExamplePaceNotes.zip. Unzip this to your Documents folder so it creates a directory structure like the ones described above, then when you start a WTCC session at Macau you can start the pace notes playing with the "start pace notes" voice command or "Start / stop playing pace notes" button.
+
+
+Track Landmarks(corner mappings) recording.
+-----------------
+Please, keep corner mappings tight (from turn-in point to corner exit). Do not include straights!
+To get the best results, the begin-distance should be taken at your typical turn-in point and the end-distance taken at the point where your wheels are pretty much straight-ahead. For some corners this is easy and very clear, in others not so much so in those cases just use your best judgement.
+
+To start recording a track landmarks file, the first thing you have to do is assign 2 buttons - one to start/stop the recording ("Start / stop track landmarks recording" action) and one to add start/end point ("Add Start / end track landmark" action).
+
+Start a practice session and wait until you're on track then press the "Start / stop track landmarks recording" button, now you can start adding landmarks by pressing the "Add Start / end track landmark" button. The first press on the button will be start point of the track landmark, the 2nd press will be end point.
+Once you have added all the landmarks press the "Start / stop track landmarks recording" butten to end the recording, this will produce a file called trackLandmarks.json located in C:\Users\[user name]\Documents\CrewChiefV4\track_landmarks\[game]\[track]\trackLandmarks.json.
+
+Track Landmarks(corner mappings) consists of:
+-Track Name or Raceroom ID and list of:
+-landmarkName
+-distanceRoundLapStart
+-distanceRoundLapEnd
+-isCommonOvertakingSpot (default false)
+
+This file will contain default corner names ("turn 1", "turn 2" and so-on). All corners will have isCommonOvertakingSpot set to false. Edit the file to change the isCommonOvertakingSpot value to 'true' where appropriate. You can also modify the corner names in this file. Note that, if you want the app to use these corner names, they will have to exist in C:\Users\[user name]\AppData\local\CrewChiefV4\sounds\voice\corner_names\
+
+You can request new names on the Crew Chief forum.
+
+Please share you recordings with the rest of the commmunity by uploading to the Crew Chief forum and we will include it in our next update.
+
+To load your newly added landmarks file you have to restart the app! 
+
+
+Manual formation lap
+--------------------
+Some online leagues run a manual formation at the start of the race. Lap 1 of the race is run in formation at a slower pace (even if the game doesn't know this), with the actual race starting when the lead car crosses the start line, or when player's car crosses the start line. Using Crew Chief in this situation would result in lots of annoying an unhelpful calls during the formation lap.
+
+To prevent this, and attempt to provide some useful information during this lap, the app has a manual formation lap mode. This is always disabled when you start the app, and can be enabled or disabled with a button press ('Toggle manual formation lap mode') or a voice command ("This is the formation lap / formation lap / rolling start" to enable, "Standing start / no formation lap" to disable). When it's enabled the app will assume that the opening lap is driven in formation and not under race conditions, and that the race starts at the start of lap 2. If you enable manual formation lap mode during the practice session or qualifying, it'll remain enabled for the race (and for subsequent race starts until you switch it off or restart the app).
+
+There are 2 additional options in the properties screen:
+'Manual formation 'go' when leader crosses line'. If this is enabled, the 'go go go' call will be made when the leader crosses the start line. If it's disabled the 'go go go' call will be made when the player crosses the start line.
+
+'Manual formation lap double-file start': if this is enabled, the app will assume that your rolling start is double file. It will expect you to start the race on the same side of the track as your grid position (regardless of who drops out in front of you). It will expect you to be behind the guy who was placed on the grid directly in front of you, on your side - the app does *not* check the position of cars which are not on your side of the grid (so the 2 pace lines don't have to be lined up properly with each other). If this is disabled, it will expect a single pace line starting the race in grid-order.
+
+If a car drops out of the pace lap or crashes, the app assumes that he'll rejoin at the back and start from the back. Things can get messy if there are formation lap incidents and the app can only do its best here :)
+
+Once the race starts at the end of the formation lap, the app will give its regular racing calls (so you don't need to switch this mode off during the race).
+
+
+rFactor2 Unofficial Features
+-------------------------------------
+Crew Chief supports some rF2 specific features not exposed via official rF2 Internals API.  Those features are turned off by default.  To enable those features, modify UserData\player\CustomPluginVariables.json by setting "EnableDirectMemoryAccess" to "1".  Plugin configuration should look like this:
+  "rFactor2SharedMemoryMapPlugin64.dll":{
+    " Enabled":1,
+    "DebugISIInternals":0,
+    "DebugOutputLevel":0,
+    "DedicatedServerMapGlobally":0,
+    "EnableDirectMemoryAccess":1
+  }
+
+Note: first space in " Enabled" above is required.
+
+See this thread for more information: https://thecrewchief.org/showthread.php?1011-rFactor-2-Unofficial-Features
+
+
+Advanced Controller Bindings
+------------------------------
+Controller bindings are saved in Documents/CrewChiefV4/controllerConfigurationData.json. The "devices" section contains the input devices the app detected when you last clicked the 'Scan for Controllers' button. The "buttonAssignments" section contains a list of which actions are assigned to which controllers. This is all managed by the app's UI. However, if you want to assign a button to an action that's not in the default available list of possible actions, you can also use speech recognition commands in the "action" element. For example, if you have a single controller like this in your controllerConfigurationData.json file:
+
+{
+  "devices": [
+    {
+      "deviceName": "Driving: Some Wheel",
+      "deviceType": 22,
+      "guid": "467d0260-c9a6-11e5-8003-xxxxxxxxxxxx"
+    }
+  ],
+  "buttonAssignments": [
+    {
+      "action": "talk_to_crew_chief",
+      "deviceGuid": "2bbfed03-a04f-4408-91cf-xxxxxxxxxxxx",
+      "buttonIndex": 10
+    }]
+}
+
+and you want map a button to the WHAT_WAS_MY_LAST_LAP_TIME action from the speech recogntion config file (found by default in C:\Program Files (x86)\Britton IT Ltd\CrewChiefV4\speech_recognition_config.txt) you can add a blank button assignment for it using either the speech recognition key ("WHAT_WAS_MY_LAST_LAP_TIME") or any of the speech recognition alternate phrases (for this example, "what's my last lap time", "last lap time", "lap time", or "what's my lap time"), like this:
+
+{
+  "devices": [
+    {
+      "deviceName": "Driving: Some Wheel",
+      "deviceType": 22,
+      "guid": "467d0260-c9a6-11e5-8003-xxxxxxxxxxxx"
+    }
+  ],
+  "buttonAssignments": [
+    {
+      "action": "talk_to_crew_chief",
+      "deviceGuid": "2bbfed03-a04f-4408-91cf-xxxxxxxxxxxx",
+      "buttonIndex": 10
+    },
+	{
+      "action": "WHAT_WAS_MY_LAST_LAP_TIME",
+      "deviceGuid": "",
+      "buttonIndex": -1
+    }]
+}
+
+When you next start the app, the Available Actions list will now include "what's my last lap time" (the 1st speech recognition phrase) and you can assign a button to it in the normal way.
+
+
+
+Overlays
+--------
+Crew Chief can render in-game overlays to show the app's console output or user-configurable telemetry charts controlled by voice commands. This only works with the game running in windowed (or borderless windowed) mode.
+
+These can also be shown in VR and positioned in the game world using 3rd party apps like "OVR Overlay". Enable this functionality with the 'Enable overlay window' property. By default the app will record the telemetry data specified in Documents/CrewChiefV4/chart_subscriptions.json - this file can be edited to include new data channels but it requires some understanding of the internal game data format and / or the internal Crew Chief data format - we're still working in this. The telemetry recording is not active during race sessions - you can enable this by selecting with the 'Enable chart telemetry in race session' property.
+
+Telemetry is available for the previous completed lap (excluding out laps), the player's best lap in the session (excluding invalid or incomplete laps) and in some limited cases, the best opponent lap in the session (opponent data is limited to car speed, and is only available for some games at the moment). Typically, you'd drive a few laps in practice and pit, then ask the Chief "show me last lap car speed" or something like that.
+
+To get the maximum out of telemetry charts in iRacing, iRacing disk telemetry must be enabled in iRacing app.ini 'irsdkEnableDisk', and in Crew Chief properties 'Enable disk based telemetry for overlay'. Crew Chief can not access the disk based telemetry while its recording but once your get out of the car or stop the recording manually (Alt-L) Crew Chief will read and process the file and you can get access to the data on the overlay.
+
+The charts can be zoomed in to show a particular sector, or zoomed and panned with voice commands.
+
+General overlay commands:
+
+"hide overlay" / "close overlay""
+"show overlay"
+"show console"
+"hide console"
+"show chart"
+"hide chart"
+"show all overlays" - show console and chart(s)
+"new chart" / "clear chart" - removes all data from the currently rendered chart
+"clear data" - clears all in-memory telemetry data for the current session
+"refresh chart" - redraw the current chart with the latest data
+"show stacked charts" - show each different series on its own chart
+"show single chart" - show all active series on the same chart
+"show time" - change the x-axis to be time
+"show distance" - change the x-axis to be distance around the lap (this is the default)
+"Show sector [one / two / three]"
+"Show all sectors"
+"Zoom [in / out]"
+"Pan [left / right]"
+"Reset zoom" - reset zoom to show the entire lap's data
+"Next lap" - show the next lap (when showing 'last lap' chart)
+"Previous lap" - show the previous lap (when showing 'last lap' chart)
+"Show last lap" - move back to the last lap (when showing 'last lap' chart)
+
+
+Series specific overlay commands:
+
+"show me..." - add a series to the chart
+"chart, remove..." - remove a series from the chart
+"best lap..." - add player best lap to the chart
+"last lap..." - add player last lap to the chart (can be omitted - the app will assume you mean last lap if you don't specify it)
+"opponent best lap.." - add opponent best lap (over all opponents in the player's class) to the chart
+
+e.g. to show a single chart for car speed, with your best lap and your opponents's overall best lap overlaid on the same chart with x-axis as distance (metres):
+"show me best lap car speed"
+"show me opponent best lap car speed"
+
+e.g. to show 2 charts, one for speed and one for gear for your best and your last lap with x-axis as distance (metres):
+"show me best lap car speed"
+"show me last lap car speed"
+"show me best lap gear"
+"show me last lap gear"
+
+e.g. to show 3 charts, speed gear and RPM for your best and last laps with x-axis as time (seconds):
+"show me best lap car speed"
+"show me last lap car speed"
+"show me best lap gear"
+"show me last lap gear"
+"show me best lap engine revs"
+"show me last lap engine revs"
+"show time"
+
+e.g. to show a single chart with throttle position and gear for your last lap with x-axis as distance (metres):
+"show me throttle position"
+"show me gear"
+"show single chart"
+
+Note that data for the same series (e.g. car speed) will always be overlaid on the same chart. Stacked charts only applies to data from different series (speed / gear, for example).
+
+The definition of a "series" is held in Documents/CrewChiefV4/chart_subscriptions.json. You can add to this as you wish but bear in mind that opponent data is very limited - for some games no suitable data is available at all, for some only car speed is available. We'll add more here and documentation as we go along. The rawDataFieldName refers to a field in the raw game data (the shared memory block), use this to access unmapped data or use "mappedDataFieldName" to access data that CrewChief has mapped from the raw data. In both cases dot-notation is supported. For example, car speed can be obtained from R3E by using rawDataFieldName=CarSpeed, or from the mapped data (for all games) using mappedDataFieldName=PositionAndMotionData.CarSpeed. All opponent data comes from mapped data, and the only available fields are Speed, RPM and Gear.
+
+The voice command fragments for each series are also in this json file. The voice command is constructed by the app, prefixing "show me best lap..." / "show me last lap..." / "show me opponent best lap..." as appropriate (e.g. "show me last lap car speed").
+
+
+The overlay can also be controlled with the mouse. Enable the "Enable input" checkbox on the overlay to show controls for the various chart and overlay functions. The overlay can also be moved around by dragging the title bar when Enable input is checked.
+
+For Occulus users the overlay can be rendered as a separate application window, allowing it to be added to the VR world - enable the 'Enable overlay app window (Oculus mode)' checkbox in the Properties screen.
+
+
+
+VR Overlays
+-----------
+
+CrewChief can display windows from the desktop in VR(SteamVR only). 
+
+By default the app will monitor for SteamVR process, this can be turned off on the  properties "Enable VR overlays". It is also possible for the app to launch SteamVR when starting the app enable "Start SteamVR if detected" in properties.
+
+When SteamVR is running the button "SteamVR overlay settings" will be enabled, and you can control which windows from the desktop you wish to display in VR and control the position / scale / transparency / curvature of the window in the VR world.
+
+The VR setting window will also show up in VR and you can control it using your mouse just like a normal desktop app.
+
+To enable a window in VR select a window from the list box and click "Show in VR" with this window selected you can now move it around in VR world with the controls in the settings window.
+
+While it is possible it is currently not recommended to display windows from more then 1 desktop at the time, you can enable as many windows as you like from 1 desktop without it having any noticeable performance impact.
+
+The window cant not be minimized or hidden by other windows.

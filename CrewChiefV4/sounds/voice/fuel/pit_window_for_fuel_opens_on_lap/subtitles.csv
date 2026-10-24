@@ -1,0 +1,8 @@
+1.wav,"we think the pit window for refueling will open on lap"
+1_op_prefix_ok.wav,"the fuel window opens on lap"
+2.wav,"we predict the fuel window will open on lap"
+3.wav,"the pit window for refueling should open about lap"
+3_op_prefix_ok.wav,"your refuel window will open on lap"
+4.wav,"the pit window for fuel will open on lap"
+4_op_prefix_ok.wav,"our fuel window opens on lap"
+5.wav,"our refueling window opens on lap"

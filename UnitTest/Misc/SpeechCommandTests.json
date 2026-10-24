@@ -1,0 +1,13 @@
+{
+  "Modules": [
+    {
+      "ModuleName": "Opponents",
+      "commandToExpectedSound": {
+        "how good is leading_driver": "leading_driver",
+        "what's my car number": "opponents/car_number",
+        "what tires am i on": "tyre_monitor/slick"
+      },
+      "gameList": "AllGames"
+    }
+  ]
+}

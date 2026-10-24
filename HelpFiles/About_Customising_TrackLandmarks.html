@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body link="#0000EE" vlink="#551A8B" text="#000000" bgcolor="#dddddd" alink="#EE0000">
+<div style="font-family:'Lucida Sans Unicode';font-size:13px;" class="main">
+<h3>Track Landmarks (corner mappings) recording.</h3>
+Please, keep corner mappings tight (from turn-in point to corner exit). Do not include straights!<br>
+To get the best results, the begin-distance should be taken at your typical turn-in point and the end-distance taken at the point where your wheels are pretty much straight-ahead. For some corners this is easy and very clear, in others not so much so in those cases just use your best judgement.<br>
+<br>
+To start recording a track landmarks file, the first thing you have to do is assign 2 buttons - one to start/stop the recording ("Start / stop track landmarks recording" action) and one to add start/end point ("Add Start / end track landmark" action).<br>
+<br>
+Start a practice session and wait until you're on track then press the "Start / stop track landmarks recording" button, now you can start adding landmarks by pressing the "Add Start / end track landmark" button. The first press on the button will be start point of the track landmark, the 2nd press will be end point.<br>
+Once you have added all the landmarks press the "Start / stop track landmarks recording" butten to end the recording, this will produce a file called trackLandmarks.json located in C:\Users\[user name]\Documents\CrewChiefV4\track_landmarks\[game]\[track]\trackLandmarks.json.<br>
+<br>
+Track Landmarks(corner mappings) consists of:<br>
+-Track Name or Raceroom ID and list of:<br>
+-landmarkName<br>
+-distanceRoundLapStart<br>
+-distanceRoundLapEnd<br>
+-isCommonOvertakingSpot (default false)<br>
+<br>
+This file will contain default corner names ("turn 1", "turn 2" and so-on). All corners will have isCommonOvertakingSpot set to false. Edit the file to change the isCommonOvertakingSpot value to 'true' where appropriate. You can also modify the corner names in this file. Note that, if you want Crew Chief to use these corner names, they will have to exist in C:\Users\[user name]\AppData\local\CrewChiefV4\sounds\voice\corner_names\<br>
+<br>
+You can request new names on the Crew Chief forum.<br>
+<br>
+Please share you recordings with the rest of the commmunity by uploading to the Crew Chief forum and we will include it in our next update.<br>
+<br>
+To load your newly added landmarks file you have to restart Crew Chief!<br>
+<br>
+<br>
+<br>
+</div>
+
+</body>
+</html>

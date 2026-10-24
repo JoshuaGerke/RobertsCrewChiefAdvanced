@@ -1,0 +1,2003 @@
+{
+    "currentWeather": {
+        "airPressure": 99,
+        "ambientTempKelvin": 283.19048058387807,
+        "cloudCoverage": 0.6947580080544717,
+        "humidity": 0.5,
+        "lightLevel": 1,
+        "rainIntensity": 0,
+        "raining": 0,
+        "trackTempKelvin": 291.1726622455967
+    },
+    "fuelInfo": {
+        "currentBattery": 0,
+        "currentFuel": 78.91440141634212,
+        "currentVirtualEnergy": 702000000,
+        "maxBattery": 0,
+        "maxFuel": 120,
+        "maxVirtualEnergy": 702000000
+    },
+    "pitMenu": {
+        "pitMenu": [
+            {
+                "PMC Value": 1,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "DAMAGE:",
+                "settings": [
+                    {
+                        "text": "N/A"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 4,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "DRIVER:",
+                "settings": [
+                    {
+                        "text": "T Whitley"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 5,
+                "currentSetting": 100,
+                "default": 100,
+                "name": "VIRTUAL ENERGY:",
+                "settings": [
+                    {
+                        "text": "0% 0 laps"
+                    },
+                    {
+                        "text": "1% 0 laps"
+                    },
+                    {
+                        "text": "2% 0 laps"
+                    },
+                    {
+                        "text": "3% 0 laps"
+                    },
+                    {
+                        "text": "4% 0 laps"
+                    },
+                    {
+                        "text": "5% 1 lap"
+                    },
+                    {
+                        "text": "6% 1 lap"
+                    },
+                    {
+                        "text": "7% 1 lap"
+                    },
+                    {
+                        "text": "8% 1 lap"
+                    },
+                    {
+                        "text": "9% 1 lap"
+                    },
+                    {
+                        "text": "10% 2 laps"
+                    },
+                    {
+                        "text": "11% 2 laps"
+                    },
+                    {
+                        "text": "12% 2 laps"
+                    },
+                    {
+                        "text": "13% 2 laps"
+                    },
+                    {
+                        "text": "14% 2 laps"
+                    },
+                    {
+                        "text": "15% 3 laps"
+                    },
+                    {
+                        "text": "16% 3 laps"
+                    },
+                    {
+                        "text": "17% 3 laps"
+                    },
+                    {
+                        "text": "18% 3 laps"
+                    },
+                    {
+                        "text": "19% 3 laps"
+                    },
+                    {
+                        "text": "20% 4 laps"
+                    },
+                    {
+                        "text": "21% 4 laps"
+                    },
+                    {
+                        "text": "22% 4 laps"
+                    },
+                    {
+                        "text": "23% 4 laps"
+                    },
+                    {
+                        "text": "24% 4 laps"
+                    },
+                    {
+                        "text": "25% 5 laps"
+                    },
+                    {
+                        "text": "26% 5 laps"
+                    },
+                    {
+                        "text": "27% 5 laps"
+                    },
+                    {
+                        "text": "28% 5 laps"
+                    },
+                    {
+                        "text": "29% 5 laps"
+                    },
+                    {
+                        "text": "30% 6 laps"
+                    },
+                    {
+                        "text": "31% 6 laps"
+                    },
+                    {
+                        "text": "32% 6 laps"
+                    },
+                    {
+                        "text": "33% 6 laps"
+                    },
+                    {
+                        "text": "34% 6 laps"
+                    },
+                    {
+                        "text": "35% 7 laps"
+                    },
+                    {
+                        "text": "36% 7 laps"
+                    },
+                    {
+                        "text": "37% 7 laps"
+                    },
+                    {
+                        "text": "38% 7 laps"
+                    },
+                    {
+                        "text": "39% 7 laps"
+                    },
+                    {
+                        "text": "40% 8 laps"
+                    },
+                    {
+                        "text": "41% 8 laps"
+                    },
+                    {
+                        "text": "42% 8 laps"
+                    },
+                    {
+                        "text": "43% 8 laps"
+                    },
+                    {
+                        "text": "44% 8 laps"
+                    },
+                    {
+                        "text": "45% 9 laps"
+                    },
+                    {
+                        "text": "46% 9 laps"
+                    },
+                    {
+                        "text": "47% 9 laps"
+                    },
+                    {
+                        "text": "48% 9 laps"
+                    },
+                    {
+                        "text": "49% 9 laps"
+                    },
+                    {
+                        "text": "50% 10 laps"
+                    },
+                    {
+                        "text": "51% 10 laps"
+                    },
+                    {
+                        "text": "52% 10 laps"
+                    },
+                    {
+                        "text": "53% 10 laps"
+                    },
+                    {
+                        "text": "54% 10 laps"
+                    },
+                    {
+                        "text": "55% 11 laps"
+                    },
+                    {
+                        "text": "56% 11 laps"
+                    },
+                    {
+                        "text": "57% 11 laps"
+                    },
+                    {
+                        "text": "58% 11 laps"
+                    },
+                    {
+                        "text": "59% 11 laps"
+                    },
+                    {
+                        "text": "60% 12 laps"
+                    },
+                    {
+                        "text": "61% 12 laps"
+                    },
+                    {
+                        "text": "62% 12 laps"
+                    },
+                    {
+                        "text": "63% 12 laps"
+                    },
+                    {
+                        "text": "64% 12 laps"
+                    },
+                    {
+                        "text": "65% 13 laps"
+                    },
+                    {
+                        "text": "66% 13 laps"
+                    },
+                    {
+                        "text": "67% 13 laps"
+                    },
+                    {
+                        "text": "68% 13 laps"
+                    },
+                    {
+                        "text": "69% 13 laps"
+                    },
+                    {
+                        "text": "70% 14 laps"
+                    },
+                    {
+                        "text": "71% 14 laps"
+                    },
+                    {
+                        "text": "72% 14 laps"
+                    },
+                    {
+                        "text": "73% 14 laps"
+                    },
+                    {
+                        "text": "74% 14 laps"
+                    },
+                    {
+                        "text": "75% 15 laps"
+                    },
+                    {
+                        "text": "76% 15 laps"
+                    },
+                    {
+                        "text": "77% 15 laps"
+                    },
+                    {
+                        "text": "78% 15 laps"
+                    },
+                    {
+                        "text": "79% 15 laps"
+                    },
+                    {
+                        "text": "80% 16 laps"
+                    },
+                    {
+                        "text": "81% 16 laps"
+                    },
+                    {
+                        "text": "82% 16 laps"
+                    },
+                    {
+                        "text": "83% 16 laps"
+                    },
+                    {
+                        "text": "84% 16 laps"
+                    },
+                    {
+                        "text": "85% 17 laps"
+                    },
+                    {
+                        "text": "86% 17 laps"
+                    },
+                    {
+                        "text": "87% 17 laps"
+                    },
+                    {
+                        "text": "88% 17 laps"
+                    },
+                    {
+                        "text": "89% 17 laps"
+                    },
+                    {
+                        "text": "90% 18 laps"
+                    },
+                    {
+                        "text": "91% 18 laps"
+                    },
+                    {
+                        "text": "92% 18 laps"
+                    },
+                    {
+                        "text": "93% 18 laps"
+                    },
+                    {
+                        "text": "94% 18 laps"
+                    },
+                    {
+                        "text": "95% 19 laps"
+                    },
+                    {
+                        "text": "96% 19 laps"
+                    },
+                    {
+                        "text": "97% 19 laps"
+                    },
+                    {
+                        "text": "98% 19 laps"
+                    },
+                    {
+                        "text": "99% 19 laps"
+                    },
+                    {
+                        "text": "100% 20 laps"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 6,
+                "currentSetting": 78,
+                "default": 59,
+                "name": "FUEL RATIO:",
+                "settings": [
+                    {
+                        "text": "0.01"
+                    },
+                    {
+                        "text": "0.02"
+                    },
+                    {
+                        "text": "0.03"
+                    },
+                    {
+                        "text": "0.04"
+                    },
+                    {
+                        "text": "0.05"
+                    },
+                    {
+                        "text": "0.06"
+                    },
+                    {
+                        "text": "0.07"
+                    },
+                    {
+                        "text": "0.08"
+                    },
+                    {
+                        "text": "0.09"
+                    },
+                    {
+                        "text": "0.10"
+                    },
+                    {
+                        "text": "0.11"
+                    },
+                    {
+                        "text": "0.12"
+                    },
+                    {
+                        "text": "0.13"
+                    },
+                    {
+                        "text": "0.14"
+                    },
+                    {
+                        "text": "0.15"
+                    },
+                    {
+                        "text": "0.16"
+                    },
+                    {
+                        "text": "0.17"
+                    },
+                    {
+                        "text": "0.18"
+                    },
+                    {
+                        "text": "0.19"
+                    },
+                    {
+                        "text": "0.20"
+                    },
+                    {
+                        "text": "0.21"
+                    },
+                    {
+                        "text": "0.22"
+                    },
+                    {
+                        "text": "0.23"
+                    },
+                    {
+                        "text": "0.24"
+                    },
+                    {
+                        "text": "0.25"
+                    },
+                    {
+                        "text": "0.26"
+                    },
+                    {
+                        "text": "0.27"
+                    },
+                    {
+                        "text": "0.28"
+                    },
+                    {
+                        "text": "0.29"
+                    },
+                    {
+                        "text": "0.30"
+                    },
+                    {
+                        "text": "0.31"
+                    },
+                    {
+                        "text": "0.32"
+                    },
+                    {
+                        "text": "0.33"
+                    },
+                    {
+                        "text": "0.34"
+                    },
+                    {
+                        "text": "0.35"
+                    },
+                    {
+                        "text": "0.36"
+                    },
+                    {
+                        "text": "0.37"
+                    },
+                    {
+                        "text": "0.38"
+                    },
+                    {
+                        "text": "0.39"
+                    },
+                    {
+                        "text": "0.40"
+                    },
+                    {
+                        "text": "0.41"
+                    },
+                    {
+                        "text": "0.42"
+                    },
+                    {
+                        "text": "0.43"
+                    },
+                    {
+                        "text": "0.44"
+                    },
+                    {
+                        "text": "0.45"
+                    },
+                    {
+                        "text": "0.46"
+                    },
+                    {
+                        "text": "0.47"
+                    },
+                    {
+                        "text": "0.48"
+                    },
+                    {
+                        "text": "0.49"
+                    },
+                    {
+                        "text": "0.50"
+                    },
+                    {
+                        "text": "0.51"
+                    },
+                    {
+                        "text": "0.52"
+                    },
+                    {
+                        "text": "0.53"
+                    },
+                    {
+                        "text": "0.54"
+                    },
+                    {
+                        "text": "0.55"
+                    },
+                    {
+                        "text": "0.56"
+                    },
+                    {
+                        "text": "0.57"
+                    },
+                    {
+                        "text": "0.58"
+                    },
+                    {
+                        "text": "0.59"
+                    },
+                    {
+                        "text": "0.60"
+                    },
+                    {
+                        "text": "0.61"
+                    },
+                    {
+                        "text": "0.62"
+                    },
+                    {
+                        "text": "0.63"
+                    },
+                    {
+                        "text": "0.64"
+                    },
+                    {
+                        "text": "0.65"
+                    },
+                    {
+                        "text": "0.66"
+                    },
+                    {
+                        "text": "0.67"
+                    },
+                    {
+                        "text": "0.68"
+                    },
+                    {
+                        "text": "0.69"
+                    },
+                    {
+                        "text": "0.70"
+                    },
+                    {
+                        "text": "0.71"
+                    },
+                    {
+                        "text": "0.72"
+                    },
+                    {
+                        "text": "0.73"
+                    },
+                    {
+                        "text": "0.74"
+                    },
+                    {
+                        "text": "0.75"
+                    },
+                    {
+                        "text": "0.76"
+                    },
+                    {
+                        "text": "0.77"
+                    },
+                    {
+                        "text": "0.78"
+                    },
+                    {
+                        "text": "0.79"
+                    },
+                    {
+                        "text": "0.80"
+                    },
+                    {
+                        "text": "0.81"
+                    },
+                    {
+                        "text": "0.82"
+                    },
+                    {
+                        "text": "0.83"
+                    },
+                    {
+                        "text": "0.84"
+                    },
+                    {
+                        "text": "0.85"
+                    },
+                    {
+                        "text": "0.86"
+                    },
+                    {
+                        "text": "0.87"
+                    },
+                    {
+                        "text": "0.88"
+                    },
+                    {
+                        "text": "0.89"
+                    },
+                    {
+                        "text": "0.90"
+                    },
+                    {
+                        "text": "0.91"
+                    },
+                    {
+                        "text": "0.92"
+                    },
+                    {
+                        "text": "0.93"
+                    },
+                    {
+                        "text": "0.94"
+                    },
+                    {
+                        "text": "0.95"
+                    },
+                    {
+                        "text": "0.96"
+                    },
+                    {
+                        "text": "0.97"
+                    },
+                    {
+                        "text": "0.98"
+                    },
+                    {
+                        "text": "0.99"
+                    },
+                    {
+                        "text": "1.00"
+                    },
+                    {
+                        "text": "1.01"
+                    },
+                    {
+                        "text": "1.02"
+                    },
+                    {
+                        "text": "1.03"
+                    },
+                    {
+                        "text": "1.04"
+                    },
+                    {
+                        "text": "1.05"
+                    },
+                    {
+                        "text": "1.06"
+                    },
+                    {
+                        "text": "1.07"
+                    },
+                    {
+                        "text": "1.08"
+                    },
+                    {
+                        "text": "1.09"
+                    },
+                    {
+                        "text": "1.10"
+                    },
+                    {
+                        "text": "1.11"
+                    },
+                    {
+                        "text": "1.12"
+                    },
+                    {
+                        "text": "1.13"
+                    },
+                    {
+                        "text": "1.14"
+                    },
+                    {
+                        "text": "1.15"
+                    },
+                    {
+                        "text": "1.16"
+                    },
+                    {
+                        "text": "1.17"
+                    },
+                    {
+                        "text": "1.18"
+                    },
+                    {
+                        "text": "1.19"
+                    },
+                    {
+                        "text": "1.20"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 7,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "TIRES:",
+                "settings": [
+                    {
+                        "text": "No Change"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Medium ",
+                        "type": "Medium"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Wet ",
+                        "type": "Wet"
+                    },
+                    {
+                        "isUsed": true,
+                        "text": "Used Medium ",
+                        "type": "Medium"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 12,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "FL TIRE:",
+                "settings": [
+                    {
+                        "text": "No Change"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Medium ",
+                        "type": "Medium"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Wet ",
+                        "type": "Wet"
+                    },
+                    {
+                        "isUsed": true,
+                        "text": "Used Medium  -1%",
+                        "type": "Medium"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 13,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "FR TIRE:",
+                "settings": [
+                    {
+                        "text": "No Change"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Medium ",
+                        "type": "Medium"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Wet ",
+                        "type": "Wet"
+                    },
+                    {
+                        "isUsed": true,
+                        "text": "Used Medium  -1%",
+                        "type": "Medium"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 14,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "RL TIRE:",
+                "settings": [
+                    {
+                        "text": "No Change"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Medium ",
+                        "type": "Medium"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Wet ",
+                        "type": "Wet"
+                    },
+                    {
+                        "isUsed": true,
+                        "text": "Used Medium  -1%",
+                        "type": "Medium"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 15,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "RR TIRE:",
+                "settings": [
+                    {
+                        "text": "No Change"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Medium ",
+                        "type": "Medium"
+                    },
+                    {
+                        "isUsed": false,
+                        "text": "New Wet ",
+                        "type": "Wet"
+                    },
+                    {
+                        "isUsed": true,
+                        "text": "Used Medium  -1%",
+                        "type": "Medium"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 30,
+                "currentSetting": 5,
+                "default": 5,
+                "name": "R WING:",
+                "settings": [
+                    {
+                        "text": "-1.6 deg (-5)"
+                    },
+                    {
+                        "text": "0.4 deg (-4)"
+                    },
+                    {
+                        "text": "2.4 deg (-3)"
+                    },
+                    {
+                        "text": "4.4 deg (-2)"
+                    },
+                    {
+                        "text": "6.4 deg (-1)"
+                    },
+                    {
+                        "text": "8.4 deg"
+                    },
+                    {
+                        "text": "10.4 deg (+1)"
+                    },
+                    {
+                        "text": "12.4 deg (+2)"
+                    },
+                    {
+                        "text": "14.4 deg (+3)"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 32,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "GRILLE:",
+                "settings": [
+                    {
+                        "text": "1"
+                    },
+                    {
+                        "text": "2 (+1)"
+                    },
+                    {
+                        "text": "3 (+2)"
+                    },
+                    {
+                        "text": "4 (+3)"
+                    },
+                    {
+                        "text": "5 (+4)"
+                    },
+                    {
+                        "text": "6 (+5)"
+                    },
+                    {
+                        "text": "7 (+6)"
+                    },
+                    {
+                        "text": "8 (+7)"
+                    },
+                    {
+                        "text": "9 (+8)"
+                    },
+                    {
+                        "text": "10 (+9)"
+                    },
+                    {
+                        "text": "11 (+10)"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 35,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "FL PRESS:",
+                "settings": [
+                    {
+                        "text": "140"
+                    },
+                    {
+                        "text": "141 (+1)"
+                    },
+                    {
+                        "text": "142 (+2)"
+                    },
+                    {
+                        "text": "143 (+3)"
+                    },
+                    {
+                        "text": "144 (+4)"
+                    },
+                    {
+                        "text": "145 (+5)"
+                    },
+                    {
+                        "text": "146 (+6)"
+                    },
+                    {
+                        "text": "147 (+7)"
+                    },
+                    {
+                        "text": "148 (+8)"
+                    },
+                    {
+                        "text": "149 (+9)"
+                    },
+                    {
+                        "text": "150 (+10)"
+                    },
+                    {
+                        "text": "151 (+11)"
+                    },
+                    {
+                        "text": "152 (+12)"
+                    },
+                    {
+                        "text": "153 (+13)"
+                    },
+                    {
+                        "text": "154 (+14)"
+                    },
+                    {
+                        "text": "155 (+15)"
+                    },
+                    {
+                        "text": "156 (+16)"
+                    },
+                    {
+                        "text": "157 (+17)"
+                    },
+                    {
+                        "text": "158 (+18)"
+                    },
+                    {
+                        "text": "159 (+19)"
+                    },
+                    {
+                        "text": "160 (+20)"
+                    },
+                    {
+                        "text": "161 (+21)"
+                    },
+                    {
+                        "text": "162 (+22)"
+                    },
+                    {
+                        "text": "163 (+23)"
+                    },
+                    {
+                        "text": "164 (+24)"
+                    },
+                    {
+                        "text": "165 (+25)"
+                    },
+                    {
+                        "text": "166 (+26)"
+                    },
+                    {
+                        "text": "167 (+27)"
+                    },
+                    {
+                        "text": "168 (+28)"
+                    },
+                    {
+                        "text": "169 (+29)"
+                    },
+                    {
+                        "text": "170 (+30)"
+                    },
+                    {
+                        "text": "171 (+31)"
+                    },
+                    {
+                        "text": "172 (+32)"
+                    },
+                    {
+                        "text": "173 (+33)"
+                    },
+                    {
+                        "text": "174 (+34)"
+                    },
+                    {
+                        "text": "175 (+35)"
+                    },
+                    {
+                        "text": "176 (+36)"
+                    },
+                    {
+                        "text": "177 (+37)"
+                    },
+                    {
+                        "text": "178 (+38)"
+                    },
+                    {
+                        "text": "179 (+39)"
+                    },
+                    {
+                        "text": "180 (+40)"
+                    },
+                    {
+                        "text": "181 (+41)"
+                    },
+                    {
+                        "text": "182 (+42)"
+                    },
+                    {
+                        "text": "183 (+43)"
+                    },
+                    {
+                        "text": "184 (+44)"
+                    },
+                    {
+                        "text": "185 (+45)"
+                    },
+                    {
+                        "text": "186 (+46)"
+                    },
+                    {
+                        "text": "187 (+47)"
+                    },
+                    {
+                        "text": "188 (+48)"
+                    },
+                    {
+                        "text": "189 (+49)"
+                    },
+                    {
+                        "text": "190 (+50)"
+                    },
+                    {
+                        "text": "191 (+51)"
+                    },
+                    {
+                        "text": "192 (+52)"
+                    },
+                    {
+                        "text": "193 (+53)"
+                    },
+                    {
+                        "text": "194 (+54)"
+                    },
+                    {
+                        "text": "195 (+55)"
+                    },
+                    {
+                        "text": "196 (+56)"
+                    },
+                    {
+                        "text": "197 (+57)"
+                    },
+                    {
+                        "text": "198 (+58)"
+                    },
+                    {
+                        "text": "199 (+59)"
+                    },
+                    {
+                        "text": "200 (+60)"
+                    },
+                    {
+                        "text": "201 (+61)"
+                    },
+                    {
+                        "text": "202 (+62)"
+                    },
+                    {
+                        "text": "203 (+63)"
+                    },
+                    {
+                        "text": "204 (+64)"
+                    },
+                    {
+                        "text": "205 (+65)"
+                    },
+                    {
+                        "text": "206 (+66)"
+                    },
+                    {
+                        "text": "207 (+67)"
+                    },
+                    {
+                        "text": "208 (+68)"
+                    },
+                    {
+                        "text": "209 (+69)"
+                    },
+                    {
+                        "text": "210 (+70)"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 36,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "FR PRESS:",
+                "settings": [
+                    {
+                        "text": "140"
+                    },
+                    {
+                        "text": "141 (+1)"
+                    },
+                    {
+                        "text": "142 (+2)"
+                    },
+                    {
+                        "text": "143 (+3)"
+                    },
+                    {
+                        "text": "144 (+4)"
+                    },
+                    {
+                        "text": "145 (+5)"
+                    },
+                    {
+                        "text": "146 (+6)"
+                    },
+                    {
+                        "text": "147 (+7)"
+                    },
+                    {
+                        "text": "148 (+8)"
+                    },
+                    {
+                        "text": "149 (+9)"
+                    },
+                    {
+                        "text": "150 (+10)"
+                    },
+                    {
+                        "text": "151 (+11)"
+                    },
+                    {
+                        "text": "152 (+12)"
+                    },
+                    {
+                        "text": "153 (+13)"
+                    },
+                    {
+                        "text": "154 (+14)"
+                    },
+                    {
+                        "text": "155 (+15)"
+                    },
+                    {
+                        "text": "156 (+16)"
+                    },
+                    {
+                        "text": "157 (+17)"
+                    },
+                    {
+                        "text": "158 (+18)"
+                    },
+                    {
+                        "text": "159 (+19)"
+                    },
+                    {
+                        "text": "160 (+20)"
+                    },
+                    {
+                        "text": "161 (+21)"
+                    },
+                    {
+                        "text": "162 (+22)"
+                    },
+                    {
+                        "text": "163 (+23)"
+                    },
+                    {
+                        "text": "164 (+24)"
+                    },
+                    {
+                        "text": "165 (+25)"
+                    },
+                    {
+                        "text": "166 (+26)"
+                    },
+                    {
+                        "text": "167 (+27)"
+                    },
+                    {
+                        "text": "168 (+28)"
+                    },
+                    {
+                        "text": "169 (+29)"
+                    },
+                    {
+                        "text": "170 (+30)"
+                    },
+                    {
+                        "text": "171 (+31)"
+                    },
+                    {
+                        "text": "172 (+32)"
+                    },
+                    {
+                        "text": "173 (+33)"
+                    },
+                    {
+                        "text": "174 (+34)"
+                    },
+                    {
+                        "text": "175 (+35)"
+                    },
+                    {
+                        "text": "176 (+36)"
+                    },
+                    {
+                        "text": "177 (+37)"
+                    },
+                    {
+                        "text": "178 (+38)"
+                    },
+                    {
+                        "text": "179 (+39)"
+                    },
+                    {
+                        "text": "180 (+40)"
+                    },
+                    {
+                        "text": "181 (+41)"
+                    },
+                    {
+                        "text": "182 (+42)"
+                    },
+                    {
+                        "text": "183 (+43)"
+                    },
+                    {
+                        "text": "184 (+44)"
+                    },
+                    {
+                        "text": "185 (+45)"
+                    },
+                    {
+                        "text": "186 (+46)"
+                    },
+                    {
+                        "text": "187 (+47)"
+                    },
+                    {
+                        "text": "188 (+48)"
+                    },
+                    {
+                        "text": "189 (+49)"
+                    },
+                    {
+                        "text": "190 (+50)"
+                    },
+                    {
+                        "text": "191 (+51)"
+                    },
+                    {
+                        "text": "192 (+52)"
+                    },
+                    {
+                        "text": "193 (+53)"
+                    },
+                    {
+                        "text": "194 (+54)"
+                    },
+                    {
+                        "text": "195 (+55)"
+                    },
+                    {
+                        "text": "196 (+56)"
+                    },
+                    {
+                        "text": "197 (+57)"
+                    },
+                    {
+                        "text": "198 (+58)"
+                    },
+                    {
+                        "text": "199 (+59)"
+                    },
+                    {
+                        "text": "200 (+60)"
+                    },
+                    {
+                        "text": "201 (+61)"
+                    },
+                    {
+                        "text": "202 (+62)"
+                    },
+                    {
+                        "text": "203 (+63)"
+                    },
+                    {
+                        "text": "204 (+64)"
+                    },
+                    {
+                        "text": "205 (+65)"
+                    },
+                    {
+                        "text": "206 (+66)"
+                    },
+                    {
+                        "text": "207 (+67)"
+                    },
+                    {
+                        "text": "208 (+68)"
+                    },
+                    {
+                        "text": "209 (+69)"
+                    },
+                    {
+                        "text": "210 (+70)"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 37,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "RL PRESS:",
+                "settings": [
+                    {
+                        "text": "140"
+                    },
+                    {
+                        "text": "141 (+1)"
+                    },
+                    {
+                        "text": "142 (+2)"
+                    },
+                    {
+                        "text": "143 (+3)"
+                    },
+                    {
+                        "text": "144 (+4)"
+                    },
+                    {
+                        "text": "145 (+5)"
+                    },
+                    {
+                        "text": "146 (+6)"
+                    },
+                    {
+                        "text": "147 (+7)"
+                    },
+                    {
+                        "text": "148 (+8)"
+                    },
+                    {
+                        "text": "149 (+9)"
+                    },
+                    {
+                        "text": "150 (+10)"
+                    },
+                    {
+                        "text": "151 (+11)"
+                    },
+                    {
+                        "text": "152 (+12)"
+                    },
+                    {
+                        "text": "153 (+13)"
+                    },
+                    {
+                        "text": "154 (+14)"
+                    },
+                    {
+                        "text": "155 (+15)"
+                    },
+                    {
+                        "text": "156 (+16)"
+                    },
+                    {
+                        "text": "157 (+17)"
+                    },
+                    {
+                        "text": "158 (+18)"
+                    },
+                    {
+                        "text": "159 (+19)"
+                    },
+                    {
+                        "text": "160 (+20)"
+                    },
+                    {
+                        "text": "161 (+21)"
+                    },
+                    {
+                        "text": "162 (+22)"
+                    },
+                    {
+                        "text": "163 (+23)"
+                    },
+                    {
+                        "text": "164 (+24)"
+                    },
+                    {
+                        "text": "165 (+25)"
+                    },
+                    {
+                        "text": "166 (+26)"
+                    },
+                    {
+                        "text": "167 (+27)"
+                    },
+                    {
+                        "text": "168 (+28)"
+                    },
+                    {
+                        "text": "169 (+29)"
+                    },
+                    {
+                        "text": "170 (+30)"
+                    },
+                    {
+                        "text": "171 (+31)"
+                    },
+                    {
+                        "text": "172 (+32)"
+                    },
+                    {
+                        "text": "173 (+33)"
+                    },
+                    {
+                        "text": "174 (+34)"
+                    },
+                    {
+                        "text": "175 (+35)"
+                    },
+                    {
+                        "text": "176 (+36)"
+                    },
+                    {
+                        "text": "177 (+37)"
+                    },
+                    {
+                        "text": "178 (+38)"
+                    },
+                    {
+                        "text": "179 (+39)"
+                    },
+                    {
+                        "text": "180 (+40)"
+                    },
+                    {
+                        "text": "181 (+41)"
+                    },
+                    {
+                        "text": "182 (+42)"
+                    },
+                    {
+                        "text": "183 (+43)"
+                    },
+                    {
+                        "text": "184 (+44)"
+                    },
+                    {
+                        "text": "185 (+45)"
+                    },
+                    {
+                        "text": "186 (+46)"
+                    },
+                    {
+                        "text": "187 (+47)"
+                    },
+                    {
+                        "text": "188 (+48)"
+                    },
+                    {
+                        "text": "189 (+49)"
+                    },
+                    {
+                        "text": "190 (+50)"
+                    },
+                    {
+                        "text": "191 (+51)"
+                    },
+                    {
+                        "text": "192 (+52)"
+                    },
+                    {
+                        "text": "193 (+53)"
+                    },
+                    {
+                        "text": "194 (+54)"
+                    },
+                    {
+                        "text": "195 (+55)"
+                    },
+                    {
+                        "text": "196 (+56)"
+                    },
+                    {
+                        "text": "197 (+57)"
+                    },
+                    {
+                        "text": "198 (+58)"
+                    },
+                    {
+                        "text": "199 (+59)"
+                    },
+                    {
+                        "text": "200 (+60)"
+                    },
+                    {
+                        "text": "201 (+61)"
+                    },
+                    {
+                        "text": "202 (+62)"
+                    },
+                    {
+                        "text": "203 (+63)"
+                    },
+                    {
+                        "text": "204 (+64)"
+                    },
+                    {
+                        "text": "205 (+65)"
+                    },
+                    {
+                        "text": "206 (+66)"
+                    },
+                    {
+                        "text": "207 (+67)"
+                    },
+                    {
+                        "text": "208 (+68)"
+                    },
+                    {
+                        "text": "209 (+69)"
+                    },
+                    {
+                        "text": "210 (+70)"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 38,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "RR PRESS:",
+                "settings": [
+                    {
+                        "text": "140"
+                    },
+                    {
+                        "text": "141 (+1)"
+                    },
+                    {
+                        "text": "142 (+2)"
+                    },
+                    {
+                        "text": "143 (+3)"
+                    },
+                    {
+                        "text": "144 (+4)"
+                    },
+                    {
+                        "text": "145 (+5)"
+                    },
+                    {
+                        "text": "146 (+6)"
+                    },
+                    {
+                        "text": "147 (+7)"
+                    },
+                    {
+                        "text": "148 (+8)"
+                    },
+                    {
+                        "text": "149 (+9)"
+                    },
+                    {
+                        "text": "150 (+10)"
+                    },
+                    {
+                        "text": "151 (+11)"
+                    },
+                    {
+                        "text": "152 (+12)"
+                    },
+                    {
+                        "text": "153 (+13)"
+                    },
+                    {
+                        "text": "154 (+14)"
+                    },
+                    {
+                        "text": "155 (+15)"
+                    },
+                    {
+                        "text": "156 (+16)"
+                    },
+                    {
+                        "text": "157 (+17)"
+                    },
+                    {
+                        "text": "158 (+18)"
+                    },
+                    {
+                        "text": "159 (+19)"
+                    },
+                    {
+                        "text": "160 (+20)"
+                    },
+                    {
+                        "text": "161 (+21)"
+                    },
+                    {
+                        "text": "162 (+22)"
+                    },
+                    {
+                        "text": "163 (+23)"
+                    },
+                    {
+                        "text": "164 (+24)"
+                    },
+                    {
+                        "text": "165 (+25)"
+                    },
+                    {
+                        "text": "166 (+26)"
+                    },
+                    {
+                        "text": "167 (+27)"
+                    },
+                    {
+                        "text": "168 (+28)"
+                    },
+                    {
+                        "text": "169 (+29)"
+                    },
+                    {
+                        "text": "170 (+30)"
+                    },
+                    {
+                        "text": "171 (+31)"
+                    },
+                    {
+                        "text": "172 (+32)"
+                    },
+                    {
+                        "text": "173 (+33)"
+                    },
+                    {
+                        "text": "174 (+34)"
+                    },
+                    {
+                        "text": "175 (+35)"
+                    },
+                    {
+                        "text": "176 (+36)"
+                    },
+                    {
+                        "text": "177 (+37)"
+                    },
+                    {
+                        "text": "178 (+38)"
+                    },
+                    {
+                        "text": "179 (+39)"
+                    },
+                    {
+                        "text": "180 (+40)"
+                    },
+                    {
+                        "text": "181 (+41)"
+                    },
+                    {
+                        "text": "182 (+42)"
+                    },
+                    {
+                        "text": "183 (+43)"
+                    },
+                    {
+                        "text": "184 (+44)"
+                    },
+                    {
+                        "text": "185 (+45)"
+                    },
+                    {
+                        "text": "186 (+46)"
+                    },
+                    {
+                        "text": "187 (+47)"
+                    },
+                    {
+                        "text": "188 (+48)"
+                    },
+                    {
+                        "text": "189 (+49)"
+                    },
+                    {
+                        "text": "190 (+50)"
+                    },
+                    {
+                        "text": "191 (+51)"
+                    },
+                    {
+                        "text": "192 (+52)"
+                    },
+                    {
+                        "text": "193 (+53)"
+                    },
+                    {
+                        "text": "194 (+54)"
+                    },
+                    {
+                        "text": "195 (+55)"
+                    },
+                    {
+                        "text": "196 (+56)"
+                    },
+                    {
+                        "text": "197 (+57)"
+                    },
+                    {
+                        "text": "198 (+58)"
+                    },
+                    {
+                        "text": "199 (+59)"
+                    },
+                    {
+                        "text": "200 (+60)"
+                    },
+                    {
+                        "text": "201 (+61)"
+                    },
+                    {
+                        "text": "202 (+62)"
+                    },
+                    {
+                        "text": "203 (+63)"
+                    },
+                    {
+                        "text": "204 (+64)"
+                    },
+                    {
+                        "text": "205 (+65)"
+                    },
+                    {
+                        "text": "206 (+66)"
+                    },
+                    {
+                        "text": "207 (+67)"
+                    },
+                    {
+                        "text": "208 (+68)"
+                    },
+                    {
+                        "text": "209 (+69)"
+                    },
+                    {
+                        "text": "210 (+70)"
+                    }
+                ]
+            },
+            {
+                "PMC Value": 43,
+                "currentSetting": 0,
+                "default": 0,
+                "name": "REPLACE BRAKES:",
+                "settings": [
+                    {
+                        "text": "No"
+                    },
+                    {
+                        "text": "Yes"
+                    }
+                ]
+            }
+        ]
+    },
+    "pitRecommendations": {
+        "FL TIRE:": 0,
+        "FR TIRE:": 0,
+        "RL TIRE:": 0,
+        "RR TIRE:": 0,
+        "TIRES:": 0,
+        "fuel": 0,
+        "virtualEnergy": 0
+    },
+    "pitStopLength": {
+        "timeInSeconds": 2.021402359008789
+    },
+    "pitStopTimes": {
+        "times": {
+            "BrakeChange": 120,
+            "BrakeTimeConcurrent": 0,
+            "DriverChange": 25,
+            "DriverConcurrent": 1,
+            "DriverDamage": 0,
+            "DriverRandom": 2,
+            "FenderFlareAdjust": 0,
+            "FixAeroDamage": 30,
+            "FixAllDamage": 30,
+            "FixRandomDelay": 5,
+            "FixTimeConcurrent": 0,
+            "FourTireChange": 12,
+            "FrontWingAdjust": 40,
+            "FrontWingReplace": 40,
+            "FuelFillRate": 4,
+            "FuelInsert": 1,
+            "FuelRandomDelay": 2,
+            "FuelRemove": 1,
+            "FuelTimeConcurrent": 1,
+            "OnTheFlyPressure": false,
+            "PressureChange": 5,
+            "RadiatorChange": 10,
+            "RandomBrakeDelay": 0,
+            "RandomTireDelay": 1,
+            "RearWingAdjust": 25,
+            "RearWingReplace": 60,
+            "SimultaneousStopGo": false,
+            "SpringRubberChange": 0,
+            "TireTimeConcurrent": 0,
+            "TrackBarChange": 0,
+            "TwoTireChange": 4.5,
+            "WedgeChange": 0,
+            "virtualEnergyFillRate": 0.02500000037252903,
+            "virtualEnergyInsert": 0,
+            "virtualEnergyRandomDelay": 0,
+            "virtualEnergyRemove": 0,
+            "virtualEnergyTimeConcurrent": 1
+        }
+    },
+    "racePosition": {
+        "gapToFirstInClassLaps": 0,
+        "gapToFirstInClassTime": 17.68374252319336,
+        "gapToLastInClassLaps": 0,
+        "gapToLastInClassTime": 0,
+        "placeInClass": 13,
+        "placeOverall": 37
+    },
+    "sessionTime": {
+        "timeOfDay": 51255.44921875
+    },
+    "teamInfo": {
+        "driverNames": [
+            "Tony Whitley"
+        ],
+        "teamName": "United Autosports",
+        "vehicleName": "United Autosports 2024 #59:EC2"
+    },
+    "wearables": {
+        "body": {
+            "aero": 0,
+            "detachableParts": [
+                true,
+                true,
+                true,
+                true,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        },
+        "brakes": [
+            0.0356,
+            0.0356,
+            0.032,
+            0.03199999999961306
+        ],
+        "suspension": [
+            0,
+            0,
+            0,
+            0
+        ],
+        "tires": [
+            0.9999986290931703,
+            0.9999997019767761,
+            1,
+            0.9999972581863403
+        ]
+    },
+    "weatherForecast": {
+        "nodes": {
+            "Duration": [
+                30,
+                30,
+                30,
+                30,
+                30
+            ],
+            "Humidity": [
+                60,
+                60,
+                60,
+                60,
+                60
+            ],
+            "RainChance": [
+                0,
+                0,
+                0,
+                0,
+                0
+            ],
+            "Sky": [
+                3,
+                3,
+                3,
+                3,
+                3
+            ],
+            "StartTime": [
+                540,
+                570,
+                600,
+                630,
+                660
+            ],
+            "Temperature": [
+                10,
+                12,
+                12,
+                12,
+                12
+            ],
+            "WindDirection": [
+                0,
+                0,
+                0,
+                0,
+                0
+            ],
+            "WindSpeed": [
+                6,
+                9,
+                5,
+                7,
+                9
+            ]
+        }
+    }
+}

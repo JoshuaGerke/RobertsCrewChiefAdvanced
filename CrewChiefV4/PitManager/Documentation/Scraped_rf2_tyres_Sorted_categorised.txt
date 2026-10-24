@@ -1,0 +1,114 @@
+14W13 WET,Wet
+1994+ OEM,default
+All-Weather,Soft
+Avon,default
+Avon ACB10,default
+Avon ZV3,default
+Avon_ACB10,default
+B,Soft
+Bias-Ply,default
+Bias-Ply endurance,Hard
+Bias-Ply Rain Wheel Set,Wet
+Competition,default
+D4 SOFT,Soft
+D5 HARD,Hard
+DFH HARD,Hard
+DFS SOFT,Soft
+Dry,Soft
+Dry Bias-Ply,Soft
+Dry Medium,Medium
+Dry RST3.5,Soft
+Dunlop,default
+Dunlop CR65,default
+Dunlop Hard,Hard
+Dunlop Soft,Soft
+Dunlop Wet,Wet
+Enduro,Hard
+Firestone,default
+Full Wet,Wet
+FZ SOFT,Soft
+Goodrich Gravel,default
+Goodrich Hard,Hard
+Goodrich Rain,Wet
+Goodrich Soft,Soft
+Goodyear,default
+GoodYear A,Hypersoft
+GoodYear B,Soft
+GoodYear C,Medium
+GoodYear D,Hard
+Goodyear Hard,Hard
+Goodyear Medium,Medium
+Goodyear Qualify,default
+Goodyear Rain,Wet
+Goodyear rain 1975,Wet
+Goodyear slick 1975,Soft
+Goodyear Soft,Soft
+Goodyear Wet,Wet
+Hard,Hard
+Hard Compound,Hard
+HT3 HARD,Hard
+HZi HARD,Hard
+Intermediate,Intermediate
+L,default
+Medium,Medium
+Medium COMPOUND,Medium
+Michelin Hard,Hard
+Michelin P310,Hard
+Michelin Rain,Wet
+Michelin S310,Soft
+Michelin Slick S9D,Soft
+Michelin Soft,Soft
+Michelin Wet,Wet
+Michelin Wet P2G,Wet
+Nankang AS1,default
+Original OEM,default
+P2 - Rain,Wet
+P2M - Wet,Wet
+Qualify,default
+Qualifying,default
+Qualifying tires,default
+R1 Slicks,Soft
+R500,default
+R600,default
+RA1,default
+Race,default
+Rain,Wet
+Real Hoosier R DOT,default
+Real Hoosier Racing Slick,Soft
+Real Hoosier WET,Wet
+S7 - Soft,Soft
+S7M - Soft,Soft
+S8 - Medium,Medium
+S8M - Medium,Medium
+S9 - Hard,Hard
+S9M - Hard,Hard
+Sim Hoosier R DOT,default
+Sim Hoosier Racing Slick,Soft
+Sim Hoosier WET,Wet
+Slick,Soft
+Slick Hard,Hard
+Slick Soft,Soft
+SLR SOFT,Soft
+Soft,Soft
+Soft COMPOUND,Soft
+Sport,default
+Sprint,Soft
+Street,Hard
+Super Soft,Supersoft
+T,default
+Treaded,default
+W3 WET,Wet
+W5 WET,Wet
+Wet,Wet
+Wet Bias-Ply,Wet
+Wet COMPOUND,Wet
+Wet FR3.5,Wet
+Wets,Wet
+WT WET,Wet
+WT3 WET,Wet
+XH2 Z HARD,Hard
+XM Z SOFT,Soft
+YMH HARD,Hard
+YMS SOFT,Soft
+YMW WET,Wet
+Yokohama,default

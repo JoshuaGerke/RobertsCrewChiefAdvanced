@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body link="#0000EE" vlink="#551A8B" text="#000000" bgcolor="#dddddd" alink="#EE0000">
+<div style="font-family:'Lucida Sans Unicode';font-size:13px;" class="main">
+Crew Chief can render in-game overlays to show Crew Chief's console output or user-configurable telemetry charts controlled by voice commands. This only works with the game running in windowed (or borderless windowed) mode.<br>
+<br>
+These can also be shown in VR and positioned in the game world using 3rd party apps like "OVR Overlay". Enable this functionality with the 'Enable overlay window' property. By default Crew Chief will record the telemetry data specified in Documents/CrewChiefV4/chart_subscriptions.json - this file can be edited to include new data channels but it requires some understanding of the internal game data format and / or the internal Crew Chief data format - we're still working in this. The telemetry recording is not active during race sessions - you can enable this by selecting with the 'Enable chart telemetry in race session' property.<br>
+<br>
+Telemetry is available for the previous completed lap (excluding out laps), the player's best lap in the session (excluding invalid or incomplete laps) and in some limited cases, the best opponent lap in the session (opponent data is limited to car speed, and is only available for some games at the moment). Typically, you'd drive a few laps in practice and pit, then ask the Chief "show me last lap car speed" or something like that.<br>
+<br>
+To get the maximum out of telemetry charts in iRacing, iRacing disk telemetry must be enabled in iRacing app.ini 'irsdkEnableDisk', and in Crew Chief properties 'Enable disk based telemetry for overlay'. Crew Chief cannot access the disk based telemetry while it's recording but once your get out of the car or stop the recording manually (Alt-L) Crew Chief will read and process the file and you can get access to the data on the overlay.<br>
+<br>
+The charts can be zoomed in to show a particular sector, or zoomed and panned with voice commands.<br>
+<h3>General overlay commands:</h3>
+"hide overlay" / "close overlay""<br>
+"show overlay"<br>
+"show console"<br>
+"hide console"<br>
+"show chart"<br>
+"hide chart"<br>
+"show all overlays" - show console and chart(s)<br>
+"new chart" / "clear chart" - removes all data from the currently rendered chart<br>
+"clear data" - clears all in-memory telemetry data for the current session<br>
+"refresh chart" - redraw the current chart with the latest data<br>
+"show stacked charts" - show each different series on its own chart<br>
+"show single chart" - show all active series on the same chart<br>
+"show time" - change the x-axis to be time<br>
+"show distance" - change the x-axis to be distance around the lap (this is the default)<br>
+"Show sector [one / two / three]"<br>
+"Show all sectors"<br>
+"Zoom [in / out]"<br>
+"Pan [left / right]"<br>
+"Reset zoom" - reset zoom to show the entire lap's data<br>
+"Next lap" - show the next lap (when showing 'last lap' chart)<br>
+"Previous lap" - show the previous lap (when showing 'last lap' chart)<br>
+"Show last lap" - move back to the last lap (when showing 'last lap' chart)<br>
+<h3>Series specific overlay commands:</h3>
+"show me..." - add a series to the chart<br>
+"chart, remove..." - remove a series from the chart<br>
+"best lap..." - add player best lap to the chart<br>
+"last lap..." - add player last lap to the chart (can be omitted - Crew Chief will assume you mean last lap if you don't specify it)<br>
+"opponent best lap.." - add opponent best lap (over all opponents in the player's class) to the chart<br>
+<br>
+e.g. to show a single chart for car speed, with your best lap and your opponents's overall best lap overlaid on the same chart with x-axis as distance (metres):<br>
+"show me best lap car speed"<br>
+"show me opponent best lap car speed"<br>
+<br>
+e.g. to show 2 charts, one for speed and one for gear for your best and your last lap with x-axis as distance (metres):<br>
+"show me best lap car speed"<br>
+"show me last lap car speed"<br>
+"show me best lap gear"<br>
+"show me last lap gear"<br>
+<br>
+e.g. to show 3 charts, speed gear and RPM for your best and last laps with x-axis as time (seconds):<br>
+"show me best lap car speed"<br>
+"show me last lap car speed"<br>
+"show me best lap gear"<br>
+"show me last lap gear"<br>
+"show me best lap engine revs"<br>
+"show me last lap engine revs"<br>
+"show time"<br>
+<br>
+e.g. to show a single chart with throttle position and gear for your last lap with x-axis as distance (metres):<br>
+"show me throttle position"<br>
+"show me gear"<br>
+"show single chart"<br>
+<br>
+Note that data for the same series (e.g. car speed) will always be overlaid on the same chart. Stacked charts only applies to data from different series (speed / gear, for example).<br>
+<br>
+The definition of a "series" is held in Documents/CrewChiefV4/chart_subscriptions.json. You can add to this as you wish but bear in mind that opponent data is very limited - for some games no suitable data is available at all, for some only car speed is available. We'll add more here and documentation as we go along. The rawDataFieldName refers to a field in the raw game data (the shared memory block), use this to access unmapped data or use "mappedDataFieldName" to access data that CrewChief has mapped from the raw data. In both cases dot-notation is supported. For example, car speed can be obtained from R3E by using rawDataFieldName=CarSpeed, or from the mapped data (for all games) using mappedDataFieldName=PositionAndMotionData.CarSpeed. All opponent data comes from mapped data, and the only available fields are Speed, RPM and Gear.<br>
+<br>
+The voice command fragments for each series are also in this json file. The voice command is constructed by Crew Chief, prefixing "show me best lap..." / "show me last lap..." / "show me opponent best lap..." as appropriate (e.g. "show me last lap car speed").<br>
+<br>
+<br>
+The overlay can also be controlled with the mouse. Enable the "Enable input" checkbox on the overlay to show controls for the various chart and overlay functions. The overlay can also be moved around by dragging the title bar when Enable input is checked.<br>
+<br>
+For Oculus users the overlay can be rendered as a separate application window, allowing it to be added to the VR world - enable the 'Enable overlay app window (Oculus mode)' checkbox in the Properties screen.<br>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+@LMU_REST_API_dummy_HostAddress = http://localhost:5289
+
+GET {{LMU_REST_API_dummy_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

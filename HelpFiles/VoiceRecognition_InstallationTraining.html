@@ -1,0 +1,142 @@
+﻿<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body vlink="#551A8B" text="#000000" link="#0000EE" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main"> There are two voice recognition systems which Crew
+      Chief can use. <br>
+      <ol>
+	    <li>The default option is referred to as the "<font
+            color="#009900"><b>Windows</b></font> speech recognition
+          engine" and uses the speech recognition system built in to
+          Windows. This requires a better quality voice input signal
+          than the default system but can be trained to recognise a
+          user's individual voice. It does not require the installation
+          of any additional components.</li>
+        <li>The other option is referred to as the "<font
+            color="#009900"><b>Microsoft</b></font> speech recognition
+          engine" which is optimised for noisy environments and poor
+          quality sound input. It requires no training and works with a
+          wide range of microphone types and accents, but it requires a
+          separate runtime installation and a language pack.</li>
+      </ol>
+      Which is best depends on the quality of your microphone, your
+      voice, the amount of background noise, and countless other
+      factors. It's worth trying both and seeing which gives the best
+      results.<br>
+      <br><br>
+	  If you want to use the default <font color="#009900"><b>Windows</b></font>
+      speech recognition engine simply ensure that the 'Prefer Windows
+      speech recogniser' option is checked on the Properties screen. You
+      will get better results if you work through the speech recognition
+      training process in Windows.<br>
+      <h4>Windows Speech Recognition on non-English Windows Installs</h4>
+      If your Windows install isn't English, you may need to add the English language speech recognition files to your Windows install.<br><br>
+
+      In Settings -> "Time and Language" click Language and add a language package - English (US) works well. Exit the Settings app and restart it, go back to Time and Language settings, then Speech. The language you just added should appear in the Speech Language drop down box, showing that it's available as a speech recognition language.<br><br>
+
+      That should be sufficient - start Crew Chief and see if it works. You might need to select English (US) as your speech language in the Time and Language settings screen.<br><br>
+
+      There's also a checkbox in the Speech settings for "Recognise non-native accents for this language". This may improve accuracy for some users.<br><br>
+
+      Note that you don't have to change your display language to English<br><br><br>
+
+      If you want to use the <font color="#009900"><b>Microsoft</b></font>
+      voice recognition system, you'll need to install the Microsoft Speech
+	  Recognition runtime
+	  <a href="https://www.microsoft.com/en-gb/download/details.aspx?id=27225">SpeechPlatformRuntime.msi</a>.
+	  From this page click 'Download' and select the right version - for most users
+	  this will be x64_SpeechPlatformRuntime\SpeechPlatformRuntime.msi.
+	  Alternative downloads containing this installer (and installers for the UK and US language packs) are
+	  <a href="https://d1o4ya81faadx8.cloudfront.net/Speech_recognition_64bit.zip">here (64bit)</a> and 
+	  <a href="https://d1o4ya81faadx8.cloudfront.net/Speech_recognition_32bit.zip">here (32bit)</a><br><br>
+      Once you've installed this, you'll also need to install an English language pack. The official download
+	  location for these is <a
+        href="https://www.microsoft.com/en-gb/download/details.aspx?id=27224">here</a><br>
+      Again, from this page click 'Download' and select the right
+      version - for most users this will be MSSpeech_SR_en-US_TELE.msi
+      (US users) or MSSpeech_SR_en-GB_TELE.msi (UK users).<br>
+	  If this isn't available, these language packs are
+	  also in the alternative download package linked above.<br><br>
+      Note that Crew Chief will fall back to using the Microsoft speech
+      recognition engine if it can't find a working installation of the
+      Windows speech recognition engine.<br>
+      <br>
+
+      Crew Chief will use the "Default" recording device for voice
+      recognition - this can be selected in the "Recording devices"
+      section of the Window Sounds control panel.<br>
+      (There is also the further choice of using nAudio for input but
+      that is not recommended, but it does allow you can choose the
+      recording device.)<br>
+      <br>
+      Voice recognition can be configured to be always-on (it listens
+      continuously and responds when it recognises a command) or in
+      response to a button press. To assign a button to a activate voice
+      recognition see <a href="GettingStarted_ControlButtons.html">Getting
+
+        Started: Control Buttons</a>. By default you have to hold this
+      button down while you talk - this can be changed by selecting a
+      different 'Voice recognition mode'.<br>
+      <h4>Confidence Levels</h4>
+      <p>The voice recognition system reports a "Confidence Level", indicating
+	    how confident is is that it understood what you said.
+		Crew Chief uses that to be sure that speech is intended as a
+		and that Crew Chief interprets the command correctly. Crew Chief uses
+		confidence thresholds to decide whether to reject a voice command which
+		is recognised with too low a confidence value. The Microsoft and
+        Windows speech recognition engines report different confidence values and
+        Crew Chief also uses different threshold values for different situations
+        (recognising the trigger word "Chief", recognising commands,
+        recognising names) so there are 6 levels that can be adjusted if
+        needed.&nbsp; Crew Chief shows the confidence level in the
+        console window along with the relevant threshold property name and
+		value when it recognises speech - e.g. <i><font face="Helvetica, Arial, sans-serif">Microsoft
+            recogniser heard keyword "Chief", waiting for command,
+            confidence 0.986</font></i>.<br>
+		By default, Crew Chief will modify the Confidence Level thresholds
+		automatically, while running tuning them to better match the range of values reported
+		by the speech recogniser (starting from the initial values set in the Properties screen).
+        <br><br>
+      </p>
+      <p>A screen dump of the levels:<br>
+      <a target="_blank" href="CC_Confidence.png"> <img src="CC_Confidence.png" alt="Control
+          Panel"> </a> <br>
+         </p>
+      <h4>Testing voice recognition</h4>
+      Having set it all up press the <b>Start Application</b> button in
+      Crew Chief, then press your voice recognition button and ask "Can
+      you hear me?". If Crew Chief can understand you it'll respond with
+      "Yes, I can hear you".<br>
+      <br>
+      Make sure you test this while the game is running as some games
+      claim exclusive control, so if no app is running that is claiming
+      control it will always work.<br>
+      <br>
+      If it doesn't work: right click on the speaker on the taskbar,
+      select Open Sound Settings then Sound Control Panel. In the
+      Playback tab, select your playback device, then in the Properties
+      / Advanced tab <i>uncheck</i> "Allow applications to take
+      exclusive control of this device" Do the same for your microphone.<br>
+      Also in the Communications Tab set "When Windows detects
+      communication activity:" Do Nothing<br>
+      <br>
+      A screen dump of that:<br>
+      <a target="_blank"
+        href="VoiceRecognition_InstallationTraining.png"> <img
+          src="VoiceRecognition_InstallationTraining.png" alt="Control
+          Panel"> </a> <br>
+      If it's still not working read the words of wisdom in the <a
+href="https://thecrewchief.org/showthread.php?28-F-a-q&amp;p=3238&amp;viewfull=1#post3238">FAQ</a>.<br>
+    </div>
+  </body>
+</html>

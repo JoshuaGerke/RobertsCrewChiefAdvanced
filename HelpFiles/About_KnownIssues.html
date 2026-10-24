@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="jquery-latest.min.js" type="text/javascript"></script>
+    <script src="script.js"></script>
+  </head>
+  <body link="#0000EE" vlink="#551A8B" text="#000000" bgcolor="#dddddd"
+    alink="#EE0000">
+    <div style="font-family:'Lucida Sans Unicode';font-size:13px;"
+      class="main">
+      There are some known issues which aren't fixable<br>
+      <br>
+      <b>Project Cars</b> doesn't send opponent laptime data, so Crew
+      Chief has to time their laps. In practice and qual sessions this
+      is fairly reliable (because Crew Chief can use the time remaining
+      in the session, sent by the game, for its 'clock' when timing). In
+      race sessions with a fixed number of laps Crew Chief has nothing
+      it can use as a clock to time the laps, so times them itself. This
+      can lead to opponent lap / sector time inaccuracies if the player
+      pauses the game (Crew Chief's clock is still running).
+      <br>
+      Joining a session part way through (practice or qualify session
+      online) will result in Crew Chief having an incomplete set of data
+      for opponent lap and sector times. In such cases the best opponent
+      lap and sector data is inaccurate. For <b>Project Cars</b>,
+      there's nothing I can do about this. The opponent lap and sector
+      times aren't in the shared memory (Crew Chief has to time their
+      laps), so the pace and sector delta reports may be inaccurate
+      (they use the fastest lap completed while Crew Chief is running).
+      For Raceroom we can get the fastest opponent lap time, but if this
+      lap was completed before Crew Chief was running, the sectors
+      within that lap aren't accessible. In this case the pace report
+      will include the lap time delta, but there'll be no sector delta
+      reports.<br>
+      <br>
+      In both cases as soon as an opponent sets a faster lap, Crew Chief
+      will have up to date best lap data so the pace and sector reports
+      will be accurate and complete.<br>
+      <br>
+      <b>Project Cars</b> doesn't send opponent car class data, so Crew
+      Chief has to assume that all drivers in the race are in the same
+      car class. For multiclass races, all pace and other reports will
+      be relative to the overall leader / fastest car.
+      <br>
+      <br>
+      <b>Project Cars</b> doesn't have a distinct pre-start procedure
+      phase. I've added some more messages before the 'get ready' but
+      there's a risk here that they might delay the 'get ready' message.
+      <br>
+      <br>
+      <b>RaceRoom</b> uses a 'slot_id' field to uniquely identify
+      drivers in a race. However, this field doesn't really work
+      properly (there are lots of issues with it), so Crew Chief has to
+      use the driver's names. Driver names for AI driver are not unique.
+      All the lap time and other data held for each driver is indexed by
+      driver name so if a race has 2 or more drivers with the same name,
+      Crew Chief will get things like lap and sector times wrong. This
+      is only a problem racing the AI - be aware that if you have a car
+      class with a limited number of unique AI drivers (Daytona
+      Prototypes / German Nationals / Americal Nationals / Hill Climb
+      Legends / etc), but select a field size greater than this, Crew
+      Chief will do weird things.
+      <br>
+      <br>
+      <b>RaceRoom</b> doesn't have a pre-start procedure phase for
+      offline races, and in the pre-start phase online ("Gridwalk") very
+      little valid and accurate data is available.
+      <br>
+      <br>
+      <b>Detecting 'good' passes</b> isn't really feasible. I've tried
+      to limit the 'good pass' messages to overtakes that are reasonably
+      'secure', don't result in the other car slowing excessively, and
+      don't involve the player going off-track. I can't, for example,
+      tell the difference between a clean pass and a bump-and-run punt,
+      so you might get congratulated for driving like a berk.
+    </div>
+  </body>
+</html>

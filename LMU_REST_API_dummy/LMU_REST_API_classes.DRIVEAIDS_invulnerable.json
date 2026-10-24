@@ -1,0 +1,8 @@
+{
+  "stepValue": 1,
+  "minValue": 0,
+  "maxValue": 1,
+  "stringValue": "Off",
+  "currentValue": 0,
+  "valueType": "LONG"
+}

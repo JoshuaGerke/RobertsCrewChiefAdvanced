@@ -1,0 +1,122 @@
+# Save CSV using “Field delimiter: COMMA” and “Quote all text cells UNCHECKED”,,,,,,,,,
+#,,,,,,,,,
+'//// https://gitlab.com/mr_belowski/CrewChiefV4/-/blob/main/CrewChiefV4/PitManager/Documentation/GamePitManagerDict.ods?ref_type=heads,,,,(This is used by T4 templates but these are the instructions for creating tables by hand),1) Filter out the blanks in ONE of these columns to get a set of GamePitManagerDict entries for each game,,,,
+//// Copies the layout of https://mr_belowski.gitlab.io/CrewChiefV4/VoiceRecognition_VoiceCommandsPitstopManagement.html,,,,,2) Copy the other columns,,,,
+//// Select this column for PitManagerEvent,,,,,"3) Paste into a text file and replace tabs with commas, append )}, to each dict entry then tidy",,,,
+////,,,,,iRacing,R3E,rF2,LMU,ACC
+// The event,,the fn that implements it,the fn that handles speech response,Speech strings for command,C,C,C,C,C
+//,,(changes the pit menu),and any other outcomes,,C,C,C,C,C
+{PME.Initialise,_PMet(_PMeh,EH_initialise,PMER.PMrh_NoResponse,null,X,X,X,X,X
+{PME.Teardown,_PMet(_PMeh,EH_teardown,PMER.PMrh_NoResponse,null,X,X,X,X,X
+{PME.PrepareToUseMenu,_PMet(_PMeh,EH_prepareToUseMenu,PMER.PMrh_NoResponse,null,X,X,X,X,X
+,,,,,B,B,B,B,B
+// Fuel,,,,,C,C,C,C,C
+{PME.FuelAddXlitres,_PMet(_PMeh,EH_FuelAddXlitres,PMER.PMrh_FuelAddXlitres,SRE.PIT_STOP_ADD,X,,X,X,X
+{PME.FuelFillToXlitres,_PMet(_PMeh,EH_FuelToXlitres,PMER.PMrh_FuelAddXlitres,SRE.PIT_STOP_FILL_TO,X,,X,X,X
+{PME.FuelNone,_PMet(_PMeh,EH_FuelNone,PMER.PMrh_noFuel,SRE.PIT_STOP_DONT_REFUEL,X,X,X,X,X
+{PME.FuelFillToEnd,_PMet(_PMeh,EH_FuelToEnd,PMER.PMrh_NoResponse,SRE.PIT_STOP_FUEL_TO_THE_END,X,,X,X,X
+{PME.Refuel,_PMet(_PMeh,EH_Refuel,PMER.PMrh_noFuel,SRE.PIT_STOP_REFUEL,,X,,,
+{PME.FuelRatio,_PMet(_PMeh,EH_FuelRatio,PMER.PMrh_NoResponse,SRE.PIT_STOP_FUEL_RATIO,,,,X,
+{PME.VirtualEnergy,_PMet(_PMeh,EH_VirtualEnergy,PMER.PMrh_NoResponse,SRE.PIT_STOP_VIRTUAL_ENERGY,,,,X,
+,,,,,B,B,B,B,B
+// Tyres,,,,,C,C,C,C,C
+{PME.TyreChangeAll,_PMet(_PMeh,EH_changeAllTyres,PMER.PMrh_ChangeAllTyres,SRE.PIT_STOP_CHANGE_ALL_TYRES,X,X,X,X,X
+{PME.TyreChangeNone,_PMet(_PMeh,EH_changeNoTyres,PMER.PMrh_ChangeNoTyres,SRE.PIT_STOP_CLEAR_TYRES,X,X,X,X,X
+{PME.TyreChangeFront,_PMet(_PMeh,EH_changeFrontTyres,PMER.PMrh_ChangeFrontTyres,SRE.PIT_STOP_CHANGE_FRONT_TYRES,X,X,X,X,
+{PME.TyreChangeRear,_PMet(_PMeh,EH_changeRearTyres,PMER.PMrh_ChangeRearTyres,SRE.PIT_STOP_CHANGE_REAR_TYRES,X,X,X,X,
+{PME.TyreChangeLeft,_PMet(_PMeh,EH_changeLeftTyres,PMER.PMrh_ChangeLeftTyres,SRE.PIT_STOP_CHANGE_LEFT_SIDE_TYRES,X,,X,X,
+{PME.TyreChangeRight,_PMet(_PMeh,EH_changeRightTyres,PMER.PMrh_ChangeRightTyres,SRE.PIT_STOP_CHANGE_RIGHT_SIDE_TYRES,X,,X,X,
+{PME.TyreChangeLF,_PMet(_PMeh,EH_changeFLTyre,PMER.PMrh_ChangeFrontLeftTyre,SRE.PIT_STOP_CHANGE_FRONT_LEFT_TYRE,X,,X,X,
+{PME.TyreChangeRF,_PMet(_PMeh,EH_changeFRTyre,PMER.PMrh_ChangeFrontRightTyre,SRE.PIT_STOP_CHANGE_FRONT_RIGHT_TYRE,X,,X,X,
+{PME.TyreChangeLR,_PMet(_PMeh,EH_changeRLTyre,PMER.PMrh_ChangeRearLeftTyre,SRE.PIT_STOP_CHANGE_REAR_LEFT_TYRE,X,,X,X,
+{PME.TyreChangeRR,_PMet(_PMeh,EH_changeRRTyre,PMER.PMrh_ChangeRearRightTyre,SRE.PIT_STOP_CHANGE_REAR_RIGHT_TYRE,X,,X,X,
+,,,,,B,B,B,B,B
+{PME.TyreCompoundDry,_PMet(_PMeh,EH_TyreCompoundDry,PMER.PMrh_TyreCompoundDry,SRE.PIT_STOP_DRY_TYRES,,,,,X
+{PME.TyreCompoundHard,_PMet(_PMeh,EH_TyreCompoundHard,PMER.PMrh_TyreCompoundHard,SRE.PIT_STOP_HARD_TYRES,,X,X,X,
+{PME.TyreCompoundMedium,_PMet(_PMeh,EH_TyreCompoundMedium,PMER.PMrh_TyreCompoundMedium,SRE.PIT_STOP_MEDIUM_TYRES,,X,X,X,
+{PME.TyreCompoundSoft,_PMet(_PMeh,EH_TyreCompoundSoft,PMER.PMrh_TyreCompoundSoft,SRE.PIT_STOP_SOFT_TYRES,,X,X,X,
+{PME.TyreCompoundUsedHard,_PMet(_PMeh,EH_TyreCompoundUsedHard,PMER.PMrh_TyreCompoundHard,SRE.PIT_STOP_USED_HARD_TYRES,,,,X,
+{PME.TyreCompoundUsedMedium,_PMet(_PMeh,EH_TyreCompoundUsedMedium,PMER.PMrh_TyreCompoundMedium,SRE.PIT_STOP_USED_MEDIUM_TYRES,,,,X,
+{PME.TyreCompoundUsedSoft,_PMet(_PMeh,EH_TyreCompoundUsedSoft,PMER.PMrh_TyreCompoundSoft,SRE.PIT_STOP_USED_SOFT_TYRES,,,,X,
+{PME.TyreCompoundSupersoft,_PMet(_PMeh,EH_TyreCompoundSupersoft,PMER.PMrh_TyreCompoundSupersoft,SRE.PIT_STOP_SUPERSOFT_TYRES,,X,X,,
+{PME.TyreCompoundUltrasoft,_PMet(_PMeh,EH_TyreCompoundUltrasoft,PMER.PMrh_TyreCompoundUltrasoft,SRE.PIT_STOP_ULTRASOFT_TYRES,,,X,,
+{PME.TyreCompoundHypersoft,_PMet(_PMeh,EH_TyreCompoundHypersoft,PMER.PMrh_TyreCompoundHypersoft,SRE.PIT_STOP_HYPERSOFT_TYRES,,,X,,
+{PME.TyreCompoundPrime,_PMet(_PMeh,EH_TyreCompoundPrime,PMER.PMrh_TyreCompoundPrime,SRE.PIT_STOP_PRIME_TYRES,,X,X,,
+{PME.TyreCompoundOption,_PMet(_PMeh,EH_TyreCompoundOption,PMER.PMrh_TyreCompoundOption,SRE.PIT_STOP_OPTION_TYRES,,X,X,,
+{PME.TyreCompoundAlternate,_PMet(_PMeh,EH_TyreCompoundAlternate,PMER.PMrh_TyreCompoundAlternate,SRE.PIT_STOP_ALTERNATE_TYRES,,X,X,,
+{PME.TyreCompoundIntermediate,_PMet(_PMeh,EH_TyreCompoundIntermediate,PMER.PMrh_TyreCompoundIntermediate,SRE.PIT_STOP_INTERMEDIATE_TYRES,,X,X,,
+{PME.TyreCompoundWet,_PMet(_PMeh,EH_TyreCompoundWet,PMER.PMrh_TyreCompoundWet,SRE.PIT_STOP_WET_TYRES,,X,X,X,X
+{PME.TyreCompoundMonsoon,_PMet(_PMeh,EH_TyreCompoundMonsoon,PMER.PMrh_TyreCompoundMonsoon,SRE.PIT_STOP_MONSOON_TYRES,,,X,,
+{PME.TyreCompoundNext,_PMet(_PMeh,EH_TyreCompoundNext,PMER.PMrh_TyreCompoundNext,SRE.PIT_STOP_NEXT_TYRE_COMPOUND,,X,X,X,
+,,,,,B,B,B,B,B
+{PME.TyreSet,_PMet(_PMeh,EH_TyreSet,PMER.PMrh_Acknowledge,SRE.PIT_STOP_SELECT_TYRE_SET,,,,,X
+{PME.LeastUsedTyreSet,_PMet(_PMeh,EH_LeastUsedTyreSet,PMER.PMrh_Acknowledge,SRE.PIT_STOP_SELECT_LEAST_USED_TYRE_SET,,,,,X
+,,,,,,,,,B
+{PME.TyrePressure,_PMet(_PMeh,EH_changePressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_TYRE_PRESSURE,X,,,,X
+{PME.TyrePressureFront,_PMet(_PMeh,EH_changeFrontPressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_FRONT_PRESSURES,,,X,X,X
+{PME.TyrePressureRear,_PMet(_PMeh,EH_changeRearPressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_REAR_PRESSURES,,,X,X,X
+{PME.TyrePressureLF,_PMet(_PMeh,EH_changeLFpressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_FRONT_LEFT_TYRE_PRESSURE,X,,X,X,X
+{PME.TyrePressureRF,_PMet(_PMeh,EH_changeRFpressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_FRONT_RIGHT_TYRE_PRESSURE,X,,X,X,X
+{PME.TyrePressureLR,_PMet(_PMeh,EH_changeLRpressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_REAR_LEFT_TYRE_PRESSURE,X,,X,X,X
+{PME.TyrePressureRR,_PMet(_PMeh,EH_changeRRpressure,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CHANGE_REAR_RIGHT_TYRE_PRESSURE,X,,X,X,X
+,,,,,B,B,B,B,B
+// Repairs,,,,,C,C,C,C,C
+{PME.RepairFast,_PMet(_PMeh,EH_RepairFast,PMER.PMrh_Acknowledge,SRE.PIT_STOP_FAST_REPAIR,X,,,,
+{PME.RepairNone,_PMet(_PMeh,EH_RepairNone,PMER.PMrh_RepairNone,SRE.PIT_STOP_CLEAR_FAST_REPAIR,X,,,,
+{PME.RepairAllAero,_PMet(_PMeh,EH_example,PMER.PMrh_Acknowledge,SRE.PIT_STOP_FIX_ALL_AERO,,X,,,
+{PME.RepairAeroNone,_PMet(_PMeh,EH_RepairAeroNone,PMER.PMrh_Acknowledge,SRE.PIT_STOP_FIX_NO_AERO,,X,,,
+{PME.RepairFrontAero,_PMet(_PMeh,EH_RepairFrontAero,PMER.PMrh_RepairFrontAero,SRE.PIT_STOP_FIX_FRONT_AERO,,X,,,
+{PME.RepairRearAero,_PMet(_PMeh,EH_RepairRearAero,PMER.PMrh_RepairRearAero,SRE.PIT_STOP_FIX_REAR_AERO,,X,,,
+{PME.RepairSuspension,_PMet(_PMeh,EH_RepairSuspension,PMER.PMrh_RepairSuspension,SRE.PIT_STOP_FIX_SUSPENSION,,X,,,
+{PME.RepairSuspensionNone,_PMet(_PMeh,EH_RepairSuspensionNone,PMER.PMrh_RepairSuspensionNone,SRE.PIT_STOP_DONT_FIX_SUSPENSION,,X,,,
+{PME.RepairBody,_PMet(_PMeh,EH_RepairBody,PMER.PMrh_RepairBody,SRE.PIT_STOP_FIX_BODY,,X,X,X,
+{PME.RepairAll,_PMet(_PMeh,EH_RepairAll,PMER.PMrh_RepairAll,SRE.PIT_STOP_FIX_ALL,X,X,X,X,X
+{PME.RepairNone,_PMet(_PMeh,EH_RepairNone,PMER.PMrh_RepairNone,SRE.PIT_STOP_FIX_NONE,,X,X,X,
+,,,,,B,B,B,B,B
+// Penalties,,,,,,C,C,C,B
+{PME.PenaltyServe,_PMet(_PMeh,EH_PenaltyServe,PMER.PMrh_ServePenalty,SRE.PIT_STOP_SERVE_PENALTY,,X,X,X,B
+{PME.PenaltyServeNone,_PMet(_PMeh,EH_PenaltyServeNone,PMER.PMrh_DontServePenalty,SRE.PIT_STOP_DONT_SERVE_PENALTY,,X,X,X,B
+,,,,,,B,B,B,B
+// Misc,,,,,C,B,C,C,B
+{PME.TearOff,_PMet(_PMeh,EH_TearOff,PMER.PMrh_Acknowledge,SRE.PIT_STOP_TEAROFF,X,,,,B
+{PME.TearOffNone,_PMet(_PMeh,EH_TearOffNone,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CLEAR_WIND_SCREEN,X,,,,
+{PME.ClearAll,_PMet(_PMeh,EH_ClearAll,PMER.PMrh_Acknowledge,SRE.PIT_STOP_CLEAR_ALL,X,,X,X,
+,,,,,,,,,
+// Are these pit menu items?,"No, but they're handled the same way",,,,B,,,,
+{PME.HowManyIncidentPoints,_PMet(_PMeh,EH_HowManyIncidentPoints,PMER.PMrh_HowManyIncidentPoints,SRE.HOW_MANY_INCIDENT_POINTS,X,,,,
+{PME.WhatsTheIncidentLimit,_PMet(_PMeh,EH_WhatsTheIncidentLimit,PMER.PMrh_WhatsTheIncidentLimit,SRE.WHATS_THE_INCIDENT_LIMIT,X,,,,
+{PME.WhatsMyIrating,_PMet(_PMeh,EH_WhatsMyIrating,PMER.PMrh_WhatsMyIrating,SRE.WHATS_MY_IRATING,X,,,,
+{PME.WhatsMyLicenseClass,_PMet(_PMeh,EH_WhatsMyLicenseClass,PMER.PMrh_WhatsMyLicenseClass,SRE.WHATS_MY_LICENSE_CLASS,X,,,,
+{PME.WhatsTheSof,_PMet(_PMeh,EH_WhatsTheSof,PMER.PMrh_WhatsTheSof,SRE.WHATS_THE_SOF,X,,,,
+{PME.WhatsThePitActions,_PMet(_PMeh,EH_WhatsThePitActions,PMER.PMrh_WhatsThePitActions,SRE.WHAT_ARE_THE_PIT_ACTIONS,,,,,
+,,,,,B,B,B,B,B
+// rF2 MFD,,,,,,,C,C,
+{PME.DisplaySectors,_PMet(_PMeh,EH_DisplaySectors,PMER.PMrh_NoResponse,SRE.DISPLAY_SECTORS,,,X,,
+{PME.DisplayPitMenu,_PMet(_PMeh,EH_DisplayPitMenu,PMER.PMrh_NoResponse,SRE.DISPLAY_PIT_MENU,,,X,,
+{PME.DisplayTyres,_PMet(_PMeh,EH_DisplayTyres,PMER.PMrh_NoResponse,SRE.DISPLAY_TYRES,,,X,,
+{PME.DisplayTemps,_PMet(_PMeh,EH_DisplayTemps,PMER.PMrh_NoResponse,SRE.DISPLAY_TEMPS,,,X,,
+{PME.DisplayRaceInfo,_PMet(_PMeh,EH_DisplayRaceInfo,PMER.PMrh_NoResponse,SRE.DISPLAY_RACE_INFO,,,X,,
+{PME.DisplayStandings,_PMet(_PMeh,EH_DisplayStandings,PMER.PMrh_NoResponse,SRE.DISPLAY_STANDINGS,,,X,,
+{PME.DisplayPenalties,_PMet(_PMeh,EH_DisplayPenalties,PMER.PMrh_NoResponse,SRE.DISPLAY_PENALTIES,,,X,,
+{PME.DisplayNext,_PMet(_PMeh,EH_DisplayNext,PMER.PMrh_NoResponse,SRE.DISPLAY_NEXT,,,X,,
+,,,,,,,,,
+// TBD,,,,,,,,,
+ {PME.AeroFrontPlusMinusX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.AeroRearPlusMinusX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.AeroFrontSetToX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.AeroRearSetToX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+,,,,,,,,,
+ {PME.GrillePlusMinusX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.GrilleSetToX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.WedgePlusMinusX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.WedgeSetToX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.TrackBarPlusMinusX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.TrackBarSetToX,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.RubberLF,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.RubberRF,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.RubberLR,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.RubberRR,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.FenderL,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.FenderR,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.FlipUpL,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,
+ {PME.FlipUpR,_PMet(_PMeh,EH_example,PMER.PMrh_CantDoThat,SRE.PIT_STOP_tbd,,,,,

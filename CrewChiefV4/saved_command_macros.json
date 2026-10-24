@@ -1,0 +1,1477 @@
+{
+	"macros": [
+		{
+			"name": "say sorry",
+			"description": "opens chat, types 'sorry, my bad', presses enter. An action sequence item starting with {FREE_TEXT} tells the app to press each of the following keys in sequence. The key for the current game's 'start chat message' macro is pressed before typing the FREE_TEXT keys, then the key for the current game's 'end chat message' macro is pressed.",
+			"voiceTriggers": [
+				"chat, say sorry"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"{FREE_TEXT}Sorry, my bad"
+					],
+					"waitBetweenEachCommand": 200
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"{FREE_TEXT}Sorry, my bad"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"{FREE_TEXT}Sorry, my bad"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "iracing version",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"{FREE_TEXT}Sorry, my bad"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "say good pass",
+			"description": "opens chat, types 'good pass', presses enter. An action sequence item starting with {FREE_TEXT} tells the app to press each of the following keys in sequence. The key for the current game's 'start chat message' macro is pressed before typing the FREE_TEXT keys, then the key for the current game's 'end chat message' macro is pressed.",
+			"voiceTriggers": [
+				"chat, say good pass"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"{FREE_TEXT}good pass"
+					],
+					"waitBetweenEachCommand": 200
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"{FREE_TEXT}good pass"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"{FREE_TEXT}good pass"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "iracing version",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"{FREE_TEXT}Good pass"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "request pit",
+			"description": "requests a pitstop",
+			"confirmationMessage": "mandatory_pit_stops/pit_stop_requested",
+			"voiceTriggers": [
+				"request pit",
+				"box this lap",
+				"in this lap"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version. The action sequence item {WAIT,5000} tells the app to wait 5000 milliseconds before moving to the next command",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_R",
+						"{WAIT,5000}",
+						"KEY_Q"
+					],
+					"waitBetweenEachCommand": 200
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_R"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"KEY_W",
+						"KEY_A",
+						"KEY_Q",
+						"KEY_A"
+					]
+				}
+			]
+		},
+		{
+			"name": "cancel pit request",
+			"description": "cancels a pit request, if one is set - applies only to pCars2 and R3E. Note that for AMS2 it just toggles the request state",
+			"confirmationMessage": "mandatory_pit_stops/pit_request_cancelled",
+			"voiceTriggers": [
+				"cancel request pit",
+				"cancel pit stop",
+				"cancel pit request"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_R"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"KEY_W",
+						"KEY_A",
+						"KEY_Q",
+						"KEY_A"
+					]
+				},
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_R"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "auto fuel",
+			"description": "In R3E, this macro requires the pit menu fuel item be selected (green). It can be set to any amount (or any of the presets). An item with {MULTIPLE,7} tells the app to repeat that key press 7 times. An item starting {MULTIPLE,Fuel} tells the app to ask the Fuel event for the right number of times to press this key",
+			"confirmationMessage": "acknowledge/fuel_to_end",
+			"voiceTriggers": [
+				"fuel to the end",
+				"fuel to the end of the race"
+			],
+			"commandSets": [
+				{
+					"description": "This is an attempt to automate the fuel process for R3E using the app's current fuel estimate. Starts by ensuring the cursor is at the top of the menu, then it goes to the fuel row and presses 'decrease' a many times to ensure the fuel menu is on 'safe', then presses 'increase' 3 times, putting the fuel amount on 0L. Then it presses 'increase' the correct number of times for the fuel required, then presses 'select' to activate refuelling, then waits a bit before closing the pit menu.",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_Q",
+						"{MULTIPLE,7}KEY_W",
+						"KEY_S",
+						"KEY_E",
+						"{MULTIPLE,153}KEY_A",
+						"{MULTIPLE,Fuel}KEY_D",
+						"KEY_E",
+						"{WAIT,5000}",
+						"KEY_Q"
+					],
+					"waitBetweenEachCommand": 20
+				},
+				{
+					"description": "This is an attempt to automate the fuel process for pCARS2 using the app's current fuel estimate. Navigates to the adjust stratgey option, then fuel, then reduces the amount to 0 and then adds however many litres the app calculated",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,2}KEY_S",
+						"KEY_D",
+						"{MULTIPLE,2}KEY_S",
+						"{MULTIPLE,150}KEY_A",
+						"{MULTIPLE,Fuel}KEY_D",
+						"{MULTIPLE,2}KEY_W",
+						"KEY_D",
+						"{MULTIPLE,2}KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 30
+				},
+				{
+					"description": "This is an attempt to automate the fuel process for ACC using the app's current fuel estimate. Navigates to the adjust stratgey option, then fuel, then reduces the amount to 0 and then adds however many litres the app calculated",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,200}KEY_P",
+						"{WAIT,300}",
+						"DOWN",
+						"DOWN",
+						"{MULTIPLE,100}LEFT",
+						"{MULTIPLE,Fuel}RIGHT"
+					],
+					"waitBetweenEachCommand": 40
+				},
+				{
+					"description": "This is an attempt to automate the fuel process for AMS2 using the app's current fuel estimate. Navigates to the adjust stratgey option, then fuel, then reduces the amount to 0 and then adds however many litres the app calculated",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,4}KEY_W",
+						"{MULTIPLE,150}KEY_A",
+						"{MULTIPLE,Fuel}KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			]
+		},
+		{
+			"name": "manual fuel",
+			"description": "Note the {0,150} - this means recognise all numbers between 0 and 150. In R3E, this macro requires the pit menu fuel item be selected (green). It can be set to any amount (or any of the presets). An item with {MULTIPLE,7} tells the app to repeat that key press 7 times. An item starting {MULTIPLE,VOICE_TRIGGER} tells the app to repeat this key using the number recognised from the voice command",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": null,
+			"commandSets": [
+				{
+					"description": "navigates to the fuel amount, de-selects it, presses decrease 150 times to ensure it's at zero, then adds the number of litres parsed from the voice command. {MULTIPLE,X} is press (X) times. {MULTIPLE,VOICE_TRIGGER} is press (number recognised from voice command) times. {MULTIPLE,Fuel} means the Fuel event resolves the amount (in code)",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_Q",
+						"{MULTIPLE,7}KEY_W",
+						"KEY_S",
+						"KEY_E",
+						"{MULTIPLE,150}KEY_A",
+						"{MULTIPLE,VOICE_TRIGGER}KEY_D",
+						"KEY_E",
+						"{WAIT,5000}",
+						"KEY_Q"
+					],
+					"waitBetweenEachCommand": 20
+				},
+				{
+					"description": "navigates to the fuel amount, de-selects it, presses left (decrease) 150 times to ensure it's at zero, then adds the number of litres parsed from the voice command",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,2}KEY_S",
+						"KEY_D",
+						"{MULTIPLE,2}KEY_S",
+						"{MULTIPLE,150}KEY_A",
+						"{MULTIPLE,VOICE_TRIGGER}KEY_D",
+						"{MULTIPLE,2}KEY_W",
+						"KEY_D",
+						"{MULTIPLE,2}KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 30
+				},
+				{
+					"description": "navigates to the fuel amount, presses left (decrease) 100 times to ensure it's at zero, then adds the number of litres parsed from the voice command",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,200}KEY_P",
+						"{WAIT,300}",
+						"DOWN",
+						"DOWN",
+						"{MULTIPLE,100}LEFT",
+						"{MULTIPLE,VOICE_TRIGGER}RIGHT"
+					],
+					"waitBetweenEachCommand": 40
+				},
+				{
+					"description": "navigates to the fuel amount, de-selects it, presses left (decrease) 150 times to ensure it's at zero, then adds the number of litres parsed from the voice command",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,4}KEY_W",
+						"{MULTIPLE,150}KEY_A",
+						"{MULTIPLE,VOICE_TRIGGER}RIGHT",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			],
+			"integerVariableVoiceTrigger": "add fuel, {0,150} litres"
+		},
+		{
+			"name": "AMS2 no repairs",
+			"description": "AMS2-specific request to not do any repairs",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"pitstop no repairs",
+				"box no repairs",
+				"no repairs"
+			],
+			"commandSets": [
+				{
+					"description": "navigates to the repairs option and changes it to None - this menu doesn't wrap'",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,5}KEY_A",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			]
+		},
+		{
+			"name": "AMS2 aero repairs",
+			"description": "AMS2-specific request to repair only aero",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"pitstop repair aero",
+				"box repair aero",
+				"repair aero"
+			],
+			"commandSets": [
+				{
+					"description": "navigates to the repairs option and changes it to Aero - this menu doesn't wrap'",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,5}KEY_A",
+						"KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			]
+		},
+		{
+			"name": "AMS2 suspension repairs",
+			"description": "AMS2-specific request to repair only suspension",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"pitstop repair suspension",
+				"box repair suspension",
+				"repair suspension"
+			],
+			"commandSets": [
+				{
+					"description": "navigates to the repairs option and changes it to Suspension - this menu doesn't wrap'",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,5}KEY_A",
+						"{MULTIPLE,2}KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			]
+		},
+		{
+			"name": "AMS2 aero and suspension repairs",
+			"description": "AMS2-specific request to repair aero suspension",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"pitstop repair aero and suspension",
+				"box repair aero and suspension",
+				"repair aero and suspension"
+			],
+			"commandSets": [
+				{
+					"description": "navigates to the repairs option and changes it to Aero & Suspension - this menu doesn't wrap'",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,5}KEY_A",
+						"{MULTIPLE,4}KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			]
+		},
+		{
+			"name": "AMS2 full repairs",
+			"description": "AMS2-specific request to repair all",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"pitstop repair all",
+				"box repair all",
+				"repair all"
+			],
+			"commandSets": [
+				{
+					"description": "navigates to the repairs option and changes it to All - this menu doesn't wrap'",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,3}KEY_W",
+						"{MULTIPLE,5}KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 30
+				}
+			]
+		},
+		{
+			"name": "AMS2 next tyre option",
+			"description": "AMS2-specific request to move to the next tyre option",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"pitstop next tire choice",
+				"box next tire choice",
+				"next tire choice"
+			],
+			"commandSets": [
+				{
+					"description": "navigates to the tyres option and moves it to the next value - this menu does wrap'",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "next pit preset",
+			"description": "selects next pitstop preset, r3e only",
+			"voiceTriggers": [
+				"next strategy",
+				"next pit preset"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version - pcars indexes the strategies (see 'select strategy 1' etc)",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_D",
+						"{WAIT,3000}",
+						"KEY_Q"
+					],
+					"waitBetweenEachCommand": 200
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,200}KEY_P",
+						"{WAIT,300}",
+						"DOWN",
+						"RIGHT"
+					]
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"KEY_S",
+						"KEY_D",
+						"KEY_Q",
+						"KEY_A"
+					]
+				}
+			]
+		},
+		{
+			"name": "previous pit preset",
+			"description": "selects previous pitstop preset, r3e only",
+			"voiceTriggers": [
+				"previous strategy",
+				"previous pit preset"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version - pcars indexes the strategies (see 'select strategy 1' etc)",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_A",
+						"{WAIT,3000}",
+						"KEY_Q"
+					],
+					"waitBetweenEachCommand": 200
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,200}KEY_P",
+						"{WAIT,300}",
+						"DOWN",
+						"RIGHT"
+					]
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q",
+						"KEY_S",
+						"KEY_A",
+						"KEY_Q",
+						"KEY_A"
+					]
+				}
+			]
+		},
+		{
+			"name": "select race strategy 1",
+			"description": "selects strategy 1 from the pCARS2",
+			"confirmationMessage": "acknowledge/pit_strategy_1",
+			"voiceTriggers": [
+				"strategy one",
+				"strat one"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 select strat 1",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_S",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_D",
+						"KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "select race strategy 2",
+			"description": "selects strategy 2 from the pCARS2 ICM",
+			"confirmationMessage": "acknowledge/pit_strategy_2",
+			"voiceTriggers": [
+				"strategy two",
+				"strat two"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 select strat 2",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_S",
+						"KEY_D",
+						"KEY_S",
+						"KEY_S",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_D",
+						"KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "select race strategy 3",
+			"description": "selects strategy 3 from the pCARS2 ICM",
+			"confirmationMessage": "acknowledge/pit_strategy_3",
+			"voiceTriggers": [
+				"strategy three",
+				"strat three"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 select strat 3",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_S",
+						"KEY_D",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_D",
+						"KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "select race strategy 4",
+			"description": "selects strategy 4 from the pCARS2 ICM",
+			"confirmationMessage": "acknowledge/pit_strategy_4",
+			"voiceTriggers": [
+				"strategy four",
+				"strat four"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 select strat 4",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_S",
+						"KEY_D",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_D",
+						"KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "select race strategy 5",
+			"description": "selects strategy 5 from the pCARS2 ICM",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"strategy five",
+				"strat five"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 select strat 5",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_S",
+						"KEY_D",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_D",
+						"{MULTIPLE,6}KEY_W",
+						"KEY_D",
+						"KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "select race strategy 6",
+			"description": "selects strategy 6 from the pCARS2 ICM",
+			"confirmationMessage": "acknowledge/OK",
+			"voiceTriggers": [
+				"strategy six",
+				"strat six"
+			],
+			"commandSets": [
+				{
+					"description": "pcars2 select strat 6",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E",
+						"KEY_W",
+						"KEY_D",
+						"{MULTIPLE,5}KEY_W",
+						"KEY_S",
+						"KEY_D",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_S",
+						"KEY_D",
+						"{MULTIPLE,7}KEY_W",
+						"KEY_D",
+						"KEY_W",
+						"KEY_D",
+						"KEY_S",
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "open / close pit menu",
+			"description": "open or close the pit menu - fallback for manual navigation",
+			"voiceTriggers": [
+				"toggle pit menu",
+				"pit menu toggle"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_Q"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_E"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "pit menu select",
+			"description": "pit menu select - fallback for manual navigation",
+			"voiceTriggers": [
+				"pit menu select"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_E"
+					],
+					"waitBetweenEachCommand": 60
+				}
+			]
+		},
+		{
+			"name": "pit menu up",
+			"description": "pit menu up - fallback for manual navigation",
+			"voiceTriggers": [
+				"pit menu up"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_W"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_W"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_W"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"UP"
+					]
+				}
+			]
+		},
+		{
+			"name": "pit menu down",
+			"description": "pit menu down - fallback for manual navigation",
+			"voiceTriggers": [
+				"pit menu down"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_S"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_S"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_S"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"DOWN"
+					]
+				}
+			]
+		},
+		{
+			"name": "pit menu left",
+			"description": "pit menu left - fallback for manual navigation",
+			"voiceTriggers": [
+				"pit menu left"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_A"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"LEFT"
+					]
+				}
+			]
+		},
+		{
+			"name": "pit menu right",
+			"description": "pit menu right - fallback for manual navigation",
+			"voiceTriggers": [
+				"pit menu right"
+			],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_D"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"RIGHT"
+					]
+				}
+			]
+		},
+		{
+			"name": "open pit menu",
+			"description": "press the key to open the pit menu. Note this isn't a toggle. Longer hold time for ACC here because we rely on this in the pit macros",
+			"voiceTriggers": [
+				"show pit menu",
+				"show pit stop",
+				"open pit menu"
+			],
+			"commandSets": [
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,200}KEY_P"
+					]
+				},
+				{
+					"description": "AMS2 version, moves to page 2 (which seems the most useful)",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_Q"
+					]
+				}
+			]
+		},
+		{
+			"name": "show acc standings menu",
+			"description": "press the key to open the ACC standings screen. Note this isn't a toggle",
+			"voiceTriggers": [
+				"show real time position"
+			],
+			"commandSets": [
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,150}KEY_U"
+					]
+				}
+			]
+		},
+		{
+			"name": "show acc overall standings menu",
+			"description": "press the key to open the ACC overall standings screen. Note this isn't a toggle",
+			"voiceTriggers": [
+				"show standings"
+			],
+			"commandSets": [
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,150}KEY_I"
+					]
+				}
+			]
+		},
+		{
+			"name": "show acc electronics menu",
+			"description": "press the key to open the ACC electronics screen. Note this isn't a toggle",
+			"voiceTriggers": [
+				"show electronics"
+			],
+			"commandSets": [
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,150}KEY_O"
+					]
+				}
+			]
+		},
+		{
+			"name": "close pit menu",
+			"description": "for ACC, go to the pit menu then press INSERT, for AMS2 go to the bottom (ICM cycle) and press A'",
+			"voiceTriggers": [
+				"close menu",
+				"close pit menu"
+			],
+			"commandSets": [
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"{HOLD_TIME,150}KEY_P",
+						"INSERT"
+					]
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_Q",
+						"KEY_A"
+					]
+				}
+			]
+		},
+		{
+			"name": "start chat message",
+			"description": "Starts a chat message (just presses the single 'chat' key)",
+			"voiceTriggers": [],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"KEY_C"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"KEY_T"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"KEY_T"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "iRacing version",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"KEY_T"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AC version",
+					"gameDefinition": "AC",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "end chat message",
+			"description": "Ends a chat message (just presses the enter key)",
+			"voiceTriggers": [],
+			"commandSets": [
+				{
+					"description": "r3e version",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 60
+				},
+				{
+					"description": "AMS2 version",
+					"gameDefinition": "AMS2",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "pcars2 version",
+					"gameDefinition": "PCARS2",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "iracing version",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "ACC version",
+					"gameDefinition": "ACC",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				},
+				{
+					"description": "AC version",
+					"gameDefinition": "AC",
+					"actionSequence": [
+						"ENTER"
+					],
+					"waitBetweenEachCommand": 100
+				}
+			]
+		},
+		{
+			"name": "Lap Timing Black Box",
+			"description": "Displays Lap Timing Black Box",
+			"voiceTriggers": [
+				"black box lap time"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F1"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Standings Black Box",
+			"description": "Displays Standings Black Box",
+			"voiceTriggers": [
+				"black box standings"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F2"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Relative Black Box",
+			"description": "Displays Relative Black Box",
+			"voiceTriggers": [
+				"black box relative"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F3"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Fuel Black Box",
+			"description": "Displays Fuel Black Box",
+			"voiceTriggers": [
+				"black box fuel"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F4"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Tires Black Box",
+			"description": "Displays Tires Black Box",
+			"voiceTriggers": [
+				"black box tires"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F5"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Tire Info Black Box",
+			"description": "Displays Tire Info Black Box",
+			"voiceTriggers": [
+				"black box tire info"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F6"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Pit-stop Adjustments Black Box",
+			"description": "Displays Pit-stop Adjustments Black Box",
+			"voiceTriggers": [
+				"black box pit stop"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F7"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "In-car Adjustments Black Box",
+			"description": "Displays In-car Adjustments Black Box",
+			"voiceTriggers": [
+				"black box car"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F8"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Mirror Adjustments Black Box",
+			"description": "Displays Mirror Adjustments Black Box",
+			"voiceTriggers": [
+				"black box mirror"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F9"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Radio Adjustments Black Box",
+			"description": "Displays Radio Adjustments Black Box",
+			"voiceTriggers": [
+				"black box radio"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"F10"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Select Next Control",
+			"description": "Selects The Next Control",
+			"voiceTriggers": [
+				"menu next"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"UP"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Select Previous Control",
+			"description": "Selects The Previous Control",
+			"voiceTriggers": [
+				"menu previous"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"DOWN"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Increment Selected Control",
+			"description": "Increase Value Of Selected Control",
+			"voiceTriggers": [
+				"menu increase"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"RIGHT"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Decrement Selected Control",
+			"description": "Decrease Value Of Selected Control",
+			"voiceTriggers": [
+				"menu decrease"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"LEFT"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Toggle Selected Control",
+			"description": "Toggles The Selected Control",
+			"voiceTriggers": [
+				"menu toggle"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing only",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"SPACE_BAR"
+					],
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "Get Out Of Car",
+			"description": "Presses ESC key X sec",
+			"voiceTriggers": [
+				"get out"
+			],
+			"commandSets": [
+				{
+					"description": "iRacing version, Presses ESC key for 2 sec.",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"ESC"
+					],
+					"keyPressTime": 2000,
+					"waitBetweenEachCommand": 200
+				},
+				{
+					"description": "Race Room version, Presses ESC key for 1.1 sec.",
+					"gameDefinition": "RACE_ROOM",
+					"actionSequence": [
+						"ESC"
+					],
+					"keyPressTime": 1100,
+					"waitBetweenEachCommand": 200
+				}
+			]
+		},
+		{
+			"name": "good pass car nr",
+			"description": "opens chat, types 'good pass car {CAR NUMBER}', presses enter. An action sequence item starting with {FREE_TEXT} tells the app to press each of the following keys in sequence. {VOICE_TRIGGER} is the numeric value to use. This action type can be used for issuing admin commands in iRacing",
+			"voiceTriggers": null,
+			"commandSets": [
+				{
+					"description": "iRacing version",
+					"gameDefinition": "IRACING",
+					"actionSequence": [
+						"{FREE_TEXT}good pass car {VOICE_TRIGGER} keep going"
+					],
+					"waitBetweenEachCommand": 60,
+					"autoExecuteStartChatMacro": true,
+					"autoExecuteEndChatMacro": true
+				}
+			],
+			"integerVariableVoiceTrigger": "good pass car {0,998}"
+		}
+	]
+}
