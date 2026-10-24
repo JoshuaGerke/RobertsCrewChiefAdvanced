@@ -6806,5 +6806,281 @@ namespace CrewChiefV4.Properties {
                 this["use_turn_numbers"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool enable_ai_team {
+            get {
+                return ((bool)(this["enable_ai_team"]));
+            }
+            set {
+                this["enable_ai_team"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("https://api.openai.com/v1")]
+        public string ai_team_api_base_url {
+            get {
+                return ((string)(this["ai_team_api_base_url"]));
+            }
+            set {
+                this["ai_team_api_base_url"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("gpt-6-luna")]
+        public string ai_team_fast_model {
+            get {
+                return ((string)(this["ai_team_fast_model"]));
+            }
+            set {
+                this["ai_team_fast_model"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("gpt-6.1-sol")]
+        public string ai_team_deep_model {
+            get {
+                return ((string)(this["ai_team_deep_model"]));
+            }
+            set {
+                this["ai_team_deep_model"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("none")]
+        public string ai_team_reasoning_effort {
+            get {
+                return ((string)(this["ai_team_reasoning_effort"]));
+            }
+            set {
+                this["ai_team_reasoning_effort"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("gpt-transcribe")]
+        public string ai_team_stt_model {
+            get {
+                return ((string)(this["ai_team_stt_model"]));
+            }
+            set {
+                this["ai_team_stt_model"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("gpt-4o-mini-tts")]
+        public string ai_team_tts_model {
+            get {
+                return ((string)(this["ai_team_tts_model"]));
+            }
+            set {
+                this["ai_team_tts_model"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("OPENAI_COMPATIBLE")]
+        public string ai_team_tts_provider_listprop {
+            get {
+                return ((string)(this["ai_team_tts_provider_listprop"]));
+            }
+            set {
+                this["ai_team_tts_provider_listprop"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("cedar")]
+        public string ai_team_voice_ben {
+            get {
+                return ((string)(this["ai_team_voice_ben"]));
+            }
+            set {
+                this["ai_team_voice_ben"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("ash")]
+        public string ai_team_voice_mik {
+            get {
+                return ((string)(this["ai_team_voice_mik"]));
+            }
+            set {
+                this["ai_team_voice_mik"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("marin")]
+        public string ai_team_voice_sara {
+            get {
+                return ((string)(this["ai_team_voice_sara"]));
+            }
+            set {
+                this["ai_team_voice_sara"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ai_team_windows_voice_ben {
+            get {
+                return ((string)(this["ai_team_windows_voice_ben"]));
+            }
+            set {
+                this["ai_team_windows_voice_ben"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ai_team_windows_voice_mik {
+            get {
+                return ((string)(this["ai_team_windows_voice_mik"]));
+            }
+            set {
+                this["ai_team_windows_voice_mik"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ai_team_windows_voice_sara {
+            get {
+                return ((string)(this["ai_team_windows_voice_sara"]));
+            }
+            set {
+                this["ai_team_windows_voice_sara"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("NORMAL")]
+        public string ai_team_radio_mode_listprop {
+            get {
+                return ((string)(this["ai_team_radio_mode_listprop"]));
+            }
+            set {
+                this["ai_team_radio_mode_listprop"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("Rob")]
+        public string ai_team_driver_name {
+            get {
+                return ((string)(this["ai_team_driver_name"]));
+            }
+            set {
+                this["ai_team_driver_name"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ai_team_ptt_key {
+            get {
+                return ((string)(this["ai_team_ptt_key"]));
+            }
+            set {
+                this["ai_team_ptt_key"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ai_team_microphone {
+            get {
+                return ((string)(this["ai_team_microphone"]));
+            }
+            set {
+                this["ai_team_microphone"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("12")]
+        public int ai_team_timeout_seconds {
+            get {
+                return ((int)(this["ai_team_timeout_seconds"]));
+            }
+            set {
+                this["ai_team_timeout_seconds"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("300")]
+        public int ai_team_max_calls_per_session {
+            get {
+                return ((int)(this["ai_team_max_calls_per_session"]));
+            }
+            set {
+                this["ai_team_max_calls_per_session"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool enable_ai_team_radio_effect {
+            get {
+                return ((bool)(this["enable_ai_team_radio_effect"]));
+            }
+            set {
+                this["enable_ai_team_radio_effect"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool enable_ai_team_send_driver_names {
+            get {
+                return ((bool)(this["enable_ai_team_send_driver_names"]));
+            }
+            set {
+                this["enable_ai_team_send_driver_names"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool enable_ai_team_log {
+            get {
+                return ((bool)(this["enable_ai_team_log"]));
+            }
+            set {
+                this["enable_ai_team_log"] = value;
+            }
+        }
     }
 }

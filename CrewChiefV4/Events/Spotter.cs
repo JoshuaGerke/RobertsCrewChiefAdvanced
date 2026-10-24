@@ -51,6 +51,12 @@ namespace CrewChiefV4.Events
             return internalSpotter.hasOverlap;
         }
 
+        /// <summary>RCCA: letzte Spotter-Auswertung für Saras Direktantworten. Ohne frische Auswertung keine Freigabe.</summary>
+        public CrewChiefV4.AiTeam.SpotterSnapshot getSnapshot()
+        {
+            return internalSpotter == null ? CrewChiefV4.AiTeam.SpotterSnapshot.None : internalSpotter.getSnapshot(!paused);
+        }
+
         public void enableSpotter()
         {
             enabled = true;

@@ -1,0 +1,85 @@
+name: RCCA Windows-Build (Crew Chief + KI-Team)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Repository holen
+        uses: actions/checkout@v4
+
+      - name: .NET SDK (für das SDK-Projekt GameOverlay)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: MSBuild einrichten
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Crew Chief + KI-Team bauen (Release)
+        run: |
+          msbuild CrewChiefV4/CrewChiefV4.csproj -restore -p:Configuration=Release -p:Platform=AnyCPU -v:minimal -nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Build fehlgeschlagen' }
+
+      - name: Testprojekt bauen (Debug, wie von den Upstream-Tests verlangt)
+        run: |
+          msbuild UnitTest/UnitTest.csproj -restore -p:Configuration=Debug -v:minimal -nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Test-Build fehlgeschlagen' }
+
+      - name: KI-Team-Tests (müssen bestehen)
+        run: |
+          $vstest = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -find '**\TestPlatform\vstest.console.exe' | Select-Object -First 1
+          & $vstest UnitTest/bin/Debug/UnitTest.dll /Platform:x64 /TestCaseFilter:"TestCategory=AiTeam" /Logger:"trx;LogFileName=ai-team.trx" /ResultsDirectory:test-results
+          if ($LASTEXITCODE -ne 0) { throw 'KI-Team-Tests fehlgeschlagen' }
+
+      - name: Upstream-Tests (Regression, nur Bericht)
+        continue-on-error: true
+        run: |
+          # Bekannte Ausgangslage: einige Upstream-Tests brauchen Sounddateien, die bewusst nicht im Repo liegen.
+          # Langsame Makro-Tests werden ausgelassen.
+          $vstest = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -find '**\TestPlatform\vstest.console.exe' | Select-Object -First 1
+          & $vstest UnitTest/bin/Debug/UnitTest.dll /Platform:x64 /TestCaseFilter:"TestCategory!=AiTeam&FullyQualifiedName!~macro" /Logger:"trx;LogFileName=upstream.trx" /ResultsDirectory:test-results
+
+      - name: Paket schnüren
+        run: |
+          $out = 'dist/RobertsCrewChiefAdvanced'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item -Recurse CrewChiefV4/bin/Release/* $out
+          Get-ChildItem $out -Recurse -Include *.pdb | Remove-Item
+          Copy-Item docs/ANLEITUNG_KI-TEAM.md $out/ANLEITUNG_KI-TEAM.md
+          Copy-Item LICENSE $out/LICENSE_CrewChief_MIT.txt
+          Copy-Item Newtonsoft_Json_licence.txt, SharpDX_licence.txt, openvr_licence.txt, zlib_licence.txt $out
+          $sha = $env:GITHUB_SHA.Substring(0, 7)
+          Set-Content -Encoding UTF8 "$out/VERSION.txt" "Robert's Crew Chief Advanced – Alpha`nCommit: $env:GITHUB_SHA`nBuild: $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC`nBasis: Crew Chief V4 (MIT), siehe LICENSE_CrewChief_MIT.txt`nSounds sind nicht enthalten – sie kommen aus der normalen Crew-Chief-Installation bzw. dem Sound-Pack-Download in der App."
+          Compress-Archive -Path "$out/*" -DestinationPath "dist/RobertsCrewChiefAdvanced-Alpha-$sha-win-x64.zip" -Force
+
+      - name: Testergebnisse hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testergebnisse
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Alpha-ZIP hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: RobertsCrewChiefAdvanced-Alpha-win-x64
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 30

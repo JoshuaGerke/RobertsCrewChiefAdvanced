@@ -9,7 +9,7 @@
 # A few _help or _tooltip strings include a \ which inserts a newline
 #
 ###################################### UI ######################################################
-main_window_title_prefix = Crew Chief - Active Profile:
+main_window_title_prefix = Robert's Crew Chief Advanced (KI-Team) - Active Profile:
 checking_sound_pack_version = Checking Sound Pack version...
 checking_driver_names_version = Checking driver names version...
 checking_personalisations_version = Checking personalisations version...
@@ -3344,5 +3344,106 @@ lfs_spotter_car_length_help = Vehicle length in meters for spotter overlap detec
 lfs_spotter_car_length_filter = LFS
 lfs_spotter_car_length_category = SPOTTER;NEW_PROPERTY
 
-
-
+# ---------------- Robert's Crew Chief Advanced: KI-Team (Ben, Mik, Sara) ----------------
+ai_team_category_label = KI-Team (Ben, Mik, Sara)
+talk_to_ai_team = KI-Team anfunken (Ben/Mik/Sara, gedrückt halten)
+ai_team_menu = KI-Team
+enable_ai_team = KI-Team aktivieren
+enable_ai_team_help = Schaltet Ben (Renningenieur), Mik (Stratege) und Saras Direktantworten ein. Funktaste: Controller-Aktion "KI-Team anfunken" oder die Taste unter "KI-Team Funktaste (Tastatur)". Der API-Schlüssel wird im Menü "KI-Team" hinterlegt. Der normale Crew-Chief-Spotter läuft immer unabhängig davon.
+enable_ai_team_category = AI_TEAM
+enable_ai_team_metadata = RESTART_REQUIRED
+ai_team_api_base_url = KI-Team API-Adresse
+ai_team_api_base_url_help = Basisadresse einer OpenAI-kompatiblen API (z. B. https://api.openai.com/v1 oder ein lokaler Server wie LM Studio http://localhost:1234/v1).
+ai_team_api_base_url_category = AI_TEAM
+ai_team_api_base_url_metadata = RESTART_REQUIRED
+ai_team_fast_model = KI-Team Modell für schnelle Antworten
+ai_team_fast_model_help = Modell-ID für normale Funkfragen und proaktive Hinweise. Muss Tool Calling können.
+ai_team_fast_model_category = AI_TEAM
+ai_team_fast_model_metadata = RESTART_REQUIRED
+ai_team_deep_model = KI-Team Modell für Analysen
+ai_team_deep_model_help = Modell-ID für komplexe Fragen (Strategie, Undercut, "warum", Setup, Stintanalyse).
+ai_team_deep_model_category = AI_TEAM
+ai_team_deep_model_metadata = RESTART_REQUIRED
+ai_team_reasoning_effort = KI-Team Denkaufwand (reasoning_effort)
+ai_team_reasoning_effort_help = Wird an das Modell übergeben. "none" ist am schnellsten und nötig für Tool Calling bei neueren OpenAI-Modellen. Leer lassen für Server, die den Parameter nicht kennen.
+ai_team_reasoning_effort_category = AI_TEAM
+ai_team_reasoning_effort_metadata = RESTART_REQUIRED
+ai_team_stt_model = KI-Team Spracherkennungsmodell
+ai_team_stt_model_help = Modell-ID für /audio/transcriptions (Deutsch).
+ai_team_stt_model_category = AI_TEAM
+ai_team_stt_model_metadata = RESTART_REQUIRED
+ai_team_tts_model = KI-Team Sprachausgabemodell
+ai_team_tts_model_help = Modell-ID für /audio/speech. Hinweis: OpenAI stellt gpt-4o-mini-tts laut Dokumentation am 06.01.2027 ab; dann hier ein Nachfolgemodell oder einen kompatiblen Server eintragen oder auf Windows-Stimmen umstellen.
+ai_team_tts_model_category = AI_TEAM
+ai_team_tts_model_metadata = RESTART_REQUIRED
+ai_team_tts_provider_listprop = KI-Team Stimmenquelle
+ai_team_tts_provider_listprop_help = Cloud-Stimmen klingen natürlich, Windows-Stimmen funktionieren offline. Fällt die Cloud aus, wird automatisch auf Windows umgeschaltet.
+ai_team_tts_provider_listprop_category = AI_TEAM
+ai_team_tts_provider_listprop_type = CrewChiefV4.AiTeam.AiTtsProvider
+ai_team_tts_provider_listprop_value_0 = OpenAI-kompatibel (Cloud)
+ai_team_tts_provider_listprop_value_1 = Windows-Stimmen (offline)
+ai_team_tts_provider_listprop_metadata = RESTART_REQUIRED
+ai_team_voice_ben = KI-Team Stimme Ben (Cloud)
+ai_team_voice_ben_help = Name der Cloud-Stimme, z. B. cedar, onyx, ash, echo.
+ai_team_voice_ben_category = AI_TEAM
+ai_team_voice_ben_metadata = RESTART_REQUIRED
+ai_team_voice_mik = KI-Team Stimme Mik (Cloud)
+ai_team_voice_mik_help = Name der Cloud-Stimme, z. B. ash, echo, verse.
+ai_team_voice_mik_category = AI_TEAM
+ai_team_voice_mik_metadata = RESTART_REQUIRED
+ai_team_voice_sara = KI-Team Stimme Sara (Cloud)
+ai_team_voice_sara_help = Name der Cloud-Stimme, z. B. marin, nova, coral, shimmer.
+ai_team_voice_sara_category = AI_TEAM
+ai_team_voice_sara_metadata = RESTART_REQUIRED
+ai_team_windows_voice_ben = KI-Team Windows-Stimme Ben
+ai_team_windows_voice_ben_help = Teil des Namens einer installierten Windows-Stimme (z. B. "Stefan"). Leer = automatisch eine deutsche Stimme. Die installierten Stimmen zeigt das Fenster "KI-Team".
+ai_team_windows_voice_ben_category = AI_TEAM
+ai_team_windows_voice_ben_metadata = RESTART_REQUIRED
+ai_team_windows_voice_mik = KI-Team Windows-Stimme Mik
+ai_team_windows_voice_mik_help = Teil des Namens einer installierten Windows-Stimme. Leer = automatisch.
+ai_team_windows_voice_mik_category = AI_TEAM
+ai_team_windows_voice_mik_metadata = RESTART_REQUIRED
+ai_team_windows_voice_sara = KI-Team Windows-Stimme Sara
+ai_team_windows_voice_sara_help = Teil des Namens einer installierten Windows-Stimme (z. B. "Hedda" oder "Katja"). Leer = automatisch.
+ai_team_windows_voice_sara_category = AI_TEAM
+ai_team_windows_voice_sara_metadata = RESTART_REQUIRED
+ai_team_radio_mode_listprop = KI-Team Funkmodus
+ai_team_radio_mode_listprop_help = Minimal: Ben und Mik sprechen nur, wenn du fragst. Normal: gelegentlich ein Hinweis (höchstens alle 3 Runden). Aktiv: mehr technische und strategische Hinweise (höchstens jede Runde). In Zweikämpfen bleibt immer Funkruhe.
+ai_team_radio_mode_listprop_category = AI_TEAM
+ai_team_radio_mode_listprop_type = CrewChiefV4.AiTeam.AiRadioMode
+ai_team_radio_mode_listprop_value_0 = Minimal
+ai_team_radio_mode_listprop_value_1 = Normal
+ai_team_radio_mode_listprop_value_2 = Aktiv
+ai_team_radio_mode_listprop_metadata = RESTART_REQUIRED
+ai_team_driver_name = KI-Team Name des Fahrers
+ai_team_driver_name_help = So spricht dich das Team an.
+ai_team_driver_name_category = AI_TEAM
+ai_team_driver_name_metadata = RESTART_REQUIRED
+ai_team_ptt_key = KI-Team Funktaste (Tastatur)
+ai_team_ptt_key_help = Optional eine Tastaturtaste zum Gedrückthalten, z. B. F9, Scroll, Pause, NumPad0. Leer = nur der Controller-Knopf "KI-Team anfunken".
+ai_team_ptt_key_category = AI_TEAM
+ai_team_ptt_key_metadata = RESTART_REQUIRED
+ai_team_microphone = KI-Team Mikrofon
+ai_team_microphone_help = Teil des Gerätenamens, z. B. "Headset" oder "Arctis". Leer = Windows-Standardmikrofon. Die Geräteliste zeigt das Fenster "KI-Team".
+ai_team_microphone_category = AI_TEAM
+ai_team_microphone_metadata = RESTART_REQUIRED
+ai_team_timeout_seconds = KI-Team Zeitlimit (Sekunden)
+ai_team_timeout_seconds_help = Wie lange auf Spracherkennung, KI und Stimme gewartet wird. Danach kommt eine kurze Meldung, der Rest von Crew Chief läuft ungestört weiter.
+ai_team_timeout_seconds_category = AI_TEAM
+ai_team_timeout_seconds_metadata = RESTART_REQUIRED
+ai_team_max_calls_per_session = KI-Team max. KI-Aufrufe pro Session
+ai_team_max_calls_per_session_help = Kostenbremse. 0 = unbegrenzt. Proaktive Hinweise hören bei 80 Prozent auf, damit Fragen noch beantwortet werden.
+ai_team_max_calls_per_session_category = AI_TEAM
+ai_team_max_calls_per_session_metadata = RESTART_REQUIRED
+enable_ai_team_radio_effect = KI-Team Funkgerät-Klang
+enable_ai_team_radio_effect_help = Filtert die Stimmen wie ein Boxenfunk, damit sie zu den Crew-Chief-Ansagen passen.
+enable_ai_team_radio_effect_category = AI_TEAM
+enable_ai_team_radio_effect_metadata = RESTART_REQUIRED
+enable_ai_team_send_driver_names = KI-Team Gegnernamen an die KI senden
+enable_ai_team_send_driver_names_help = Aus: Gegner werden nur mit Position und Klasse übertragen, ohne Fahrernamen.
+enable_ai_team_send_driver_names_category = AI_TEAM
+enable_ai_team_send_driver_names_metadata = RESTART_REQUIRED
+enable_ai_team_log = KI-Team Protokoll schreiben
+enable_ai_team_log_help = Schreibt Erkennung, Antworten und Latenzen nach Dokumente\CrewChiefV4\AiTeam (ohne API-Schlüssel).
+enable_ai_team_log_category = AI_TEAM
+enable_ai_team_log_metadata = RESTART_REQUIRED

@@ -111,6 +111,13 @@ namespace CrewChiefV4
 
         private Spotter spotter;
 
+        /// <summary>RCCA: Spotterstatus für das KI-Team (Sara), nur lesend.</summary>
+        public AiTeam.SpotterSnapshot GetSpotterSnapshot()
+        {
+            Spotter current = spotter;
+            return current != null && spotterIsRunning ? current.getSnapshot() : AiTeam.SpotterSnapshot.None;
+        }
+
         private Boolean spotterIsRunning = false;
 
         private Boolean runSpotterThread = false;
@@ -380,6 +387,7 @@ namespace CrewChiefV4
             eventsList.Add("CoDriver", new CoDriver(audioPlayer));
             eventsList.Add("PitManagerVoiceCmds", new PitManager.PitManagerVoiceCmds(audioPlayer));
             eventsList.Add("AlarmClock", new AlarmClock(audioPlayer));
+            eventsList.Add("AiTeam", new AiTeamEvent(audioPlayer));
             return eventsList;
         }
 

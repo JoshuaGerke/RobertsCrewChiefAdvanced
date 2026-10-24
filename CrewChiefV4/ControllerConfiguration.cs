@@ -89,6 +89,9 @@ namespace CrewChiefV4
 
         public const String TOGGLE_BLOCK_MESSAGES_IN_HARD_PARTS = "toggle_delay_messages_in_hard_parts";
 
+        // RCCA: Funktaste für das KI-Team (gedrückt halten = sprechen), wird von AiTeam.AiPushToTalk abgefragt
+        public const String TALK_TO_AI_TEAM = "talk_to_ai_team";
+
         private ControllerData networkGamePad = new ControllerData(Configuration.getUIString("udp_network_data_buttons"), DeviceType.Gamepad, UDP_NETWORK_CONTROLLER_GUID);
 
         #region ConcreteControllerActions
@@ -101,6 +104,7 @@ namespace CrewChiefV4
             { VOLUME_DOWN            , volumeDown },
             { TOGGLE_MUTE            , toggleMute },
             { RESET_VR_VIEW          , resetVRview },
+            { TALK_TO_AI_TEAM        , () => { } },  // gehalten statt geklickt, siehe isActionHeld
         };
         #endregion ConcreteControllerActions
 
@@ -773,7 +777,13 @@ namespace CrewChiefV4
 
         public Boolean isChannelOpen()
         {
-            ButtonAssignment ba = buttonAssignments.FirstOrDefault(ba1 => ba1.action == CHANNEL_OPEN_FUNCTION);
+            return isActionHeld(CHANNEL_OPEN_FUNCTION);
+        }
+
+        /// <summary>Ob der Knopf für diese Aktion gerade gedrückt gehalten wird.</summary>
+        public Boolean isActionHeld(String action)
+        {
+            ButtonAssignment ba = buttonAssignments.FirstOrDefault(ba1 => ba1.action == action);
             if (ba != null && ba.buttonIndex != -1 && ba.controller != null && ba.controller.guid != Guid.Empty)
             {
                 if (ba.controller.guid == UDP_NETWORK_CONTROLLER_GUID)

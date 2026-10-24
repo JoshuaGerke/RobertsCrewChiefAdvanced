@@ -283,8 +283,33 @@ namespace CrewChiefV4
             this.carWidth = carWidth;
         }
 
+        // RCCA: letzte tatsächliche Auswertung, nur lesend für Saras Direktantworten (AiTeam.SaraLocal)
+        private volatile int evaluatedCarsOnLeft;
+        private volatile int evaluatedCarsOnRight;
+        private long evaluatedAtTicks;
+
+        private void recordEvaluation(int carsOnLeft, int carsOnRight, DateTime now)
+        {
+            evaluatedCarsOnLeft = carsOnLeft;
+            evaluatedCarsOnRight = carsOnRight;
+            System.Threading.Interlocked.Exchange(ref evaluatedAtTicks, now.Ticks);
+        }
+
+        public CrewChiefV4.AiTeam.SpotterSnapshot getSnapshot(bool spotterRunning)
+        {
+            long ticks = System.Threading.Interlocked.Read(ref evaluatedAtTicks);
+            return new CrewChiefV4.AiTeam.SpotterSnapshot
+            {
+                SpotterRunning = spotterRunning,
+                CarsLeft = evaluatedCarsOnLeft,
+                CarsRight = evaluatedCarsOnRight,
+                EvaluatedUtc = ticks == 0 ? DateTime.MinValue : new DateTime(ticks, DateTimeKind.Utc),
+            };
+        }
+
         public void clearState()
         {
+            System.Threading.Interlocked.Exchange(ref evaluatedAtTicks, 0);
             carsOnLeftAtPreviousTick = 0;
             carsOnRightAtPreviousTick = 0;
             timeWhenChannelShouldBeClosed = DateTime.UtcNow;
@@ -464,6 +489,7 @@ namespace CrewChiefV4
                 carsOnRightAtPreviousTick = carsOnRight;
 
                 hasOverlap = carsOnLeft > 0 || carsOnRight > 0;
+                recordEvaluation(carsOnLeft, carsOnRight, now);
             }
             else if (carsOnLeftAtPreviousTick > 0 || carsOnRightAtPreviousTick > 0)
             {
@@ -533,6 +559,7 @@ namespace CrewChiefV4
             playNextMessage(carsOnLeft, carsOnRight, now);
             carsOnLeftAtPreviousTick = carsOnLeft;
             carsOnRightAtPreviousTick = carsOnRight;
+            recordEvaluation(carsOnLeft, carsOnRight, now);
 
             if (carsOnLeftAtPreviousTick > 0 || carsOnRightAtPreviousTick > 0)
             {

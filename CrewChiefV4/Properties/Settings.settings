@@ -1697,5 +1697,74 @@
     <Setting Name="use_turn_numbers" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="enable_ai_team" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ai_team_api_base_url" Type="System.String" Scope="User">
+      <Value Profile="(Default)">https://api.openai.com/v1</Value>
+    </Setting>
+    <Setting Name="ai_team_fast_model" Type="System.String" Scope="User">
+      <Value Profile="(Default)">gpt-6-luna</Value>
+    </Setting>
+    <Setting Name="ai_team_deep_model" Type="System.String" Scope="User">
+      <Value Profile="(Default)">gpt-6.1-sol</Value>
+    </Setting>
+    <Setting Name="ai_team_reasoning_effort" Type="System.String" Scope="User">
+      <Value Profile="(Default)">none</Value>
+    </Setting>
+    <Setting Name="ai_team_stt_model" Type="System.String" Scope="User">
+      <Value Profile="(Default)">gpt-transcribe</Value>
+    </Setting>
+    <Setting Name="ai_team_tts_model" Type="System.String" Scope="User">
+      <Value Profile="(Default)">gpt-4o-mini-tts</Value>
+    </Setting>
+    <Setting Name="ai_team_tts_provider_listprop" Type="System.String" Scope="User">
+      <Value Profile="(Default)">OPENAI_COMPATIBLE</Value>
+    </Setting>
+    <Setting Name="ai_team_voice_ben" Type="System.String" Scope="User">
+      <Value Profile="(Default)">cedar</Value>
+    </Setting>
+    <Setting Name="ai_team_voice_mik" Type="System.String" Scope="User">
+      <Value Profile="(Default)">ash</Value>
+    </Setting>
+    <Setting Name="ai_team_voice_sara" Type="System.String" Scope="User">
+      <Value Profile="(Default)">marin</Value>
+    </Setting>
+    <Setting Name="ai_team_windows_voice_ben" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ai_team_windows_voice_mik" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ai_team_windows_voice_sara" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ai_team_radio_mode_listprop" Type="System.String" Scope="User">
+      <Value Profile="(Default)">NORMAL</Value>
+    </Setting>
+    <Setting Name="ai_team_driver_name" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Rob</Value>
+    </Setting>
+    <Setting Name="ai_team_ptt_key" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ai_team_microphone" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ai_team_timeout_seconds" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">12</Value>
+    </Setting>
+    <Setting Name="ai_team_max_calls_per_session" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">300</Value>
+    </Setting>
+    <Setting Name="enable_ai_team_radio_effect" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="enable_ai_team_send_driver_names" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="enable_ai_team_log" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

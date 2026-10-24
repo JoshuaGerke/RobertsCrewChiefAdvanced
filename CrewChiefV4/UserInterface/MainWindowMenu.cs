@@ -29,6 +29,7 @@ namespace CrewChiefV4
         private readonly ToolStripMenuItem helpToolStripMenuItem;
         private readonly ToolStripMenuItem speechWizardToolStripMenuItem;
         private readonly ToolStripMenuItem controllerButtonNamesToolStripMenuItem;
+        private readonly ToolStripMenuItem aiTeamToolStripMenuItem;
 
         private readonly ToolStripMenuItem topicWindowsToolStripMenuItem;
         private readonly ToolStripMenuItem topicBrakesToolStripMenuItem;
@@ -46,6 +47,7 @@ namespace CrewChiefV4
             namesToolStripMenuItem = new ToolStripMenuItem();
             speechWizardToolStripMenuItem = new ToolStripMenuItem();
             controllerButtonNamesToolStripMenuItem = new ToolStripMenuItem();
+            aiTeamToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             // Add Topic Windows menu
             topicWindowsToolStripMenuItem = new ToolStripMenuItem("Topic Windows");
@@ -88,6 +90,7 @@ namespace CrewChiefV4
                 namesToolStripMenuItem,
                 speechWizardToolStripMenuItem,
                 controllerButtonNamesToolStripMenuItem,
+                aiTeamToolStripMenuItem,
                 topicWindowsToolStripMenuItem,
                 problemsMenu.GetMenuItem(),
                 helpToolStripMenuItem
@@ -101,6 +104,9 @@ namespace CrewChiefV4
 
             controllerButtonNamesToolStripMenuItem.Text = "Controller names";
             controllerButtonNamesToolStripMenuItem.Click += controllerButtonNamesToolStripMenuItem_Click;
+
+            aiTeamToolStripMenuItem.Text = Configuration.getUIString("ai_team_menu");
+            aiTeamToolStripMenuItem.Click += aiTeamToolStripMenuItem_Click;
 
             helpToolStripMenuItem.Text = Configuration.getUIString("help_menu");
             helpToolStripMenuItem.ShortcutKeyDisplayString = "F1";
@@ -123,6 +129,14 @@ namespace CrewChiefV4
             using (ControllerNamesDialog dialog = new ControllerNamesDialog())
             {
                 dialog.ShowDialog(MainWindow.instance);
+            }
+        }
+
+        private void aiTeamToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using (var form = new AiTeam.AiTeamForm())
+            {
+                form.ShowDialog(MainWindow.instance);
             }
         }
 

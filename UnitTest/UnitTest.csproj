@@ -65,6 +65,7 @@
       <DependentUpon>DummyForm.cs</DependentUpon>
     </Compile>
     <None Include="GrammarFiles\TDD\TDD_GetGrammars.cs" />
+    <Compile Include="AiTeam\AiTeamTests.cs" />
     <Compile Include="Misc\CommandLineParametersReader.cs" />
     <Compile Include="Misc\RegressionTestGameDefinition.cs" />
     <Compile Include="Misc\TDD_email.cs" />

@@ -1,6 +1,13 @@
 {
 	"buttonAssignments": [
 		{
+			"action": "talk_to_ai_team",
+			"deviceGuid": "",
+			"buttonIndex": -1,
+			"opponentDataCommand": false,
+			"availableAction": true
+		},
+		{
 			"action": "what's the car ahead's last lap time",
 			"deviceGuid": "",
 			"buttonIndex": -1,

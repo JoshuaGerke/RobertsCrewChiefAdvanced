@@ -23,6 +23,8 @@ namespace CrewChiefV4.Audio
 
         public const String TTS_IDENTIFIER = "TTS_IDENTIFIER";
         public const String DOWNLOAD_IDENTIFIER = "DOWNLOAD_IDENTIFIER";
+        // RCCA: fertig gerenderter KI-Funkspruch aus AiTeam.AiAudioStore
+        public const String AI_AUDIO_IDENTIFIER = "AI_AUDIO_IDENTIFIER";
         private readonly Boolean useAlternateBeeps = UserSettings.GetUserSettings().getBoolean("use_alternate_beeps");
         private readonly double minSecondsBetweenPersonalisedMessages = (double)UserSettings.GetUserSettings().getInt("min_time_between_personalised_messages");
         public static Boolean forceStereoPlayback;
@@ -874,6 +876,17 @@ namespace CrewChiefV4.Audio
                     }
                     cacheable.Add(soundName);
                     singleSoundsToPlay.Add(singleSound);
+                }
+                else if (soundName.StartsWith(AI_AUDIO_IDENTIFIER))
+                {
+                    // nicht cachen: jeder KI-Funkspruch ist einmalig und wird nach dem Abspielen freigegeben
+                    byte[] wav;
+                    string subtitle;
+                    string aiId = soundName.Substring(AI_AUDIO_IDENTIFIER.Length);
+                    if (AiTeam.AiAudioStore.TryGet(aiId, out wav, out subtitle))
+                    {
+                        singleSoundsToPlay.Add(new SingleSound(wav, subtitle, aiId));
+                    }
                 }
                 else if (soundName.StartsWith(DOWNLOAD_IDENTIFIER))
                 {
@@ -1787,6 +1800,21 @@ namespace CrewChiefV4.Audio
             //Console.WriteLine("Loaded subtitle for sound = " + this.subtitle);
         }
 
+        // RCCA: KI-Funkspruch (WAV im Speicher), wird nach dem Abspielen sofort freigegeben
+        internal Boolean isAiAudio = false;
+        private String aiAudioId;
+
+        internal SingleSound(byte[] wavBytes, String subtitle, String aiAudioId)
+        {
+            this.fileBytes = wavBytes;
+            this.loadedFile = true;
+            this.cacheFileData = true;
+            this.cacheSoundPlayer = false;
+            this.isAiAudio = true;
+            this.aiAudioId = aiAudioId;
+            this.subtitle = subtitle ?? "";
+        }
+
         internal SingleSound(String fullPath, Boolean cacheFileData, Boolean cacheSoundPlayer, Boolean cacheSoundPlayerPermanently, string subtitle = null)
         {
             this.fullPath = fullPath;
@@ -2060,6 +2088,15 @@ namespace CrewChiefV4.Audio
             if (GameOrVoipVolume.AudioDuckingEnabled)
             {
                 GameOrVoipVolume.UnDuckGameAudio();
+            }
+            if (isAiAudio)
+            {
+                // SoundPlayer-Pfad gibt sich selbst frei (cacheSoundPlayer = false), nAudio-Ausgabe hier schließen
+                if (AudioPlayer.playWithNAudio)
+                {
+                    try { UnLoad(); } catch (Exception e) { Log.Exception(e); }
+                }
+                AiTeam.AiAudioStore.Remove(aiAudioId);
             }
         }
 

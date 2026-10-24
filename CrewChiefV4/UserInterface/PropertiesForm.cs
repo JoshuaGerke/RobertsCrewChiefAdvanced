@@ -66,7 +66,8 @@ namespace CrewChiefV4
             NEW_PROPERTY,
             DEBUG,
             MISC,  // Implied by default.
-            UNKNOWN
+            UNKNOWN,
+            AI_TEAM  // RCCA: Ben, Mik, Sara (am Ende, damit bestehende Werte gleich bleiben)
         }
         private PropertyCategory categoryFilterPrev = PropertyCategory.UNKNOWN;
 
@@ -456,6 +457,7 @@ namespace CrewChiefV4
             var categories = new List<(PropertyCategory, string)>
             {
                 (PropertyCategory.ALL, Configuration.getUIString("all_categories_label")),
+                (PropertyCategory.AI_TEAM, Configuration.getUIString("ai_team_category_label")),
                 (PropertyCategory.UI_STARTUP_AND_PATHS, Configuration.getUIString("ui_startup_and_paths_category_label")),
                 (PropertyCategory.VR_SETTINGS, Configuration.getUIString("vr_settings_label")),
                 (PropertyCategory.AUDIO_VOICE_AND_CONTROLLERS, Configuration.getUIString("audio_voice_and_controllers_category_label")),

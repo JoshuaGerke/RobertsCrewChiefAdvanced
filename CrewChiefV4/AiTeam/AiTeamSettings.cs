@@ -1,0 +1,109 @@
+using System;
+
+namespace CrewChiefV4.AiTeam
+{
+    // Reihenfolge muss zu den ui_text-Einträgen *_listprop_value_N passen
+    public enum AiRadioMode { MINIMAL, NORMAL, ACTIVE }
+
+    public enum AiTtsProvider { OPENAI_COMPATIBLE, WINDOWS }
+
+    /// <summary>
+    /// Alle Einstellungen des KI-Teams (Ben, Mik, Sara). Werden über den normalen
+    /// Crew-Chief-Eigenschaftendialog gepflegt (Kategorie "KI-Team"), der API-Schlüssel
+    /// separat und verschlüsselt über <see cref="AiSecretStore"/>.
+    /// </summary>
+    public class AiTeamSettings
+    {
+        public bool Enabled = true;
+        public string BaseUrl = "https://api.openai.com/v1";
+        public string FastModel = "gpt-6-luna";
+        public string DeepModel = "gpt-6.1-sol";
+        public string ReasoningEffort = "none";
+        public string SttModel = "gpt-transcribe";
+        public string TtsModel = "gpt-4o-mini-tts";
+        public AiTtsProvider TtsProvider = AiTtsProvider.OPENAI_COMPATIBLE;
+        public string VoiceBen = "cedar";
+        public string VoiceMik = "ash";
+        public string VoiceSara = "marin";
+        public string WindowsVoiceBen = "";
+        public string WindowsVoiceMik = "";
+        public string WindowsVoiceSara = "";
+        public AiRadioMode RadioMode = AiRadioMode.NORMAL;
+        public string DriverName = "Rob";
+        public string PttKey = "";
+        public string Microphone = "";
+        public int TimeoutSeconds = 12;
+        public int MaxCallsPerSession = 300;
+        public bool RadioEffect = true;
+        public bool SendDriverNames = true;
+        public bool WriteLog = true;
+
+        public static AiTeamSettings Load()
+        {
+            var s = new AiTeamSettings();
+            var u = UserSettings.GetUserSettings();
+            s.Enabled = Get(() => u.getBoolean("enable_ai_team"), s.Enabled);
+            s.BaseUrl = GetString(() => u.getString("ai_team_api_base_url"), s.BaseUrl);
+            s.FastModel = GetString(() => u.getString("ai_team_fast_model"), s.FastModel);
+            s.DeepModel = GetString(() => u.getString("ai_team_deep_model"), s.DeepModel);
+            s.ReasoningEffort = Get(() => u.getString("ai_team_reasoning_effort"), s.ReasoningEffort);
+            s.SttModel = GetString(() => u.getString("ai_team_stt_model"), s.SttModel);
+            s.TtsModel = GetString(() => u.getString("ai_team_tts_model"), s.TtsModel);
+            s.TtsProvider = GetEnum(() => u.getString("ai_team_tts_provider_listprop"), s.TtsProvider);
+            s.VoiceBen = GetString(() => u.getString("ai_team_voice_ben"), s.VoiceBen);
+            s.VoiceMik = GetString(() => u.getString("ai_team_voice_mik"), s.VoiceMik);
+            s.VoiceSara = GetString(() => u.getString("ai_team_voice_sara"), s.VoiceSara);
+            s.WindowsVoiceBen = Get(() => u.getString("ai_team_windows_voice_ben"), s.WindowsVoiceBen);
+            s.WindowsVoiceMik = Get(() => u.getString("ai_team_windows_voice_mik"), s.WindowsVoiceMik);
+            s.WindowsVoiceSara = Get(() => u.getString("ai_team_windows_voice_sara"), s.WindowsVoiceSara);
+            s.RadioMode = GetEnum(() => u.getString("ai_team_radio_mode_listprop"), s.RadioMode);
+            s.DriverName = GetString(() => u.getString("ai_team_driver_name"), s.DriverName);
+            s.PttKey = Get(() => u.getString("ai_team_ptt_key"), s.PttKey);
+            s.Microphone = Get(() => u.getString("ai_team_microphone"), s.Microphone);
+            s.TimeoutSeconds = Math.Max(3, Get(() => u.getInt("ai_team_timeout_seconds"), s.TimeoutSeconds));
+            s.MaxCallsPerSession = Math.Max(0, Get(() => u.getInt("ai_team_max_calls_per_session"), s.MaxCallsPerSession));
+            s.RadioEffect = Get(() => u.getBoolean("enable_ai_team_radio_effect"), s.RadioEffect);
+            s.SendDriverNames = Get(() => u.getBoolean("enable_ai_team_send_driver_names"), s.SendDriverNames);
+            s.WriteLog = Get(() => u.getBoolean("enable_ai_team_log"), s.WriteLog);
+            return s;
+        }
+
+        public string VoiceFor(TeamMember member)
+        {
+            switch (member)
+            {
+                case TeamMember.Mik: return VoiceMik;
+                case TeamMember.Sara: return VoiceSara;
+                default: return VoiceBen;
+            }
+        }
+
+        public string WindowsVoiceFor(TeamMember member)
+        {
+            switch (member)
+            {
+                case TeamMember.Mik: return WindowsVoiceMik;
+                case TeamMember.Sara: return WindowsVoiceSara;
+                default: return WindowsVoiceBen;
+            }
+        }
+
+        private static T Get<T>(Func<T> getter, T fallback)
+        {
+            try { return getter(); }
+            catch (Exception) { return fallback; }
+        }
+
+        private static string GetString(Func<string> getter, string fallback)
+        {
+            string value = Get(getter, fallback);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        }
+
+        private static T GetEnum<T>(Func<string> getter, T fallback) where T : struct
+        {
+            T parsed;
+            return Enum.TryParse(Get(getter, ""), true, out parsed) ? parsed : fallback;
+        }
+    }
+}
