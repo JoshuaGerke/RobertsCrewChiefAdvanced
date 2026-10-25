@@ -252,7 +252,9 @@
     <Compile Include="AiTeam\AiTeamService.cs" />
     <Compile Include="AiTeam\AiTeamSettings.cs" />
     <Compile Include="AiTeam\AiVoiceInput.cs" />
+    <Compile Include="AiTeam\CornerCoach.cs" />
     <Compile Include="AiTeam\ElevenLabsClient.cs" />
+    <Compile Include="AiTeam\FuelWatch.cs" />
     <Compile Include="AiTeam\LocalAnswers.cs" />
     <Compile Include="AiTeam\OpenAiCompatibleClient.cs" />
     <Compile Include="AiTeam\RaceDataTools.cs" />

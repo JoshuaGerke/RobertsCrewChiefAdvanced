@@ -27,6 +27,9 @@ namespace CrewChiefV4.AiTeam
 
         public readonly AiUsageStats Stats = new AiUsageStats();
         public readonly AiRaceMemory Memory = new AiRaceMemory();
+        public readonly CornerCoach Corners = new CornerCoach();
+        private readonly FuelWatch fuelWatch = new FuelWatch();
+        private string cornerTrackKey;
 
         /// <summary>Wird vom Fenster angezeigt (letzte Erkennung, letzte Antwort, Fehler).</summary>
         public event Action<string> StatusChanged;
@@ -122,11 +125,26 @@ namespace CrewChiefV4.AiTeam
             {
                 Interlocked.Exchange(ref callsThisSession, 0);
                 lastProactiveLap = -1;
+                fuelWatch.Reset();
+                cornerTrackKey = null;
             }
+            UpdateCornerTrack(current);
             bool lapCompleted = Memory.Update(previous, current, now);
+            if (lapCompleted)
+            {
+                var lap = Memory.GetLaps(1).LastOrDefault();
+                Corners.CompleteLap(current.SessionData.CompletedLaps, current.SessionData.LapTimePrevious,
+                    current.SessionData.PreviousLapWasValid && (lap == null || !lap.InPitLap));
+            }
+            Corners.Tick(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed,
+                current.ControlData.ThrottlePedal, current.ControlData.BrakePedal, current.SessionData.SessionRunningTime, current.PitData.InPitlane);
             if (Spotter().HasOverlap)
             {
                 lastOverlapUtc = now;
+            }
+            if (lapCompleted)
+            {
+                CheckFuel(current);
             }
 
             string trigger = null;
@@ -143,11 +161,86 @@ namespace CrewChiefV4.AiTeam
             }
             if (trigger == null && lapCompleted)
             {
+                string cornerLoss = Corners.FindConsistentLoss();
+                if (cornerLoss != null)
+                {
+                    // eindeutiger Befund aus der Kurvenmessung: Ben soll einen konkreten Fahrtipp geben
+                    MaybeProactive(current, "Kurvenanalyse: " + cornerLoss + " Ben soll dazu einen kurzen, konkreten Fahrtipp geben.", false);
+                    return;
+                }
                 trigger = "Runde " + current.SessionData.CompletedLaps + " abgeschlossen.";
             }
             if (trigger != null)
             {
                 MaybeProactive(current, trigger, lapCompleted);
+            }
+        }
+
+        /// <summary>Kurven der Strecke aus den Crew-Chief-Streckendaten übernehmen (Geraden werden ausgelassen).</summary>
+        private void UpdateCornerTrack(GameStateData gs)
+        {
+            var track = gs.SessionData.TrackDefinition;
+            if (track == null || track.trackLandmarks == null || track.trackLength <= 0)
+            {
+                return;
+            }
+            string key = track.name + "|" + track.trackLandmarks.Count + "|" + gs.SessionData.SessionId;
+            if (key == cornerTrackKey)
+            {
+                return;
+            }
+            cornerTrackKey = key;
+            var corners = new List<CornerDefinition>();
+            for (int i = 0; i < track.trackLandmarks.Count; i++)
+            {
+                var lm = track.trackLandmarks[i];
+                if (lm.isStraight)
+                {
+                    continue;
+                }
+                string raw = lm.landmarkNames != null && lm.landmarkNames.Count > 0 ? lm.landmarkNames[0] : null;
+                corners.Add(new CornerDefinition { Name = CornerCoach.FriendlyName(raw, corners.Count), Start = lm.distanceRoundLapStart, End = lm.distanceRoundLapEnd });
+            }
+            Corners.SetTrack(corners, track.trackLength);
+            Log("Kurvenanalyse: " + corners.Count + " Kurven für " + track.name);
+        }
+
+        /// <summary>Feste Sprit-Warnung (ohne KI), nur im Rennen.</summary>
+        private void CheckFuel(GameStateData gs)
+        {
+            var s = gs.SessionData;
+            if (s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green || !gs.FuelData.FuelUseActive)
+            {
+                return;
+            }
+            var laps = Memory.GetLaps();
+            if (laps.Count(l => l.FuelUsed > 0 && !l.InPitLap) < 2)
+            {
+                return; // erst nach zwei sauber gemessenen Runden
+            }
+            float perLap = Memory.AverageFuelPerLap();
+            float lapsRemaining;
+            bool fromTime = false;
+            if (!s.SessionHasFixedTime && s.SessionLapsRemaining > 0 && s.SessionLapsRemaining < 1000)
+            {
+                lapsRemaining = s.SessionLapsRemaining;
+            }
+            else
+            {
+                var timed = laps.Where(l => l.Valid && l.LapTime > 0 && !l.InPitLap).Reverse().Take(3).ToList();
+                if (timed.Count == 0 || s.SessionTimeRemaining <= 0)
+                {
+                    return;
+                }
+                // nach Ablauf der Zeit wird die angefangene Runde noch zu Ende gefahren
+                lapsRemaining = s.SessionTimeRemaining / timed.Average(l => l.LapTime) + 1;
+                fromTime = true;
+            }
+            string warning = fuelWatch.Evaluate(s.CompletedLaps, gs.FuelData.FuelLeft, perLap, lapsRemaining, gs.PitData.IsRefuellingAllowed, fromTime);
+            if (warning != null)
+            {
+                Log("Sprit-Warnung: " + warning);
+                Task.Run(() => SpeakAsync(TeamMember.Mik, warning, true, CancellationToken.None));
             }
         }
 
@@ -514,6 +607,7 @@ namespace CrewChiefV4.AiTeam
                 ["anlass"] = trigger,
                 ["lage"] = RaceDataTools.BuildBriefing(ctx),
                 ["stint"] = RaceDataTools.Execute("get_stint_analysis", ctx),
+                ["kurven"] = RaceDataTools.Execute("get_corner_analysis", ctx),
                 ["ereignisse_und_letzte_funksprueche"] = RaceDataTools.Execute("get_recent_events", ctx),
             };
             var messages = new JArray
@@ -826,6 +920,7 @@ namespace CrewChiefV4.AiTeam
                 GameName = CrewChief.gameDefinition != null ? CrewChief.gameDefinition.friendlyName : null,
                 SendDriverNames = settings.SendDriverNames,
                 CrewChiefAdditionalFuelNeeded = extraFuel,
+                Corners = Corners,
             };
         }
 

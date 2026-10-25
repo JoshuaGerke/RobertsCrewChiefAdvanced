@@ -20,6 +20,7 @@ namespace CrewChiefV4.AiTeam
         public bool SendDriverNames = true;
         /// <summary>Ergebnis von Fuel.GetAdditionalFuelToEndOfRace (Crew-Chief-Rechnung), float.MaxValue = unbekannt.</summary>
         public float CrewChiefAdditionalFuelNeeded = float.MaxValue;
+        public CornerCoach Corners;
 
         public double TelemetryAgeSeconds
         {
@@ -38,7 +39,7 @@ namespace CrewChiefV4.AiTeam
         public static readonly string[] AllToolNames =
         {
             "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
-            "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events",
+            "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
         public static JArray BuildToolDefinitions()
@@ -53,6 +54,7 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_damage_and_engine", "Schäden (Aero, Motor, Getriebe, Aufhängung, Bremsen), Motortemperaturen und Warnungen."));
             tools.Add(Tool("get_track_conditions", "Luft- und Streckentemperatur, Regen, Wind."));
             tools.Add(Tool("get_stint_analysis", "Runde-für-Runde-Verlauf dieses Stints: Rundenzeit, Spritverbrauch, Reifenverschleiß, Reifentemperaturspitzen, Abstände. Für Trends und Prognosen."));
+            tools.Add(Tool("get_corner_analysis", "Kurve für Kurve: letzte gültige Runde gegen die eigene Bestrunde – Zeitverlust, Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt. Für Fahrercoaching (\"wo verliere ich Zeit\", \"wie fahre ich Kurve X\")."));
             tools.Add(Tool("get_recent_events", "Was in den letzten Minuten passiert ist (Positionswechsel, Gegner an der Box, Flaggen, Kontakte) und was das Team zuletzt gefunkt hat."));
             return tools;
         }
@@ -97,6 +99,7 @@ namespace CrewChiefV4.AiTeam
                     case "get_track_conditions": data = Conditions(ctx, missing); break;
                     case "get_stint_analysis": data = Stint(ctx, missing); break;
                     case "get_recent_events": data = Events(ctx, missing); break;
+                    case "get_corner_analysis": data = ctx.Corners != null ? ctx.Corners.Analyse() : new JObject { ["verfuegbar"] = false, ["grund"] = "Kurvenanalyse nicht aktiv." }; break;
                     default:
                         return new JObject { ["fehler"] = "Unbekanntes Werkzeug: " + toolName };
                 }

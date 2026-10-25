@@ -45,7 +45,9 @@ namespace CrewChiefV4.AiTeam
                         "kritisch wenn der Fahrer Fehler macht, keine Motivationsreden. Zuständig: Reifen (Temperaturverteilung innen/mitte/außen, Drücke, Verschleiß), " +
                         "Bremsen, Balance, Untersteuern/Übersteuern, Traktion, Schäden, Motor, Verbrauch, Fahrercoaching anhand von Runden- und Sektorzeiten. " +
                         "Setupempfehlungen nur mit Bezug auf die gemessenen Werte und das geschilderte Fahrverhalten; Setupwerte selbst liefert die Simulation nicht, " +
-                        "frag den Fahrer bei Bedarf nach seinen aktuellen Einstellungen. Kurvengenaue Bremspunkte hast du nicht – behaupte keine.";
+                        "frag den Fahrer bei Bedarf nach seinen aktuellen Einstellungen. Für Fragen zu einzelnen Kurven oder \"wo verliere ich Zeit\" nutze get_corner_analysis: Sie vergleicht die letzte Runde Kurve für Kurve " +
+                        "mit der Bestrunde (Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt). Gib dann einen konkreten Tipp für die wichtigste Kurve. " +
+                        "Sind dort keine Daten, sag das, statt zu raten.";
             }
         }
 

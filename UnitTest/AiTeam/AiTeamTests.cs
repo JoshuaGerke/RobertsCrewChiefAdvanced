@@ -562,6 +562,109 @@ namespace UnitTest.AiTeamTests
             }
         }
 
+        // ---------- Kurven-Coaching und Sprit-Warnung ----------
+
+        // Synthetische Runde auf einer 1000-m-Strecke mit einer Kurve von 400 bis 500 m.
+        private static void DriveLap(CornerCoach coach, ref float time, int lap, float brakeAt, float apexKmh, float exitKmh, float throttleAt, float lapTime)
+        {
+            for (float d = 0; d < 1000; d += 5)
+            {
+                float kmh = 200;
+                if (d >= brakeAt && d < 400) kmh = 200 - (200 - apexKmh) * (d - brakeAt) / (400 - brakeAt);
+                else if (d >= 400 && d < 450) kmh = apexKmh;
+                else if (d >= 450 && d <= 500) kmh = apexKmh + (exitKmh - apexKmh) * (d - 450) / 50;
+                else if (d > 500 && d < 600) kmh = exitKmh + (200 - exitKmh) * (d - 500) / 100;
+                float brake = d >= brakeAt && d < 400 ? 0.9f : 0f;
+                float throttle = d >= throttleAt || d < brakeAt ? 1f : 0.3f;
+                time += 5 / (kmh / 3.6f);
+                coach.Tick(d, kmh / 3.6f, throttle, brake, time, false);
+            }
+            coach.CompleteLap(lap, lapTime, true);
+        }
+
+        private static CornerCoach OneCornerTrack()
+        {
+            var coach = new CornerCoach();
+            coach.SetTrack(new[] { new CornerDefinition { Name = "Kurve 1", Start = 400, End = 500 } }, 1000);
+            return coach;
+        }
+
+        [Test]
+        public void Kurvenanalyse_erkennt_frueheren_Bremspunkt_und_langsameren_Scheitel()
+        {
+            var coach = OneCornerTrack();
+            float t = 0;
+            DriveLap(coach, ref t, 1, 330, 90, 120, 460, 60.0f);   // Bestrunde
+            DriveLap(coach, ref t, 2, 310, 82, 112, 480, 60.6f);   // 20 m früher gebremst, langsamer
+            var result = coach.Analyse();
+            Assert.IsNull(result["verfuegbar"]);
+            var corner = result["kurven"][0];
+            Assert.AreEqual("Kurve 1", (string)corner["kurve"]);
+            Assert.AreEqual(20, (double)corner["bremspunkt_m"], 6);
+            Assert.AreEqual(-8, (double)corner["scheitel_kmh"], 3);
+            Assert.Greater((double)corner["zeit_s"], 0.1);
+            Assert.AreEqual(20, (double)corner["vollgas_spaeter_m"], 6);
+        }
+
+        [Test]
+        public void Kurvenanalyse_ehrlich_ohne_Daten()
+        {
+            var noTrack = new CornerCoach();
+            StringAssert.Contains("keine Kurvendaten", (string)noTrack.Analyse()["grund"]);
+            var coach = OneCornerTrack();
+            float t = 0;
+            DriveLap(coach, ref t, 1, 330, 90, 120, 460, 60.0f);
+            Assert.IsFalse((bool)coach.Analyse()["verfuegbar"]);
+        }
+
+        [Test]
+        public void Proaktiver_Kurvenhinweis_erst_bei_wiederholtem_Zeitverlust()
+        {
+            var coach = OneCornerTrack();
+            float t = 0;
+            DriveLap(coach, ref t, 1, 330, 90, 120, 460, 60.0f);
+            DriveLap(coach, ref t, 2, 300, 80, 110, 490, 60.9f);
+            Assert.IsNull(coach.FindConsistentLoss(), "nach einer schlechten Runde noch kein Hinweis");
+            DriveLap(coach, ref t, 3, 300, 80, 110, 490, 60.9f);
+            string hint = coach.FindConsistentLoss();
+            StringAssert.StartsWith("Kurve 1: in den letzten zwei Runden", hint);
+            StringAssert.Contains("früher", hint);
+            DriveLap(coach, ref t, 4, 300, 80, 110, 490, 60.9f);
+            Assert.IsNull(coach.FindConsistentLoss(), "derselbe Hinweis höchstens alle 5 Runden");
+        }
+
+        [Test]
+        public void Kurvennamen_funktauglich()
+        {
+            Assert.AreEqual("Kurve 6", CornerCoach.FriendlyName("turn6", 0));
+            Assert.AreEqual("Kurve 12", CornerCoach.FriendlyName("turn_12", 0));
+            Assert.AreEqual("La Source", CornerCoach.FriendlyName("la_source", 0));
+            Assert.AreEqual("Kurve 3", CornerCoach.FriendlyName(null, 2));
+        }
+
+        [Test]
+        public void Sprit_Warnung_mit_Fehlmenge_und_Sparziel()
+        {
+            var watch = new FuelWatch();
+            // 10 Runden, 2,5 l pro Runde, 25,3 l noch da: nötig 25,75 l (inkl. 0,3 Runden Reserve)
+            string text = watch.Evaluate(5, 25.3f, 2.5f, 10, true, false);
+            StringAssert.StartsWith("So kommen wir bis ins Ziel nicht durch", text);
+            StringAssert.Contains("Spar pro Runde", text);
+            Assert.IsNull(watch.Evaluate(6, 22.8f, 2.5f, 9, true, false), "keine Wiederholung ohne Verschlechterung");
+            StringAssert.Contains("passt jetzt wieder", watch.Evaluate(7, 30f, 2.5f, 8, true, false));
+            Assert.IsNull(watch.Evaluate(8, 30f, 2.5f, 7, true, false));
+        }
+
+        [Test]
+        public void Sprit_Warnung_empfiehlt_Stopp_bei_grosser_Luecke()
+        {
+            var watch = new FuelWatch();
+            string text = watch.Evaluate(5, 10f, 2.5f, 10, true, true);
+            StringAssert.Contains("nach aktueller Pace", text);
+            StringAssert.Contains("planen einen Stopp", text);
+            Assert.IsNull(new FuelWatch().Evaluate(5, 40f, 2.5f, 10, true, false), "reicht – keine Meldung");
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)
