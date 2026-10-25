@@ -98,6 +98,34 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        /// <summary>
+        /// Schneidet Stille am Anfang und Ende ab (Schwelle etwa -34 dBFS, 20 ms Rand bleiben stehen).
+        /// Für Spotteransagen wichtig: Die Warnung soll ohne Vorlauf beginnen.
+        /// </summary>
+        public static byte[] TrimSilence(byte[] pcm16Mono, int sampleRate, short threshold = 650)
+        {
+            int count = pcm16Mono.Length / 2;
+            int first = -1, last = -1;
+            for (int i = 0; i < count; i++)
+            {
+                if (Math.Abs((int)BitConverter.ToInt16(pcm16Mono, i * 2)) > threshold)
+                {
+                    if (first < 0) first = i;
+                    last = i;
+                }
+            }
+            if (first < 0)
+            {
+                return pcm16Mono;
+            }
+            int margin = sampleRate / 50;
+            first = Math.Max(0, first - margin);
+            last = Math.Min(count - 1, last + margin);
+            var result = new byte[(last - first + 1) * 2];
+            Buffer.BlockCopy(pcm16Mono, first * 2, result, 0, result.Length);
+            return result;
+        }
+
         /// <summary>MP3 beliebiger Abtastrate → PCM 16 Bit mono mit der gewünschten Rate.</summary>
         public static byte[] Mp3ToPcm(byte[] mp3, int targetSampleRate)
         {

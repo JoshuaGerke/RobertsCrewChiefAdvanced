@@ -82,6 +82,10 @@ namespace CrewChiefV4.AiTeam
                 if (HasApiKey || elevenLabs.HasKey)
                 {
                     PrewarmSaraPhrases();
+                    if (!SaraSpotterPackCurrent && (elevenLabs.HasKey || HasApiKey))
+                    {
+                        Task.Run(() => GenerateSaraSpotterPackAsync(null));
+                    }
                 }
             }
         }
@@ -973,6 +977,88 @@ namespace CrewChiefV4.AiTeam
         public Task<List<ElevenLabsVoice>> ListElevenLabsVoicesAsync()
         {
             return elevenLabs.ListVoicesAsync(CancellationToken.None);
+        }
+
+        /// <summary>Kennung der aktuell gewählten Sara-Stimme; ändert sie sich, wird das Spotterpack neu erzeugt.</summary>
+        public string SaraVoiceKey
+        {
+            get
+            {
+                if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey)
+                {
+                    return "elevenlabs|" + settings.ElevenLabsModel + "|" + settings.ElevenLabsVoiceSara + "|radio=" + settings.RadioEffect;
+                }
+                if (settings.TtsProvider != AiTtsProvider.WINDOWS && HasApiKey)
+                {
+                    return "cloud|" + settings.TtsModel + "|" + settings.VoiceSara + "|radio=" + settings.RadioEffect;
+                }
+                return "windows|" + settings.WindowsVoiceSara + "|radio=" + settings.RadioEffect;
+            }
+        }
+
+        public bool SaraSpotterPackCurrent
+        {
+            get { return SaraSpotterPack.IsGenerated(SaraSpotterPack.VoiceFolder, SaraVoiceKey); }
+        }
+
+        private int saraPackRunning;
+
+        /// <summary>
+        /// Erzeugt Saras deutsches Spotterpack (etwa 40 kurze Ansagen) mit ihrer aktuellen Stimme und stellt in Crew Chief
+        /// die Spotterstimme auf "Sara". Wirksam nach dem nächsten Neustart von Crew Chief.
+        /// Fällt die gewählte Stimme aus, wird abgebrochen statt ein gemischtes Pack zu bauen.
+        /// </summary>
+        public async Task<string> GenerateSaraSpotterPackAsync(Action<string> progress)
+        {
+            if (Interlocked.Exchange(ref saraPackRunning, 1) == 1)
+            {
+                return "Saras Spotterpack wird bereits erzeugt.";
+            }
+            try
+            {
+                string key = SaraVoiceKey;
+                Func<string, Task<byte[]>> render;
+                if (key.StartsWith("elevenlabs|"))
+                {
+                    render = async text =>
+                    {
+                        byte[] pcm = await elevenLabs.SpeechPcmAsync(settings.ElevenLabsVoiceSara, settings.ElevenLabsModel, text, TeamMember.Sara, CancellationToken.None).ConfigureAwait(false);
+                        return settings.RadioEffect ? AiAudio.ApplyRadioEffect(pcm, AiAudio.OpenAiPcmSampleRate) : pcm;
+                    };
+                }
+                else if (key.StartsWith("cloud|"))
+                {
+                    render = async text =>
+                    {
+                        byte[] pcm = await client.SpeechPcmAsync(settings.TtsModel, settings.VoiceSara, text, AiPersonas.VoiceInstructions(TeamMember.Sara), CancellationToken.None).ConfigureAwait(false);
+                        return settings.RadioEffect ? AiAudio.ApplyRadioEffect(pcm, AiAudio.OpenAiPcmSampleRate) : pcm;
+                    };
+                }
+                else
+                {
+                    render = text =>
+                    {
+                        byte[] pcm = WindowsTts.Render(text, settings.WindowsVoiceSara, TeamMember.Sara);
+                        return Task.FromResult(settings.RadioEffect ? AiAudio.ApplyRadioEffect(pcm, AiAudio.OpenAiPcmSampleRate) : pcm);
+                    };
+                }
+                int files = await SaraSpotterPack.GenerateAsync(SaraSpotterPack.VoiceFolder, key, render, progress).ConfigureAwait(false);
+                UserSettings.GetUserSettings().setProperty("spotter_name", SaraSpotterPack.SpotterName);
+                UserSettings.GetUserSettings().saveUserSettings();
+                string done = "Saras deutsches Spotterpack ist fertig (" + files + " Ansagen). Spotterstimme steht auf \"Sara\" – wirksam nach dem nächsten Neustart von Crew Chief.";
+                Log(done);
+                return done;
+            }
+            catch (Exception e)
+            {
+                string failed = "Saras Spotterpack konnte nicht erzeugt werden: " + e.Message;
+                Log(failed);
+                return failed;
+            }
+            finally
+            {
+                Interlocked.Exchange(ref saraPackRunning, 0);
+            }
         }
 
         /// <summary>Testfunktion für das KI-Team-Fenster: ein Mini-Aufruf mit gemessener Latenz.</summary>

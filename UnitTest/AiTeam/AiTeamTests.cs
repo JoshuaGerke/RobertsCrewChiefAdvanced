@@ -676,6 +676,58 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(new FuelWatch().Evaluate(5, 40f, 2.5f, 10, true, false), "reicht – keine Meldung");
         }
 
+        // ---------- Saras deutsches Spotterpack ----------
+
+        [Test]
+        public async Task Sara_Spotterpack_im_Crew_Chief_Format()
+        {
+            string voice = Path.Combine(Path.GetTempPath(), "rcca_voice_" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var rendered = new List<string>();
+                Func<string, Task<byte[]>> render = text =>
+                {
+                    rendered.Add(text);
+                    // 0,1 s Stille, 0,2 s Ton, 0,1 s Stille
+                    var pcm = new byte[24000 * 2 * 4 / 10];
+                    for (int i = 2400; i < 7200; i++) { short v = (short)(Math.Sin(i * 0.3) * 12000); pcm[i * 2] = (byte)(v & 0xFF); pcm[i * 2 + 1] = (byte)(v >> 8); }
+                    return Task.FromResult(pcm);
+                };
+                int files = await SaraSpotterPack.GenerateAsync(voice, "test|voice1", render, null);
+                Assert.AreEqual(SaraSpotterPack.Phrases.Sum(p => p.Value.Length), files);
+                // alle 15 Ordner, die NoisyCartesianCoordinateSpotter für einen Zusatz-Spotter erwartet
+                foreach (var folder in new[] { "car_left", "car_right", "still_there", "clear_left", "clear_right", "clear_all_round", "in_the_middle",
+                    "three_wide_on_left", "three_wide_on_right", "car_inside", "car_outside", "clear_inside", "clear_outside", "three_wide_on_inside", "three_wide_on_outside" })
+                {
+                    Assert.IsTrue(File.Exists(Path.Combine(voice, "spotter_Sara", folder, "1.wav")), folder);
+                    Assert.IsTrue(File.Exists(Path.Combine(voice, "spotter_Sara", folder, "subtitles.csv")), folder);
+                }
+                Assert.IsTrue(File.Exists(Path.Combine(voice, "radio_check_Sara", "test", "1.wav")));
+                Assert.IsTrue(File.Exists(Path.Combine(voice, "acknowledge", "spotterEnabled_Sara", "1.wav")));
+                StringAssert.Contains("1.wav,\"Links!\"", File.ReadAllText(Path.Combine(voice, "spotter_Sara", "car_left", "subtitles.csv")));
+                // Stille wurde abgeschnitten: 0,2 s Ton + 2 x 20 ms Rand statt 0,4 s
+                long size = new FileInfo(Path.Combine(voice, "spotter_Sara", "car_left", "1.wav")).Length - 44;
+                Assert.Less(size, 24000 * 2 * 3 / 10);
+                Assert.IsTrue(SaraSpotterPack.IsGenerated(voice, "test|voice1"));
+                Assert.IsFalse(SaraSpotterPack.IsGenerated(voice, "test|andere_stimme"));
+                CollectionAssert.Contains(rendered, "Rechts frei.");
+            }
+            finally
+            {
+                try { Directory.Delete(voice, true); } catch (Exception) { }
+            }
+        }
+
+        [Test]
+        public void Stille_trimmen_laesst_Ton_unberuehrt()
+        {
+            var pcm = new byte[2000];
+            pcm[1000] = 0x00; pcm[1001] = 0x40; // ein lauter Wert in der Mitte
+            byte[] trimmed = AiAudio.TrimSilence(pcm, 24000);
+            Assert.Less(trimmed.Length, pcm.Length + 1);
+            Assert.AreEqual(new byte[10].Length, AiAudio.TrimSilence(new byte[10], 24000).Length, "reine Stille bleibt unverändert");
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)

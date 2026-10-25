@@ -49,7 +49,8 @@ namespace CrewChiefV4.AiTeam
                 voiceBoxes[member] = box;
                 layout.Controls.Add(Row(new Label { Text = TeamRouter.DisplayName(member) + ":", Width = 50, TextAlign = ContentAlignment.MiddleLeft }, box));
             }
-            layout.Controls.Add(Row(MakeButton("Stimmen aus ElevenLabs laden", LoadVoices), MakeButton("Stimmen übernehmen", ApplyVoices)));
+            layout.Controls.Add(Row(MakeButton("Stimmen aus ElevenLabs laden", LoadVoices), MakeButton("Stimmen übernehmen", ApplyVoices),
+                MakeButton("Sara als Spotter erzeugen", GenerateSaraPack)));
             layout.Controls.Add(Hint("Tipp: In der ElevenLabs-Stimmenbibliothek nach \"German\" filtern und Stimmen zum Konto hinzufügen, dann hier neu laden."));
 
             layout.Controls.Add(Heading("Test"));
@@ -127,6 +128,12 @@ namespace CrewChiefV4.AiTeam
             Append("ElevenLabs-Schlüssel gelöscht.");
         }
 
+        private void GenerateSaraPack()
+        {
+            Append("Erzeuge Saras deutsche Spotter-Ansagen (dauert etwa eine Minute) …");
+            Run(service.GenerateSaraSpotterPackAsync(step => Append("  " + step)));
+        }
+
         private void LoadVoices()
         {
             if (!service.HasElevenLabsKey)
@@ -192,6 +199,10 @@ namespace CrewChiefV4.AiTeam
             UserSettings.GetUserSettings().saveUserSettings();
             service.ReloadSettings();
             Append("Stimmen übernommen.");
+            if (!service.SaraSpotterPackCurrent)
+            {
+                GenerateSaraPack();
+            }
         }
 
         private void SaveKey()

@@ -259,6 +259,7 @@
     <Compile Include="AiTeam\OpenAiCompatibleClient.cs" />
     <Compile Include="AiTeam\RaceDataTools.cs" />
     <Compile Include="AiTeam\SaraLocal.cs" />
+    <Compile Include="AiTeam\SaraSpotterPack.cs" />
     <Compile Include="AiTeam\SpotterSnapshot.cs" />
     <Compile Include="AiTeam\TeamRouter.cs" />
     <Compile Include="Events\AiTeamEvent.cs" />
