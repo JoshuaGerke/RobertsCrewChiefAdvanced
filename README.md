@@ -2,9 +2,11 @@
 
 Crew Chief V4 mit KI-Team: **Ben** (Renningenieur), **Mik** (Stratege) und **Sara** (Spotterin) per Funktaste auf Deutsch ansprechbar. Der originale Crew Chief mit Spotter und allen Ansagen bleibt unverändert die Basis.
 
+**Robert, hier geht's los:** [Anleitung Schritt für Schritt](docs/ANLEITUNG_KI-TEAM.md) · [Programm herunterladen](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)
+
 - Anleitung für Fahrer: [docs/ANLEITUNG_KI-TEAM.md](docs/ANLEITUNG_KI-TEAM.md)
 - Architektur und Code-Referenzen: [docs/CrewChief20/ARCHITEKTUR_KI-TEAM.md](docs/CrewChief20/ARCHITEKTUR_KI-TEAM.md)
-- Download: Actions → „RCCA Windows-Build“ → Artifacts
+- Download: [Releases → neueste Version](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)
 
 Nur für privaten Gebrauch. Crew Chief steht unter MIT-Lizenz (Britton IT Ltd), die Sounddateien haben eigene Rechte und liegen nicht in diesem Repository.
 
