@@ -55,6 +55,9 @@ namespace CrewChiefV4.AiTeam
         private int lastProactiveLap = -1;
         private DateTime lastOverlapUtc = DateTime.MinValue;
         private volatile bool proactiveRunning;
+        private int briefedSession = int.MinValue;
+        private int debriefedSession = int.MinValue;
+        private DateTime sessionSeenUtc = DateTime.MinValue;
 
         private readonly Dictionary<string, byte[]> phraseCache = new Dictionary<string, byte[]>();
 
@@ -127,6 +130,7 @@ namespace CrewChiefV4.AiTeam
                 lastProactiveLap = -1;
                 fuelWatch.Reset();
                 cornerTrackKey = null;
+                sessionSeenUtc = now;
             }
             UpdateCornerTrack(current);
             bool lapCompleted = Memory.Update(previous, current, now);
@@ -146,6 +150,7 @@ namespace CrewChiefV4.AiTeam
             {
                 CheckFuel(current);
             }
+            MaybeSessionBriefing(previous, current, now);
 
             string trigger = null;
             if (previous != null)
@@ -556,8 +561,10 @@ namespace CrewChiefV4.AiTeam
             }
             var s = gs.SessionData;
             DateTime now = DateTime.UtcNow;
-            bool racing = s.SessionPhase == SessionPhase.Green && (s.SessionType == SessionType.Race || s.SessionType == SessionType.Practice);
-            if (!racing || s.CompletedLaps < 2 || gs.PitData.InPitlane || Spotter().HasOverlap || (now - lastOverlapUtc).TotalSeconds < 8)
+            bool racing = s.SessionPhase == SessionPhase.Green && s.SessionType != SessionType.Unavailable;
+            // im Rennen erst nach der hektischen ersten Runde, im Training schon nach der ersten Runde
+            int minLaps = s.SessionType == SessionType.Race ? 2 : 1;
+            if (!racing || s.CompletedLaps < minLaps || gs.PitData.InPitlane || Spotter().HasOverlap || (now - lastOverlapUtc).TotalSeconds < 8)
             {
                 return;
             }
@@ -565,8 +572,8 @@ namespace CrewChiefV4.AiTeam
             {
                 return; // Rest des Budgets für Fragen des Fahrers aufheben
             }
-            int lapInterval = settings.RadioMode == AiRadioMode.ACTIVE ? 1 : 3;
-            double minSeconds = settings.RadioMode == AiRadioMode.ACTIVE ? 45 : 120;
+            int lapInterval = settings.RadioMode == AiRadioMode.ACTIVE ? 1 : 2;
+            double minSeconds = settings.RadioMode == AiRadioMode.ACTIVE ? 40 : 75;
             if (isLapTrigger && (s.CompletedLaps - lastProactiveLap < lapInterval || (now - lastProactiveUtc).TotalSeconds < minSeconds))
             {
                 return;
@@ -637,6 +644,123 @@ namespace CrewChiefV4.AiTeam
             }
             Log("Proaktiv " + TeamRouter.DisplayName(member) + ": " + text);
             await SpeakAsync(member, text, false, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Begrüßung mit Lagebericht einmal pro Session (ein paar Sekunden nach Sessionbeginn, sobald Daten da sind)
+        /// und Nachbesprechung, wenn die Session zu Ende geht. Nicht im Funkmodus "Minimal".
+        /// </summary>
+        private void MaybeSessionBriefing(GameStateData previous, GameStateData current, DateTime now)
+        {
+            if (settings.RadioMode == AiRadioMode.MINIMAL || !HasApiKey || proactiveRunning)
+            {
+                return;
+            }
+            var s = current.SessionData;
+            int session = s.SessionId;
+            bool ended = s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished;
+            if (ended && debriefedSession != session && briefedSession == session && s.CompletedLaps >= 2 &&
+                previous != null && previous.SessionData.SessionPhase != s.SessionPhase)
+            {
+                debriefedSession = session;
+                RunScripted(AiPersonas.SessionDebriefPrompt, "Nachbesprechung");
+                return;
+            }
+            if (briefedSession == session || ended || s.SessionPhase == SessionPhase.Unavailable || s.SessionType == SessionType.Unavailable)
+            {
+                return;
+            }
+            // kurz warten, bis Strecke, Wetter und Reifen in der Telemetrie stehen; nicht mitten im Zweikampf
+            if ((now - sessionSeenUtc).TotalSeconds < 4 || string.IsNullOrEmpty(current.SessionData.TrackDefinition != null ? current.SessionData.TrackDefinition.name : null) ||
+                Spotter().HasOverlap)
+            {
+                return;
+            }
+            briefedSession = session;
+            RunScripted(AiPersonas.SessionBriefingPrompt, "Begrüßung");
+        }
+
+        private void RunScripted(string prompt, string label)
+        {
+            proactiveRunning = true;
+            lastProactiveUtc = DateTime.UtcNow;
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var ctx = BuildContext(CrewChief.currentGameState);
+                    if (ctx.GameState == null)
+                    {
+                        return;
+                    }
+                    var data = new JObject
+                    {
+                        ["lage"] = RaceDataTools.BuildBriefing(ctx),
+                        ["wetter"] = RaceDataTools.Execute("get_track_conditions", ctx),
+                        ["rundenzeiten"] = RaceDataTools.Execute("get_lap_times", ctx),
+                        ["stint"] = RaceDataTools.Execute("get_stint_analysis", ctx),
+                        ["kurven"] = RaceDataTools.Execute("get_corner_analysis", ctx),
+                    };
+                    var messages = new JArray
+                    {
+                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.DriverName) },
+                        new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
+                    };
+                    Interlocked.Increment(ref callsThisSession);
+                    JObject response;
+                    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
+                    {
+                        response = await client.ChatAsync(settings.FastModel, messages, null, settings.ReasoningEffort, 400, true, cts.Token).ConfigureAwait(false);
+                    }
+                    foreach (var radio in ParseRadioList(ContentText(response.SelectToken("choices[0].message.content")), 2))
+                    {
+                        Log(label + " " + TeamRouter.DisplayName(radio.Key) + ": " + radio.Value);
+                        await SpeakAsync(radio.Key, radio.Value, false, CancellationToken.None).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log(label + " fehlgeschlagen: " + e.Message);
+                }
+                finally
+                {
+                    proactiveRunning = false;
+                }
+            });
+        }
+
+        /// <summary>Liest {"funksprueche":[{"speaker":"ben|mik","text":"…"}]}; Sara und unbekannte Sprecher werden verworfen.</summary>
+        public static List<KeyValuePair<TeamMember, string>> ParseRadioList(string content, int max)
+        {
+            var result = new List<KeyValuePair<TeamMember, string>>();
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return result;
+            }
+            try
+            {
+                var list = JObject.Parse(content)["funksprueche"] as JArray;
+                if (list == null)
+                {
+                    return result;
+                }
+                foreach (var entry in list.OfType<JObject>())
+                {
+                    string speaker = ((string)entry["speaker"] ?? "").Trim().ToLowerInvariant();
+                    string text = AiPersonas.CleanForRadio((string)entry["text"], 320, true);
+                    if (string.IsNullOrWhiteSpace(text) || (speaker != "ben" && speaker != "mik"))
+                    {
+                        continue;
+                    }
+                    result.Add(new KeyValuePair<TeamMember, string>(speaker == "mik" ? TeamMember.Mik : TeamMember.Ben, text));
+                    if (result.Count >= max)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception) { }
+            return result;
         }
 
         public static bool TryParseProactive(string content, out TeamMember member, out string text)

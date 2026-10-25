@@ -310,6 +310,17 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Begruessung_mit_zwei_Funkspruechen_wird_gelesen()
+        {
+            var list = AiTeamService.ParseRadioList("{\"funksprueche\":[{\"speaker\":\"ben\",\"text\":\"Servus Rob, Algarve bei 24 Grad Strecke.\"}," +
+                "{\"speaker\":\"sara\",\"text\":\"Links frei\"},{\"speaker\":\"mik\",\"text\":\"Zwanzig Minuten, Sprit reicht.\"}]}", 2);
+            Assert.AreEqual(2, list.Count);
+            Assert.AreEqual(TeamMember.Ben, list[0].Key);
+            Assert.AreEqual(TeamMember.Mik, list[1].Key);
+            Assert.AreEqual(0, AiTeamService.ParseRadioList("kein json", 2).Count);
+        }
+
+        [Test]
         public void Proaktive_Antwort_wird_streng_geprüft()
         {
             TeamMember m;
