@@ -518,7 +518,10 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
-        /// <summary>Kompakte Lage für den System-Prompt, damit einfache Fragen ohne Werkzeug-Rundreise beantwortet werden können.</summary>
+        /// <summary>
+        /// Lagebild für den System-Prompt: Rennstand plus Reifen, Sprit, direkte Gegner und Box. Damit beantwortet das
+        /// Modell die meisten Fragen in einem einzigen Aufruf, statt erst Werkzeuge anzufragen (spart gut eine Sekunde).
+        /// </summary>
         public static JObject BuildBriefing(RaceDataContext ctx)
         {
             var o = Execute("get_race_state", ctx);
@@ -526,6 +529,10 @@ namespace CrewChiefV4.AiTeam
             {
                 return o;
             }
+            o["reifen"] = WithoutMeta(Execute("get_tyre_status", ctx));
+            o["sprit"] = WithoutMeta(Execute("get_fuel_status", ctx));
+            o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
+            o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
             var s = ctx.GameState.SessionData;
             if (s.TimeDeltaFront > 0) o["abstand_vorne_s"] = Math.Round(s.TimeDeltaFront, 2);
             if (s.TimeDeltaBehind > 0) o["abstand_hinten_s"] = Math.Round(s.TimeDeltaBehind, 2);
@@ -538,6 +545,15 @@ namespace CrewChiefV4.AiTeam
         }
 
         // ---------- Hilfsfunktionen ----------
+
+        // Quelle/Alter stehen schon einmal oben im Lagebild
+        private static JObject WithoutMeta(JObject result)
+        {
+            result.Remove("quelle");
+            result.Remove("datenalter_s");
+            result.Remove("veraltet");
+            return result;
+        }
 
         private static OpponentData Lookup(GameStateData gs, string key)
         {

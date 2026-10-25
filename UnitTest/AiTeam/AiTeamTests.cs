@@ -159,6 +159,22 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Lagebild_enthaelt_Reifen_Sprit_Gegner_Box_fuer_Antwort_ohne_Werkzeug()
+        {
+            var gs = new GameStateData(1);
+            gs.FuelData.FuelUseActive = true;
+            gs.FuelData.FuelLeft = 42;
+            gs.TyreData.FrontLeftPressure = 160; gs.TyreData.FrontRightPressure = 161; gs.TyreData.RearLeftPressure = 158; gs.TyreData.RearRightPressure = 159;
+            var briefing = RaceDataTools.BuildBriefing(Ctx(gs));
+            Assert.AreEqual(42, (double)briefing["sprit"]["tankinhalt_l"], 0.01);
+            Assert.AreEqual(160, (double)briefing["reifen"]["druck_kpa"][0], 0.01);
+            Assert.IsNotNull(briefing["gegner"]);
+            Assert.IsNotNull(briefing["box"]);
+            Assert.IsNull(briefing["reifen"]["quelle"]);
+            Assert.IsNotNull(briefing["quelle"]);
+        }
+
+        [Test]
         public void Alte_Telemetrie_wird_als_veraltet_markiert()
         {
             var ctx = Ctx(new GameStateData(1));

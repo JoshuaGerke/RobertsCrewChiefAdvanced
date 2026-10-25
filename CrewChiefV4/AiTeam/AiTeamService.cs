@@ -369,7 +369,9 @@ namespace CrewChiefV4.AiTeam
                 {
                     ["role"] = "system",
                     ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.DriverName, longAllowed) +
-                        "\n\nAktuelle Lage (Live-Daten):\n" + RaceDataTools.BuildBriefing(ctx).ToString(Newtonsoft.Json.Formatting.None),
+                        "\n\nAktuelle Lage (Live-Daten mit Reifen, Sprit, direkten Gegnern und Box). Reicht sie für die Antwort, antworte direkt " +
+                        "ohne Werkzeug. Werkzeuge nur für Details, die hier fehlen (Stintverlauf, Rundenzeiten, Schäden/Motor, Wetter, Ereignisse):\n" +
+                        RaceDataTools.BuildBriefing(ctx).ToString(Newtonsoft.Json.Formatting.None),
                 },
             };
             foreach (var turn in DialogHistory(gs))
@@ -512,10 +514,6 @@ namespace CrewChiefV4.AiTeam
                 ["anlass"] = trigger,
                 ["lage"] = RaceDataTools.BuildBriefing(ctx),
                 ["stint"] = RaceDataTools.Execute("get_stint_analysis", ctx),
-                ["reifen"] = RaceDataTools.Execute("get_tyre_status", ctx),
-                ["sprit"] = RaceDataTools.Execute("get_fuel_status", ctx),
-                ["gegner"] = RaceDataTools.Execute("get_opponents_nearby", ctx),
-                ["box"] = RaceDataTools.Execute("get_pit_info", ctx),
                 ["ereignisse_und_letzte_funksprueche"] = RaceDataTools.Execute("get_recent_events", ctx),
             };
             var messages = new JArray
