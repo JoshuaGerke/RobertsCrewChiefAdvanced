@@ -6881,7 +6881,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("openai/gpt-4o-mini-tts-2025-12-15")]
+        [global::System.Configuration.DefaultSettingValueAttribute("microsoft/mai-voice-2.1-flash")]
         public string ai_team_tts_model {
             get {
                 return ((string)(this["ai_team_tts_model"]));
@@ -6953,7 +6953,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("cedar")]
+        [global::System.Configuration.DefaultSettingValueAttribute("de-DE-Klaus:MAI-Voice-2.1-Flash")]
         public string ai_team_voice_ben {
             get {
                 return ((string)(this["ai_team_voice_ben"]));
@@ -6965,7 +6965,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("ash")]
+        [global::System.Configuration.DefaultSettingValueAttribute("de-DE-Grant:MAI-Voice-2.1-Flash")]
         public string ai_team_voice_mik {
             get {
                 return ((string)(this["ai_team_voice_mik"]));
@@ -6977,7 +6977,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("marin")]
+        [global::System.Configuration.DefaultSettingValueAttribute("de-DE-Mia:MAI-Voice-2.1-Flash")]
         public string ai_team_voice_sara {
             get {
                 return ((string)(this["ai_team_voice_sara"]));

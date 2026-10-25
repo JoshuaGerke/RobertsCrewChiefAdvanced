@@ -21,16 +21,16 @@ namespace CrewChiefV4.AiTeam
         public string DeepModel = "openai/gpt-6.1-sol";
         public string ReasoningEffort = "none";
         public string SttModel = "openai/gpt-transcribe";
-        public string TtsModel = "openai/gpt-4o-mini-tts-2025-12-15";
+        public string TtsModel = "microsoft/mai-voice-2.1-flash";
         public AiTtsProvider TtsProvider = AiTtsProvider.ELEVENLABS;
         public string ElevenLabsModel = "eleven_flash_v2_5";
         // Standardstimmen aus der ElevenLabs-Grundausstattung, im Fenster "KI-Team" per Liste änderbar
         public string ElevenLabsVoiceBen = "JBFqnCBsd6RMkjVDRZzb";
         public string ElevenLabsVoiceMik = "nPczCjzI2devNBz1zQrb";
         public string ElevenLabsVoiceSara = "EXAVITQu4vr4xnSDxMaL";
-        public string VoiceBen = "cedar";
-        public string VoiceMik = "ash";
-        public string VoiceSara = "marin";
+        public string VoiceBen = "de-DE-Klaus:MAI-Voice-2.1-Flash";
+        public string VoiceMik = "de-DE-Grant:MAI-Voice-2.1-Flash";
+        public string VoiceSara = "de-DE-Mia:MAI-Voice-2.1-Flash";
         public string WindowsVoiceBen = "";
         public string WindowsVoiceMik = "";
         public string WindowsVoiceSara = "";

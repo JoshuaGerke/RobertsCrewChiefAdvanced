@@ -67,8 +67,8 @@ namespace CrewChiefV4.AiTeam
         {
             lock (sync)
             {
-                return string.Format("KI-Aufrufe: {0} (lokal beantwortet: {1}), Spracherkennung: {2}, Sprachausgabe: {3}, Fehler: {4}\n" +
-                    "Tokens: {5} Eingabe / {6} Ausgabe\nLetzte Latenz: Erkennung {7} ms, KI {8} ms, Stimme {9} ms",
+                return string.Format("KI-Aufrufe: {0} (lokal beantwortet: {1}), Spracherkennung: {2}, Sprachausgabe: {3}, Fehler: {4}\r\n" +
+                    "Tokens: {5} Eingabe / {6} Ausgabe\r\nLetzte Latenz: Erkennung {7} ms, KI {8} ms, Stimme {9} ms",
                     ChatCalls, LocalAnswers, SttCalls, TtsCalls, Failures, PromptTokens, CompletionTokens,
                     LastSttLatencyMs, LastChatLatencyMs, LastTtsLatencyMs);
             }
@@ -179,33 +179,63 @@ namespace CrewChiefV4.AiTeam
         public async Task<string> TranscribeAsync(byte[] wav, string model, string language, string prompt, CancellationToken ct)
         {
             var sw = Stopwatch.StartNew();
-            using (var content = new MultipartFormDataContent())
+            using (var request = NewRequest(HttpMethod.Post, "/audio/transcriptions"))
             {
-                var file = new ByteArrayContent(wav);
-                file.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-                content.Add(file, "file", "funk.wav");
-                content.Add(new StringContent(model), "model");
-                if (!string.IsNullOrEmpty(language))
+                if (IsOpenRouter)
                 {
-                    content.Add(new StringContent(language), "language");
+                    // OpenRouter: JSON mit Base64-Audio (dokumentierter Hauptweg)
+                    var body = new JObject
+                    {
+                        ["model"] = model,
+                        ["input_audio"] = new JObject { ["data"] = Convert.ToBase64String(wav), ["format"] = "wav" },
+                    };
+                    if (!string.IsNullOrEmpty(language))
+                    {
+                        body["language"] = language;
+                    }
+                    request.Content = new StringContent(body.ToString(Formatting.None), Encoding.UTF8, "application/json");
                 }
-                if (!string.IsNullOrEmpty(prompt))
+                else
                 {
-                    content.Add(new StringContent(prompt), "prompt");
-                }
-                content.Add(new StringContent("json"), "response_format");
-                using (var request = NewRequest(HttpMethod.Post, "/audio/transcriptions"))
-                {
+                    var content = new MultipartFormDataContent();
+                    var file = new ByteArrayContent(wav);
+                    file.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+                    AddFormPart(content, file, "file", "funk.wav");
+                    AddFormPart(content, new StringContent(model), "model");
+                    if (!string.IsNullOrEmpty(language))
+                    {
+                        AddFormPart(content, new StringContent(language), "language");
+                    }
+                    if (!string.IsNullOrEmpty(prompt))
+                    {
+                        AddFormPart(content, new StringContent(prompt), "prompt");
+                    }
+                    AddFormPart(content, new StringContent("json"), "response_format");
                     request.Content = content;
-                    string json = await SendAsync(request, ct).ConfigureAwait(false);
-                    Stats.AddStt(sw.ElapsedMilliseconds);
-                    var parsed = JObject.Parse(json);
-                    return ((string)parsed["text"] ?? "").Trim();
                 }
+                string json = await SendAsync(request, ct).ConfigureAwait(false);
+                Stats.AddStt(sw.ElapsedMilliseconds);
+                var parsed = JObject.Parse(json);
+                return ((string)parsed["text"] ?? "").Trim();
             }
         }
 
-        /// <summary>Liefert rohes PCM: 24 kHz, 16 Bit, mono (OpenAI-Format "pcm").</summary>
+        // .NET schreibt name/filename sonst ohne Anführungszeichen und mit filename*, das lehnen manche Server ab
+        private static void AddFormPart(MultipartFormDataContent content, HttpContent part, string name, string fileName = null)
+        {
+            var disposition = new ContentDispositionHeaderValue("form-data") { Name = "\"" + name + "\"" };
+            if (fileName != null)
+            {
+                disposition.FileName = "\"" + fileName + "\"";
+            }
+            part.Headers.ContentDisposition = disposition;
+            content.Add(part);
+        }
+
+        /// <summary>
+        /// Liefert rohes PCM: 24 kHz, 16 Bit, mono. OpenAI liefert "pcm" direkt in diesem Format. Über OpenRouter
+        /// hängt die Abtastrate vom Stimmenanbieter ab, dort wird MP3 geholt und selbst umgerechnet.
+        /// </summary>
         public async Task<byte[]> SpeechPcmAsync(string model, string voice, string text, string instructions, CancellationToken ct)
         {
             var body = new JObject
@@ -213,7 +243,7 @@ namespace CrewChiefV4.AiTeam
                 ["model"] = model,
                 ["voice"] = voice,
                 ["input"] = text,
-                ["response_format"] = "pcm",
+                ["response_format"] = IsOpenRouter ? "mp3" : "pcm",
             };
             if (!string.IsNullOrEmpty(instructions))
             {
@@ -231,9 +261,9 @@ namespace CrewChiefV4.AiTeam
                         Stats.AddFailure();
                         throw new AiApiException(ExtractError(err, response.StatusCode), response.StatusCode);
                     }
-                    byte[] pcm = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                    byte[] audio = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                     Stats.AddTts(sw.ElapsedMilliseconds);
-                    return pcm;
+                    return IsOpenRouter ? AiAudio.Mp3ToPcm(audio, AiAudio.OpenAiPcmSampleRate) : audio;
                 }
             }
         }

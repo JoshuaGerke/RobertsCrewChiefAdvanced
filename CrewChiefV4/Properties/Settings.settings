@@ -1716,7 +1716,7 @@
       <Value Profile="(Default)">openai/gpt-transcribe</Value>
     </Setting>
     <Setting Name="ai_team_tts_model" Type="System.String" Scope="User">
-      <Value Profile="(Default)">openai/gpt-4o-mini-tts-2025-12-15</Value>
+      <Value Profile="(Default)">microsoft/mai-voice-2.1-flash</Value>
     </Setting>
     <Setting Name="ai_team_tts_provider_listprop" Type="System.String" Scope="User">
       <Value Profile="(Default)">ELEVENLABS</Value>
@@ -1734,13 +1734,13 @@
       <Value Profile="(Default)">EXAVITQu4vr4xnSDxMaL</Value>
     </Setting>
     <Setting Name="ai_team_voice_ben" Type="System.String" Scope="User">
-      <Value Profile="(Default)">cedar</Value>
+      <Value Profile="(Default)">de-DE-Klaus:MAI-Voice-2.1-Flash</Value>
     </Setting>
     <Setting Name="ai_team_voice_mik" Type="System.String" Scope="User">
-      <Value Profile="(Default)">ash</Value>
+      <Value Profile="(Default)">de-DE-Grant:MAI-Voice-2.1-Flash</Value>
     </Setting>
     <Setting Name="ai_team_voice_sara" Type="System.String" Scope="User">
-      <Value Profile="(Default)">marin</Value>
+      <Value Profile="(Default)">de-DE-Mia:MAI-Voice-2.1-Flash</Value>
     </Setting>
     <Setting Name="ai_team_windows_voice_ben" Type="System.String" Scope="User">
       <Value Profile="(Default)" />

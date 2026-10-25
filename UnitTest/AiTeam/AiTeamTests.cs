@@ -437,7 +437,9 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("cedar", (string)speech["voice"]);
             string text = await client.TranscribeAsync(AiAudio.PcmToWav(new byte[3200], 16000), "stt-model", "de", null, CancellationToken.None);
             Assert.AreEqual("Ben, wie sind die Reifen?", text);
-            StringAssert.Contains("name=model", server.Requests[1]);
+            StringAssert.Contains("name=\"model\"", server.Requests[1]);
+            StringAssert.Contains("filename=\"funk.wav\"", server.Requests[1]);
+            StringAssert.DoesNotContain("filename*", server.Requests[1]);
             StringAssert.EndsWith("/audio/transcriptions", server.Urls[1]);
         }
 
@@ -501,6 +503,21 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(body["reasoning_effort"]);
             Assert.AreEqual("https://openrouter.ai/api/v1/chat/completions", server.Urls[0]);
             Assert.AreEqual("Robert's Crew Chief Advanced", server.Titles[0]);
+        }
+
+        [Test]
+        public async Task OpenRouter_Spracherkennung_als_JSON_mit_Base64()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, "{\"text\":\"Mik, wie viel Sprit?\"}"));
+            var client = new OpenAiCompatibleClient("https://openrouter.ai/api/v1", () => "k", TimeSpan.FromSeconds(5), null, server);
+            byte[] wav = AiAudio.PcmToWav(new byte[320], 16000);
+            string text = await client.TranscribeAsync(wav, "openai/gpt-transcribe", "de", "Hinweis", CancellationToken.None);
+            Assert.AreEqual("Mik, wie viel Sprit?", text);
+            var body = JObject.Parse(server.Requests[0]);
+            Assert.AreEqual("wav", (string)body.SelectToken("input_audio.format"));
+            CollectionAssert.AreEqual(wav, Convert.FromBase64String((string)body.SelectToken("input_audio.data")));
+            Assert.AreEqual("de", (string)body["language"]);
         }
 
         [Test]

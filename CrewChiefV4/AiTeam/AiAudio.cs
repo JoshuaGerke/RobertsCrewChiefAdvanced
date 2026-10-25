@@ -5,6 +5,8 @@ using System.Linq;
 using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 using NAudio.Dsp;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace CrewChiefV4.AiTeam
 {
@@ -93,6 +95,62 @@ namespace CrewChiefV4.AiTeam
                 w.Write(pcm);
                 w.Flush();
                 return ms.ToArray();
+            }
+        }
+
+        /// <summary>MP3 beliebiger Abtastrate → PCM 16 Bit mono mit der gewünschten Rate.</summary>
+        public static byte[] Mp3ToPcm(byte[] mp3, int targetSampleRate)
+        {
+            using (var reader = new Mp3FileReader(new MemoryStream(mp3)))
+            {
+                ISampleProvider samples = reader.ToSampleProvider();
+                if (samples.WaveFormat.Channels == 2)
+                {
+                    samples = new StereoToMonoSampleProvider(samples);
+                }
+                if (samples.WaveFormat.SampleRate != targetSampleRate)
+                {
+                    samples = new WdlResamplingSampleProvider(samples, targetSampleRate);
+                }
+                var pcm16 = new SampleToWaveProvider16(samples);
+                using (var output = new MemoryStream())
+                {
+                    var buffer = new byte[16384];
+                    int read;
+                    while ((read = pcm16.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        output.Write(buffer, 0, read);
+                    }
+                    return output.ToArray();
+                }
+            }
+        }
+
+        private static readonly object directSync = new object();
+        private static WaveOutEvent directOut;
+
+        /// <summary>
+        /// Spielt einen Clip direkt ab. Nur für Tests im KI-Team-Fenster, solange Crew Chief nicht gestartet ist
+        /// (dann verwirft die Crew-Chief-Audioengine alle Ansagen). Im Rennen läuft alles über Crew Chief.
+        /// </summary>
+        public static void PlayDirect(byte[] wav, int deviceNumber)
+        {
+            lock (directSync)
+            {
+                if (directOut != null)
+                {
+                    directOut.Stop();
+                }
+                var reader = new WaveFileReader(new MemoryStream(wav));
+                var output = new WaveOutEvent { DeviceNumber = deviceNumber };
+                output.PlaybackStopped += (s, e) =>
+                {
+                    output.Dispose();
+                    reader.Dispose();
+                };
+                output.Init(reader);
+                output.Play();
+                directOut = output;
             }
         }
 

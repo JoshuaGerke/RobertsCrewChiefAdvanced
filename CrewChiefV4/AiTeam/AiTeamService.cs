@@ -632,6 +632,22 @@ namespace CrewChiefV4.AiTeam
                 return false;
             }
             byte[] wav = AiAudio.PcmToWav(pcm, AiAudio.OpenAiPcmSampleRate);
+            var mw = MainWindow.instance;
+            if (mw == null || mw.crewChief == null || !mw.crewChief.running)
+            {
+                // Crew Chief ist nicht gestartet (kein Spiel): Testausgabe direkt, sonst verwirft die Audioengine den Clip
+                try
+                {
+                    AiAudio.PlayDirect(wav, AudioPlayer.naudioMessagesPlaybackDeviceId);
+                }
+                catch (Exception e)
+                {
+                    Log("Direkte Wiedergabe fehlgeschlagen: " + e.Message);
+                    return false;
+                }
+                Memory.AddRadio(member, text, DateTime.UtcNow);
+                return true;
+            }
             string id = AiAudioStore.Put(wav, TeamRouter.DisplayName(member) + ": " + text);
             var fragments = new List<MessageFragment> { MessageFragment.Text(SoundCache.AI_AUDIO_IDENTIFIER + id) };
             if (isReply)
