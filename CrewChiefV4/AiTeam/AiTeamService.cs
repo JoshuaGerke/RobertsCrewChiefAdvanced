@@ -864,7 +864,8 @@ namespace CrewChiefV4.AiTeam
             lock (dialogSync)
             {
                 dialog.Add(new JObject { ["role"] = "user", ["content"] = "[an " + TeamRouter.DisplayName(member) + "] " + question });
-                dialog.Add(new JObject { ["role"] = "assistant", ["content"] = TeamRouter.DisplayName(member) + ": " + answer });
+                // ohne "Ben: "-Präfix, sonst übernimmt das Modell die Markierung in seine Antworten
+                dialog.Add(new JObject { ["role"] = "assistant", ["content"] = answer });
                 while (dialog.Count > 16)
                 {
                     dialog.RemoveAt(0);

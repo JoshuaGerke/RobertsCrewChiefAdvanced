@@ -287,6 +287,13 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Sprechername_am_Anfang_wird_entfernt()
+        {
+            Assert.AreEqual("Rob, Status unverändert.", AiPersonas.CleanForRadio("Ben: Ben: Rob, Status unverändert.", 200, true));
+            Assert.AreEqual("Ben hat recht.", AiPersonas.CleanForRadio("Ben hat recht.", 200, true));
+        }
+
+        [Test]
         public void Proaktive_Antwort_wird_streng_geprüft()
         {
             TeamMember m;

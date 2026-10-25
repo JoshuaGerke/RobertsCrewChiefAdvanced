@@ -72,6 +72,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         private static readonly Regex markdown = new Regex(@"[*_#`>]+");
+        private static readonly Regex speakerPrefix = new Regex(@"^\s*((Ben|Mik|Sara)\s*:\s*)+", RegexOptions.IgnoreCase);
         private static readonly Regex whitespace = new Regex(@"\s+");
         private static readonly Regex sentenceSplit = new Regex(@"(?<=[.!?])\s+");
         private static readonly Regex clearance = new Regex(@"\b(links|rechts|seite|neben)\b.*\bfrei\b|\bfrei\b.*\b(links|rechts|seite|neben)\b|^\s*frei\s*[.!]?\s*$",
@@ -85,6 +86,7 @@ namespace CrewChiefV4.AiTeam
                 return "";
             }
             string t = whitespace.Replace(markdown.Replace(text, ""), " ").Trim().Trim('"');
+            t = speakerPrefix.Replace(t, "");
             var sentences = sentenceSplit.Split(t).Where(s => s.Length > 0);
             if (removeClearance)
             {
