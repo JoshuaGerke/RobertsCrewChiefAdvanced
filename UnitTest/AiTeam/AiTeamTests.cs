@@ -728,6 +728,15 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(new byte[10].Length, AiAudio.TrimSilence(new byte[10], 24000).Length, "reine Stille bleibt unverändert");
         }
 
+        [Test]
+        public void Schluesselfehler_werden_verstaendlich_erklaert()
+        {
+            StringAssert.Contains("nicht angenommen", AiTeamForm.ExplainKeyError("ElevenLabs", "ElevenLabs 401: Invalid API key"));
+            StringAssert.Contains("Guthaben", AiTeamForm.ExplainKeyError("OpenRouter", "Fehler nach 300 ms: 402: Insufficient credits"));
+            StringAssert.Contains("Berechtigungen", AiTeamForm.ExplainKeyError("ElevenLabs", "ElevenLabs 403: missing_permissions"));
+            StringAssert.Contains("online", AiTeamForm.ExplainKeyError("OpenRouter", "Keine Verbindung zur KI: Host nicht gefunden"));
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)

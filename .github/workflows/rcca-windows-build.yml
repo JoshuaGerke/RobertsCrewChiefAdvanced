@@ -56,13 +56,8 @@ jobs:
 
       - name: Paket schnüren
         run: |
+          ./build/package.ps1 -OutDir dist/RobertsCrewChiefAdvanced
           $out = 'dist/RobertsCrewChiefAdvanced'
-          New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item -Recurse CrewChiefV4/bin/Release/* $out
-          Get-ChildItem $out -Recurse -Include *.pdb | Remove-Item
-          Copy-Item docs/ANLEITUNG_KI-TEAM.md $out/ANLEITUNG_KI-TEAM.md
-          Copy-Item LICENSE $out/LICENSE_CrewChief_MIT.txt
-          Copy-Item Newtonsoft_Json_licence.txt, SharpDX_licence.txt, openvr_licence.txt, zlib_licence.txt $out
           $sha = $env:GITHUB_SHA.Substring(0, 7)
           Set-Content -Encoding UTF8 "$out/VERSION.txt" "Robert's Crew Chief Advanced – Alpha`nCommit: $env:GITHUB_SHA`nBuild: $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC`nBasis: Crew Chief V4 (MIT), siehe LICENSE_CrewChief_MIT.txt`nSounds sind nicht enthalten – sie kommen aus der normalen Crew-Chief-Installation bzw. dem Sound-Pack-Download in der App."
           Compress-Archive -Path "$out/*" -DestinationPath "dist/RobertsCrewChiefAdvanced-Alpha-$sha-win-x64.zip" -Force

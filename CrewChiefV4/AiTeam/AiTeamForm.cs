@@ -113,6 +113,11 @@ namespace CrewChiefV4.AiTeam
             {
                 return;
             }
+            if (elevenKeyBox.Text.Trim().StartsWith("sk-or-"))
+            {
+                Append("Das ist ein OpenRouter-Schlüssel (beginnt mit sk-or-). Der gehört ins erste Feld.");
+                return;
+            }
             AiSecretStore.Save(elevenKeyBox.Text, AiSecretStore.ElevenLabsPath);
             elevenKeyBox.Text = "";
             UpdateKeyState();
@@ -146,7 +151,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if (t.Exception != null)
                 {
-                    Append("Stimmen konnten nicht geladen werden: " + t.Exception.GetBaseException().Message);
+                    Append(ExplainKeyError("ElevenLabs", t.Exception.GetBaseException().Message));
                     return;
                 }
                 if (IsDisposed)
@@ -211,11 +216,50 @@ namespace CrewChiefV4.AiTeam
             {
                 return;
             }
-            AiSecretStore.Save(apiKeyBox.Text);
+            string key = apiKeyBox.Text.Trim();
+            if (key.StartsWith("sk_") && !key.StartsWith("sk-"))
+            {
+                Append("Das sieht nach einem ElevenLabs-Schlüssel aus (beginnt mit sk_). Der gehört ins zweite Feld.");
+                return;
+            }
+            AiSecretStore.Save(key);
             apiKeyBox.Text = "";
             UpdateKeyState();
-            Append("API-Schlüssel gespeichert.");
-            service.PrewarmSaraPhrases();
+            Append("OpenRouter-Schlüssel gespeichert, prüfe ihn …");
+            // gleich prüfen, damit ein falsch kopierter Schlüssel sofort auffällt
+            service.TestConnectionAsync().ContinueWith(t =>
+            {
+                string result = t.Exception == null ? t.Result : t.Exception.GetBaseException().Message;
+                Append(result.StartsWith("OK") ? "Schlüssel funktioniert. " + result : ExplainKeyError("OpenRouter", result));
+                if (result.StartsWith("OK"))
+                {
+                    service.PrewarmSaraPhrases();
+                }
+            });
+        }
+
+        /// <summary>Fehlermeldungen der Anbieter in verständliche Hinweise übersetzen.</summary>
+        public static string ExplainKeyError(string provider, string error)
+        {
+            string e = error ?? "";
+            if (e.Contains("401") || e.IndexOf("invalid", StringComparison.OrdinalIgnoreCase) >= 0 && e.IndexOf("key", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "Der " + provider + "-Schlüssel wird nicht angenommen. Meist ist er nicht vollständig kopiert oder im falschen Feld gelandet. " +
+                       "Erstell beim Anbieter einen neuen Schlüssel, kopier ihn mit dem Kopier-Symbol und füg ihn erneut ein. (" + e + ")";
+            }
+            if (e.Contains("402") || e.IndexOf("credit", StringComparison.OrdinalIgnoreCase) >= 0 || e.IndexOf("quota", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "Bei " + provider + " ist kein Guthaben bzw. kein Kontingent mehr übrig. Bitte dort aufladen oder den Tarif prüfen. (" + e + ")";
+            }
+            if (e.Contains("403") || e.IndexOf("permission", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "Dem " + provider + "-Schlüssel fehlen Berechtigungen. Beim Erstellen alle Rechte erlauben oder einen neuen Schlüssel anlegen. (" + e + ")";
+            }
+            if (e.IndexOf("Verbindung", StringComparison.OrdinalIgnoreCase) >= 0 || e.IndexOf("Zeitüberschreitung", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "Keine Verbindung zu " + provider + ". Ist der PC online? (" + e + ")";
+            }
+            return provider + ": " + e;
         }
 
         private void DeleteKey()
