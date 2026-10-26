@@ -8,7 +8,7 @@ Crew Chief V4 mit KI-Team: **Ben** (Renningenieur), **Mik** (Stratege) und **Sar
 - Architektur und Code-Referenzen: [docs/CrewChief20/ARCHITEKTUR_KI-TEAM.md](docs/CrewChief20/ARCHITEKTUR_KI-TEAM.md)
 - Download: [Releases → neueste Version](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)
 
-Nur für privaten Gebrauch. Crew Chief steht unter MIT-Lizenz (Britton IT Ltd), die Sounddateien haben eigene Rechte und liegen nicht in diesem Repository.
+Inoffizielle, nicht kommerzielle Erweiterung von Crew Chief V4 (© Britton IT Ltd, MIT-Lizenz), kein Produkt des Crew-Chief-Teams. Lizenz, Drittanbieter und unser Dank an die Crew-Chief-Entwickler: [HINWEISE_UND_DANK.md](HINWEISE_UND_DANK.md). Die Sounddateien haben eigene Rechte und liegen nicht in diesem Repository.
 
 ---
 

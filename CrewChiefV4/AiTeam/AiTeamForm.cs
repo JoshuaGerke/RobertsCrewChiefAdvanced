@@ -21,6 +21,7 @@ namespace CrewChiefV4.AiTeam
         private readonly TextBox questionBox = new TextBox { Width = 360, Text = "Mik, wie sieht unsere Strategie aus?" };
         private readonly TextBox output = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 560, Height = 300 };
         private readonly AiTeamService service = AiTeamService.Instance;
+        private bool fillingVoices;
 
         public AiTeamForm()
         {
@@ -34,6 +35,11 @@ namespace CrewChiefV4.AiTeam
             var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(12), AutoScroll = true, WrapContents = false };
             Controls.Add(layout);
 
+            var about = new LinkLabel { Text = "Inoffizielle, nicht kommerzielle Erweiterung von Crew Chief V4 (Britton IT Ltd, MIT-Lizenz). Hinweise, Lizenz und Dank",
+                AutoSize = true, MaximumSize = new Size(560, 0) };
+            about.LinkArea = new LinkArea(about.Text.IndexOf("Hinweise"), "Hinweise, Lizenz und Dank".Length);
+            about.LinkClicked += (s, e) => System.Diagnostics.Process.Start("https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/blob/main/HINWEISE_UND_DANK.md");
+            layout.Controls.Add(about);
             layout.Controls.Add(Heading("Schlüssel (werden verschlüsselt nur für diesen Windows-Benutzer gespeichert)"));
             layout.Controls.Add(Hint("OpenRouter-Schlüssel für Ben, Mik und die Spracherkennung (openrouter.ai → Keys):"));
             layout.Controls.Add(Row(apiKeyBox, MakeButton("Speichern", SaveKey), MakeButton("Löschen", DeleteKey)));
@@ -47,11 +53,13 @@ namespace CrewChiefV4.AiTeam
             {
                 var box = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 420 };
                 voiceBoxes[member] = box;
+                var m = member;
+                box.SelectedIndexChanged += (s, e) => SaveVoice(m);
                 layout.Controls.Add(Row(new Label { Text = TeamRouter.DisplayName(member) + ":", Width = 50, TextAlign = ContentAlignment.MiddleLeft }, box));
             }
-            layout.Controls.Add(Row(MakeButton("Stimmen aus ElevenLabs laden", LoadVoices), MakeButton("Stimmen übernehmen", ApplyVoices),
-                MakeButton("Sara als Spotter erzeugen", GenerateSaraPack)));
-            layout.Controls.Add(Hint("Tipp: In der ElevenLabs-Stimmenbibliothek nach \"German\" filtern und Stimmen zum Konto hinzufügen, dann hier neu laden."));
+            layout.Controls.Add(Row(MakeButton("Stimmenliste neu laden", LoadVoices), MakeButton("Sara als Spotter erzeugen", GenerateSaraPack)));
+            layout.Controls.Add(Hint("Die Auswahl wird sofort gespeichert und bleibt nach dem Neustart erhalten. Nach einem Wechsel bei Sara einmal " +
+                "\"Sara als Spotter erzeugen\" drücken. Neue Stimmen: in der ElevenLabs-Stimmenbibliothek nach \"German\" filtern, zum Konto hinzufügen, hier neu laden."));
 
             layout.Controls.Add(Heading("Test"));
             layout.Controls.Add(Row(MakeButton("Verbindung testen", TestConnection), MakeButton("Stimme Ben", () => Speak(TeamMember.Ben)),
@@ -73,6 +81,10 @@ namespace CrewChiefV4.AiTeam
             FormClosed += (s, e) => service.StatusChanged -= OnStatus;
             UpdateKeyState();
             ShowDiagnostics();
+            if (service.HasElevenLabsKey)
+            {
+                Shown += (s, e) => LoadVoices();
+            }
         }
 
         private static Label Heading(string text)
@@ -165,6 +177,7 @@ namespace CrewChiefV4.AiTeam
         private void FillVoices(List<ElevenLabsVoice> voices)
         {
             var s = service.Settings;
+            fillingVoices = true;
             foreach (var entry in voiceBoxes)
             {
                 string current = s.ElevenLabsVoiceFor(entry.Key);
@@ -175,39 +188,23 @@ namespace CrewChiefV4.AiTeam
                 }
                 entry.Value.SelectedItem = voices.FirstOrDefault(v => v.Id == current);
             }
-            Append(voices.Count + " Stimmen geladen. Auswählen und \"Stimmen übernehmen\" drücken, dann mit \"Stimme Ben/Mik/Sara\" anhören.");
+            fillingVoices = false;
+            Append(voices.Count + " Stimmen geladen. Auswahl wird sofort gespeichert, mit \"Stimme Ben/Mik/Sara\" anhören.");
         }
 
-        private void ApplyVoices()
+        private void SaveVoice(TeamMember member)
         {
-            var names = new Dictionary<TeamMember, string>
+            var voice = voiceBoxes[member].SelectedItem as ElevenLabsVoice;
+            if (fillingVoices || voice == null || voice.Id == service.Settings.ElevenLabsVoiceFor(member))
             {
-                { TeamMember.Ben, "ai_team_elevenlabs_voice_ben" },
-                { TeamMember.Mik, "ai_team_elevenlabs_voice_mik" },
-                { TeamMember.Sara, "ai_team_elevenlabs_voice_sara" },
-            };
-            int changed = 0;
-            foreach (var entry in voiceBoxes)
-            {
-                var voice = entry.Value.SelectedItem as ElevenLabsVoice;
-                if (voice != null)
-                {
-                    UserSettings.GetUserSettings().setProperty(names[entry.Key], voice.Id);
-                    changed++;
-                }
-            }
-            if (changed == 0)
-            {
-                Append("Keine Stimme ausgewählt.");
                 return;
             }
+            string name = member == TeamMember.Mik ? "ai_team_elevenlabs_voice_mik" : member == TeamMember.Sara ? "ai_team_elevenlabs_voice_sara" : "ai_team_elevenlabs_voice_ben";
+            UserSettings.GetUserSettings().setProperty(name, voice.Id);
             UserSettings.GetUserSettings().saveUserSettings();
             service.ReloadSettings();
-            Append("Stimmen übernommen.");
-            if (!service.SaraSpotterPackCurrent)
-            {
-                GenerateSaraPack();
-            }
+            Append(TeamRouter.DisplayName(member) + ": " + voice + " gespeichert." +
+                (member == TeamMember.Sara ? " Für die Spotter-Ansagen jetzt \"Sara als Spotter erzeugen\" drücken." : ""));
         }
 
         private void SaveKey()

@@ -10,12 +10,40 @@ namespace CrewChiefV4.AiTeam
     public class LapWatch
     {
         private int lastCalledLap = -1;
+        private int pendingLap = -1;
+        private float pendingSince;
         private bool finishCalled;
 
         public void Reset()
         {
-            lastCalledLap = -1;
+            lastCalledLap = pendingLap = -1;
             finishCalled = false;
+        }
+
+        /// <summary>
+        /// Restrunden inklusive der aktuellen, -1 = unbekannt. Rundenrennen: vom Spiel. Zeitrennen: Crew Chiefs Schätzung
+        /// (berücksichtigt den Führenden), sonst nach Ablauf der Uhr 1.
+        /// </summary>
+        public static int LapsLeft(SessionData s)
+        {
+            if (s.IsLastLap)
+            {
+                return 1;
+            }
+            if (!s.SessionHasFixedTime)
+            {
+                return s.SessionLapsRemaining > 0 && s.SessionLapsRemaining < 10000 ? s.SessionLapsRemaining : -1;
+            }
+            if (CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap == s.CompletedLaps)
+            {
+                return Math.Max(1, CrewChiefV4.Events.Fuel.EstimatedLapsRemaining);
+            }
+            return s.SessionTimeRemaining <= 0 && s.SessionRunningTime > 60 ? 1 : -1;
+        }
+
+        public static bool OnLastLap(SessionData s)
+        {
+            return s.SessionType == SessionType.Race && (s.SessionPhase == SessionPhase.Checkered || LapsLeft(s) == 1);
         }
 
         /// <summary>Ein Telemetrie-Tick. gapAhead/gapBehind in Sekunden, &lt;= 0 = unbekannt. Liefert den Funkspruch oder null.</summary>
@@ -37,16 +65,28 @@ namespace CrewChiefV4.AiTeam
                 lastCalledLap = s.CompletedLaps;
                 return "Zielflagge ist draußen, das ist deine letzte Runde. Platz " + s.ClassPosition + "." + Duel(gapAhead, gapBehind);
             }
-            if (!s.IsNewLap || s.SessionPhase != SessionPhase.Green || lastCalledLap == s.CompletedLaps)
+            if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)
+            {
+                pendingLap = s.CompletedLaps;
+                pendingSince = s.SessionRunningTime;
+            }
+            if (pendingLap != s.CompletedLaps || lastCalledLap == s.CompletedLaps || s.SessionPhase != SessionPhase.Green)
             {
                 return null;
             }
-            if (s.SessionLapsRemaining == 1 || s.IsLastLap)
+            // die Schätzung für Zeitrennen rechnet Crew Chief im selben Moment, deshalb bis zu 3 s darauf warten
+            int left = LapsLeft(s);
+            if (left < 0 && s.SessionRunningTime - pendingSince < 3)
+            {
+                return null;
+            }
+            pendingLap = -1;
+            if (left == 1)
             {
                 lastCalledLap = s.CompletedLaps;
                 return "Letzte Runde! Platz " + s.ClassPosition + "." + Duel(gapAhead, gapBehind);
             }
-            if (!minimalMode && !s.SessionHasFixedTime && s.SessionLapsRemaining == 2)
+            if (!minimalMode && left == 2)
             {
                 lastCalledLap = s.CompletedLaps;
                 return "Noch zwei Runden, Platz " + s.ClassPosition + ".";

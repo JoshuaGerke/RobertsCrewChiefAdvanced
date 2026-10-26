@@ -30,6 +30,7 @@ foreach ($file in 'help.txt', 'Newtonsoft_Json_licence.txt', 'SharpDX_licence.tx
     Copy-Item -Force (Join-Path $root $file) (Join-Path $OutDir $file)
 }
 Copy-Item -Force (Join-Path $root 'LICENSE') (Join-Path $OutDir 'LICENSE_CrewChief_MIT.txt')
+Copy-Item -Force (Join-Path $root 'HINWEISE_UND_DANK.md') (Join-Path $OutDir 'HINWEISE_UND_DANK.md')
 Copy-Item -Force (Join-Path $root 'docs/ANLEITUNG_KI-TEAM.md') (Join-Path $OutDir 'ANLEITUNG_KI-TEAM.md')
 
 # Selbstprüfung: diese Dateien müssen im Paket liegen

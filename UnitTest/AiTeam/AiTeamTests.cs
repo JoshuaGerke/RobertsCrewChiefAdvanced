@@ -191,7 +191,7 @@ namespace UnitTest.AiTeamTests
                 var result = RaceDataTools.Execute(tool, ctx);
                 Assert.IsNull(result["fehler"], tool + ": " + result);
             }
-            Assert.AreEqual(RaceDataTools.AllToolNames.Length, RaceDataTools.BuildToolDefinitions().Count);
+            Assert.AreEqual(RaceDataTools.AllToolNames.Length + 1, RaceDataTools.BuildToolDefinitions().Count, "Lesewerkzeuge plus save_note");
         }
 
         // ---------- Renngedächtnis / Strategiegrundlage (Test 2) ----------
@@ -945,6 +945,77 @@ namespace UnitTest.AiTeamTests
             done.SessionData.ClassPosition = 4;
             done.SessionData.SessionStartClassPosition = 7;
             Assert.AreEqual("Im Ziel! Platz 4. 3 Plätze gutgemacht.", watch.Evaluate(lastLap, done, -1, -1, false));
+        }
+
+        [Test]
+        public void Zeitrennen_letzte_Runde_nach_Ablauf_der_Uhr()
+        {
+            CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = -1;
+            var watch = new LapWatch();
+            var before = Racing(150);
+            before.SessionData.SessionType = SessionType.Race;
+            before.SessionData.SessionHasFixedTime = true;
+            var cross = Racing(150);
+            cross.SessionData.SessionType = SessionType.Race;
+            cross.SessionData.SessionHasFixedTime = true;
+            cross.SessionData.IsNewLap = true;
+            cross.SessionData.CompletedLaps = 7;
+            cross.SessionData.ClassPosition = 12;
+            cross.SessionData.SessionRunningTime = 901;
+            cross.SessionData.SessionTimeRemaining = -1;
+            Assert.AreEqual("Letzte Runde! Platz 12.", watch.Evaluate(before, cross, 5f, 5f, false));
+            Assert.IsTrue(LapWatch.OnLastLap(cross.SessionData));
+        }
+
+        [Test]
+        public void Zeitrennen_nimmt_Crew_Chiefs_Rundenschaetzung()
+        {
+            var watch = new LapWatch();
+            var cross = Racing(150);
+            cross.SessionData.SessionType = SessionType.Race;
+            cross.SessionData.SessionHasFixedTime = true;
+            cross.SessionData.IsNewLap = true;
+            cross.SessionData.CompletedLaps = 6;
+            cross.SessionData.ClassPosition = 8;
+            cross.SessionData.SessionRunningTime = 780;
+            cross.SessionData.SessionTimeRemaining = 120;
+            CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = -1;
+            Assert.IsNull(watch.Evaluate(cross, cross, 5f, 5f, false), "wartet auf die Schätzung");
+            CrewChiefV4.Events.Fuel.EstimatedLapsRemaining = 2;
+            CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = 6;
+            var later = Racing(150);
+            later.SessionData = cross.SessionData;
+            Assert.AreEqual("Noch zwei Runden, Platz 8.", watch.Evaluate(cross, later, 5f, 5f, false));
+            CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = -1;
+        }
+
+        [Test]
+        public void Platz_vor_dem_Unfall_ignoriert_kurzen_Positionsaussetzer()
+        {
+            var watch = new IncidentWatch();
+            var t = now;
+            GameStateData prev = Racing(150);
+            prev.SessionData.ClassPosition = 8;
+            for (int i = 0; i < 50; i++)
+            {
+                var cur = Racing(150);
+                cur.SessionData.ClassPosition = i >= 48 ? 1 : 8; // AMS2 meldet kurz Platz 1
+                cur.CarDamageData.DamageEnabled = true;
+                cur.CarDamageData.OverallAeroDamage = DamageLevel.NONE;
+                watch.Evaluate(prev, cur, t, false);
+                prev = cur;
+                t = t.AddMilliseconds(100);
+            }
+            var crash = Racing(20);
+            crash.SessionData.ClassPosition = 1;
+            crash.CarDamageData.DamageEnabled = true;
+            crash.CarDamageData.OverallAeroDamage = DamageLevel.MAJOR;
+            watch.Evaluate(prev, crash, t, false);
+            var going = Racing(120);
+            going.SessionData.ClassPosition = 12;
+            going.CarDamageData = crash.CarDamageData;
+            watch.Evaluate(crash, going, t.AddSeconds(6), false);
+            Assert.AreEqual(8, watch.TakeDamageAssessment().PositionBefore);
         }
 
         [Test]

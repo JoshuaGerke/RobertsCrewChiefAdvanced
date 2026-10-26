@@ -353,7 +353,7 @@ namespace CrewChiefV4.AiTeam
         {
             var s = gs.SessionData;
             if (settings.StatusIntervalMinutes <= 0 || settings.RadioMode == AiRadioMode.MINIMAL || !HasApiKey || proactiveRunning ||
-                s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane ||
+                s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane || LapWatch.OnLastLap(s) ||
                 Spotter().HasOverlap || (now - lastOverlapUtc).TotalSeconds < 8)
             {
                 return;
@@ -622,7 +622,7 @@ namespace CrewChiefV4.AiTeam
                 new JObject
                 {
                     ["role"] = "system",
-                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.DriverName, longAllowed) +
+                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.DriverName, longAllowed) + DriverNotes.PromptBlock() +
                         "\n\nAktuelle Lage (Live-Daten mit Reifen, Sprit, direkten Gegnern und Box). Reicht sie für die Antwort, antworte direkt " +
                         "ohne Werkzeug. Werkzeuge nur für Details, die hier fehlen (Stintverlauf, Rundenzeiten, Schäden/Motor, Wetter, Ereignisse):\n" +
                         RaceDataTools.BuildBriefing(ctx).ToString(Newtonsoft.Json.Formatting.None),
@@ -674,7 +674,22 @@ namespace CrewChiefV4.AiTeam
                 foreach (var call in toolCalls)
                 {
                     string name = (string)call.SelectToken("function.name");
-                    JObject result = RaceDataTools.Execute(name, ctx);
+                    JObject result;
+                    if (name == "save_note")
+                    {
+                        string note = null;
+                        try { note = (string)JObject.Parse((string)call.SelectToken("function.arguments") ?? "{}")["notiz"]; } catch (Exception) { }
+                        DriverNotes.Add(note);
+                        if (log != null)
+                        {
+                            log("Notiz gespeichert: " + note);
+                        }
+                        result = new JObject { ["gespeichert"] = !string.IsNullOrWhiteSpace(note), ["hinweis"] = "Gilt ab jetzt auch für alle künftigen Rennen." };
+                    }
+                    else
+                    {
+                        result = RaceDataTools.Execute(name, ctx);
+                    }
                     messages.Add(new JObject
                     {
                         ["role"] = "tool",
@@ -776,7 +791,8 @@ namespace CrewChiefV4.AiTeam
             bool racing = s.SessionPhase == SessionPhase.Green && s.SessionType != SessionType.Unavailable;
             // im Rennen erst nach der hektischen ersten Runde, im Training schon nach der ersten Runde
             int minLaps = s.SessionType == SessionType.Race ? 2 : 1;
-            if (!racing || s.CompletedLaps < minLaps || gs.PitData.InPitlane || Spotter().HasOverlap || (now - lastOverlapUtc).TotalSeconds < 8)
+            // in der letzten Runde keine Strategie mehr (Sprit, Box): das stört nur
+            if (!racing || s.CompletedLaps < minLaps || gs.PitData.InPitlane || LapWatch.OnLastLap(s) || Spotter().HasOverlap || (now - lastOverlapUtc).TotalSeconds < 8)
             {
                 return;
             }

@@ -173,6 +173,9 @@ namespace CrewChiefV4.Events
         // they see the impact of the workaround.
         private volatile int sessionNumberOfLaps = -1;
         private volatile int lapsRemaining = -1;
+        // für das KI-Team (LapWatch): Restrunden inkl. der aktuellen, geschätzt beim Überfahren der Linie in Runde ...AtLap
+        internal static volatile int EstimatedLapsRemaining = -1;
+        internal static volatile int EstimatedLapsRemainingAtLap = -1;
         private volatile float reserveMultiplier = -1;
         private volatile bool suppressLapsRemainingUpdate = false;
         private volatile float fuelOnPitEntry = -1;
@@ -243,6 +246,7 @@ namespace CrewChiefV4.Events
 
             reserveMultiplier = 1.0f;
             lapsRemaining = -1;
+            EstimatedLapsRemainingAtLap = -1;
             extraLapsAfterTimedSessionComplete = 0;
             fuelCapacity = 0;
             playedPitWindowOpen = false;
@@ -2043,6 +2047,8 @@ namespace CrewChiefV4.Events
             {
                 Log.Fuel("session is finished");
                 lapsRemaining = 0;
+                EstimatedLapsRemaining = 0;
+                EstimatedLapsRemainingAtLap = currentGameState.SessionData.CompletedLaps;
                 LapsRemaining = 0;
                 LapsUntilRefuel = 0;
                 return;
@@ -2228,6 +2234,8 @@ namespace CrewChiefV4.Events
                 halfDistance = (int)Math.Ceiling(sessionNumberOfLaps / 2f);
 
                 Log.Commentary("Estimating " + lapsRemaining + " laps remaining (total " + sessionNumberOfLaps + ")");
+                EstimatedLapsRemaining = lapsRemaining;
+                EstimatedLapsRemainingAtLap = currentGameState.SessionData.CompletedLaps;
                 if (CrewChief.fuelMultiplier.active)
                 {
                     var _ = getAdditionalFuelToEndOfRace(false); // to log out the fuel estimate

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CrewChiefV4.Events;
 using CrewChiefV4.GameState;
 
@@ -33,6 +34,8 @@ namespace CrewChiefV4.AiTeam
         private int lastInvalidLap = -1;
         private int positionBeforeIncident;
         private DamageAssessment assessment;
+        // AMS2 meldet gelegentlich kurz Platz 1 (Spieler taucht als Gegner auf) → Median statt Einzelwert
+        private readonly List<KeyValuePair<DateTime, int>> recentPositions = new List<KeyValuePair<DateTime, int>>();
 
         public void Reset()
         {
@@ -40,6 +43,17 @@ namespace CrewChiefV4.AiTeam
             lastInvalidLap = -1;
             positionBeforeIncident = 0;
             assessment = null;
+            recentPositions.Clear();
+        }
+
+        private int StablePosition(int fallback)
+        {
+            if (recentPositions.Count == 0)
+            {
+                return fallback;
+            }
+            var sorted = recentPositions.Select(p => p.Value).OrderBy(p => p).ToList();
+            return sorted[sorted.Count / 2];
         }
 
         /// <summary>Fällige Schadensbewertung (einmalig abholen), sonst null.</summary>
@@ -60,6 +74,11 @@ namespace CrewChiefV4.AiTeam
             }
             bool inPit = current.PitData.InPitlane || previous.PitData.InPitlane;
             float kmh = current.PositionAndMotionData.CarSpeed * 3.6f;
+            if (previous.SessionData.ClassPosition > 0)
+            {
+                recentPositions.Add(new KeyValuePair<DateTime, int>(nowUtc, previous.SessionData.ClassPosition));
+            }
+            recentPositions.RemoveAll(x => nowUtc - x.Key > TimeSpan.FromSeconds(15));
 
             // 1. Kontakt: Einschlagzeitpunkt hat sich geändert (AMS2, iRacing, rFactor 2 …) oder – für Spiele ohne
             //    Einschlagzeitpunkt wie RaceRoom und Assetto Corsa – ein Schadenswert ist gestiegen
@@ -73,7 +92,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 if (positionBeforeIncident <= 0)
                 {
-                    positionBeforeIncident = previous.SessionData.ClassPosition;
+                    positionBeforeIncident = StablePosition(previous.SessionData.ClassPosition);
                 }
                 lastContactUtc = nowUtc;
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
@@ -107,10 +126,6 @@ namespace CrewChiefV4.AiTeam
             else if (kmh < 10 && !inPit && nowUtc - lastFastUtc < TimeSpan.FromSeconds(4) && nowUtc - lastStopUtc > TimeSpan.FromSeconds(30))
             {
                 lastStopUtc = nowUtc;
-                if (positionBeforeIncident <= 0)
-                {
-                    positionBeforeIncident = previous.SessionData.ClassPosition;
-                }
                 string text = "Alles okay? Beim Wiederanfahren auf den Verkehr achten.";
                 float behind = current.SessionData.TimeDeltaBehind;
                 if (behind > 0 && behind < 15)

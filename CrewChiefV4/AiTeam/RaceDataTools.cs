@@ -56,6 +56,23 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_stint_analysis", "Runde-für-Runde-Verlauf dieses Stints: Rundenzeit, Spritverbrauch, Reifenverschleiß, Reifentemperaturspitzen, Abstände. Für Trends und Prognosen."));
             tools.Add(Tool("get_corner_analysis", "Kurve für Kurve: letzte gültige Runde gegen die eigene Bestrunde – Zeitverlust, Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt. Für Fahrercoaching (\"wo verliere ich Zeit\", \"wie fahre ich Kurve X\")."));
             tools.Add(Tool("get_recent_events", "Was in den letzten Minuten passiert ist (Positionswechsel, Gegner an der Box, Flaggen, Kontakte) und was das Team zuletzt gefunkt hat."));
+            tools.Add(new JObject
+            {
+                ["type"] = "function",
+                ["function"] = new JObject
+                {
+                    ["name"] = "save_note",
+                    ["description"] = "Dauerhafte Notiz für alle künftigen Rennen speichern, wenn der Fahrer sagt, dass ihr euch etwas merken sollt " +
+                        "(Vorlieben, Korrekturen, Wünsche). Kurz und eigenständig verständlich formulieren.",
+                    ["parameters"] = new JObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JObject { ["notiz"] = new JObject { ["type"] = "string" } },
+                        ["required"] = new JArray("notiz"),
+                        ["additionalProperties"] = false,
+                    },
+                },
+            });
             return tools;
         }
 
@@ -145,11 +162,18 @@ namespace CrewChiefV4.AiTeam
                 ["runden_absolviert"] = s.CompletedLaps,
                 ["flagge"] = s.Flag.ToString(),
                 ["in_boxengasse"] = gs.PitData.InPitlane,
-                ["letzte_runde_des_rennens"] = s.IsLastLap,
+                ["letzte_runde_des_rennens"] = LapWatch.OnLastLap(s),
             };
+            int lapsLeft = LapWatch.LapsLeft(s);
             if (s.SessionHasFixedTime)
             {
-                o["restzeit_s"] = Num(s.SessionTimeRemaining, 0, 0, 200000, "restzeit_s", missing);
+                // nach Ablauf der Uhr meldet das Spiel negative Werte: das ist 0, nicht "fehlt"
+                o["restzeit_s"] = Num(Math.Max(0f, s.SessionTimeRemaining), 0, 0, 200000, "restzeit_s", missing);
+                o["uhr_abgelaufen"] = s.SessionTimeRemaining <= 0 && s.SessionRunningTime > 60;
+                if (lapsLeft > 0)
+                {
+                    o["runden_verbleibend_inkl_aktueller_geschaetzt"] = lapsLeft;
+                }
             }
             else if (s.SessionNumberOfLaps > 0)
             {
@@ -710,6 +734,41 @@ namespace CrewChiefV4.AiTeam
         private static JArray Round4(float[] values, int decimals)
         {
             return new JArray(values.Select(v => Math.Round(v, decimals)));
+        }
+    }
+
+    /// <summary>Notizen des Fahrers, die über alle Rennen erhalten bleiben ("merk dir das").</summary>
+    public static class DriverNotes
+    {
+        // ponytail: Textdatei, letzte 30 Einträge im Prompt; Datenbank erst, wenn das nicht mehr reicht
+        public static string Path { get { return System.IO.Path.Combine(AiSecretStore.Folder, "notizen.txt"); } }
+
+        public static void Add(string note)
+        {
+            note = (note ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+            if (note.Length == 0)
+            {
+                return;
+            }
+            System.IO.Directory.CreateDirectory(AiSecretStore.Folder);
+            System.IO.File.AppendAllText(Path, DateTime.Now.ToString("dd.MM.yyyy") + ": " + note + Environment.NewLine, System.Text.Encoding.UTF8);
+        }
+
+        public static string PromptBlock()
+        {
+            try
+            {
+                if (!System.IO.File.Exists(Path))
+                {
+                    return "";
+                }
+                var lines = System.IO.File.ReadAllLines(Path, System.Text.Encoding.UTF8).Where(l => l.Trim().Length > 0).ToList();
+                return lines.Count == 0 ? "" : "\n\nNotizen des Fahrers aus früheren Gesprächen (beachten):\n" + string.Join("\n", lines.Skip(Math.Max(0, lines.Count - 30)));
+            }
+            catch (Exception)
+            {
+                return "";
+            }
         }
     }
 }
