@@ -828,6 +828,16 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, false).Count);
         }
 
+        [Test]
+        public void Fehleransage_nennt_die_echte_Ursache()
+        {
+            const string net = "Verbindung hakt.";
+            StringAssert.Contains("Schlüssel wird nicht angenommen", AiTeamService.SpokenError(new AiApiException("401: No auth credentials found", HttpStatusCode.Unauthorized), net));
+            StringAssert.Contains("kein Guthaben", AiTeamService.SpokenError(new AiApiException("402: Insufficient credits", (HttpStatusCode)402), net));
+            StringAssert.Contains("Einstellung", AiTeamService.SpokenError(new AiApiException("400: model not found", HttpStatusCode.BadRequest), net));
+            Assert.AreEqual(net, AiTeamService.SpokenError(new AiApiException("Zeitüberschreitung"), net));
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)

@@ -345,17 +345,13 @@ namespace CrewChiefV4.AiTeam
             string text;
             try
             {
-                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
-                {
-                    text = await client.TranscribeAsync(wav, settings.SttModel, "de",
-                        "Rennfunk an die Boxencrew Ben, Mik und Sara. Simracing, Reifen, Sprit, Boxenstopp, Undercut.", cts.Token).ConfigureAwait(false);
-                }
+                text = await TranscribeWithFallbackAsync(wav).ConfigureAwait(false);
             }
             catch (Exception e)
             {
                 Log("Spracherkennung fehlgeschlagen: " + e.Message);
                 Status("Spracherkennung fehlgeschlagen: " + e.Message);
-                await SpeakAsync(TeamMember.Ben, "Funk war nicht zu verstehen, die Verbindung hakt.", true, CancellationToken.None).ConfigureAwait(false);
+                await SpeakAsync(TeamMember.Ben, SpokenError(e, "Funk war nicht zu verstehen, die Verbindung hakt."), true, CancellationToken.None).ConfigureAwait(false);
                 return;
             }
             Log("Erkannt (" + (long)(DateTime.UtcNow - releasedUtc).TotalMilliseconds + " ms): " + text);
@@ -455,7 +451,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 Log("KI-Anfrage fehlgeschlagen: " + e.Message);
                 Status("KI-Fehler: " + e.Message);
-                string fallback = "Ich krieg gerade keine Antwort von der Auswertung. Versuch's gleich nochmal.";
+                string fallback = SpokenError(e, "Ich krieg gerade keine Antwort von der Auswertung. Versuch's gleich nochmal.");
                 await SpeakAsync(routed.Member, fallback, true, CancellationToken.None).ConfigureAwait(false);
                 return fallback;
             }
@@ -555,6 +551,62 @@ namespace CrewChiefV4.AiTeam
                 return string.Join(" ", content.Select(part => part.Type == JTokenType.Object ? (string)part["text"] : (string)part).Where(t => !string.IsNullOrEmpty(t)));
             }
             return content.Type == JTokenType.String ? (string)content : content.ToString();
+        }
+
+        public const string FallbackSttModel = "openai/whisper-large-v3-turbo";
+
+        /// <summary>
+        /// Spracherkennung mit dem eingestellten Modell. Lehnt der Anbieter das Modell ab (nicht wegen Schlüssel,
+        /// Guthaben oder Netz), einmal mit einem Whisper-Modell wiederholen.
+        /// </summary>
+        private async Task<string> TranscribeWithFallbackAsync(byte[] wav)
+        {
+            const string hint = "Rennfunk an die Boxencrew Ben, Mik und Sara. Simracing, Reifen, Sprit, Boxenstopp, Undercut.";
+            try
+            {
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
+                {
+                    return await client.TranscribeAsync(wav, settings.SttModel, "de", hint, cts.Token).ConfigureAwait(false);
+                }
+            }
+            catch (AiApiException e) when (e.Status.HasValue && (int)e.Status.Value >= 400 && (int)e.Status.Value != 401 &&
+                (int)e.Status.Value != 402 && (int)e.Status.Value != 403 && settings.SttModel != FallbackSttModel && settings.BaseUrl.Contains("openrouter.ai"))
+            {
+                Log("Spracherkennung mit " + settings.SttModel + " abgelehnt (" + e.Message + "), versuche " + FallbackSttModel);
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
+                {
+                    return await client.TranscribeAsync(wav, FallbackSttModel, "de", hint, cts.Token).ConfigureAwait(false);
+                }
+            }
+        }
+
+        /// <summary>Was Ben bei einem Fehler sagt: die echte Ursache statt pauschal "Verbindung hakt".</summary>
+        public static string SpokenError(Exception e, string connectionMessage)
+        {
+            var api = e as AiApiException;
+            int status = api != null && api.Status.HasValue ? (int)api.Status.Value : 0;
+            string msg = e.Message ?? "";
+            if (status == 401 || (msg.IndexOf("invalid", StringComparison.OrdinalIgnoreCase) >= 0 && msg.IndexOf("key", StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                return "Der OpenRouter-Schlüssel wird nicht angenommen. Trag ihn bitte im KI-Team-Fenster neu ein.";
+            }
+            if (status == 402 || msg.IndexOf("credit", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "Bei OpenRouter ist kein Guthaben mehr drauf. Bitte aufladen.";
+            }
+            if (status == 403)
+            {
+                return "OpenRouter verweigert die Anfrage. Schau bitte ins KI-Team-Fenster.";
+            }
+            if (status == 429)
+            {
+                return "OpenRouter bremst gerade, zu viele Anfragen. Gleich nochmal versuchen.";
+            }
+            if (status >= 400 && status < 500)
+            {
+                return "Die Anfrage wurde abgelehnt, da stimmt eine Einstellung nicht. Details stehen im KI-Team-Fenster.";
+            }
+            return connectionMessage;
         }
 
         public static bool NeedsDeepModel(string question)
