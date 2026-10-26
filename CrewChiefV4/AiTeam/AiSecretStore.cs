@@ -25,7 +25,7 @@ namespace CrewChiefV4.AiTeam
             get { return Path.Combine(Folder, "elevenlabs_key.bin"); }
         }
 
-        private static string Folder
+        public static string Folder
         {
             get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RobertsCrewChiefAdvanced"); }
         }

@@ -62,6 +62,9 @@ namespace CrewChiefV4.AiTeam
         private DateTime sessionSeenUtc = DateTime.MinValue;
 
         private readonly Dictionary<string, byte[]> phraseCache = new Dictionary<string, byte[]>();
+        // ElevenLabs lehnt ab (Schlüssel, Kontingent): eine Weile nicht mehr fragen statt bei jedem Satz Credits und Zeit zu verbrennen
+        private DateTime elevenLabsPausedUntilUtc = DateTime.MinValue;
+        private static readonly TimeSpan ElevenLabsPause = TimeSpan.FromMinutes(10);
 
         private AiTeamService()
         {
@@ -86,7 +89,15 @@ namespace CrewChiefV4.AiTeam
                     PrewarmSaraPhrases();
                     if (!SaraSpotterPackCurrent && (elevenLabs.HasKey || HasApiKey))
                     {
-                        Task.Run(() => GenerateSaraSpotterPackAsync(null));
+                        Task.Run(async () =>
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                            // nicht bei jedem Start erneut, wenn ElevenLabs gerade ablehnt
+                            if (!ElevenLabsPaused || !SaraVoiceKey.StartsWith("elevenlabs|"))
+                            {
+                                await GenerateSaraSpotterPackAsync(null).ConfigureAwait(false);
+                            }
+                        });
                     }
                 }
             }
@@ -109,6 +120,7 @@ namespace CrewChiefV4.AiTeam
             client = new OpenAiCompatibleClient(settings.BaseUrl, () => AiSecretStore.Load(), TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
             elevenLabs = new ElevenLabsClient(AiSecretStore.LoadElevenLabs, TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
             pushToTalk.SetKey(settings.PttKey);
+            elevenLabsPausedUntilUtc = DateTime.MinValue;
             lock (phraseCache)
             {
                 phraseCache.Clear();
@@ -1046,10 +1058,29 @@ namespace CrewChiefV4.AiTeam
                     return cached;
                 }
             }
+            // kurze Standardsätze liegen dauerhaft auf der Platte, damit sie nur einmal Credits kosten
+            string diskFile = text.Length <= 60 ? PhraseCacheFile(member, text) : null;
+            if (diskFile != null && File.Exists(diskFile))
+            {
+                try
+                {
+                    byte[] stored = File.ReadAllBytes(diskFile);
+                    lock (phraseCache)
+                    {
+                        phraseCache[cacheKey] = stored;
+                    }
+                    return stored;
+                }
+                catch (Exception) { }
+            }
             // Kette: gewählte Quelle → (ElevenLabs fällt aus) OpenAI-kompatible Stimme → Windows-Stimme
             byte[] pcm = null;
             bool usedFallback = false;
-            if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey)
+            if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey && ElevenLabsPaused)
+            {
+                usedFallback = true;
+            }
+            else if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey)
             {
                 pcm = await TryTtsAsync("ElevenLabs", t => elevenLabs.SpeechPcmAsync(settings.ElevenLabsVoiceFor(member), settings.ElevenLabsModel, text, member, t), ct).ConfigureAwait(false);
                 usedFallback = pcm == null;
@@ -1079,8 +1110,33 @@ namespace CrewChiefV4.AiTeam
                     }
                     phraseCache[cacheKey] = pcm;
                 }
+                if (diskFile != null)
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(diskFile));
+                        File.WriteAllBytes(diskFile, pcm);
+                    }
+                    catch (Exception) { }
+                }
             }
             return pcm;
+        }
+
+        private bool ElevenLabsPaused { get { return DateTime.UtcNow < elevenLabsPausedUntilUtc; } }
+
+        /// <summary>Dateiname im Stimmen-Cache: hängt an Quelle, Stimme, Modell, Funkfilter und Text.</summary>
+        private string PhraseCacheFile(TeamMember member, string text)
+        {
+            string voice = settings.TtsProvider == AiTtsProvider.ELEVENLABS ? settings.ElevenLabsModel + "|" + settings.ElevenLabsVoiceFor(member)
+                : settings.TtsProvider == AiTtsProvider.WINDOWS ? settings.WindowsVoiceFor(member)
+                : settings.TtsModel + "|" + settings.VoiceFor(member);
+            string key = settings.TtsProvider + "|" + voice + "|radio=" + settings.RadioEffect + "|" + text;
+            using (var sha = System.Security.Cryptography.SHA1.Create())
+            {
+                string hash = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(key))).Replace("-", "").ToLowerInvariant();
+                return Path.Combine(AiSecretStore.Folder, "stimmen-cache", hash + ".pcm");
+            }
         }
 
         private async Task<byte[]> TryTtsAsync(string source, Func<CancellationToken, Task<byte[]>> call, CancellationToken ct)
@@ -1096,6 +1152,14 @@ namespace CrewChiefV4.AiTeam
             }
             catch (Exception e) when (!ct.IsCancellationRequested)
             {
+                var api = e as AiApiException;
+                int status = api != null && api.Status.HasValue ? (int)api.Status.Value : 0;
+                if (source == "ElevenLabs" && (status == 401 || status == 402 || status == 403 || status == 429))
+                {
+                    elevenLabsPausedUntilUtc = DateTime.UtcNow + ElevenLabsPause;
+                    Log("ElevenLabs lehnt ab, 10 Minuten Pause, bis dahin die Ersatzstimme: " + e.Message);
+                    return null;
+                }
                 Log(source + " nicht verfügbar, nehme die nächste Stimmenquelle: " + e.Message);
                 return null;
             }
