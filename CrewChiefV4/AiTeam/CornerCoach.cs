@@ -23,6 +23,7 @@ namespace CrewChiefV4.AiTeam
         public float ExitSpeedKmh = float.NaN;
         public float FullThrottleAfterEntryM = float.NaN;
         public float TimeS = float.NaN;                    // von 100 m vor bis 100 m nach der Kurve
+        public int MinGear;                                // kleinster Vorwärtsgang in der Kurve, 0 = unbekannt
         public bool Complete { get { return !float.IsNaN(TimeS) && !float.IsNaN(MinSpeedKmh); } }
     }
 
@@ -87,7 +88,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Ein Telemetrie-Tick. Pedale 0..1 (0..100 wird umgerechnet), Tempo in m/s, Zeit = Session-Laufzeit in s.</summary>
-        public void Tick(float distanceRoundTrack, float speedMs, float throttle, float brake, float sessionTime, bool inPit)
+        public void Tick(float distanceRoundTrack, float speedMs, float throttle, float brake, float sessionTime, bool inPit, int gear = 0)
         {
             lock (sync)
             {
@@ -139,6 +140,10 @@ namespace CrewChiefV4.AiTeam
                     t.PrevBrake = brake;
                     if (rel >= 0 && rel <= length)
                     {
+                        if (gear > 0 && (t.Pass.MinGear == 0 || gear < t.Pass.MinGear))
+                        {
+                            t.Pass.MinGear = gear;
+                        }
                         if (float.IsNaN(t.Pass.MinSpeedKmh) || kmh < t.Pass.MinSpeedKmh)
                         {
                             t.Pass.MinSpeedKmh = kmh;
@@ -234,10 +239,13 @@ namespace CrewChiefV4.AiTeam
                     if (!float.IsNaN(pair.MinSpeedDeltaKmh)) c["scheitel_kmh"] = Math.Round(pair.MinSpeedDeltaKmh, 1);
                     if (!float.IsNaN(pair.ExitSpeedDeltaKmh)) c["ausgang_kmh"] = Math.Round(pair.ExitSpeedDeltaKmh, 1);
                     if (!float.IsNaN(pair.ThrottleLaterM)) c["vollgas_spaeter_m"] = Math.Round(pair.ThrottleLaterM);
+                    if (pair.Gear > 0) c["gang"] = pair.Gear;
+                    if (pair.Gear > 0 && pair.BestGear > 0 && pair.Gear != pair.BestGear) c["gang_bestrunde"] = pair.BestGear;
                     list.Add(c);
                 }
                 o["kurven"] = list;
-                o["hinweis"] = "scheitel_kmh/ausgang_kmh negativ = langsamer als in der Bestrunde; vollgas_spaeter_m positiv = später voll aufs Gas";
+                o["hinweis"] = "scheitel_kmh/ausgang_kmh negativ = langsamer als in der Bestrunde; vollgas_spaeter_m positiv = später voll aufs Gas; " +
+                    "gang = kleinster Gang in der Kurve, gang_bestrunde nur wenn er in der Bestrunde anders war";
                 return o;
             }
         }
@@ -294,6 +302,10 @@ namespace CrewChiefV4.AiTeam
                     {
                         text += ", Vollgas " + Math.Abs(Math.Round(p.ThrottleLaterM)) + " m " + (p.ThrottleLaterM > 0 ? "später" : "früher");
                     }
+                    if (p.Gear > 0 && p.BestGear > 0 && p.Gear != p.BestGear)
+                    {
+                        text += ", im Scheitel " + p.Gear + ". Gang statt " + p.BestGear + ". Gang wie in der Bestrunde";
+                    }
                     return text + ".";
                 }
                 return null;
@@ -309,6 +321,8 @@ namespace CrewChiefV4.AiTeam
             public float MinSpeedDeltaKmh = float.NaN;
             public float ExitSpeedDeltaKmh = float.NaN;
             public float ThrottleLaterM = float.NaN;
+            public int Gear;
+            public int BestGear;
         }
 
         private IEnumerable<CornerDelta> Compare(CornerLap lap, CornerLap reference)
@@ -330,6 +344,8 @@ namespace CrewChiefV4.AiTeam
                     MinSpeedDeltaKmh = p.MinSpeedKmh - refPass.MinSpeedKmh,
                     ExitSpeedDeltaKmh = p.ExitSpeedKmh - refPass.ExitSpeedKmh,
                     ThrottleLaterM = p.FullThrottleAfterEntryM - refPass.FullThrottleAfterEntryM,
+                    Gear = p.MinGear,
+                    BestGear = refPass.MinGear,
                 };
             }
         }

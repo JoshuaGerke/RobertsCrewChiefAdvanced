@@ -29,6 +29,7 @@ namespace CrewChiefV4.AiTeam
         public readonly AiRaceMemory Memory = new AiRaceMemory();
         public readonly CornerCoach Corners = new CornerCoach();
         private readonly FuelWatch fuelWatch = new FuelWatch();
+        private readonly IncidentWatch incidentWatch = new IncidentWatch();
         private string cornerTrackKey;
 
         /// <summary>Wird vom Fenster angezeigt (letzte Erkennung, letzte Antwort, Fehler).</summary>
@@ -133,6 +134,7 @@ namespace CrewChiefV4.AiTeam
                 Interlocked.Exchange(ref callsThisSession, 0);
                 lastProactiveLap = -1;
                 fuelWatch.Reset();
+                incidentWatch.Reset();
                 cornerTrackKey = null;
                 sessionSeenUtc = now;
             }
@@ -145,7 +147,8 @@ namespace CrewChiefV4.AiTeam
                     current.SessionData.PreviousLapWasValid && (lap == null || !lap.InPitLap));
             }
             Corners.Tick(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed,
-                current.ControlData.ThrottlePedal, current.ControlData.BrakePedal, current.SessionData.SessionRunningTime, current.PitData.InPitlane);
+                current.ControlData.ThrottlePedal, current.ControlData.BrakePedal, current.SessionData.SessionRunningTime, current.PitData.InPitlane,
+                current.TransmissionData.Gear);
             if (Spotter().HasOverlap)
             {
                 lastOverlapUtc = now;
@@ -153,6 +156,12 @@ namespace CrewChiefV4.AiTeam
             if (lapCompleted)
             {
                 CheckFuel(current);
+            }
+            foreach (var incident in incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL))
+            {
+                var radio = incident;
+                Log("Zwischenfall " + TeamRouter.DisplayName(radio.Key) + ": " + radio.Value);
+                Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None));
             }
             MaybeSessionBriefing(previous, current, now);
 

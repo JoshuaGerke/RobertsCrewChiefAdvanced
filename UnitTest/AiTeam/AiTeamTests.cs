@@ -576,7 +576,7 @@ namespace UnitTest.AiTeamTests
         // ---------- Kurven-Coaching und Sprit-Warnung ----------
 
         // Synthetische Runde auf einer 1000-m-Strecke mit einer Kurve von 400 bis 500 m.
-        private static void DriveLap(CornerCoach coach, ref float time, int lap, float brakeAt, float apexKmh, float exitKmh, float throttleAt, float lapTime)
+        private static void DriveLap(CornerCoach coach, ref float time, int lap, float brakeAt, float apexKmh, float exitKmh, float throttleAt, float lapTime, int apexGear = 2)
         {
             for (float d = 0; d < 1000; d += 5)
             {
@@ -588,7 +588,8 @@ namespace UnitTest.AiTeamTests
                 float brake = d >= brakeAt && d < 400 ? 0.9f : 0f;
                 float throttle = d >= throttleAt || d < brakeAt ? 1f : 0.3f;
                 time += 5 / (kmh / 3.6f);
-                coach.Tick(d, kmh / 3.6f, throttle, brake, time, false);
+                int gear = d >= 400 && d <= 500 ? apexGear : 5;
+                coach.Tick(d, kmh / 3.6f, throttle, brake, time, false, gear);
             }
             coach.CompleteLap(lap, lapTime, true);
         }
@@ -606,7 +607,7 @@ namespace UnitTest.AiTeamTests
             var coach = OneCornerTrack();
             float t = 0;
             DriveLap(coach, ref t, 1, 330, 90, 120, 460, 60.0f);   // Bestrunde
-            DriveLap(coach, ref t, 2, 310, 82, 112, 480, 60.6f);   // 20 m früher gebremst, langsamer
+            DriveLap(coach, ref t, 2, 310, 82, 112, 480, 60.6f, 3);   // 20 m früher gebremst, langsamer, ein Gang höher
             var result = coach.Analyse();
             Assert.IsNull(result["verfuegbar"]);
             var corner = result["kurven"][0];
@@ -615,6 +616,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(-8, (double)corner["scheitel_kmh"], 3);
             Assert.Greater((double)corner["zeit_s"], 0.1);
             Assert.AreEqual(20, (double)corner["vollgas_spaeter_m"], 6);
+            Assert.AreEqual(3, (int)corner["gang"]);
+            Assert.AreEqual(2, (int)corner["gang_bestrunde"]);
         }
 
         [Test]
@@ -634,12 +637,13 @@ namespace UnitTest.AiTeamTests
             var coach = OneCornerTrack();
             float t = 0;
             DriveLap(coach, ref t, 1, 330, 90, 120, 460, 60.0f);
-            DriveLap(coach, ref t, 2, 300, 80, 110, 490, 60.9f);
+            DriveLap(coach, ref t, 2, 300, 80, 110, 490, 60.9f, 3);
             Assert.IsNull(coach.FindConsistentLoss(), "nach einer schlechten Runde noch kein Hinweis");
-            DriveLap(coach, ref t, 3, 300, 80, 110, 490, 60.9f);
+            DriveLap(coach, ref t, 3, 300, 80, 110, 490, 60.9f, 3);
             string hint = coach.FindConsistentLoss();
             StringAssert.StartsWith("Kurve 1: in den letzten zwei Runden", hint);
             StringAssert.Contains("früher", hint);
+            StringAssert.Contains("3. Gang statt 2. Gang", hint);
             DriveLap(coach, ref t, 4, 300, 80, 110, 490, 60.9f);
             Assert.IsNull(coach.FindConsistentLoss(), "derselbe Hinweis höchstens alle 5 Runden");
         }
@@ -735,6 +739,93 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("Guthaben", AiTeamForm.ExplainKeyError("OpenRouter", "Fehler nach 300 ms: 402: Insufficient credits"));
             StringAssert.Contains("Berechtigungen", AiTeamForm.ExplainKeyError("ElevenLabs", "ElevenLabs 403: missing_permissions"));
             StringAssert.Contains("online", AiTeamForm.ExplainKeyError("OpenRouter", "Keine Verbindung zur KI: Host nicht gefunden"));
+        }
+
+        // ---------- Zwischenfälle ----------
+
+        private static GameStateData Racing(float kmh)
+        {
+            var gs = new GameStateData(1);
+            gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.PositionAndMotionData.CarSpeed = kmh / 3.6f;
+            gs.SessionData.CurrentLapIsValid = true;
+            return gs;
+        }
+
+        [Test]
+        public void Kontakt_dann_Schadensbild_nach_drei_Sekunden()
+        {
+            var watch = new IncidentWatch();
+            var before = Racing(150);
+            var hit = Racing(140);
+            hit.CarDamageData.LastImpactTime = 123.4f;
+            hit.CarDamageData.DamageEnabled = true;
+            hit.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
+            var first = watch.Evaluate(before, hit, now, false);
+            Assert.AreEqual(1, first.Count);
+            Assert.AreEqual("Kontakt. Ich schau mir den Schaden an.", first[0].Value);
+            Assert.AreEqual(0, watch.Evaluate(hit, hit, now.AddSeconds(1), false).Count);
+            var later = watch.Evaluate(hit, hit, now.AddSeconds(3.5), false);
+            Assert.AreEqual("Aero leicht beschädigt. Sollte fahrbar sein.", later[0].Value);
+        }
+
+        [Test]
+        public void Kontakt_ohne_Einschlagzeit_ueber_Schadensanstieg()
+        {
+            var watch = new IncidentWatch();
+            var before = Racing(150);
+            before.CarDamageData.DamageEnabled = true;
+            before.CarDamageData.OverallAeroDamage = DamageLevel.NONE;
+            var after = Racing(150);
+            after.CarDamageData.DamageEnabled = true;
+            after.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
+            Assert.AreEqual("Kontakt. Ich schau mir den Schaden an.", watch.Evaluate(before, after, now, false)[0].Value);
+            var unknown = Racing(150);
+            unknown.CarDamageData.DamageEnabled = true;
+            Assert.IsFalse(IncidentWatch.DamageIncreased(unknown.CarDamageData, after.CarDamageData), "erster Messwert ist kein Kontakt");
+        }
+
+        [Test]
+        public void Schwerer_Schaden_empfiehlt_Box_ohne_Schadensmodell_keine_Aussage()
+        {
+            var d = new GameStateData(1).CarDamageData;
+            d.DamageEnabled = true;
+            d.OverallEngineDamage = DamageLevel.MAJOR;
+            StringAssert.Contains("komm an die Box", IncidentWatch.DamageReport(d));
+            d.OverallEngineDamage = DamageLevel.NONE;
+            Assert.AreEqual("Kein nennenswerter Schaden, weiter.", IncidentWatch.DamageReport(d));
+            d.DamageEnabled = false;
+            Assert.IsNull(IncidentWatch.DamageReport(d));
+        }
+
+        [Test]
+        public void Dreher_mit_Verkehrshinweis_und_Strafe_fuer_Mik()
+        {
+            var watch = new IncidentWatch();
+            var fast = Racing(150);
+            watch.Evaluate(Racing(150), fast, now, false);
+            var stopped = Racing(5);
+            stopped.SessionData.TimeDeltaBehind = 2.3f;
+            var spin = watch.Evaluate(fast, stopped, now.AddSeconds(2), false);
+            StringAssert.StartsWith("Alles okay?", spin[0].Value);
+            StringAssert.Contains("2,3 Sekunden", spin[0].Value);
+
+            var penalised = Racing(150);
+            penalised.PenaltiesData.HasDriveThrough = true;
+            var penalty = watch.Evaluate(Racing(150), penalised, now.AddMinutes(1), false);
+            Assert.AreEqual(TeamMember.Mik, penalty[0].Key);
+            StringAssert.Contains("Durchfahrtsstrafe", penalty[0].Value);
+        }
+
+        [Test]
+        public void Ungueltige_Runde_einmal_pro_Runde_und_nicht_im_Minimalmodus()
+        {
+            var watch = new IncidentWatch();
+            var invalid = Racing(150);
+            invalid.SessionData.CurrentLapIsValid = false;
+            Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, true).Count);
+            Assert.AreEqual("Die Runde ist ungültig, Streckenbegrenzung.", watch.Evaluate(Racing(150), invalid, now, false)[0].Value);
+            Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, false).Count);
         }
 
         // ---------- Hilfen ----------
