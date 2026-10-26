@@ -31,6 +31,11 @@ namespace CrewChiefV4.AiTeam
         private readonly FuelWatch fuelWatch = new FuelWatch();
         private readonly IncidentWatch incidentWatch = new IncidentWatch();
         private readonly FlagWatch flagWatch = new FlagWatch();
+        private readonly LapWatch lapWatch = new LapWatch();
+        private readonly CornerDetector cornerDetector = new CornerDetector();
+        private bool detectCorners;
+        private string detectTrackName;
+        private DateTime lastStatusUtc = DateTime.MinValue;
         private string cornerTrackKey;
 
         /// <summary>Wird vom Fenster angezeigt (letzte Erkennung, letzte Antwort, Fehler).</summary>
@@ -153,6 +158,8 @@ namespace CrewChiefV4.AiTeam
                 fuelWatch.Reset();
                 incidentWatch.Reset();
                 flagWatch.Reset();
+                lapWatch.Reset();
+                lastStatusUtc = now;
                 cornerTrackKey = null;
                 sessionSeenUtc = now;
             }
@@ -161,8 +168,17 @@ namespace CrewChiefV4.AiTeam
             if (lapCompleted)
             {
                 var lap = Memory.GetLaps(1).LastOrDefault();
+                bool cleanLap = lap == null || !lap.InPitLap;
                 Corners.CompleteLap(current.SessionData.CompletedLaps, current.SessionData.LapTimePrevious,
-                    current.SessionData.PreviousLapWasValid && (lap == null || !lap.InPitLap));
+                    current.SessionData.PreviousLapWasValid && cleanLap);
+                if (detectCorners)
+                {
+                    FinishCornerDetection(cleanLap);
+                }
+            }
+            if (detectCorners && !current.PitData.InPitlane)
+            {
+                cornerDetector.Add(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed * 3.6f);
             }
             Corners.Tick(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed,
                 current.ControlData.ThrottlePedal, current.ControlData.BrakePedal, current.SessionData.SessionRunningTime, current.PitData.InPitlane,
@@ -190,12 +206,21 @@ namespace CrewChiefV4.AiTeam
                 Log("Zwischenfall " + TeamRouter.DisplayName(radio.Key) + ": " + radio.Value);
                 Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None));
             }
+            string lapCall = lapWatch.Evaluate(previous, current,
+                RaceDataTools.GapSeconds(current, RaceDataTools.Neighbour(current, true), true),
+                RaceDataTools.GapSeconds(current, RaceDataTools.Neighbour(current, false), false), settings.RadioMode == AiRadioMode.MINIMAL);
+            if (lapCall != null)
+            {
+                Log("Rundenansage Ben: " + lapCall);
+                Task.Run(() => SpeakAsync(TeamMember.Ben, lapCall, true, CancellationToken.None));
+            }
             var damage = incidentWatch.TakeDamageAssessment();
             if (damage != null)
             {
                 Task.Run(() => ReportDamageAsync(damage));
             }
             MaybeSessionBriefing(previous, current, now);
+            MaybeStatus(current, now);
 
             string trigger = null;
             if (previous != null)
@@ -230,20 +255,22 @@ namespace CrewChiefV4.AiTeam
         private void UpdateCornerTrack(GameStateData gs)
         {
             var track = gs.SessionData.TrackDefinition;
-            if (track == null || track.trackLandmarks == null || track.trackLength <= 0)
+            if (track == null || track.trackLength <= 0)
             {
                 return;
             }
-            string key = track.name + "|" + track.trackLandmarks.Count + "|" + gs.SessionData.SessionId;
+            var landmarks = track.trackLandmarks ?? new List<TrackLandmark>();
+            string key = track.name + "|" + landmarks.Count + "|" + gs.SessionData.SessionId;
             if (key == cornerTrackKey)
             {
                 return;
             }
             cornerTrackKey = key;
+            detectCorners = false;
             var corners = new List<CornerDefinition>();
-            for (int i = 0; i < track.trackLandmarks.Count; i++)
+            for (int i = 0; i < landmarks.Count; i++)
             {
-                var lm = track.trackLandmarks[i];
+                var lm = landmarks[i];
                 if (lm.isStraight)
                 {
                     continue;
@@ -251,8 +278,96 @@ namespace CrewChiefV4.AiTeam
                 string raw = lm.landmarkNames != null && lm.landmarkNames.Count > 0 ? lm.landmarkNames[0] : null;
                 corners.Add(new CornerDefinition { Name = CornerCoach.FriendlyName(raw, corners.Count), Start = lm.distanceRoundLapStart, End = lm.distanceRoundLapEnd });
             }
+            if (corners.Count == 0)
+            {
+                corners = LoadDetectedCorners(track.name);
+                if (corners.Count == 0)
+                {
+                    // keine Kurvendaten (z. B. viele AMS2-Strecken): in der ersten sauberen Runde selbst vermessen
+                    detectCorners = true;
+                    detectTrackName = track.name;
+                    cornerDetector.Reset(track.trackLength);
+                    Log("Kurvenanalyse: keine Kurvendaten für " + track.name + ", vermesse die Kurven in der ersten sauberen Runde");
+                }
+            }
             Corners.SetTrack(corners, track.trackLength);
             Log("Kurvenanalyse: " + corners.Count + " Kurven für " + track.name);
+        }
+
+        private void FinishCornerDetection(bool cleanLap)
+        {
+            var found = cleanLap ? cornerDetector.Detect() : new List<CornerDefinition>();
+            var track = CrewChief.currentGameState != null ? CrewChief.currentGameState.SessionData.TrackDefinition : null;
+            if (found.Count >= 3 && track != null)
+            {
+                detectCorners = false;
+                Corners.SetTrack(found, track.trackLength);
+                SaveDetectedCorners(detectTrackName, found);
+                Log("Kurvenanalyse: " + found.Count + " Kurven selbst vermessen für " + detectTrackName);
+            }
+            else
+            {
+                cornerDetector.Reset(track != null ? track.trackLength : 0); // nächste Runde neu versuchen
+            }
+        }
+
+        private static string CornerFile(string trackName)
+        {
+            string safe = string.Concat((trackName ?? "strecke").Select(c => char.IsLetterOrDigit(c) ? c : '_'));
+            return Path.Combine(AiSecretStore.Folder, "kurven", safe + ".json");
+        }
+
+        private List<CornerDefinition> LoadDetectedCorners(string trackName)
+        {
+            try
+            {
+                string file = CornerFile(trackName);
+                if (File.Exists(file))
+                {
+                    return Newtonsoft.Json.JsonConvert.DeserializeObject<List<CornerDefinition>>(File.ReadAllText(file)) ?? new List<CornerDefinition>();
+                }
+            }
+            catch (Exception e)
+            {
+                Log("Gespeicherte Kurven nicht lesbar: " + e.Message);
+            }
+            return new List<CornerDefinition>();
+        }
+
+        private void SaveDetectedCorners(string trackName, List<CornerDefinition> corners)
+        {
+            try
+            {
+                string file = CornerFile(trackName);
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.WriteAllText(file, Newtonsoft.Json.JsonConvert.SerializeObject(corners));
+            }
+            catch (Exception e)
+            {
+                Log("Kurven nicht gespeichert: " + e.Message);
+            }
+        }
+
+        /// <summary>Regelmäßiger Statusfunk (Einstellung "Statusfunk alle … Minuten"), auch ohne Frage des Fahrers.</summary>
+        private void MaybeStatus(GameStateData gs, DateTime now)
+        {
+            var s = gs.SessionData;
+            if (settings.StatusIntervalMinutes <= 0 || settings.RadioMode == AiRadioMode.MINIMAL || !HasApiKey || proactiveRunning ||
+                s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane ||
+                Spotter().HasOverlap || (now - lastOverlapUtc).TotalSeconds < 8)
+            {
+                return;
+            }
+            if ((now - lastStatusUtc).TotalMinutes < settings.StatusIntervalMinutes || (now - lastProactiveUtc).TotalSeconds < 45)
+            {
+                return;
+            }
+            if (settings.MaxCallsPerSession > 0 && callsThisSession >= settings.MaxCallsPerSession * 0.8)
+            {
+                return;
+            }
+            lastStatusUtc = now;
+            RunScripted(AiPersonas.StatusPrompt, "Status");
         }
 
         /// <summary>Feste Sprit-Warnung (ohne KI), nur im Rennen.</summary>
@@ -845,6 +960,7 @@ namespace CrewChiefV4.AiTeam
                         ["rundenzeiten"] = RaceDataTools.Execute("get_lap_times", ctx),
                         ["stint"] = RaceDataTools.Execute("get_stint_analysis", ctx),
                         ["kurven"] = RaceDataTools.Execute("get_corner_analysis", ctx),
+                        ["ereignisse_und_letzte_funksprueche"] = RaceDataTools.Execute("get_recent_events", ctx),
                     };
                     var messages = new JArray
                     {

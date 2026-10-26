@@ -61,6 +61,18 @@ namespace CrewChiefV4.AiTeam
             "meldet sich regelmäßig, aber nicht ununterbrochen. Zahlen nur aus den Daten, nie erfunden, keine Spotter-Freigaben.\n" +
             "Antworte ausschließlich als JSON: {{\"speaker\": \"ben\" | \"mik\" | \"none\", \"text\": \"Funkspruch auf Deutsch, höchstens 25 Wörter\"}}.";
 
+        /// <summary>Regelmäßiger Statusfunk, auch wenn der Fahrer nicht fragt.</summary>
+        public const string StatusPrompt =
+            "Zeit für einen kurzen Statusfunk an den Fahrer {0}, so wie ein echter Renningenieur sich zwischendurch meldet, ohne dass " +
+            "der Fahrer fragt. Wähle aus den Daten ein bis drei Punkte, die gerade am meisten interessieren, und wechsle von Mal zu Mal ab: " +
+            "Position und gewonnene oder verlorene Plätze, Abstand nach vorn und hinten und ob er wächst oder schrumpft, ob der Sprit bis " +
+            "ins Ziel reicht, Reifen, verbleibende Runden oder Zeit, Tendenz der Rundenzeiten, die Kurve mit dem größten Zeitverlust. " +
+            "Nichts wiederholen, was in den letzten Funksprüchen schon gesagt wurde, und nicht jedes Mal gleich anfangen. Im Rennen " +
+            "spricht Mik für Strategie, Sprit und Abstände, Ben für Auto, Reifen und Fahrweise; im Training und Qualifying Ben. " +
+            "Nur Werte aus den Daten, nichts erfinden. Natürliches gesprochenes Deutsch, Zahlen wie gesprochen, kein Markdown.\n" +
+            "Antworte ausschließlich als JSON: {{\"funksprueche\": [{{\"speaker\": \"ben\" | \"mik\", \"text\": \"höchstens 30 Wörter\"}}]}} " +
+            "mit genau einem Eintrag.";
+
         /// <summary>Schadensbericht nach einem Unfall, sobald der Wagen wieder fährt.</summary>
         public const string DamageAssessmentPrompt =
             "Der Fahrer {0} hatte gerade einen Zwischenfall und ist wieder unterwegs. Ben meldet sich wie ein echter Renningenieur mit " +

@@ -905,6 +905,71 @@ namespace UnitTest.AiTeamTests
             CollectionAssert.AreEqual(new[] { "Grün, wieder freie Fahrt." }, watch.Evaluate(fcy, a, now.AddSeconds(90)));
         }
 
+        // ---------- Rückmeldungen 26.10.: Abstände, letzte Runde, Kurven ohne Streckendaten ----------
+
+        [Test]
+        public void Abstand_wird_geschaetzt_wenn_das_Spiel_keinen_liefert()
+        {
+            var gs = Racing(150);
+            gs.SessionData.TrackDefinition = new CrewChiefV4.TrackDefinition("Test", 0, 5000, new float[] { 0, 0 }, new float[] { 0, 0 });
+            gs.SessionData.LapTimePrevious = 100;      // 50 m/s
+            gs.SessionData.CompletedLaps = 3;
+            gs.SessionData.ClassPosition = 5;
+            gs.PositionAndMotionData.DistanceRoundTrack = 1000;
+            var ahead = new OpponentData { ClassPosition = 4, CompletedLaps = 3, DistanceRoundTrack = 1100 };
+            gs.OpponentData["a"] = ahead;
+            Assert.AreSame(ahead, RaceDataTools.Neighbour(gs, true));
+            Assert.AreEqual(2.0f, RaceDataTools.GapSeconds(gs, ahead, true), 0.01f);
+            gs.SessionData.TimeDeltaFront = 1.4f;
+            Assert.AreEqual(1.4f, RaceDataTools.GapSeconds(gs, ahead, true), 0.001f, "Spielwert hat Vorrang");
+        }
+
+        [Test]
+        public void Letzte_Runde_und_Ziel_werden_angesagt()
+        {
+            var watch = new LapWatch();
+            var before = Racing(150);
+            before.SessionData.SessionType = SessionType.Race;
+            before.SessionData.SessionLapsRemaining = 2;
+            var lastLap = Racing(150);
+            lastLap.SessionData.SessionType = SessionType.Race;
+            lastLap.SessionData.IsNewLap = true;
+            lastLap.SessionData.CompletedLaps = 9;
+            lastLap.SessionData.SessionLapsRemaining = 1;
+            lastLap.SessionData.ClassPosition = 5;
+            Assert.AreEqual("Letzte Runde! Platz 5. Hinter dir 0,8 Sekunden, mach die Tür zu.", watch.Evaluate(before, lastLap, 3f, 0.8f, false));
+            Assert.IsNull(watch.Evaluate(lastLap, lastLap, 3f, 0.8f, false), "nur einmal");
+            var done = Racing(150);
+            done.SessionData.SessionType = SessionType.Race;
+            done.SessionData.SessionPhase = SessionPhase.Finished;
+            done.SessionData.ClassPosition = 4;
+            done.SessionData.SessionStartClassPosition = 7;
+            Assert.AreEqual("Im Ziel! Platz 4. 3 Plätze gutgemacht.", watch.Evaluate(lastLap, done, -1, -1, false));
+        }
+
+        [Test]
+        public void Kurven_werden_aus_dem_Tempo_erkannt()
+        {
+            var d = new CornerDetector();
+            d.Reset(3000);
+            for (float x = 0; x < 3000; x += 5)
+            {
+                // drei Tempo-Täler bei 800, 1600 und 2400 m, sonst 220 km/h
+                float kmh = 220;
+                foreach (float apex in new[] { 800f, 1600f, 2400f })
+                {
+                    float dist = Math.Abs(x - apex);
+                    if (dist < 150) kmh = Math.Min(kmh, 90 + dist * 0.85f);
+                }
+                d.Add(x, kmh);
+            }
+            var corners = d.Detect();
+            Assert.AreEqual(3, corners.Count);
+            Assert.AreEqual("Kurve 1", corners[0].Name);
+            Assert.That(corners[0].Start, Is.InRange(700f, 800f));
+            Assert.That(corners[2].End, Is.InRange(2400f, 2500f));
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)

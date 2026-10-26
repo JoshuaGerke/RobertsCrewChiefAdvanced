@@ -1766,6 +1766,9 @@
     <Setting Name="ai_team_timeout_seconds" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">12</Value>
     </Setting>
+    <Setting Name="ai_team_status_interval_minutes" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">2</Value>
+    </Setting>
     <Setting Name="ai_team_max_calls_per_session" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">300</Value>
     </Setting>

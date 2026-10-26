@@ -40,6 +40,7 @@ namespace CrewChiefV4.AiTeam
         public string Microphone = "";
         public int TimeoutSeconds = 12;
         public int MaxCallsPerSession = 300;
+        public int StatusIntervalMinutes = 2;
         public bool RadioEffect = true;
         public bool SendDriverNames = true;
         public bool WriteLog = true;
@@ -73,6 +74,7 @@ namespace CrewChiefV4.AiTeam
             s.Microphone = Get(() => u.getString("ai_team_microphone"), s.Microphone);
             s.TimeoutSeconds = Math.Max(3, Get(() => u.getInt("ai_team_timeout_seconds"), s.TimeoutSeconds));
             s.MaxCallsPerSession = Math.Max(0, Get(() => u.getInt("ai_team_max_calls_per_session"), s.MaxCallsPerSession));
+            s.StatusIntervalMinutes = Math.Max(0, Get(() => u.getInt("ai_team_status_interval_minutes"), s.StatusIntervalMinutes));
             s.RadioEffect = Get(() => u.getBoolean("enable_ai_team_radio_effect"), s.RadioEffect);
             s.SendDriverNames = Get(() => u.getBoolean("enable_ai_team_send_driver_names"), s.SendDriverNames);
             s.WriteLog = Get(() => u.getBoolean("enable_ai_team_log"), s.WriteLog);

@@ -299,12 +299,12 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             var o = new JObject();
             o["eigene_letzte_runde_s"] = Num(s.LapTimePrevious, 3, 1, 3600, "eigene_letzte_runde", missing);
-            OpponentData ahead = Lookup(gs, s.OpponentKeyInFront);
-            OpponentData behind = Lookup(gs, s.OpponentKeyBehind);
+            OpponentData ahead = Neighbour(gs, true);
+            OpponentData behind = Neighbour(gs, false);
             if (ahead != null)
             {
                 var a = Describe(ahead, ctx, s);
-                a["abstand_s"] = Num(s.TimeDeltaFront, 2, 0.01f, 600, "abstand_vorne", missing);
+                a["abstand_s"] = Num(GapSeconds(gs, ahead, true), 2, 0.01f, 600, "abstand_vorne", missing);
                 if (s.LapsDeltaFront > 0)
                 {
                     a["runden_rueckstand_auf_ihn"] = s.LapsDeltaFront;
@@ -318,7 +318,7 @@ namespace CrewChiefV4.AiTeam
             if (behind != null)
             {
                 var b = Describe(behind, ctx, s);
-                b["abstand_s"] = Num(s.TimeDeltaBehind, 2, 0.01f, 600, "abstand_hinten", missing);
+                b["abstand_s"] = Num(GapSeconds(gs, behind, false), 2, 0.01f, 600, "abstand_hinten", missing);
                 if (s.LapsDeltaBehind > 0)
                 {
                     b["runden_vorsprung"] = s.LapsDeltaBehind;
@@ -567,8 +567,15 @@ namespace CrewChiefV4.AiTeam
             o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
             var s = ctx.GameState.SessionData;
-            if (s.TimeDeltaFront > 0) o["abstand_vorne_s"] = Math.Round(s.TimeDeltaFront, 2);
-            if (s.TimeDeltaBehind > 0) o["abstand_hinten_s"] = Math.Round(s.TimeDeltaBehind, 2);
+            float gapAhead = GapSeconds(ctx.GameState, Neighbour(ctx.GameState, true), true);
+            float gapBehind = GapSeconds(ctx.GameState, Neighbour(ctx.GameState, false), false);
+            if (gapAhead > 0) o["abstand_vorne_s"] = Math.Round(gapAhead, 2);
+            if (gapBehind > 0) o["abstand_hinten_s"] = Math.Round(gapBehind, 2);
+            if (s.SessionStartClassPosition > 0 && s.ClassPosition > 0)
+            {
+                o["startplatz"] = s.SessionStartClassPosition;
+                o["plaetze_gewonnen_seit_start"] = s.SessionStartClassPosition - s.ClassPosition;
+            }
             if (s.LapTimePrevious > 0) o["letzte_runde_s"] = Math.Round(s.LapTimePrevious, 3);
             if (ctx.GameState.FuelData.FuelUseActive && ctx.GameState.FuelData.FuelLeft > 0)
             {
@@ -586,6 +593,56 @@ namespace CrewChiefV4.AiTeam
             result.Remove("datenalter_s");
             result.Remove("veraltet");
             return result;
+        }
+
+        /// <summary>Auto direkt vor bzw. hinter uns: Crew Chiefs Zuordnung, sonst über die Klassenposition.</summary>
+        public static OpponentData Neighbour(GameStateData gs, bool ahead)
+        {
+            if (gs == null)
+            {
+                return null;
+            }
+            var s = gs.SessionData;
+            var op = Lookup(gs, ahead ? s.OpponentKeyInFront : s.OpponentKeyBehind);
+            if (op != null)
+            {
+                return op;
+            }
+            int pos = s.ClassPosition + (ahead ? -1 : 1);
+            return pos < 1 ? null : gs.OpponentData.Values.FirstOrDefault(o => o.ClassPosition == pos);
+        }
+
+        /// <summary>
+        /// Abstand in Sekunden: Wert des Spiels, sonst geschätzt aus dem Streckenabstand und unserem Rundentempo
+        /// (nicht jedes Spiel liefert ihn laufend, z. B. AMS2 nur an Messpunkten). -1 = unbekannt oder überrundet.
+        /// </summary>
+        public static float GapSeconds(GameStateData gs, OpponentData op, bool ahead)
+        {
+            if (gs == null)
+            {
+                return -1;
+            }
+            var s = gs.SessionData;
+            float fromGame = ahead ? s.TimeDeltaFront : s.TimeDeltaBehind;
+            if (fromGame > 0)
+            {
+                return fromGame;
+            }
+            float len = s.TrackDefinition != null ? s.TrackDefinition.trackLength : 0;
+            if (op == null || len <= 0)
+            {
+                return -1;
+            }
+            float own = s.CompletedLaps * len + gs.PositionAndMotionData.DistanceRoundTrack;
+            float other = op.CompletedLaps * len + op.DistanceRoundTrack;
+            float d = ahead ? other - own : own - other;
+            if (d <= 0 || d > len)
+            {
+                return -1;
+            }
+            float lap = s.LapTimePrevious > 0 ? s.LapTimePrevious : s.PlayerLapTimeSessionBest;
+            float speed = lap > 0 ? len / lap : gs.PositionAndMotionData.CarSpeed;
+            return speed > 5 ? d / speed : -1;
         }
 
         private static OpponentData Lookup(GameStateData gs, string key)

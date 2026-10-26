@@ -3445,6 +3445,9 @@ ai_team_timeout_seconds = KI-Team Zeitlimit (Sekunden)
 ai_team_timeout_seconds_help = Wie lange auf Spracherkennung, KI und Stimme gewartet wird. Danach kommt eine kurze Meldung, der Rest von Crew Chief läuft ungestört weiter.
 ai_team_timeout_seconds_category = AI_TEAM
 ai_team_timeout_seconds_metadata = RESTART_REQUIRED
+ai_team_status_interval_minutes = KI-Team Statusfunk alle … Minuten
+ai_team_status_interval_minutes_help = So oft meldet sich das Team von selbst mit dem Wichtigsten (Position, Abstände, Sprit, Reifen, Kurve mit Zeitverlust), jedes Mal etwas anderes. 0 = nur auf Nachfrage und bei Auffälligkeiten. Nicht im Funkmodus Minimal.
+ai_team_status_interval_minutes_category = AI_TEAM
 ai_team_max_calls_per_session = KI-Team max. KI-Aufrufe pro Session
 ai_team_max_calls_per_session_help = Kostenbremse. 0 = unbegrenzt. Proaktive Hinweise hören bei 80 Prozent auf, damit Fragen noch beantwortet werden.
 ai_team_max_calls_per_session_category = AI_TEAM

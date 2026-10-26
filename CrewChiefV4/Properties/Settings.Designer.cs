@@ -7085,6 +7085,18 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("2")]
+        public int ai_team_status_interval_minutes {
+            get {
+                return ((int)(this["ai_team_status_interval_minutes"]));
+            }
+            set {
+                this["ai_team_status_interval_minutes"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("300")]
         public int ai_team_max_calls_per_session {
             get {

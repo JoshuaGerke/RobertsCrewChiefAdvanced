@@ -375,4 +375,98 @@ namespace CrewChiefV4.AiTeam
             return string.Join(" ", words.Select(w => char.ToUpperInvariant(w[0]) + w.Substring(1)));
         }
     }
+
+    /// <summary>
+    /// Für Strecken ohne hinterlegte Kurven (Crew-Chief-Landmarken): eine Runde Tempo mitschreiben und die Kurven
+    /// als deutliche Tempo-Täler erkennen. Grob, aber genug für Bremspunkt, Kurventempo und Zeitvergleich.
+    /// </summary>
+    public class CornerDetector
+    {
+        public const float BinM = 10f;
+        public const float MinDropKmh = 20f;
+        public const float MinDropRatio = 0.12f;
+
+        private float[] minSpeed;
+        private float length;
+
+        public void Reset(float trackLength)
+        {
+            length = trackLength;
+            minSpeed = trackLength > 500 ? Enumerable.Repeat(float.NaN, (int)(trackLength / BinM) + 1).ToArray() : null;
+        }
+
+        public void Add(float distanceRoundTrack, float kmh)
+        {
+            if (minSpeed == null || distanceRoundTrack < 0 || distanceRoundTrack >= length)
+            {
+                return;
+            }
+            int i = (int)(distanceRoundTrack / BinM);
+            if (float.IsNaN(minSpeed[i]) || kmh < minSpeed[i])
+            {
+                minSpeed[i] = kmh;
+            }
+        }
+
+        /// <summary>Anteil der Strecke mit Messwerten (0..1).</summary>
+        public float Coverage
+        {
+            get { return minSpeed == null ? 0 : minSpeed.Count(v => !float.IsNaN(v)) / (float)minSpeed.Length; }
+        }
+
+        public List<CornerDefinition> Detect()
+        {
+            var result = new List<CornerDefinition>();
+            if (minSpeed == null || Coverage < 0.9f)
+            {
+                return result;
+            }
+            int n = minSpeed.Length;
+            // Lücken mit dem letzten Wert füllen, dann über ±20 m glätten
+            var raw = (float[])minSpeed.Clone();
+            float last = raw.FirstOrDefault(x => !float.IsNaN(x));
+            for (int i = 0; i < n; i++)
+            {
+                if (float.IsNaN(raw[i])) raw[i] = last; else last = raw[i];
+            }
+            var v = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float sum = 0;
+                for (int k = -2; k <= 2; k++) sum += raw[(i + k + n) % n];
+                v[i] = sum / 5;
+            }
+            var apexes = new List<int>();
+            for (int i = 0; i < n; i++)
+            {
+                bool lowest = true;
+                float before = 0;
+                for (int k = 1; k <= 40 && lowest; k++)  // 100 m Umgebung muss höher sein, 400 m davor das Maximum suchen
+                {
+                    if (k <= 10 && (v[(i + k) % n] < v[i] || v[(i - k + n) % n] < v[i])) lowest = false;
+                    before = Math.Max(before, v[(i - k + n) % n]);
+                }
+                float drop = before - v[i];
+                if (lowest && drop >= MinDropKmh && drop >= before * MinDropRatio)
+                {
+                    if (apexes.Count > 0 && i - apexes[apexes.Count - 1] < 15)
+                    {
+                        if (v[i] < v[apexes[apexes.Count - 1]]) apexes[apexes.Count - 1] = i;
+                        continue;
+                    }
+                    apexes.Add(i);
+                }
+            }
+            foreach (int a in apexes)
+            {
+                float start = (a - 5) * BinM, end = (a + 5) * BinM;
+                if (start < 0 || end > length)
+                {
+                    continue; // Kurve direkt über Start/Ziel: auslassen statt falsch messen
+                }
+                result.Add(new CornerDefinition { Name = CornerCoach.FriendlyName(null, result.Count), Start = start, End = end });
+            }
+            return result;
+        }
+    }
 }
