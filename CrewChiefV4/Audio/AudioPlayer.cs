@@ -2130,8 +2130,26 @@ namespace CrewChiefV4.Audio
             return null;
         }
 
+        /// <summary>RCCA: optionaler Filter ("Nur noch das KI-Team spricht"), false = Nachricht nicht einreihen. Der Spotter läuft nicht hierüber.</summary>
+        public static Func<QueuedMessage, Boolean> messageFilter = null;
+
+        private static Boolean blockedByFilter(QueuedMessage queuedMessage)
+        {
+            var filter = messageFilter;
+            if (filter == null || filter(queuedMessage))
+            {
+                return false;
+            }
+            Log.Verbose(() => "Message " + queuedMessage.messageName + " suppressed (KI-Team replaces Crew Chief voice)");
+            return true;
+        }
+
         public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false)
         {
+            if (blockedByFilter(queuedMessage))
+            {
+                return;
+            }
             if (CrewChief.Debug.RunningUnderDebugger && queuedMessage.messageName != null)
             {
                 int count;
@@ -2243,6 +2261,10 @@ namespace CrewChiefV4.Audio
 
         public void playMessage(QueuedMessage queuedMessage, PearlsOfWisdom.PearlType pearlType, double pearlMessageProbability)
         {
+            if (blockedByFilter(queuedMessage))
+            {
+                return;
+            }
             if (CrewChief.Debug.RunningUnderDebugger && queuedMessage.messageName != null)
             {
                 int count;

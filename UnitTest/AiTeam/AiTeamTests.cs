@@ -838,6 +838,41 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(net, AiTeamService.SpokenError(new AiApiException("Zeitüberschreitung"), net));
         }
 
+        // ---------- Nur noch das KI-Team spricht ----------
+
+        [Test]
+        public void Filter_laesst_KI_und_Spotter_durch_und_blockt_Crew_Chief()
+        {
+            Assert.IsTrue(CrewChiefVoiceFilter.Allow("COMPOUND_ai_team_reply_x", new[] { CrewChiefV4.Audio.SoundCache.AI_AUDIO_IDENTIFIER + "x" }));
+            Assert.IsTrue(CrewChiefVoiceFilter.Allow("spotter/car_left", new[] { "spotter/car_left" }));
+            Assert.IsTrue(CrewChiefVoiceFilter.Allow("x", new[] { "spotter_Sara/clear_all_round" }));
+            Assert.IsTrue(CrewChiefVoiceFilter.Allow("acknowledge/spotterEnabled_Sara", new[] { "acknowledge/spotterEnabled_Sara" }));
+            Assert.IsFalse(CrewChiefVoiceFilter.Allow("fuel/half_distance_low_fuel", new[] { "fuel/half_distance_low_fuel" }));
+            Assert.IsFalse(CrewChiefVoiceFilter.Allow("flags/yellow_flag", new[] { "flags/yellow_flag" }));
+            Assert.IsFalse(CrewChiefVoiceFilter.Allow("DELAYED_lap_times", null), "verzögerte Crew-Chief-Ansagen ohne Ordner");
+        }
+
+        [Test]
+        public void Flaggen_auf_Deutsch_durch_Sara()
+        {
+            var watch = new FlagWatch();
+            var a = Racing(150);
+            var yellow = Racing(150);
+            yellow.FlagData.isLocalYellow = true;
+            CollectionAssert.AreEqual(new[] { "Gelb! Langsam, nicht überholen." }, watch.Evaluate(a, yellow, now));
+            CollectionAssert.AreEqual(new[] { "Gelb vorbei." }, watch.Evaluate(yellow, a, now.AddSeconds(5)));
+            var blue = Racing(150);
+            blue.SessionData.Flag = FlagEnum.BLUE;
+            CollectionAssert.AreEqual(new[] { "Blaue Flagge, lass ihn vorbei." }, watch.Evaluate(a, blue, now.AddSeconds(10)));
+            var incident = Racing(150);
+            incident.FlagData.distanceToNearestIncident = 180;
+            CollectionAssert.AreEqual(new[] { "Unfall voraus!" }, watch.Evaluate(a, incident, now.AddSeconds(20)));
+            var fcy = Racing(150);
+            fcy.FlagData.isFullCourseYellow = true;
+            CollectionAssert.AreEqual(new[] { "Full Course Yellow, Tempo runter." }, watch.Evaluate(a, fcy, now.AddSeconds(30)));
+            CollectionAssert.AreEqual(new[] { "Grün, wieder freie Fahrt." }, watch.Evaluate(fcy, a, now.AddSeconds(90)));
+        }
+
         // ---------- Hilfen ----------
 
         private static RaceDataContext Ctx(GameStateData gs)

@@ -30,6 +30,7 @@ namespace CrewChiefV4.AiTeam
         public readonly CornerCoach Corners = new CornerCoach();
         private readonly FuelWatch fuelWatch = new FuelWatch();
         private readonly IncidentWatch incidentWatch = new IncidentWatch();
+        private readonly FlagWatch flagWatch = new FlagWatch();
         private string cornerTrackKey;
 
         /// <summary>Wird vom Fenster angezeigt (letzte Erkennung, letzte Antwort, Fehler).</summary>
@@ -101,6 +102,10 @@ namespace CrewChiefV4.AiTeam
         private void ApplySettings(AiTeamSettings newSettings)
         {
             settings = newSettings;
+            // "Nur noch das KI-Team spricht": Crew Chiefs eigene Ansagen nicht mehr einreihen (Spotter läuft separat weiter)
+            AudioPlayer.messageFilter = settings.Enabled && settings.ReplaceCrewChiefVoice
+                ? new Func<QueuedMessage, bool>(m => CrewChiefVoiceFilter.Allow(m.messageName, m.messageFolders))
+                : null;
             client = new OpenAiCompatibleClient(settings.BaseUrl, () => AiSecretStore.Load(), TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
             elevenLabs = new ElevenLabsClient(AiSecretStore.LoadElevenLabs, TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
             pushToTalk.SetKey(settings.PttKey);
@@ -135,6 +140,7 @@ namespace CrewChiefV4.AiTeam
                 lastProactiveLap = -1;
                 fuelWatch.Reset();
                 incidentWatch.Reset();
+                flagWatch.Reset();
                 cornerTrackKey = null;
                 sessionSeenUtc = now;
             }
@@ -156,6 +162,15 @@ namespace CrewChiefV4.AiTeam
             if (lapCompleted)
             {
                 CheckFuel(current);
+            }
+            if (settings.ReplaceCrewChiefVoice)
+            {
+                foreach (var flagCall in flagWatch.Evaluate(previous, current, now))
+                {
+                    string call = flagCall;
+                    Log("Flagge Sara: " + call);
+                    Task.Run(() => SpeakAsync(TeamMember.Sara, call, true, CancellationToken.None));
+                }
             }
             foreach (var incident in incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL))
             {
@@ -1157,6 +1172,7 @@ namespace CrewChiefV4.AiTeam
             {
                 string[] phrases = { "Links frei.", "Rechts frei.", "Noch einer links.", "Noch einer rechts.", "Noch zwei links.", "Noch zwei rechts.",
                     "Frei, keiner neben dir.", "Noch einer links, rechts frei.", "Noch einer rechts, links frei.", SaraLocal.NoDataAnswer };
+                phrases = phrases.Concat(FlagWatch.Phrases).ToArray();
                 foreach (var phrase in phrases)
                 {
                     try

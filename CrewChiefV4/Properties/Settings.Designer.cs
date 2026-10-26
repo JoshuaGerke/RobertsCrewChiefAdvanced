@@ -7122,6 +7122,18 @@ namespace CrewChiefV4.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool enable_ai_team_replaces_crew_chief_voice {
+            get {
+                return ((bool)(this["enable_ai_team_replaces_crew_chief_voice"]));
+            }
+            set {
+                this["enable_ai_team_replaces_crew_chief_voice"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool enable_ai_team_log {
             get {
                 return ((bool)(this["enable_ai_team_log"]));
