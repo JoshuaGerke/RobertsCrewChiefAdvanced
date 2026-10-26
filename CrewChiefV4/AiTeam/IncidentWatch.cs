@@ -11,20 +11,43 @@ namespace CrewChiefV4.AiTeam
     /// Dreher/Stillstand (Hinweis auf den Verkehr), neue Strafe (Mik), ungültige Runde (Ben).
     /// Liest nur den GameState, Texte enthalten nur Werte aus der Telemetrie.
     /// </summary>
+    /// <summary>Lage nach einem Zwischenfall, sobald der Wagen wieder fährt. Grundlage für Bens Bewertung.</summary>
+    public class DamageAssessment
+    {
+        public int PositionBefore;
+        public int PositionNow;
+        public bool Serious;
+        /// <summary>Lokaler Bericht ohne KI (Ersatz, wenn die KI nicht erreichbar ist).</summary>
+        public string LocalReport;
+    }
+
     public class IncidentWatch
     {
-        public static readonly TimeSpan DamageCheckDelay = TimeSpan.FromSeconds(3);
+        public static readonly TimeSpan DamageCheckDelay = TimeSpan.FromSeconds(4);
+        public static readonly TimeSpan DamageCheckMaxDelay = TimeSpan.FromSeconds(25);
 
         private DateTime lastContactUtc = DateTime.MinValue;
         private DateTime pendingDamageCheckUtc = DateTime.MinValue;
         private DateTime lastFastUtc = DateTime.MinValue;
         private DateTime lastStopUtc = DateTime.MinValue;
         private int lastInvalidLap = -1;
+        private int positionBeforeIncident;
+        private DamageAssessment assessment;
 
         public void Reset()
         {
             lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = DateTime.MinValue;
             lastInvalidLap = -1;
+            positionBeforeIncident = 0;
+            assessment = null;
+        }
+
+        /// <summary>Fällige Schadensbewertung (einmalig abholen), sonst null.</summary>
+        public DamageAssessment TakeDamageAssessment()
+        {
+            var a = assessment;
+            assessment = null;
+            return a;
         }
 
         /// <summary>Ein Telemetrie-Tick. Liefert die fälligen Funksprüche (meist keinen).</summary>
@@ -48,17 +71,32 @@ namespace CrewChiefV4.AiTeam
                 {
                     result.Add(Say(TeamMember.Ben, "Kontakt. Ich schau mir den Schaden an."));
                 }
+                if (positionBeforeIncident <= 0)
+                {
+                    positionBeforeIncident = previous.SessionData.ClassPosition;
+                }
                 lastContactUtc = nowUtc;
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
             }
-            if (pendingDamageCheckUtc != DateTime.MinValue && nowUtc >= pendingDamageCheckUtc)
+            // Bericht erst, wenn der Wagen wieder auf Tempo ist (dann stehen Schaden und Position fest), spätestens nach 25 s
+            if (pendingDamageCheckUtc != DateTime.MinValue && nowUtc >= pendingDamageCheckUtc &&
+                (kmh > 50 || nowUtc - lastContactUtc > DamageCheckMaxDelay))
             {
                 pendingDamageCheckUtc = DateTime.MinValue;
                 string report = DamageReport(current.CarDamageData);
                 if (report != null)
                 {
-                    result.Add(Say(TeamMember.Ben, report));
+                    int before = positionBeforeIncident, nowPos = current.SessionData.ClassPosition;
+                    if (before > 0 && nowPos > before)
+                    {
+                        report = "Du bist von Platz " + before + " auf " + nowPos + " zurückgefallen. " + report;
+                    }
+                    assessment = new DamageAssessment
+                    {
+                        PositionBefore = before, PositionNow = nowPos, Serious = IsSerious(current.CarDamageData), LocalReport = report,
+                    };
                 }
+                positionBeforeIncident = 0;
             }
 
             // 2. Dreher oder Stillstand: eben noch schnell, jetzt fast stehend, außerhalb der Box
@@ -69,6 +107,10 @@ namespace CrewChiefV4.AiTeam
             else if (kmh < 10 && !inPit && nowUtc - lastFastUtc < TimeSpan.FromSeconds(4) && nowUtc - lastStopUtc > TimeSpan.FromSeconds(30))
             {
                 lastStopUtc = nowUtc;
+                if (positionBeforeIncident <= 0)
+                {
+                    positionBeforeIncident = previous.SessionData.ClassPosition;
+                }
                 string text = "Alles okay? Beim Wiederanfahren auf den Verkehr achten.";
                 float behind = current.SessionData.TimeDeltaBehind;
                 if (behind > 0 && behind < 15)
@@ -112,21 +154,23 @@ namespace CrewChiefV4.AiTeam
             }
             var parts = new List<string>();
             bool serious = false;
-            Add(parts, "Aero", d.OverallAeroDamage, ref serious);
-            Add(parts, "Motor", d.OverallEngineDamage, ref serious);
-            Add(parts, "Getriebe", d.OverallTransmissionDamage, ref serious);
-            if (HasCornerDamage(d.SuspensionDamageStatus, DamageLevel.MAJOR) || HasCornerDamage(d.SuspensionDamageStatus, DamageLevel.DESTROYED))
+            Add(parts, "Aero", d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
+            Add(parts, "Motor", d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
+            Add(parts, "Getriebe", d.OverallTransmissionDamage, d.TransmissionDamagePercent, ref serious);
+            string where = CornerText(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? CornerText(d.SuspensionDamageStatus, DamageLevel.MAJOR);
+            if (where != null)
             {
-                parts.Add("Aufhängung stark beschädigt");
+                parts.Add("Aufhängung " + where + " stark beschädigt");
                 serious = true;
             }
-            else if (HasCornerDamage(d.SuspensionDamageStatus, DamageLevel.MINOR))
+            else if ((where = CornerText(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
             {
-                parts.Add("Aufhängung leicht beschädigt");
+                parts.Add("Aufhängung " + where + " leicht beschädigt");
             }
-            if (HasCornerDamage(d.BrakeDamageStatus, DamageLevel.MAJOR) || HasCornerDamage(d.BrakeDamageStatus, DamageLevel.DESTROYED))
+            where = CornerText(d.BrakeDamageStatus, DamageLevel.DESTROYED) ?? CornerText(d.BrakeDamageStatus, DamageLevel.MAJOR);
+            if (where != null)
             {
-                parts.Add("Bremse stark beschädigt");
+                parts.Add("Bremse " + where + " stark beschädigt");
                 serious = true;
             }
             if (parts.Count == 0)
@@ -153,19 +197,44 @@ namespace CrewChiefV4.AiTeam
             return before != DamageLevel.UNKNOWN && now > before && now >= DamageLevel.MINOR;
         }
 
-        private static void Add(List<string> parts, string name, DamageLevel level, ref bool serious)
+        private static void Add(List<string> parts, string name, DamageLevel level, float percent, ref bool serious)
         {
+            string p = percent >= 1 ? " (" + Math.Round(percent) + " Prozent)" : "";
             switch (level)
             {
-                case DamageLevel.MINOR: parts.Add(name + " leicht beschädigt"); break;
-                case DamageLevel.MAJOR: parts.Add(name + " stark beschädigt"); serious = true; break;
-                case DamageLevel.DESTROYED: parts.Add(name + " kaputt"); serious = true; break;
+                case DamageLevel.MINOR: parts.Add(name + " leicht beschädigt" + p); break;
+                case DamageLevel.MAJOR: parts.Add(name + " stark beschädigt" + p); serious = true; break;
+                case DamageLevel.DESTROYED: parts.Add(name + " kaputt" + p); serious = true; break;
             }
         }
 
-        private static bool HasCornerDamage(CornerData corners, DamageLevel level)
+        public static bool IsSerious(CarDamageData d)
         {
-            return corners != null && corners.getCornersForStatus(level) != CornerData.Corners.NONE;
+            return d.OverallAeroDamage >= DamageLevel.MAJOR || d.OverallEngineDamage >= DamageLevel.MAJOR || d.OverallTransmissionDamage >= DamageLevel.MAJOR ||
+                CornerText(d.SuspensionDamageStatus, DamageLevel.MAJOR) != null || CornerText(d.SuspensionDamageStatus, DamageLevel.DESTROYED) != null ||
+                CornerText(d.BrakeDamageStatus, DamageLevel.MAJOR) != null || CornerText(d.BrakeDamageStatus, DamageLevel.DESTROYED) != null;
+        }
+
+        /// <summary>Welche Ecke(n) diesen Schadensgrad haben, auf Deutsch ("vorne links", "hinten"), null wenn keine.</summary>
+        public static string CornerText(CornerData corners, DamageLevel level)
+        {
+            if (corners == null)
+            {
+                return null;
+            }
+            switch (corners.getCornersForStatus(level))
+            {
+                case CornerData.Corners.FRONT_LEFT: return "vorne links";
+                case CornerData.Corners.FRONT_RIGHT: return "vorne rechts";
+                case CornerData.Corners.REAR_LEFT: return "hinten links";
+                case CornerData.Corners.REAR_RIGHT: return "hinten rechts";
+                case CornerData.Corners.FRONTS: return "vorne";
+                case CornerData.Corners.REARS: return "hinten";
+                case CornerData.Corners.LEFTS: return "links";
+                case CornerData.Corners.RIGHTS: return "rechts";
+                case CornerData.Corners.ALL: return "rundum";
+                default: return null;
+            }
         }
 
         private static KeyValuePair<TeamMember, string> Say(TeamMember member, string text)

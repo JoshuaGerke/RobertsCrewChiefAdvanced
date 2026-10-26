@@ -61,6 +61,18 @@ namespace CrewChiefV4.AiTeam
             "meldet sich regelmäßig, aber nicht ununterbrochen. Zahlen nur aus den Daten, nie erfunden, keine Spotter-Freigaben.\n" +
             "Antworte ausschließlich als JSON: {{\"speaker\": \"ben\" | \"mik\" | \"none\", \"text\": \"Funkspruch auf Deutsch, höchstens 25 Wörter\"}}.";
 
+        /// <summary>Schadensbericht nach einem Unfall, sobald der Wagen wieder fährt.</summary>
+        public const string DamageAssessmentPrompt =
+            "Der Fahrer {0} hatte gerade einen Zwischenfall und ist wieder unterwegs. Ben meldet sich wie ein echter Renningenieur mit " +
+            "einem Lagebericht: was beschädigt ist und wie stark (Prozentwerte nennen, wenn vorhanden), ob und wie viele Plätze verloren " +
+            "gegangen sind und auf welchem Platz er jetzt liegt. Dann eine klare, begründete Empfehlung: jetzt an die Box, beim geplanten " +
+            "Stopp mitreparieren, oder weiterfahren, weil der Schaden klein ist. Wäge dabei ab: Schadensart (Motor, Getriebe, Aufhängung " +
+            "und Bremsen sind ernster als leichter Aero-Schaden), verbleibende Renndistanz, Sprit und Reifen, Abstände. Im Training oder " +
+            "Qualifying statt Platz eher: Runde abbrechen oder weiter. Bei schwerem Schaden geht Sicherheit vor Position. " +
+            "Nur Werte aus den Daten, nichts erfinden (das Spiel sagt z. B. nicht, ob Front- oder Heckflügel betroffen ist). " +
+            "Natürliches gesprochenes Deutsch, ruhig und professionell, Zahlen wie gesprochen, kein Markdown.\n" +
+            "Antworte ausschließlich als JSON: {{\"funksprueche\": [{{\"speaker\": \"ben\", \"text\": \"höchstens 45 Wörter\"}}]}}.";
+
         /// <summary>Begrüßung und Lagebericht beim Start einer Session (Training, Qualifying, Rennen).</summary>
         public const string SessionBriefingPrompt =
             "Eine neue Session beginnt. Du schreibst den ersten Funk der Boxencrew an den Fahrer {0}, so wie ein echter Renningenieur " +

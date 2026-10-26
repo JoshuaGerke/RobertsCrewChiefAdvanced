@@ -252,6 +252,11 @@ namespace CrewChiefV4.GameState
 
         public DamageLevel OverallAeroDamage = DamageLevel.UNKNOWN;
 
+        // RCCA: Schaden in Prozent (0 = heil), -1 = vom Spiel nicht geliefert
+        public float AeroDamagePercent = -1;
+        public float EngineDamagePercent = -1;
+        public float TransmissionDamagePercent = -1;
+
         private CornerData _SuspensionDamageStatus;
         public CornerData SuspensionDamageStatus
         {

@@ -418,8 +418,24 @@ namespace CrewChiefV4.AiTeam
                     ["aero"] = d.OverallAeroDamage.ToString(),
                     ["motor"] = d.OverallEngineDamage.ToString(),
                     ["getriebe"] = d.OverallTransmissionDamage.ToString(),
+                    ["aufhaengung"] = CornerDamage(d.SuspensionDamageStatus),
+                    ["bremsen"] = CornerDamage(d.BrakeDamageStatus),
                 };
+                if (d.AeroDamagePercent >= 0)
+                {
+                    o["schaden_prozent"] = new JObject
+                    {
+                        ["aero"] = Math.Round(d.AeroDamagePercent, 0),
+                        ["motor"] = Math.Round(d.EngineDamagePercent, 0),
+                        ["getriebe"] = Math.Round(d.TransmissionDamagePercent, 0),
+                    };
+                }
+                else
+                {
+                    missing.Add("schaden_prozent");
+                }
                 o["skala"] = "UNKNOWN, NONE, TRIVIAL, MINOR, MAJOR, DESTROYED";
+                o["hinweis"] = "Aero ist ein Gesamtwert, welches Teil (Front- oder Heckflügel) betroffen ist, liefert das Spiel nicht. Aufhängung/Bremsen leer = heil oder vom Spiel nicht gemeldet.";
             }
             else
             {
@@ -448,6 +464,20 @@ namespace CrewChiefV4.AiTeam
                 ["benzindruck"] = e.EngineFuelPressureWarning,
                 ["motor_abgewuergt"] = e.EngineStalledWarning,
             };
+            return o;
+        }
+
+        private static JObject CornerDamage(CrewChiefV4.Events.CornerData corners)
+        {
+            var o = new JObject();
+            foreach (var level in new[] { DamageLevel.MINOR, DamageLevel.MAJOR, DamageLevel.DESTROYED })
+            {
+                string where = IncidentWatch.CornerText(corners, level);
+                if (where != null)
+                {
+                    o[level.ToString()] = where;
+                }
+            }
             return o;
         }
 

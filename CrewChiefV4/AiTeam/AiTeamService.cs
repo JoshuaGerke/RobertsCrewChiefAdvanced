@@ -178,6 +178,11 @@ namespace CrewChiefV4.AiTeam
                 Log("Zwischenfall " + TeamRouter.DisplayName(radio.Key) + ": " + radio.Value);
                 Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None));
             }
+            var damage = incidentWatch.TakeDamageAssessment();
+            if (damage != null)
+            {
+                Task.Run(() => ReportDamageAsync(damage));
+            }
             MaybeSessionBriefing(previous, current, now);
 
             string trigger = null;
@@ -758,6 +763,54 @@ namespace CrewChiefV4.AiTeam
             }
             briefedSession = session;
             RunScripted(AiPersonas.SessionBriefingPrompt, "Begrüßung");
+        }
+
+        /// <summary>Ben bewertet den Schaden mit der KI (Lage, Restdistanz, Empfehlung Box oder weiter); ohne KI der lokale Bericht.</summary>
+        private async Task ReportDamageAsync(DamageAssessment damage)
+        {
+            if (HasApiKey && settings.RadioMode != AiRadioMode.MINIMAL)
+            {
+                try
+                {
+                    var ctx = BuildContext(CrewChief.currentGameState);
+                    var data = new JObject
+                    {
+                        ["zwischenfall"] = new JObject
+                        {
+                            ["platz_vorher"] = damage.PositionBefore > 0 ? (JToken)damage.PositionBefore : null,
+                            ["platz_jetzt"] = damage.PositionNow > 0 ? (JToken)damage.PositionNow : null,
+                            ["schwerer_schaden"] = damage.Serious,
+                            ["lokale_einschaetzung"] = damage.LocalReport,
+                        },
+                        ["schaden_und_motor"] = RaceDataTools.Execute("get_damage_and_engine", ctx),
+                        ["lage"] = RaceDataTools.BuildBriefing(ctx),
+                    };
+                    var messages = new JArray
+                    {
+                        new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.DamageAssessmentPrompt, settings.DriverName) },
+                        new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
+                    };
+                    Interlocked.Increment(ref callsThisSession);
+                    JObject response;
+                    using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
+                    {
+                        response = await client.ChatAsync(settings.FastModel, messages, null, settings.ReasoningEffort, 300, true, cts.Token).ConfigureAwait(false);
+                    }
+                    var radio = ParseRadioList(ContentText(response.SelectToken("choices[0].message.content")), 1).FirstOrDefault();
+                    if (!string.IsNullOrEmpty(radio.Value))
+                    {
+                        Log("Schadensbericht Ben: " + radio.Value);
+                        await SpeakAsync(TeamMember.Ben, radio.Value, true, CancellationToken.None).ConfigureAwait(false);
+                        return;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log("Schadensbewertung fehlgeschlagen, lokaler Bericht: " + e.Message);
+                }
+            }
+            Log("Schadensbericht lokal: " + damage.LocalReport);
+            await SpeakAsync(TeamMember.Ben, damage.LocalReport, true, CancellationToken.None).ConfigureAwait(false);
         }
 
         private void RunScripted(string prompt, string label)

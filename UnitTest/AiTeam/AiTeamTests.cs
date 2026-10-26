@@ -765,8 +765,40 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(1, first.Count);
             Assert.AreEqual("Kontakt. Ich schau mir den Schaden an.", first[0].Value);
             Assert.AreEqual(0, watch.Evaluate(hit, hit, now.AddSeconds(1), false).Count);
-            var later = watch.Evaluate(hit, hit, now.AddSeconds(3.5), false);
-            Assert.AreEqual("Aero leicht beschädigt. Sollte fahrbar sein.", later[0].Value);
+            Assert.IsNull(watch.TakeDamageAssessment());
+            watch.Evaluate(hit, hit, now.AddSeconds(4.5), false);
+            Assert.AreEqual("Aero leicht beschädigt. Sollte fahrbar sein.", watch.TakeDamageAssessment().LocalReport);
+            Assert.IsNull(watch.TakeDamageAssessment(), "nur einmal");
+        }
+
+        [Test]
+        public void Schadensbericht_erst_wenn_wieder_unterwegs_mit_Platzverlust()
+        {
+            var watch = new IncidentWatch();
+            var before = Racing(150);
+            before.SessionData.ClassPosition = 8;
+            before.CarDamageData.DamageEnabled = true;
+            before.CarDamageData.OverallAeroDamage = DamageLevel.NONE;
+            var crash = Racing(20);
+            crash.SessionData.ClassPosition = 8;
+            crash.CarDamageData.DamageEnabled = true;
+            crash.CarDamageData.OverallAeroDamage = DamageLevel.MAJOR;
+            crash.CarDamageData.AeroDamagePercent = 13;
+            watch.Evaluate(before, crash, now, false);
+            var standing = Racing(20);
+            standing.SessionData.ClassPosition = 13;
+            standing.CarDamageData = crash.CarDamageData;
+            watch.Evaluate(crash, standing, now.AddSeconds(8), false);
+            Assert.IsNull(watch.TakeDamageAssessment(), "noch nicht wieder auf Tempo");
+            var going = Racing(120);
+            going.SessionData.ClassPosition = 13;
+            going.CarDamageData = crash.CarDamageData;
+            watch.Evaluate(standing, going, now.AddSeconds(12), false);
+            var a = watch.TakeDamageAssessment();
+            Assert.AreEqual(8, a.PositionBefore);
+            Assert.AreEqual(13, a.PositionNow);
+            Assert.IsTrue(a.Serious);
+            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero stark beschädigt (13 Prozent). Wenn sich das Auto komisch anfühlt, komm an die Box.", a.LocalReport);
         }
 
         [Test]

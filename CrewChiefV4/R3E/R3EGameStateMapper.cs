@@ -1151,6 +1151,9 @@ namespace CrewChiefV4.RaceRoom
                 shared.CarDamage.Transmission != -1 && shared.CarDamage.Engine != -1;
             if (currentGameState.CarDamageData.DamageEnabled)
             {
+                currentGameState.CarDamageData.AeroDamagePercent = (1 - shared.CarDamage.Aerodynamics) * 100;
+                currentGameState.CarDamageData.EngineDamagePercent = (1 - shared.CarDamage.Engine) * 100;
+                currentGameState.CarDamageData.TransmissionDamagePercent = (1 - shared.CarDamage.Transmission) * 100;
                 if (shared.CarDamage.Aerodynamics < destroyedAeroThreshold)
                 {
                     currentGameState.CarDamageData.OverallAeroDamage = DamageLevel.DESTROYED;
