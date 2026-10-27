@@ -355,7 +355,7 @@ namespace CrewChiefV4.RF2
 
             if (match.Success && match.Groups.Count >= 2)
             {
-                bool parsed = float.TryParse(match.Groups[1].Value, out float _current);
+                bool parsed = float.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float _current);
                 if (parsed)
                 {
                     if (match.Value.Contains("."))

@@ -59,3 +59,13 @@ lfs_msg_fuel_status = ^3[CrewChief] Fuel : {0:0.0}% | Conso : {1:0.0}%/tour | Re
 lfs_msg_fuel_status_simple = ^3[CrewChief] Fuel : {0:0.0}% restant
 lfs_msg_fuel_warning = ^1[CrewChief] ATTENTION FUEL : {0:0.0}% restant (~{1} tour{2})
 lfs_msg_refuel = ^3[CrewChief] Ravitaillement F12 : +{0}% (Actuel : {1:0.0}%)
+
+enable_ai_team_ben = KI-Team Ben aktiv
+enable_ai_team_ben_help = Strategie, Positionsmeldungen und Antworten von Ben.
+enable_ai_team_ben_category = AI_TEAM
+enable_ai_team_mik = KI-Team Mik aktiv
+enable_ai_team_mik_help = Technik, Rundenzeiten und Antworten von Mik.
+enable_ai_team_mik_category = AI_TEAM
+enable_ai_team_sara = KI-Team Sara aktiv
+enable_ai_team_sara_help = Lokale Seitenwarnungen, Flaggen und Antworten von Sara.
+enable_ai_team_sara_category = AI_TEAM

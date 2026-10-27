@@ -200,6 +200,7 @@ namespace CrewChiefV4.AiTeam
             }
             catch (Exception e)
             {
+                if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("ptt.error",LiveDiagnostics.Data("error_type",e.GetType().Name));
                 Console.WriteLine("[KI-Team] Fehler in der Funktaste: " + e.Message);
             }
         }

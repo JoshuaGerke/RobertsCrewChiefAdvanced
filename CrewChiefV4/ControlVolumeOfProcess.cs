@@ -48,6 +48,7 @@ namespace CrewChiefV4
         {
             TheProcess = null;
             _session = null;
+            if (string.IsNullOrWhiteSpace(processName)) return;
             var MMDE = new MMDeviceEnumerator();
             MMDeviceCollection devCol = MMDE.EnumerateAudioEndPoints(DataFlow.All, DeviceState.Active);
             Log.Debug(() => $"processName {processName}");
@@ -59,10 +60,14 @@ namespace CrewChiefV4
                 {   // if nAudio used for input it also returns any mics
                     continue;
                 }
-                SessionCollection sessions = dev.AudioSessionManager.Sessions;
+                // An active virtual endpoint can have no session manager/session collection yet.
+                var manager = dev.AudioSessionManager;
+                if (manager == null) continue;
+                SessionCollection sessions = manager.Sessions;
+                if (sessions == null) continue;
                 for (int i = 0; i < sessions.Count; i++)
                 {
-                    if (sessions[i].State == AudioSessionState.AudioSessionStateActive)
+                    if (sessions[i] != null && sessions[i].State == AudioSessionState.AudioSessionStateActive)
                     {
                         try
                         {

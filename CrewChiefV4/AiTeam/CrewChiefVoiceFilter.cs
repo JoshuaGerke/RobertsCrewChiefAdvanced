@@ -12,15 +12,16 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     public static class CrewChiefVoiceFilter
     {
-        private static readonly string[] allowedPrefixes = { "spotter", "acknowledge/spotter", "radio_check" };
+        private static readonly string[] allowedPrefixes = { "spotter", "acknowledge/spotter", "radio_check_Sara" };
 
-        public static bool Allow(string messageName, IEnumerable<string> messageFolders)
+        public static bool Allow(string messageName, IEnumerable<string> messageFolders, bool saraEnabled = true)
         {
             var folders = messageFolders == null ? new List<string>() : messageFolders.Where(f => f != null).ToList();
             if (folders.Any(f => f.StartsWith(CrewChiefV4.Audio.SoundCache.AI_AUDIO_IDENTIFIER, StringComparison.Ordinal)))
             {
                 return true;
             }
+            if (!saraEnabled) return false;
             if (folders.Count > 0 && folders.All(f => allowedPrefixes.Any(p => f.StartsWith(p, StringComparison.OrdinalIgnoreCase)) || f.StartsWith(CrewChiefV4.Audio.AudioPlayer.PAUSE_ID)))
             {
                 return true;

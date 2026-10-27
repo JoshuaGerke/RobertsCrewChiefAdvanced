@@ -49,7 +49,8 @@ namespace CrewChiefV4.AiTeam
         public static bool IsGenerated(string voiceFolder, string voiceKey)
         {
             string marker = Path.Combine(voiceFolder, "spotter_Sara", MarkerFile);
-            return File.Exists(marker) && File.ReadAllText(marker).Trim() == voiceKey;
+            return File.Exists(marker) && File.ReadAllText(marker).Trim() == voiceKey && Phrases.All(p =>
+                Enumerable.Range(1,p.Value.Length).All(i => { string file=Path.Combine(voiceFolder,p.Key.Replace('/',Path.DirectorySeparatorChar),i+".wav"); return File.Exists(file) && new FileInfo(file).Length>44; }));
         }
 
         /// <summary>
@@ -90,7 +91,7 @@ namespace CrewChiefV4.AiTeam
                     string target = Path.Combine(voiceFolder, top);
                     if (Directory.Exists(target))
                     {
-                        Directory.Delete(target, true);
+                        Directory.Move(target, target + ".backup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0,6));
                     }
                     Directory.CreateDirectory(Path.GetDirectoryName(target));
                     CopyDirectory(Path.Combine(staging, top), target);
@@ -99,7 +100,7 @@ namespace CrewChiefV4.AiTeam
             }
             finally
             {
-                try { Directory.Delete(staging, true); } catch (Exception) { }
+                // Keep staging for recovery/audit; the user has not authorized file deletion.
             }
         }
 

@@ -15,6 +15,9 @@ namespace CrewChiefV4.AiTeam
     public class AiTeamSettings
     {
         public bool Enabled = true;
+        public bool BenEnabled = true, MikEnabled = true, SaraEnabled = true;
+        public bool IsMemberEnabled(TeamMember member)
+        { return Enabled && (member == TeamMember.Ben ? BenEnabled : member == TeamMember.Mik ? MikEnabled : SaraEnabled); }
         // Voreinstellung: OpenRouter (ein Schlüssel für Chat und Spracherkennung) + ElevenLabs für die Stimmen
         public string BaseUrl = "https://openrouter.ai/api/v1";
         public string FastModel = "openai/gpt-6-luna";
@@ -40,7 +43,8 @@ namespace CrewChiefV4.AiTeam
         public string Microphone = "";
         public int TimeoutSeconds = 12;
         public int MaxCallsPerSession = 300;
-        public int StatusIntervalMinutes = 2;
+        public int StatusIntervalMinutes = 2; // Lokaler, belegter Rennstatus; 0 bleibt explizit deaktiviert
+        public AiRadioPreferences RadioPreferences = new AiRadioPreferences();
         public bool RadioEffect = true;
         public bool SendDriverNames = true;
         public bool WriteLog = true;
@@ -51,6 +55,9 @@ namespace CrewChiefV4.AiTeam
             var s = new AiTeamSettings();
             var u = UserSettings.GetUserSettings();
             s.Enabled = Get(() => u.getBoolean("enable_ai_team"), s.Enabled);
+            s.BenEnabled = Get(() => u.getBoolean("enable_ai_team_ben"), true);
+            s.MikEnabled = Get(() => u.getBoolean("enable_ai_team_mik"), true);
+            s.SaraEnabled = Get(() => u.getBoolean("enable_ai_team_sara"), true);
             s.BaseUrl = GetString(() => u.getString("ai_team_api_base_url"), s.BaseUrl);
             s.FastModel = GetString(() => u.getString("ai_team_fast_model"), s.FastModel);
             s.DeepModel = GetString(() => u.getString("ai_team_deep_model"), s.DeepModel);
@@ -79,6 +86,7 @@ namespace CrewChiefV4.AiTeam
             s.SendDriverNames = Get(() => u.getBoolean("enable_ai_team_send_driver_names"), s.SendDriverNames);
             s.WriteLog = Get(() => u.getBoolean("enable_ai_team_log"), s.WriteLog);
             s.ReplaceCrewChiefVoice = Get(() => u.getBoolean("enable_ai_team_replaces_crew_chief_voice"), s.ReplaceCrewChiefVoice);
+            s.RadioPreferences = AiRadioPreferences.Load();
             return s;
         }
 

@@ -20,7 +20,7 @@ namespace UnitTest.Misc
     public class TrackLandmarksDataTests
     {
 #if DEBUG
-        [Test]
+        [Test, Explicit("Manuelles Vergleichswerkzeug für historische Streckendaten; kein automatisierter Test mit Assertions.")]
         public void TrackLandmarksData_ABcheck()    // Write diffs to UnitTest\Misc\TrackLandmarksData_ABcheck.txt
         {
             var TrackLandmarksDataOld = TrackLandmarksData.getTrackLandmarksDataFromFile("..\\..\\Misc\\oldTrackLandmarksData.json");

@@ -751,7 +751,7 @@ namespace CrewChiefV4.Audio
             SoundSet prefix = null;
             SoundSet suffix = null;
             List<string> cacheable = null;
-               
+
             if (trainee_active() && (singleSounds2ndChief.Count > 0 || soundSets2ndChief.Count > 0))
             {
                 (singleSoundsToPlay, prefix, suffix, cacheable) = Play_(soundNames, singleSounds2ndChief, soundSets2ndChief);
@@ -1803,6 +1803,11 @@ namespace CrewChiefV4.Audio
         // RCCA: KI-Funkspruch (WAV im Speicher), wird nach dem Abspielen sofort freigegeben
         internal Boolean isAiAudio = false;
         private String aiAudioId;
+        private string diagnosticClip;
+        private string diagnosticKey;
+        private int diagnosticPriority;
+        private int diagnosticMessageId;
+        private bool diagnosticInterrupted;
 
         internal SingleSound(byte[] wavBytes, String subtitle, String aiAudioId)
         {
@@ -2069,9 +2074,28 @@ namespace CrewChiefV4.Audio
          */
         internal void Play(SoundMetadata soundMetadata)
         {
+            if (AiTeam.LiveDiagnostics.Enabled && !isBleep)
+            {
+                diagnosticClip = isAiAudio ? aiAudioId : Guid.NewGuid().ToString("N");
+                diagnosticKey = fullPath == null ? (isAiAudio?"ai":"tts") : fullPath.Replace('\\','/');
+                int voiceIndex = diagnosticKey.IndexOf("/voice/",StringComparison.OrdinalIgnoreCase);
+                diagnosticKey = voiceIndex>=0?diagnosticKey.Substring(voiceIndex+7):System.IO.Path.GetFileName(diagnosticKey);
+                diagnosticPriority = soundMetadata==null?0:soundMetadata.priority;
+                diagnosticMessageId=soundMetadata==null?0:soundMetadata.messageId;
+                diagnosticInterrupted = false;
+                AiTeam.LiveDiagnostics.Audio("selected",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+            }
             if (!PlaybackModerator.ShouldPlaySound(this, soundMetadata))
+            {
+                AiTeam.LiveDiagnostics.Audio("rejected",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                 return;
+            }
 
+            if (isAiAudio)
+            {
+                byte[] stillCurrent; string ignoredSubtitle;
+                if (!AiTeam.AiAudioStore.TryGet(aiAudioId, out stillCurrent, out ignoredSubtitle)) return;
+            }
             PlaybackModerator.PreProcessSound(this, soundMetadata);
             if (GameOrVoipVolume.AudioDuckingEnabled)
             {
@@ -2106,6 +2130,7 @@ namespace CrewChiefV4.Audio
             {
                 SoundPlayer soundPlayer = new SoundPlayer(fullPath);
                 soundPlayer.Load();
+                AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                 soundPlayer.PlaySync();
                 try
                 {
@@ -2118,7 +2143,9 @@ namespace CrewChiefV4.Audio
                 lock (this)
                 {
                     LoadAndCacheSound();
+                    AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                     this.soundPlayer.PlaySync();
+                    if (isAiAudio) AiTeam.AiAudioStore.MarkStarted(aiAudioId);
                 }
                 if (!cacheSoundPlayer)
                 {
@@ -2191,7 +2218,9 @@ namespace CrewChiefV4.Audio
                         this.reader.CurrentTime = TimeSpan.Zero;
                         SoundCache.currentlyPlayingSound = this;
                         this.playbackStartTime = DateTime.UtcNow;
+                        AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                         this.nAudioOut.Play();
+                        if (isAiAudio) AiTeam.AiAudioStore.MarkStarted(aiAudioId);
                         // Special case for the listen start beep - don't wait for it to finish playing before returning
                         if (!isListenStartBeep)
                         {
@@ -2265,6 +2294,7 @@ namespace CrewChiefV4.Audio
         {
             this.playWaitHandle.Set();
             SoundCache.currentlyPlayingSound = null;
+            AiTeam.LiveDiagnostics.Audio(diagnosticInterrupted?"interrupted":"ended",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
         }
 
         private float getVolume(float boost)
@@ -2345,6 +2375,8 @@ namespace CrewChiefV4.Audio
                 {
                     blockedABeep = true;
                 }
+                diagnosticInterrupted=true;
+                AiTeam.LiveDiagnostics.Audio("interrupt_request",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                 this.nAudioOut.Stop();
                 Console.WriteLine($"Stopping sound: {fullPath}");
             }

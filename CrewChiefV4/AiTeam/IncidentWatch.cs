@@ -7,8 +7,8 @@ namespace CrewChiefV4.AiTeam
 {
     /// <summary>
     /// Reaktion des Teams auf Zwischenfälle, ohne KI und deshalb sofort:
-    /// Kontakt (Ben meldet sich, wenige Sekunden später Schadensbild aus der Telemetrie),
-    /// Dreher/Stillstand (Hinweis auf den Verkehr), neue Strafe (Mik), ungültige Runde (Ben).
+    /// Kontakt (Mik meldet sich, wenige Sekunden später Schadensbild aus der Telemetrie),
+    /// Dreher/Stillstand (Hinweis auf den Verkehr), neue Strafe (Ben), ungültige Runde (Mik).
     /// Liest nur den GameState, Texte enthalten nur Werte aus der Telemetrie.
     /// </summary>
     /// <summary>Lage nach einem Zwischenfall, sobald der Wagen wieder fährt. Grundlage für Bens Bewertung.</summary>
@@ -31,6 +31,7 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastFastUtc = DateTime.MinValue;
         private DateTime lastStopUtc = DateTime.MinValue;
         private int lastInvalidLap = -1;
+        private int invalidCount;
         private int positionBeforeIncident;
         private DamageAssessment assessment;
 
@@ -38,6 +39,7 @@ namespace CrewChiefV4.AiTeam
         {
             lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = DateTime.MinValue;
             lastInvalidLap = -1;
+            invalidCount = 0;
             positionBeforeIncident = 0;
             assessment = null;
         }
@@ -69,7 +71,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if (nowUtc - lastContactUtc > TimeSpan.FromSeconds(15))
                 {
-                    result.Add(Say(TeamMember.Ben, "Kontakt. Ich schau mir den Schaden an."));
+                    result.Add(Say(TeamMember.Mik, "Kontakt. Ich schau mir den Schaden an."));
                 }
                 if (positionBeforeIncident <= 0)
                 {
@@ -117,7 +119,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     text += " Der Nächste war zuletzt etwa " + SaraLocal.Seconds(behind) + " hinter dir.";
                 }
-                result.Add(Say(TeamMember.Ben, text));
+                result.Add(Say(TeamMember.Mik, text));
             }
 
             // 3. Neue Strafe
@@ -127,11 +129,11 @@ namespace CrewChiefV4.AiTeam
             if (p.HasDriveThrough && !pp.HasDriveThrough) penalty = "eine Durchfahrtsstrafe";
             else if (p.HasStopAndGo && !pp.HasStopAndGo) penalty = "eine Stop-and-Go-Strafe";
             else if (p.HasTimeDeduction && !pp.HasTimeDeduction) penalty = "eine Zeitstrafe";
-            else if (p.HasSlowDown && !pp.HasSlowDown) penalty = "eine Slow-down-Strafe, lass den Wagen hinter dir vorbei";
+            else if (p.HasSlowDown && !pp.HasSlowDown) penalty = "eine Slow-down-Strafe; reduziere das Tempo entsprechend der Spielanzeige";
             else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties) penalty = "eine Strafe";
             if (penalty != null)
             {
-                result.Add(Say(TeamMember.Mik, "Wir haben " + penalty + " bekommen." +
+                result.Add(Say(TeamMember.Ben, "Wir haben " + penalty + " bekommen." +
                     (p.HasDriveThrough || p.HasStopAndGo ? " Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick." : "")));
             }
 
@@ -140,7 +142,7 @@ namespace CrewChiefV4.AiTeam
             if (!minimalMode && previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit && lap != lastInvalidLap)
             {
                 lastInvalidLap = lap;
-                result.Add(Say(TeamMember.Ben, "Die Runde ist ungültig, Streckenbegrenzung."));
+                result.Add(Say(TeamMember.Mik, CrewSpeechPolicy.TrackLimitPhrases[invalidCount++ % CrewSpeechPolicy.TrackLimitPhrases.Length]));
             }
             return result;
         }
@@ -173,9 +175,13 @@ namespace CrewChiefV4.AiTeam
                 parts.Add("Bremse " + where + " stark beschädigt");
                 serious = true;
             }
+            else if ((where = CornerText(d.BrakeDamageStatus, DamageLevel.MINOR)) != null)
+                parts.Add("Bremse " + where + " leicht beschädigt");
             if (parts.Count == 0)
             {
-                return "Kein nennenswerter Schaden, weiter.";
+                if(d.OverallAeroDamage==DamageLevel.UNKNOWN || d.OverallEngineDamage==DamageLevel.UNKNOWN || d.OverallTransmissionDamage==DamageLevel.UNKNOWN)
+                    return "Für eine vollständige Schadensbewertung fehlen Messwerte.";
+                return "Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.";
             }
             string text = string.Join(", ", parts) + ".";
             return serious ? text + " Wenn sich das Auto komisch anfühlt, komm an die Box." : text + " Sollte fahrbar sein.";

@@ -18,22 +18,38 @@ namespace CrewChiefV4.AiTeam
         private readonly TextBox elevenKeyBox = new TextBox { UseSystemPasswordChar = true, Width = 330 };
         private readonly Label elevenKeyState = new Label { AutoSize = true };
         private readonly Dictionary<TeamMember, ComboBox> voiceBoxes = new Dictionary<TeamMember, ComboBox>();
-        private readonly TextBox questionBox = new TextBox { Width = 360, Text = "Mik, wie sieht unsere Strategie aus?" };
+        private readonly TextBox questionBox = new TextBox { Width = 360, Text = "Ben, wie sieht unsere Strategie aus?" };
         private readonly TextBox output = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 560, Height = 300 };
         private readonly AiTeamService service = AiTeamService.Instance;
 
         public AiTeamForm()
         {
             Text = "KI-Team – Ben, Mik und Sara";
-            Width = 620;
+            Width = 900;
             Height = 820;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
 
             var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(12), AutoScroll = true, WrapContents = false };
-            Controls.Add(layout);
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var teamTab = new TabPage("Team, Stimmen und Diagnose");
+            var modelsTab = new TabPage("KI-Modelle");
+            teamTab.Controls.Add(layout); modelsTab.Controls.Add(new AiModelsPanel(service));
+            tabs.TabPages.Add(teamTab); tabs.TabPages.Add(modelsTab); Controls.Add(tabs);
 
+            layout.Controls.Add(Heading("Aktive Crew-Mitglieder"));
+            var members = new FlowLayoutPanel { AutoSize=true, FlowDirection=FlowDirection.LeftToRight };
+            foreach (TeamMember member in Enum.GetValues(typeof(TeamMember)))
+            {
+                var selectedMember=member;
+                var toggle=new CheckBox { AutoSize=true, Text=TeamRouter.DisplayName(member)+ (member==TeamMember.Ben?" – Strategie":member==TeamMember.Mik?" – Renningenieur":" – Spotterin"),
+                    Checked=member==TeamMember.Ben?service.Settings.BenEnabled:member==TeamMember.Mik?service.Settings.MikEnabled:service.Settings.SaraEnabled };
+                toggle.CheckedChanged += (sender,args) => service.SetMemberEnabled(selectedMember,toggle.Checked);
+                members.Controls.Add(toggle);
+            }
+            layout.Controls.Add(members);
+            layout.Controls.Add(Hint("Auswahl wird sofort gespeichert. Nur Spotter: Ben und Mik ausschalten, Sara einschalten. Sara aus deaktiviert auch ihre lokalen Seitenwarnungen."));
             layout.Controls.Add(Heading("Schlüssel (werden verschlüsselt nur für diesen Windows-Benutzer gespeichert)"));
             layout.Controls.Add(Hint("OpenRouter-Schlüssel für Ben, Mik und die Spracherkennung (openrouter.ai → Keys):"));
             layout.Controls.Add(Row(apiKeyBox, MakeButton("Speichern", SaveKey), MakeButton("Löschen", DeleteKey)));
@@ -47,10 +63,17 @@ namespace CrewChiefV4.AiTeam
             {
                 var box = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 420 };
                 voiceBoxes[member] = box;
+                string saved = service.Settings.ElevenLabsVoiceFor(member);
+                if (!string.IsNullOrWhiteSpace(saved))
+                {
+                    box.Items.Add(new ElevenLabsVoice { Id = saved, Name = "Gespeicherte Stimme", Description = saved });
+                    box.SelectedIndex = 0;
+                }
                 layout.Controls.Add(Row(new Label { Text = TeamRouter.DisplayName(member) + ":", Width = 50, TextAlign = ContentAlignment.MiddleLeft }, box));
             }
             layout.Controls.Add(Row(MakeButton("Stimmen aus ElevenLabs laden", LoadVoices), MakeButton("Stimmen übernehmen", ApplyVoices),
                 MakeButton("Sara als Spotter erzeugen", GenerateSaraPack)));
+            layout.Controls.Add(MakeButton("Funkstimmen vorbereiten", () => Run(service.PrepareRadioVoicesAsync())));
             layout.Controls.Add(Hint("Tipp: In der ElevenLabs-Stimmenbibliothek nach \"German\" filtern und Stimmen zum Konto hinzufügen, dann hier neu laden."));
 
             layout.Controls.Add(Heading("Test"));
@@ -66,6 +89,11 @@ namespace CrewChiefV4.AiTeam
             });
 
             layout.Controls.Add(Heading("Status und Diagnose"));
+            var capture = new CheckBox { Text = "Lokalen Live-Diagnoserecorder einschalten", AutoSize = true, Checked = LiveDiagnostics.Enabled };
+            capture.CheckedChanged += (s, e) => { if (capture.Checked) Append(LiveDiagnostics.Start()); else { LiveDiagnostics.Stop(); Append("Diagnose gestoppt; letzte Einträge werden geschrieben."); } };
+            layout.Controls.Add(capture);
+            layout.Controls.Add(Hint("Aufzeichnung nur lokal, maximal 128 MiB je Aufnahme und 512 MiB insgesamt. Keine Mikrofondateien oder Zugangsschlüssel. Pfad: " + LiveDiagnostics.DefaultFolder));
+            layout.Controls.Add(MakeButton("Aufnahmestatus", () => Append(LiveDiagnostics.Status)));
             layout.Controls.Add(output);
             layout.Controls.Add(Row(MakeButton("Diagnose aktualisieren", ShowDiagnostics), MakeButton("Zähler zurücksetzen", () => { service.Stats.Reset(); ShowDiagnostics(); })));
 
@@ -104,7 +132,7 @@ namespace CrewChiefV4.AiTeam
             string key = AiSecretStore.Load();
             keyState.Text = string.IsNullOrEmpty(key) ? "Kein Schlüssel hinterlegt." : "Hinterlegt: " + AiSecretStore.Mask(key);
             string eleven = AiSecretStore.LoadElevenLabs();
-            elevenKeyState.Text = string.IsNullOrEmpty(eleven) ? "Kein Schlüssel hinterlegt (dann Ersatzstimme)." : "Hinterlegt: " + AiSecretStore.Mask(eleven);
+            elevenKeyState.Text = string.IsNullOrEmpty(eleven) ? "Kein Schlüssel hinterlegt – nur vorbereitete Originalclips verfügbar." : "Hinterlegt: " + AiSecretStore.Mask(eleven);
         }
 
         private void SaveElevenKey()
@@ -173,7 +201,13 @@ namespace CrewChiefV4.AiTeam
                 {
                     entry.Value.Items.Add(voice);
                 }
-                entry.Value.SelectedItem = voices.FirstOrDefault(v => v.Id == current);
+                var selected = voices.FirstOrDefault(v => v.Id == current);
+                if (selected == null && !string.IsNullOrWhiteSpace(current))
+                {
+                    selected = new ElevenLabsVoice { Id = current, Name = "Gespeicherte Stimme", Description = current };
+                    entry.Value.Items.Add(selected);
+                }
+                entry.Value.SelectedItem = selected;
             }
             Append(voices.Count + " Stimmen geladen. Auswählen und \"Stimmen übernehmen\" drücken, dann mit \"Stimme Ben/Mik/Sara\" anhören.");
         }
@@ -280,9 +314,9 @@ namespace CrewChiefV4.AiTeam
             string text;
             switch (member)
             {
-                case TeamMember.Mik: text = "Mik hier. Ich hab die Strategie im Blick und melde mich, wenn sich was ergibt."; break;
+                case TeamMember.Ben: text = "Ben hier. Ich hab die Strategie im Blick und melde mich, wenn sich was ergibt."; break;
                 case TeamMember.Sara: text = "Sara hier. Ich hab die Seiten im Blick."; break;
-                default: text = "Ben hier. Funk steht, ich hab das Auto im Blick."; break;
+                default: text = "Mik hier. Funk steht, ich hab das Auto im Blick."; break;
             }
             Run(service.SpeakAsync(member, text, true, System.Threading.CancellationToken.None).ContinueWith(t => t.Exception == null ? "Stimmtest " + member + " eingereiht." : t.Exception.GetBaseException().Message));
         }
@@ -308,10 +342,11 @@ namespace CrewChiefV4.AiTeam
             Append("---- Diagnose ----\r\n" +
                 "Aktiv: " + (s.Enabled ? "ja" : "nein") + ", Funkmodus: " + s.RadioMode + ", Stimmen: " + s.TtsProvider +
                     (s.TtsProvider == AiTtsProvider.ELEVENLABS ? " (" + s.ElevenLabsModel + ", Schlüssel " + (service.HasElevenLabsKey ? "da" : "fehlt") + ")" : "") + "\r\n" +
-                "API: " + s.BaseUrl + " | schnell: " + s.FastModel + " | Analyse: " + s.DeepModel + " | Erkennung: " + s.SttModel + " | Stimme: " + s.TtsModel + "\r\n" +
+                "API: " + s.BaseUrl + " | schnell: " + s.FastModel + " | Analyse: " + s.DeepModel + " | Erkennung: " + s.SttModel + " | Stimme: " + (s.TtsProvider == AiTtsProvider.ELEVENLABS ? s.ElevenLabsModel : s.TtsProvider == AiTtsProvider.WINDOWS ? "Windows (explizit ausgewählt)" : s.TtsModel) + "\r\n" +
                 "Funktaste: Controller-Aktion \"KI-Team anfunken\"" + (string.IsNullOrEmpty(s.PttKey) ? "" : " oder Taste " + s.PttKey) + "\r\n" +
                 "Mikrofone: " + mics + "\r\n" +
                 "Windows-Stimmen: " + voices + "\r\n" +
+                "Originalstimmen: " + service.PreparedVoiceStatus + "\r\n" +
                 "Telemetrie zuletzt: " + (service.Memory.LastTickUtc == DateTime.MinValue ? "noch keine" : "vor " + (int)(DateTime.UtcNow - service.Memory.LastTickUtc).TotalSeconds + " s") +
                 ", aufgezeichnete Runden: " + service.Memory.GetLaps().Count + "\r\n" +
                 service.Stats.ToString());

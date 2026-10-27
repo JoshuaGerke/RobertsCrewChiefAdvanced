@@ -24,6 +24,25 @@ namespace CrewChiefV4.AiTeam
             lastIncidentCallUtc = lastBlueUtc = DateTime.MinValue;
         }
 
+        public static bool StillRelevant(string phrase, GameStateData gs)
+        {
+            if (gs == null || gs.PitData.InPitlane || (gs.SessionData.SessionPhase != SessionPhase.Green && gs.SessionData.SessionPhase != SessionPhase.FullCourseYellow)) return false;
+            var f=gs.FlagData;
+            switch (phrase)
+            {
+                case "Unfall voraus!": return f.distanceToNearestIncident > 0 && f.distanceToNearestIncident < 250;
+                case "Gelb! Langsam, nicht überholen.": return f.isLocalYellow;
+                case "Gelb vorbei.": return !f.isLocalYellow && !f.isFullCourseYellow && gs.SessionData.Flag != FlagEnum.YELLOW && gs.SessionData.Flag != FlagEnum.DOUBLE_YELLOW;
+                case "Gelb im Sektor.": return gs.SessionData.Flag == FlagEnum.YELLOW;
+                case "Doppelt Gelb, Vorsicht.": return gs.SessionData.Flag == FlagEnum.DOUBLE_YELLOW;
+                case "Blaue Flagge, lass ihn vorbei.": return gs.SessionData.Flag == FlagEnum.BLUE;
+                case "Schwarze Flagge.": return gs.SessionData.Flag == FlagEnum.BLACK;
+                case "Full Course Yellow, Tempo runter.": return f.isFullCourseYellow;
+                case "Grün, wieder freie Fahrt.": return !f.isFullCourseYellow && !f.isLocalYellow;
+                default: return false;
+            }
+        }
+
         public List<string> Evaluate(GameStateData previous, GameStateData current, DateTime nowUtc)
         {
             var result = new List<string>();

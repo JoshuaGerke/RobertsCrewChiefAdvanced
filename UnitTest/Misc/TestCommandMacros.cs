@@ -33,7 +33,7 @@ namespace UnitTest.Misc
         {
             audioPlayer?.Dispose();
         }
-        [Test]
+        [Test, Explicit("Manueller Sprach-/Tastaturtest: öffnet Notepad und benötigt eingerichtete Controller und Spracherkennung.")]
         public void Test_voice_macro_R3E_Manual_Fuel()
         {
             CrewChief.eventsList.Clear();

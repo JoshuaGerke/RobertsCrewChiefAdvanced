@@ -50,6 +50,10 @@ namespace CrewChiefV4.AiTeam
 
         public async Task<byte[]> SpeechPcmAsync(string voiceId, string modelId, string text, TeamMember member, CancellationToken ct)
         {
+            using (var diagnosticSpan = LiveDiagnostics.Begin("api", LiveDiagnostics.Data("service","elevenlabs","model",modelId,"speaker",member.ToString())))
+            {
+                try
+                {
             var body = new JObject
             {
                 ["text"] = text,
@@ -64,11 +68,17 @@ namespace CrewChiefV4.AiTeam
             var sw = Stopwatch.StartNew();
             using (var request = new HttpRequestMessage(HttpMethod.Post, baseUrl + "/v1/text-to-speech/" + Uri.EscapeDataString(voiceId) + "?output_format=pcm_24000"))
             {
-                request.Headers.Add("xi-api-key", apiKeyProvider());
+                string diagnosticKey=apiKeyProvider();
+                LiveDiagnostics.RememberSecret(diagnosticKey);
+                request.Headers.Add("xi-api-key",diagnosticKey);
                 request.Content = new StringContent(body.ToString(Formatting.None), Encoding.UTF8, "application/json");
                 byte[] pcm = await SendForBytesAsync(request, ct).ConfigureAwait(false);
                 stats.AddTts(sw.ElapsedMilliseconds);
                 return pcm;
+            }
+
+                }
+                catch (Exception diagnosticError) { diagnosticSpan.Fail(diagnosticError); throw; }
             }
         }
 
@@ -77,7 +87,9 @@ namespace CrewChiefV4.AiTeam
         {
             using (var request = new HttpRequestMessage(HttpMethod.Get, baseUrl + "/v1/voices"))
             {
-                request.Headers.Add("xi-api-key", apiKeyProvider());
+                string diagnosticKey=apiKeyProvider();
+                LiveDiagnostics.RememberSecret(diagnosticKey);
+                request.Headers.Add("xi-api-key",diagnosticKey);
                 string json = Encoding.UTF8.GetString(await SendForBytesAsync(request, ct).ConfigureAwait(false));
                 return ParseVoices(json);
             }

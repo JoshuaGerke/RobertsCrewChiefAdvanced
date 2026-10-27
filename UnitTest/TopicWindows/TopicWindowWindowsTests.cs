@@ -48,7 +48,7 @@ namespace CrewChiefV4.UnitTest.TopicWindows
             using (var form = new TopicWindowFuel())
             {
                 Assert.IsNotNull(form);
-                Assert.AreEqual("Fuel", form.Text);
+                Assert.AreEqual("Fuel (WIP)", form.Text);
                 Assert.IsTrue(form is Form);
             }
         }
@@ -132,7 +132,7 @@ namespace CrewChiefV4.UnitTest.TopicWindows
             using (var form = new TopicWindowFuel())
             {
                 form.Show();
-                Assert.AreEqual("Fuel", form.Text);
+                Assert.AreEqual("Fuel (WIP)", form.Text);
                 Assert.IsFalse(Field<GroupBox>(form, "groupBoxVirtualEnergy").Visible);
                 var layout = Field<TableLayoutPanel>(form, "layout");
                 Assert.AreEqual(SizeType.Absolute, layout.RowStyles[1].SizeType);
@@ -147,7 +147,7 @@ namespace CrewChiefV4.UnitTest.TopicWindows
             using (var form = new TopicWindowFuel())
             {
                 form.Show();
-                Assert.AreEqual("Fuel and virtual energy", form.Text);
+                Assert.AreEqual("Fuel and virtual energy (WIP)", form.Text);
                 Assert.IsTrue(Field<GroupBox>(form, "groupBoxVirtualEnergy").Visible);
                 Assert.AreEqual("65%", Field<TextBox>(form, "textBoxVirtualEnergyLevel").Text);
                 Assert.AreEqual("8%/lap", Field<TextBox>(form, "textBoxVirtualEnergyPerLap").Text);
@@ -171,7 +171,7 @@ namespace CrewChiefV4.UnitTest.TopicWindows
                 int fuelOnlyHeight = form.Height;
                 TopicWindowFuel.SetVirtualEnergyData(true, 65f, 100, 8f, 4f, 7f);
                 Render(form);
-                Assert.AreEqual("Fuel and virtual energy", form.Text);
+                Assert.AreEqual("Fuel and virtual energy (WIP)", form.Text);
                 Assert.IsTrue(Field<GroupBox>(form, "groupBoxVirtualEnergy").Visible);
                 Assert.Greater(form.Height, fuelOnlyHeight);
                 int energyHeight = form.Height;
@@ -179,7 +179,7 @@ namespace CrewChiefV4.UnitTest.TopicWindows
                 Assert.AreEqual(energyHeight, form.Height, "Repeated refresh must not resize the window.");
                 TopicWindowFuel.SetVirtualEnergyData(false, 65f, 100, 8f, 4f, 7f);
                 Render(form);
-                Assert.AreEqual("Fuel", form.Text);
+                Assert.AreEqual("Fuel (WIP)", form.Text);
                 Assert.IsFalse(Field<GroupBox>(form, "groupBoxVirtualEnergy").Visible);
                 Assert.AreEqual(fuelOnlyHeight, form.Height);
                 Assert.AreEqual(0f, Field<TableLayoutPanel>(form, "layout").RowStyles[1].Height);
@@ -199,7 +199,7 @@ namespace CrewChiefV4.UnitTest.TopicWindows
                 Render(form);
                 Assert.AreEqual("—", Field<TextBox>(form, "textBoxFuelLevel").Text);
                 Assert.AreEqual("—", Field<TextBox>(form, "textBoxFuelLaps").Text);
-                Assert.AreEqual("Fuel", form.Text);
+                Assert.AreEqual("Fuel (WIP)", form.Text);
                 Assert.IsFalse(Field<GroupBox>(form, "groupBoxVirtualEnergy").Visible);
             }
         }

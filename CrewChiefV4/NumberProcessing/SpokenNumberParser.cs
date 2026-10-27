@@ -160,7 +160,7 @@ namespace CrewChiefV4.NumberProcessing
             {
                 stringToParse += "0";
             }
-            if (!float.TryParse(stringToParse, out result))
+            if (!float.TryParse(stringToParse, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result))
             {
                 result = -1;
             }

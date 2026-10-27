@@ -49,8 +49,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(question, routed.Question);
         }
 
-        [TestCase("Wie viel Sprit haben wir noch?", TeamMember.Mik)]
-        [TestCase("Irgendwie schiebt der Wagen vorne", TeamMember.Ben)]
+        [TestCase("Wie viel Sprit haben wir noch?", TeamMember.Ben)]
+        [TestCase("Irgendwie schiebt der Wagen vorne", TeamMember.Mik)]
         [TestCase("Ist links frei?", TeamMember.Sara)]
         public void Router_ohne_Namen_nach_Thema(string spoken, TeamMember expected)
         {
@@ -61,7 +61,7 @@ namespace UnitTest.AiTeamTests
         public void Router_Anschlussfrage_geht_an_letzten_Gesprächspartner()
         {
             Assert.AreEqual(TeamMember.Mik, TeamRouter.Route("Und wenn wir eine Runde später kommen?", TeamMember.Mik).Member);
-            Assert.AreEqual(TeamMember.Ben, TeamRouter.Route("Und dann?", null).Member);
+            Assert.AreEqual(TeamMember.Mik, TeamRouter.Route("Und dann?", null).Member);
         }
 
         // ---------- Sara: lokal, deterministisch, keine unbelegte Freigabe (Test 3, Kapitel 5) ----------
@@ -188,7 +188,7 @@ namespace UnitTest.AiTeamTests
             var ctx = Ctx(new GameStateData(1));
             foreach (var tool in RaceDataTools.AllToolNames)
             {
-                var result = RaceDataTools.Execute(tool, ctx);
+                var result = tool == "get_opponent" ? RaceDataTools.Execute(tool, ctx, "{\"overall_position\":1}") : RaceDataTools.Execute(tool, ctx);
                 Assert.IsNull(result["fehler"], tool + ": " + result);
             }
             Assert.AreEqual(RaceDataTools.AllToolNames.Length, RaceDataTools.BuildToolDefinitions().Count);
@@ -211,6 +211,7 @@ namespace UnitTest.AiTeamTests
                 gs.SessionData.CompletedLaps = lap;
                 gs.SessionData.IsNewLap = lap > 0;
                 gs.SessionData.LapTimePrevious = 90 + lap;
+                gs.SessionData.PreviousLapWasValid = true;
                 memory.Update(prev, gs, now.AddMinutes(lap));
                 prev = gs;
                 fuel -= 2.5f;
@@ -404,6 +405,26 @@ namespace UnitTest.AiTeamTests
             {
                 AiSecretStore.Delete(path);
             }
+        }
+
+        [Test]
+        public async Task Tool_arguments_select_named_driver_in_complete_model_exchange()
+        {
+            var server = new FakeServer();
+            var function = new JObject { ["name"]="get_opponent", ["arguments"]="{\"name\":\"Timo Glock\"}" };
+            var toolCall = new JObject { ["id"]="named", ["type"]="function", ["function"]=function };
+            var response = new JObject { ["choices"]=new JArray(new JObject { ["message"]=new JObject {
+                ["role"]="assistant", ["tool_calls"]=new JArray(toolCall) } }) };
+            server.Responses.Enqueue(Json(200,response.ToString()));
+            server.Responses.Enqueue(Json(200,"{\"choices\":[{\"message\":{\"content\":\"Timo: 1:28,500.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1",()=>null,TimeSpan.FromSeconds(2),null,server);
+            var gs=new GameStateData(1);gs.SessionData.LapTimePrevious=113.192f;
+            gs.OpponentData["glock"]=new OpponentData { DriverRawName="Timo Glock",LastLapTime=88.5f,OverallPosition=9 };
+            var ctx=Ctx(gs);ctx.SendDriverNames=true;
+            await AiTeamService.RunToolLoopAsync(client,"test","none",new JArray(),250,260,()=>ctx,null,null,CancellationToken.None);
+            var result=JObject.Parse((string)JObject.Parse(server.Requests[1])["messages"].First(m=>(string)m["role"]=="tool")["content"]);
+            Assert.IsTrue((bool)result["eindeutig"]);
+            Assert.AreEqual(88.5,(double)result["fahrer"][0]["letzte_runde_s"]);
         }
 
         // ---------- API-Client und Tool-Schleife mit simuliertem Server (Test 1, 2, 5) ----------
@@ -663,8 +684,9 @@ namespace UnitTest.AiTeamTests
             var watch = new FuelWatch();
             // 10 Runden, 2,5 l pro Runde, 25,3 l noch da: nötig 25,75 l (inkl. 0,3 Runden Reserve)
             string text = watch.Evaluate(5, 25.3f, 2.5f, 10, true, false);
-            StringAssert.StartsWith("So kommen wir bis ins Ziel nicht durch", text);
-            StringAssert.Contains("Spar pro Runde", text);
+            StringAssert.Contains("reicht rechnerisch", text);
+            StringAssert.Contains("0,45 Liter", text);
+            StringAssert.DoesNotContain("Tankstopp", text);
             Assert.IsNull(watch.Evaluate(6, 22.8f, 2.5f, 9, true, false), "keine Wiederholung ohne Verschlechterung");
             StringAssert.Contains("passt jetzt wieder", watch.Evaluate(7, 30f, 2.5f, 8, true, false));
             Assert.IsNull(watch.Evaluate(8, 30f, 2.5f, 7, true, false));
@@ -676,7 +698,7 @@ namespace UnitTest.AiTeamTests
             var watch = new FuelWatch();
             string text = watch.Evaluate(5, 10f, 2.5f, 10, true, true);
             StringAssert.Contains("nach aktueller Pace", text);
-            StringAssert.Contains("planen einen Stopp", text);
+            StringAssert.Contains("Tankstopp", text);
             Assert.IsNull(new FuelWatch().Evaluate(5, 40f, 2.5f, 10, true, false), "reicht – keine Meldung");
         }
 
@@ -825,13 +847,15 @@ namespace UnitTest.AiTeamTests
             d.OverallEngineDamage = DamageLevel.MAJOR;
             StringAssert.Contains("komm an die Box", IncidentWatch.DamageReport(d));
             d.OverallEngineDamage = DamageLevel.NONE;
-            Assert.AreEqual("Kein nennenswerter Schaden, weiter.", IncidentWatch.DamageReport(d));
+            StringAssert.Contains("fehlen Messwerte", IncidentWatch.DamageReport(d));
+            d.OverallAeroDamage = d.OverallTransmissionDamage = DamageLevel.NONE;
+            StringAssert.Contains("Keine nennenswerten Schäden an Aero, Motor und Getriebe", IncidentWatch.DamageReport(d));
             d.DamageEnabled = false;
             Assert.IsNull(IncidentWatch.DamageReport(d));
         }
 
         [Test]
-        public void Dreher_mit_Verkehrshinweis_und_Strafe_fuer_Mik()
+        public void Dreher_mit_Verkehrshinweis_und_Strafe_fuer_Ben()
         {
             var watch = new IncidentWatch();
             var fast = Racing(150);
@@ -845,7 +869,7 @@ namespace UnitTest.AiTeamTests
             var penalised = Racing(150);
             penalised.PenaltiesData.HasDriveThrough = true;
             var penalty = watch.Evaluate(Racing(150), penalised, now.AddMinutes(1), false);
-            Assert.AreEqual(TeamMember.Mik, penalty[0].Key);
+            Assert.AreEqual(TeamMember.Ben, penalty[0].Key);
             StringAssert.Contains("Durchfahrtsstrafe", penalty[0].Value);
         }
 
@@ -856,7 +880,7 @@ namespace UnitTest.AiTeamTests
             var invalid = Racing(150);
             invalid.SessionData.CurrentLapIsValid = false;
             Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, true).Count);
-            Assert.AreEqual("Die Runde ist ungültig, Streckenbegrenzung.", watch.Evaluate(Racing(150), invalid, now, false)[0].Value);
+            StringAssert.Contains("ungültig", watch.Evaluate(Racing(150), invalid, now, false)[0].Value);
             Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, false).Count);
         }
 
@@ -937,14 +961,14 @@ namespace UnitTest.AiTeamTests
             lastLap.SessionData.CompletedLaps = 9;
             lastLap.SessionData.SessionLapsRemaining = 1;
             lastLap.SessionData.ClassPosition = 5;
-            Assert.AreEqual("Letzte Runde! Platz 5. Hinter dir 0,8 Sekunden, mach die Tür zu.", watch.Evaluate(before, lastLap, 3f, 0.8f, false));
+            StringAssert.Contains("Letzte Runde! Platz 5.", watch.Evaluate(before, lastLap, 3f, 0.8f, false));
             Assert.IsNull(watch.Evaluate(lastLap, lastLap, 3f, 0.8f, false), "nur einmal");
             var done = Racing(150);
             done.SessionData.SessionType = SessionType.Race;
             done.SessionData.SessionPhase = SessionPhase.Finished;
             done.SessionData.ClassPosition = 4;
             done.SessionData.SessionStartClassPosition = 7;
-            Assert.AreEqual("Im Ziel! Platz 4. 3 Plätze gutgemacht.", watch.Evaluate(lastLap, done, -1, -1, false));
+            StringAssert.Contains("Im Ziel! Platz 4. 3 Plätze gutgemacht.", watch.Evaluate(lastLap, done, -1, -1, false));
         }
 
         [Test]

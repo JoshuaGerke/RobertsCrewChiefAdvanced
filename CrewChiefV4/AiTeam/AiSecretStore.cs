@@ -27,7 +27,7 @@ namespace CrewChiefV4.AiTeam
 
         public static string Folder
         {
-            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RobertsCrewChiefAdvanced"); }
+            get { return DataFiles.IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RobertsCrewChiefAdvanced") : Path.Combine(DataFiles.IsolatedRoot,"Secrets"); }
         }
 
         private static readonly string[] chatEnvVars = { "RCCA_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY" };

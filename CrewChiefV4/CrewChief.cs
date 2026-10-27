@@ -171,7 +171,7 @@ namespace CrewChiefV4
             get { return _ticksWhenRead; }
             set { _ticksWhenRead = value; }
         }
-        
+
         private string _latestTrackName;
         public string LatestTrackName
         {
@@ -760,7 +760,7 @@ namespace CrewChiefV4
                 {
                     CrewChief.forceSingleClass = true;
                 }
-                
+
                 running = true; // AI says: Even though we may be about to return false, we need to set this to true so that the UI can update
 
                 if (!audioPlayer.initialised)
@@ -1035,6 +1035,7 @@ namespace CrewChiefV4
                     {
                         previousGameState = currentGameState;
                         currentGameState = nextGameState;
+                        if (AiTeam.LiveDiagnostics.Enabled) AiTeam.LiveDiagnostics.Sample(previousGameState, currentGameState);
                         if (currentGameState.SessionData.SessionType == SessionType.Race)
                         {
                             gameStateMapper.populateDerivedRaceSessionData(currentGameState);

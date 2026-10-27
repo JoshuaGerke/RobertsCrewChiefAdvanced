@@ -19,6 +19,12 @@ namespace CrewChiefV4
     /// </summary>
     public static class DataFiles
     {
+        // Optional process-local root, set before any static paths initialize.
+        // Automated tests never touch the driver's active profiles.
+        public static string IsolatedRoot
+        {
+            get { string root = Environment.GetEnvironmentVariable("RCCA_DATA_ROOT"); return string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root); }
+        }
         #region StringsAsProperties
         // Proved necessary to ensure they're initialised when unit testing
         // called MakeFolders()
@@ -54,7 +60,7 @@ namespace CrewChiefV4
             {
                 if (_UserConfigFolder == null)
                 {
-                    _UserConfigFolder = CrewChief.Debug.UseDebugFilePaths ? Path.Combine(MyDocuments_Debug, "Britton_IT_Ltd")
+                    _UserConfigFolder = IsolatedRoot != null ? Path.Combine(IsolatedRoot,"Config") : CrewChief.Debug.UseDebugFilePaths ? Path.Combine(MyDocuments_Debug, "Britton_IT_Ltd")
                         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Britton_IT_Ltd");
                     // or
                     // var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoaming);
@@ -76,7 +82,7 @@ namespace CrewChiefV4
             {
                 if (_LocalApplicationDataFolder == null)
                 {
-                    _LocalApplicationDataFolder = CrewChief.Debug.UseDebugFilePaths ? Path.Combine(MyDocuments_Debug, "LocalApplicationData")
+                    _LocalApplicationDataFolder = IsolatedRoot != null ? Path.Combine(IsolatedRoot,"LocalApplicationData") : CrewChief.Debug.UseDebugFilePaths ? Path.Combine(MyDocuments_Debug, "LocalApplicationData")
                         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrewChiefV4");
                 }
 
@@ -112,7 +118,7 @@ namespace CrewChiefV4
             {
                 if (_MyDocuments == null)
                 {
-                    _MyDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    _MyDocuments = IsolatedRoot == null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) : Path.Combine(IsolatedRoot,"Documents");
                 }
                 return _MyDocuments;
             }
@@ -128,8 +134,8 @@ namespace CrewChiefV4
             {
                 if (_MyDocuments_Debug == null)
                 {
-                    _MyDocuments_Debug = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                    if (CrewChief.Debug.UseDebugFilePaths)
+                    _MyDocuments_Debug = IsolatedRoot == null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) : Path.Combine(IsolatedRoot,"Documents");
+                    if (IsolatedRoot == null && CrewChief.Debug.UseDebugFilePaths)
                     {
                         _MyDocuments_Debug = Path.Combine(_MyDocuments_Debug, "CrewChiefDebug");
                     }
@@ -251,7 +257,7 @@ namespace CrewChiefV4
             }
         }
         public static readonly string iRacingAppIni               = Path.Combine(MyDocuments, "iRacing", "app.ini");
-        
+
         private static string _paceNotesFolder;
         public static string PaceNotesFolder
         {
@@ -305,7 +311,7 @@ namespace CrewChiefV4
                 return _track_landmarksFolder;
             }
         }
-        
+
         public static string track_landmarksFolder_release_build
         {
             get
@@ -618,7 +624,7 @@ namespace CrewChiefV4
             Log.Error($"Failed to resolve trace file full path: {fileNameToResolve} in {DebugLogsFolder} or {UserLogsFolder}");
             return null;
         }
-        
+
         /// Depth-first recursive delete, with handling for descendant
         /// directories open in Windows Explorer and other Windows "not doing what its been told" arseholery.
         public static void ForciblyDeleteDirectory(string path)

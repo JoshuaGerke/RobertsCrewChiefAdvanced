@@ -25,7 +25,7 @@ namespace CrewChiefV4.Events
 
         public override List<SessionPhase> applicableSessionPhases
         {
-            get { return new List<SessionPhase> { SessionPhase.Garage, SessionPhase.Gridwalk, SessionPhase.Formation, SessionPhase.Countdown, SessionPhase.Green, SessionPhase.FullCourseYellow, SessionPhase.Checkered }; }
+            get { return new List<SessionPhase> { SessionPhase.Garage, SessionPhase.Gridwalk, SessionPhase.Formation, SessionPhase.Countdown, SessionPhase.Green, SessionPhase.FullCourseYellow, SessionPhase.Checkered, SessionPhase.Finished }; }
         }
 
         public override void clearState()
