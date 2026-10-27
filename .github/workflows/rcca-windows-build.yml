@@ -41,9 +41,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Test-Build fehlgeschlagen' }
 
       - name: KI-Team-Tests (müssen bestehen)
-        env:
-          RCCA_DATA_ROOT: ${{ runner.temp }}cca-data
         run: |
+          $env:RCCA_DATA_ROOT = Join-Path $env:RUNNER_TEMP 'rcca-data'
           $vstest = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -find '**\TestPlatform\vstest.console.exe' | Select-Object -First 1
           & $vstest UnitTest/bin/Debug/UnitTest.dll /Platform:x64 /TestCaseFilter:"TestCategory=AiTeam" /Logger:"trx;LogFileName=ai-team.trx" /ResultsDirectory:test-results
           if ($LASTEXITCODE -ne 0) { throw 'KI-Team-Tests fehlgeschlagen' }
