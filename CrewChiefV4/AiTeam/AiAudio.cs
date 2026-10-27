@@ -21,15 +21,17 @@ namespace CrewChiefV4.AiTeam
             public byte[] Wav;
             public string Subtitle;
             public DateTime CreatedUtc;
+            public Func<bool> IsValid;
+            public Action Started;
         }
 
         private static readonly ConcurrentDictionary<string, Entry> clips = new ConcurrentDictionary<string, Entry>();
 
-        public static string Put(byte[] wav, string subtitle)
+        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null)
         {
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started };
             return id;
         }
 
@@ -38,13 +40,31 @@ namespace CrewChiefV4.AiTeam
             Entry e;
             if (id != null && clips.TryGetValue(id, out e))
             {
-                wav = e.Wav;
-                subtitle = e.Subtitle;
-                return true;
+                bool valid;
+                try { valid = e.IsValid == null || e.IsValid(); }
+                catch (Exception) { valid = false; }
+                if (valid)
+                {
+                    wav = e.Wav;
+                    subtitle = e.Subtitle;
+                    return true;
+                }
+                LiveDiagnostics.Audio("invalidated",id,"ai",e.Subtitle);
+                Remove(id);
             }
             wav = null;
             subtitle = null;
             return false;
+        }
+
+        public static void MarkStarted(string id)
+        {
+            Entry entry;
+            if (id != null && clips.TryGetValue(id, out entry))
+            {
+                var callback = System.Threading.Interlocked.Exchange(ref entry.Started, null);
+                try { if (callback != null) callback(); } catch (Exception) { }
+            }
         }
 
         public static void Remove(string id)
@@ -222,7 +242,7 @@ namespace CrewChiefV4.AiTeam
     }
 
     /// <summary>
-    /// Lokale Windows-Sprachausgabe (offline). Rückfall, wenn keine Cloud-Stimme verfügbar ist.
+    /// Lokale Windows-Sprachausgabe (offline), nur bei ausdrücklich gewählter Windows-Quelle. Kein Cloud-Rückfall.
     /// Eigene Instanz, damit Crew Chiefs eigene TTS-Nutzung nicht gestört wird.
     /// </summary>
     public static class WindowsTts

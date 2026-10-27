@@ -56,6 +56,7 @@ namespace UnitTest.Misc.Volume
             }
             string processName = "vlc";
             var cvp = new ControlVolumeOfProcess(processName);
+            if (cvp.GetVolume() < 0) Assert.Ignore("VLC hat keine aktive, zugängliche Windows-Audiositzung.");
             cvp.SetVolume(1.01f);
             Console.WriteLine($"Volume after setting to (invalid) 1.01 is {cvp.GetVolume()}");
             cvp.GetVolume().Should().Be(1.0f);
@@ -68,6 +69,16 @@ namespace UnitTest.Misc.Volume
     [TestFixture]
     public class TestVolumeControlOfGame
     {
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("   ")]
+        public void MissingProcessNameHasNoAudioSession(string processName)
+        {
+            var control = new ControlVolumeOfProcess(processName);
+            Assert.IsNull(control.TheProcess);
+            Assert.AreEqual(-1, control.GetVolume());
+        }
+
         [SetUp]
         public void Initialize()
         {
@@ -133,6 +144,7 @@ namespace UnitTest.Misc.Volume
                 return;
             }
             var cvp = new ControlVolumeOfProcess(processName);
+            if (cvp.GetVolume() < 0) Assert.Ignore("Discord hat keine aktive, zugängliche Windows-Audiositzung.");
             cvp.SetVolume(1.01f);
             Console.WriteLine($"Volume after setting to (invalid) 1.01 is {cvp.GetVolume()}");
             cvp.GetVolume().Should().Be(1.0f);
@@ -152,6 +164,7 @@ namespace UnitTest.Misc.Volume
             }
             GameOrVoipVolume.VolumeControlEnabled = true;
             cvg = new GameOrVoipVolume(true);
+            if (cvg.VoipProcess.GetVolume() < 0) Assert.Ignore("Discord hat keine aktive, zugängliche Windows-Audiositzung.");
 
             File.Exists(DataFiles.game_volumes).Should().BeTrue($"{DataFiles.game_volumes} has not been created");
 

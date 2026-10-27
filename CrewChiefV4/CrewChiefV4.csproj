@@ -250,6 +250,7 @@
     <Compile Include="AiTeam\AiSecretStore.cs" />
     <Compile Include="AiTeam\AiTeamForm.cs" />
     <Compile Include="AiTeam\AiTeamService.cs" />
+    <Compile Include="AiTeam\LiveDiagnostics.cs" />
     <Compile Include="AiTeam\AiTeamSettings.cs" />
     <Compile Include="AiTeam\AiVoiceInput.cs" />
     <Compile Include="AiTeam\CornerCoach.cs" />
@@ -259,9 +260,18 @@
     <Compile Include="AiTeam\FuelWatch.cs" />
     <Compile Include="AiTeam\IncidentWatch.cs" />
     <Compile Include="AiTeam\LapWatch.cs" />
+    <Compile Include="AiTeam\CrewSpeechPolicy.cs" />
+    <Compile Include="AiTeam\SessionLapObserver.cs" />
     <Compile Include="AiTeam\LocalAnswers.cs" />
     <Compile Include="AiTeam\OpenAiCompatibleClient.cs" />
     <Compile Include="AiTeam\RaceDataTools.cs" />
+    <Compile Include="AiTeam\RaceFieldTools.cs" />
+    <Compile Include="AiTeam\ActiveRaceObserver.cs" />
+    <Compile Include="AiTeam\RaceSituationWatch.cs" />
+    <Compile Include="AiTeam\AiRadioSchedule.cs" />
+    <Compile Include="AiTeam\AiModelsPanel.cs" />
+    <Compile Include="AiTeam\RaceRadioDirector.cs" />
+    <Compile Include="AiTeam\SessionGreetingDirector.cs" />
     <Compile Include="AiTeam\SaraLocal.cs" />
     <Compile Include="AiTeam\SaraSpotterPack.cs" />
     <Compile Include="AiTeam\SpotterSnapshot.cs" />

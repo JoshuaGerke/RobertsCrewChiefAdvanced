@@ -61,13 +61,13 @@ namespace CrewChiefV4.AiTeam
             }
             else if (mikTopics.Any(t => lower.Contains(t)))
             {
-                byTopic = TeamMember.Mik;
+                byTopic = TeamMember.Ben;
             }
             else if (benTopics.Any(t => lower.Contains(t)))
             {
-                byTopic = TeamMember.Ben;
+                byTopic = TeamMember.Mik;
             }
-            TeamMember member = byTopic ?? lastMember ?? TeamMember.Ben;
+            TeamMember member = byTopic ?? lastMember ?? TeamMember.Mik;
             return new RoutedRequest { Member = member, Question = text, AddressedByName = false };
         }
 

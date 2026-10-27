@@ -104,6 +104,10 @@ namespace CrewChiefV4.AiTeam
         public async Task<JObject> ChatAsync(string model, JArray messages, JArray tools, string reasoningEffort,
             int maxCompletionTokens, bool jsonMode, CancellationToken ct)
         {
+            using (var diagnosticSpan = LiveDiagnostics.Begin("api", LiveDiagnostics.Data("service","chat","model",model)))
+            {
+                try
+                {
             var body = new JObject
             {
                 ["model"] = model,
@@ -135,6 +139,10 @@ namespace CrewChiefV4.AiTeam
             JObject response = await PostJsonWithParameterFallbackAsync("/chat/completions", body, ct).ConfigureAwait(false);
             Stats.AddChat(sw.ElapsedMilliseconds, response["usage"] as JObject);
             return response;
+
+                }
+                catch (Exception diagnosticError) { diagnosticSpan.Fail(diagnosticError); throw; }
+            }
         }
 
         /// <summary>
@@ -178,6 +186,10 @@ namespace CrewChiefV4.AiTeam
 
         public async Task<string> TranscribeAsync(byte[] wav, string model, string language, string prompt, CancellationToken ct)
         {
+            using (var diagnosticSpan = LiveDiagnostics.Begin("api", LiveDiagnostics.Data("service","stt","model",model,"bytes",wav.Length)))
+            {
+                try
+                {
             var sw = Stopwatch.StartNew();
             using (var request = NewRequest(HttpMethod.Post, "/audio/transcriptions"))
             {
@@ -218,6 +230,10 @@ namespace CrewChiefV4.AiTeam
                 var parsed = JObject.Parse(json);
                 return ((string)parsed["text"] ?? "").Trim();
             }
+
+                }
+                catch (Exception diagnosticError) { diagnosticSpan.Fail(diagnosticError); throw; }
+            }
         }
 
         // .NET schreibt name/filename sonst ohne Anführungszeichen und mit filename*, das lehnen manche Server ab
@@ -238,6 +254,10 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         public async Task<byte[]> SpeechPcmAsync(string model, string voice, string text, string instructions, CancellationToken ct)
         {
+            using (var diagnosticSpan = LiveDiagnostics.Begin("api", LiveDiagnostics.Data("service","tts","model",model)))
+            {
+                try
+                {
             var body = new JObject
             {
                 ["model"] = model,
@@ -265,6 +285,10 @@ namespace CrewChiefV4.AiTeam
                     Stats.AddTts(sw.ElapsedMilliseconds);
                     return IsOpenRouter ? AiAudio.Mp3ToPcm(audio, AiAudio.OpenAiPcmSampleRate) : audio;
                 }
+            }
+
+                }
+                catch (Exception diagnosticError) { diagnosticSpan.Fail(diagnosticError); throw; }
             }
         }
 
@@ -298,6 +322,7 @@ namespace CrewChiefV4.AiTeam
                 request.Headers.TryAddWithoutValidation("HTTP-Referer", "https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced");
             }
             string key = apiKeyProvider == null ? null : apiKeyProvider();
+            LiveDiagnostics.RememberSecret(key);
             if (!string.IsNullOrEmpty(key))
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);

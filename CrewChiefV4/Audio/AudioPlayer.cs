@@ -81,7 +81,7 @@ namespace CrewChiefV4.Audio
         public static readonly Boolean useAlternateBeeps = UserSettings.GetUserSettings().getBoolean("use_alternate_beeps");
         public static readonly float pauseBetweenMessages = UserSettings.GetUserSettings().getFloat("pause_between_messages");
         public static readonly Boolean enableRadioBeeps = UserSettings.GetUserSettings().getBoolean("enable_radio_beeps");
-        
+
         private QueuedMessage lastMessagePlayed = null;
 
         private Boolean allowPearlsOnNextPlay = true;
@@ -251,7 +251,7 @@ namespace CrewChiefV4.Audio
         }
         public static string GetDefaultOutputDeviceName()
         {
-            Debug.Assert(!MainWindow.instance.InvokeRequired);
+            Debug.Assert(MainWindow.instance == null || !MainWindow.instance.InvokeRequired);
             foreach (var device in playbackDevices)
             {
                 if (device.Value.Item2 == 0)
@@ -264,7 +264,7 @@ namespace CrewChiefV4.Audio
 
         public static string GetDefaultOutputDeviceID()
         {
-            Debug.Assert(!MainWindow.instance.InvokeRequired);
+            Debug.Assert(MainWindow.instance == null || !MainWindow.instance.InvokeRequired);
             foreach (var device in playbackDevices)
             {
                 if (device.Value.Item2 == 0)
@@ -1390,7 +1390,8 @@ namespace CrewChiefV4.Audio
                         }
 
                         Boolean messageHasExpired = queuedMessage.expiryTime != 0 && queuedMessage.expiryTime < milliseconds;
-                        Boolean messageIsStillValid = queuedMessage.isMessageStillValid(key, CrewChief.currentGameState);
+                        Boolean messageIsStillValid = queuedMessage.isMessageStillValid(key, CrewChief.currentGameState) &&
+                            !(aiTeamSpotterMuted && queuedMessage.metadata.type == SoundType.SPOTTER);
                         Boolean queueTooLongForMessage = queuedMessage.maxPermittedQueueLengthForMessage != 0 && willBePlayedCount > queuedMessage.maxPermittedQueueLengthForMessage;
                         Boolean hasJustPlayedAsAnImmediateMessage = !isImmediateMessages && lastImmediateMessageName != null &&
                             key == lastImmediateMessageName && GameStateData.CurrentTime - lastImmediateMessageTime < TimeSpan.FromSeconds(5);
@@ -1420,6 +1421,8 @@ namespace CrewChiefV4.Audio
                         }
                         else
                         {
+                            AiTeam.LiveDiagnostics.Queue("rejected",key,queuedMessage.metadata==null?0:queuedMessage.metadata.priority,willBePlayedCount,
+                                blockedByKeepQuietMode?"keep_quiet":blockedByDelayedHigherPriorityMessage?"higher_priority":messageHasExpired?"expired":!messageIsStillValid?"invalid":queueTooLongForMessage?"queue_too_long":hasJustPlayedAsAnImmediateMessage?"duplicate_recent":!messageFunctionIsEmptyOrTrue?"trigger_false":"unplayable");
                             if (blockedByKeepQuietMode)
                             {
                                 Log.Sound(() => "Clip " + key + " will not be played because we're in 'keep quiet' mode");
@@ -1617,6 +1620,7 @@ namespace CrewChiefV4.Audio
                             Log.SoundDebug(() => "Pausing before " + eventName);
                             Utilities.InterruptedSleep((int)Math.Round(pauseBetweenMessages * 1000.0f) /*totalWaitMillis*/, 10 /*waitWindowMillis*/, () => monitorRunning /*keepWaitingPredicate*/);
                         }
+                        if (aiTeamSpotterMuted && thisMessage.metadata.type == SoundType.SPOTTER) { soundsProcessed.Add(eventName); continue; }
                         //  now double check this is still valid
                         if (!isImmediateMessages)
                         {
@@ -2132,6 +2136,7 @@ namespace CrewChiefV4.Audio
 
         /// <summary>RCCA: optionaler Filter ("Nur noch das KI-Team spricht"), false = Nachricht nicht einreihen. Der Spotter läuft nicht hierüber.</summary>
         public static Func<QueuedMessage, Boolean> messageFilter = null;
+        public static volatile bool aiTeamSpotterMuted;
 
         private static Boolean blockedByFilter(QueuedMessage queuedMessage)
         {
@@ -2144,10 +2149,11 @@ namespace CrewChiefV4.Audio
             return true;
         }
 
-        public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false)
+        public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false, Boolean interruptForAiHazard = false)
         {
             if (blockedByFilter(queuedMessage))
             {
+                AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata==null?0:queuedMessage.metadata.priority,0,"message_filter");
                 return;
             }
             if (CrewChief.Debug.RunningUnderDebugger && queuedMessage.messageName != null)
@@ -2174,6 +2180,7 @@ namespace CrewChiefV4.Audio
                 {
                     if (immediateClips.Contains(queuedMessage.messageName))
                     {
+                        AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata.priority,-1,"duplicate");
                         Log.SoundDebug(() => "Clip for event " + queuedMessage.messageName + " is already queued, ignoring");
                         return;
                     }
@@ -2196,6 +2203,9 @@ namespace CrewChiefV4.Audio
                             queuedMessage.metadata.type = SoundType.IMPORTANT_MESSAGE;
                         }
                         immediateClips.Insert(getInsertionIndex(immediateClips, queuedMessage), queuedMessage.messageName, queuedMessage);
+                        AiTeam.LiveDiagnostics.Queue("inserted",queuedMessage.messageName,queuedMessage.metadata.priority,immediateClips.Count,null,queuedMessage.metadata.messageId);
+                        if (interruptForAiHazard && queuedMessage.messageName.StartsWith("ai_team_reply_", StringComparison.Ordinal) && !PlaybackModerator.lastSoundWasSpotter)
+                            SoundCache.InterruptCurrentlyPlayingSound(false);
 
                         // wake up the monitor thread immediately
                         monitorQueueWakeUpEvent.Set();
@@ -2206,6 +2216,7 @@ namespace CrewChiefV4.Audio
 
         public void playSpotterMessage(QueuedMessage queuedMessage, Boolean keepChannelOpen)
         {
+            if (aiTeamSpotterMuted) return;
             if (queuedMessage.canBePlayed)
             {
                 // always override the type here
@@ -2215,6 +2226,7 @@ namespace CrewChiefV4.Audio
                 {
                     if (immediateClips.Contains(queuedMessage.messageName))
                     {
+                        AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata.priority,-1,"duplicate");
                         Log.SoundDebug(() => "Clip for event " + queuedMessage.messageName + " is already queued, ignoring");
                         return;
                     }
@@ -2228,6 +2240,7 @@ namespace CrewChiefV4.Audio
                         }
                         // default spotter priority is 10
                         immediateClips.Insert(getInsertionIndex(immediateClips, queuedMessage), queuedMessage.messageName, queuedMessage);
+                        AiTeam.LiveDiagnostics.Queue("inserted",queuedMessage.messageName,queuedMessage.metadata.priority,immediateClips.Count,null,queuedMessage.metadata.messageId);
 
                         // attempt to interrupt whatever sound is currently playing when the spotter interrupts the chief (only works with nAudio)
                         // don't interrupt if the currently playing sound is a beep
@@ -2263,6 +2276,7 @@ namespace CrewChiefV4.Audio
         {
             if (blockedByFilter(queuedMessage))
             {
+                AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata==null?0:queuedMessage.metadata.priority,0,"message_filter");
                 return;
             }
             if (CrewChief.Debug.RunningUnderDebugger && queuedMessage.messageName != null)
@@ -2288,6 +2302,7 @@ namespace CrewChiefV4.Audio
                 {
                     if (queuedClips.Contains(queuedMessage.messageName))
                     {
+                        AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata.priority,-1,"duplicate");
                         Log.SoundDebug(() => "Clip for event " + queuedMessage.messageName + " is already queued, ignoring");
                         return;
                     }
@@ -2313,6 +2328,7 @@ namespace CrewChiefV4.Audio
                                 insertionIndex++;
                             }
                             queuedClips.Insert(insertionIndex, queuedMessage.messageName, queuedMessage);
+                            AiTeam.LiveDiagnostics.Queue("inserted",queuedMessage.messageName,queuedMessage.metadata.priority,queuedClips.Count,null,queuedMessage.metadata.messageId);
                             if (pearlPosition == PearlsOfWisdom.PearlMessagePosition.AFTER)
                             {
                                 QueuedMessage pearlQueuedMessage = new QueuedMessage(queuedMessage.abstractEvent);
@@ -2509,7 +2525,7 @@ namespace CrewChiefV4.Audio
             bool allowTTSName = SoundCache.hasSuitableTTSVoice
                 && (ttsOption == TTS_OPTION.ANY_TIME || (ttsOption == TTS_OPTION.ONLY_WHEN_NECESSARY && allowTTSNameInOnlyWhenNecessaryMode));
             var usableName = DriverNameHelper.getUsableDriverName(rawName);
-            
+
             return CrewChief.enableDriverNames &&
                 (allowTTSName
                 || (SoundCache.trainee_active() && SoundCache.availableDriverNamesForTrainee.Contains(usableName)

@@ -44,6 +44,9 @@ namespace CrewChiefV4.AiTeam
         private readonly List<RaceEventRecord> radio = new List<RaceEventRecord>();
         private float fuelAtLapStart = -1;
         private bool pitDuringLap;
+        private bool invalidDuringLap;
+        private SessionType lastSessionType = SessionType.Unavailable;
+        private int lastRecordedLap = -1;
 
         public DateTime LastTickUtc { get; private set; } = DateTime.MinValue;
         public int SessionId { get; private set; } = int.MinValue;
@@ -55,8 +58,12 @@ namespace CrewChiefV4.AiTeam
                 laps.Clear();
                 events.Clear();
                 radio.Clear();
+                SessionId = int.MinValue;
+                LastTickUtc = DateTime.MinValue;
+                lastRecordedLap = -1;
                 fuelAtLapStart = -1;
                 pitDuringLap = false;
+                invalidDuringLap = false;
             }
         }
 
@@ -71,31 +78,38 @@ namespace CrewChiefV4.AiTeam
             bool lapCompleted = false;
             lock (sync)
             {
-                if (current.SessionData.SessionId != SessionId || current.SessionData.IsNewSession)
+                bool newSession = current.SessionData.SessionId != SessionId || current.SessionData.SessionType != lastSessionType ||
+                    (current.SessionData.IsNewSession && (previous == null || !previous.SessionData.IsNewSession));
+                if (newSession)
                 {
                     SessionId = current.SessionData.SessionId;
+                    lastSessionType = current.SessionData.SessionType;
                     laps.Clear();
                     events.Clear();
+                    radio.Clear();
+                    lastRecordedLap = -1;
                     // erst ab der ersten Überfahrt messen, sonst zählen Einführungsrunde und Startaufstellung mit
                     fuelAtLapStart = -1;
                     pitDuringLap = false;
+                invalidDuringLap = false;
                 }
                 if (current.PitData.InPitlane)
                 {
                     pitDuringLap = true;
                 }
-                if (previous != null)
+                if (previous != null && !newSession)
                 {
                     TrackEvents(previous, current, nowUtc);
                 }
-                if (current.SessionData.IsNewLap && current.SessionData.CompletedLaps > 0)
+                if (current.SessionData.IsNewLap && current.SessionData.CompletedLaps > lastRecordedLap && current.SessionData.CompletedLaps > 0)
                 {
                     lapCompleted = true;
+                    lastRecordedLap = current.SessionData.CompletedLaps;
                     var record = new LapRecord
                     {
                         LapNumber = current.SessionData.CompletedLaps,
                         LapTime = current.SessionData.LapTimePrevious,
-                        Valid = current.SessionData.PreviousLapWasValid,
+                        Valid = current.SessionData.PreviousLapWasValid && !invalidDuringLap,
                         Position = current.SessionData.ClassPosition,
                         GapAhead = current.SessionData.TimeDeltaFront,
                         GapBehind = current.SessionData.TimeDeltaBehind,
@@ -127,7 +141,9 @@ namespace CrewChiefV4.AiTeam
                         laps.RemoveAt(0);
                     }
                     pitDuringLap = current.PitData.InPitlane;
+                    invalidDuringLap = false;
                 }
+                if (!current.SessionData.CurrentLapIsValid) invalidDuringLap = true;
             }
             return lapCompleted;
         }
@@ -217,7 +233,7 @@ namespace CrewChiefV4.AiTeam
         {
             lock (sync)
             {
-                var usable = laps.Where(l => l.FuelUsed > 0 && !l.InPitLap).Reverse().Take(lastLaps).ToList();
+                var usable = laps.Where(l => l.Valid && l.FuelUsed > 0 && !float.IsNaN(l.FuelUsed) && !float.IsInfinity(l.FuelUsed) && !l.InPitLap).Reverse().Take(lastLaps).ToList();
                 return usable.Count == 0 ? -1 : usable.Average(l => l.FuelUsed);
             }
         }

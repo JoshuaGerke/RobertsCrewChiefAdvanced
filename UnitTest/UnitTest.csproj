@@ -66,6 +66,12 @@
     </Compile>
     <None Include="GrammarFiles\TDD\TDD_GetGrammars.cs" />
     <Compile Include="AiTeam\AiTeamTests.cs" />
+    <Compile Include="AiTeam\RaceRadioDirectorTests.cs" />
+    <Compile Include="AiTeam\LiveCrewV06Tests.cs" />
+    <Compile Include="AiTeam\VerifiedV06Tests.cs" />
+    <Compile Include="AiTeam\LiveDiagnosticsTests.cs" />
+    <Compile Include="AiTeam\ActiveRaceIntelligenceTests.cs" />
+    <Compile Include="AiTeam\ActiveCrewRegressionTests.cs" />
     <Compile Include="Misc\CommandLineParametersReader.cs" />
     <Compile Include="Misc\RegressionTestGameDefinition.cs" />
     <Compile Include="Misc\TDD_email.cs" />

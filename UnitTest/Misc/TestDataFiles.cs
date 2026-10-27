@@ -14,6 +14,7 @@ namespace UnitTest.Misc
     [TestFixture]
     public class TestDataFiles
     {
+        private static string TestDocuments { get { return DataFiles.IsolatedRoot == null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) : Path.Combine(DataFiles.IsolatedRoot,"Documents"); } }
         [OneTimeSetUp]
         public void ClassInitialize()
         {
@@ -25,6 +26,8 @@ namespace UnitTest.Misc
         public void TestDebugLogsFolder()
         {
             CrewChief.Debug.UseDebugFilePaths = true; // too late to affect the statics
+            // A fresh isolated test root must not depend on old user logs.
+            File.WriteAllText(Path.Combine(DataFiles.DebugLogsFolder,"console_folder_fixture.log"),"isolated fixture");
             bool logFound = false;
             foreach (var filename in Directory.GetFiles(DataFiles.DebugLogsFolder))
             {
@@ -39,8 +42,13 @@ namespace UnitTest.Misc
         [Test]
         public void TestSoundFilesFolder()
         {
+            Assert.AreEqual(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CrewChiefV4", "Sounds"), DataFiles.SoundFilesFolder);
+            // A test runner may have a different Windows LocalApplicationData than the interactive driver.
+            // Validate the real sound pack explicitly provided by WINDOWS_V06_TEST, without creating a fake Voice folder.
+            string soundRoot = Environment.GetEnvironmentVariable("RCCA_TEST_SOUND_ROOT") ?? DataFiles.SoundFilesFolder;
             bool voiceFound = false;
-            foreach (var filename in Directory.GetDirectories(DataFiles.SoundFilesFolder))
+            foreach (var filename in Directory.GetDirectories(soundRoot))
             {
                 if (filename.ToLower().Contains("voice"))
                 {
@@ -101,30 +109,26 @@ namespace UnitTest.Misc
             }
             String defaultSoundFilesPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\CrewChiefV4\Sounds";
             defaultSoundFilesPath.Should().Be(DataFiles.SoundFilesFolder);
-            string path = System.IO.Path.Combine(Environment.GetFolderPath(
-                    Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "sounds-variety-data.txt");
+            string path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "sounds-variety-data.txt");
             path.Should().Be(DataFiles.sounds_variety_data); 
 
-            var overridePath = System.IO.Path.Combine(Environment.GetFolderPath(
-                        Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "terminologies.json");
+            var overridePath = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "terminologies.json");
             overridePath.Should().Be(DataFiles.terminologies);
 
-            path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4");
+            path = Path.Combine(TestDocuments, "CrewChiefV4");
             path.Should().Be(DataFiles.BaseFolder);
 
-            String userConfig = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "mqtt_telemetry.json");
+            String userConfig = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "mqtt_telemetry.json");
             String defaultConfig = getDefaultFileLocation("mqtt_telemetry.json");
             userConfig = Path.GetFullPath(userConfig);
             userConfig.Should().Be(DataFiles.mqtt_telemetry);
             defaultConfig = Path.GetFullPath(defaultConfig);
             defaultConfig.Should().Be(DataFiles.default_mqtt_telemetry);
 
-            String fullPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "pit_benchmarks.json");
+            String fullPath = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "pit_benchmarks.json");
             fullPath.Should().Be(DataFiles.pit_benchmarks);
 
-            String userFilePath = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "chart_subscriptions.json");
+            String userFilePath = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "chart_subscriptions.json");
 
             String defaultFilePath = getDefaultFileLocation("chart_subscriptions.json");
             userFilePath.Should().Be(DataFiles.chart_subscriptions);
@@ -132,15 +136,13 @@ namespace UnitTest.Misc
             defaultFilePath.Should().Be(DataFiles.default_chart_subscriptions);
 
             string overlayFileName = "overlayFileName";
-            path = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", overlayFileName);
+            path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", overlayFileName);
             path.Should().Be(DataFiles.Overlay(overlayFileName));
 
-            path = Path.Combine(Environment.GetFolderPath(
-                    Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "RF2");
+            path = Path.Combine(TestDocuments, "CrewChiefV4", "RF2");
             path.Should().Be(DataFiles.RF2Folder);
 
-            /*public static*/ string splashImageFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\CrewChiefV4\";
+            /*public static*/ string splashImageFolderPath = DataFiles.IsolatedRoot==null?Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)+@"\CrewChiefV4\":Path.Combine(DataFiles.IsolatedRoot,"LocalApplicationData")+@"\";
             /*public static*/ string tempSplashImagePath = splashImageFolderPath + "splash_image_tmp.png";
             /*public static*/ string splashImagePath = splashImageFolderPath + "splash_image.png";
             splashImageFolderPath = Path.GetFullPath(splashImageFolderPath);
@@ -156,18 +158,17 @@ namespace UnitTest.Misc
             path = logFilePath();
             path.Should().Be(DataFiles.UserLogsFolder);
 
-            var cdPath = System.IO.Path.Combine(Environment.GetFolderPath(
-                            Environment.SpecialFolder.MyDocuments), @"CrewChiefV4\Profiles\ControllerData");
+            var cdPath = System.IO.Path.Combine(TestDocuments, @"CrewChiefV4\Profiles\ControllerData");
             cdPath.Should().Be(DataFiles.ControllerDataFolder);
 
 
-            var MyDocuments = new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4"));
+            var MyDocuments = new DirectoryInfo(Path.Combine(TestDocuments, "CrewChiefV4"));
             var OldSettingsFile = new FileInfo(Path.Combine(MyDocuments.FullName, "vr_overlay_windows.json"));
             var DefaultFile = /*new FileInfo(*/Path.Combine(MyDocuments.FullName, "CrewChiefV4.vrconfig.json");
             DefaultFile.Should().Be(DataFiles.VRconfig);
 
             String fileName = "saved_command_macros.json";
-            path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4");
+            path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4");
             path = Path.Combine(path, fileName);
             path.Should().Be(DataFiles.saved_command_macros);
 
@@ -182,18 +183,17 @@ namespace UnitTest.Misc
                 DataFiles.default_saved_command_macros,
                 "command macros", forceDefault));
 
-            path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "iRacing", "telemetry");
+            path = System.IO.Path.Combine(TestDocuments, "iRacing", "telemetry");
             path.Should().Be(DataFiles.iRacingTelemetryFolder);
 
-            string dataFilesPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "iRacing", "app.ini");
+            string dataFilesPath = System.IO.Path.Combine(TestDocuments, "iRacing", "app.ini");
             dataFilesPath.Should().Be(DataFiles.iRacingAppIni);
 
             path = getDefaultFileLocation("carClassData.json");
             path = Path.GetFullPath(path);
             path.Should().Be(DataFiles.default_carClassData);
 
-            path = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "carClassData.json");
+            path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "carClassData.json");
             path.Should().Be(DataFiles.carClassData);
 
             string configFileName = "configFileName";
@@ -210,17 +210,14 @@ namespace UnitTest.Misc
             path.Should().Be(DataFiles.default_controllerConfigurationData);
 
             var currProfileName = UserSettings.GetUserSettings().getString("current_settings_profile");
-            path = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), @"CrewChiefV4\Profiles\ControllerData", currProfileName);
+            path = System.IO.Path.Combine(TestDocuments, @"CrewChiefV4\Profiles\ControllerData", currProfileName);
             path = Path.GetFullPath(path);
             path.Should().Be(DataFiles.CurrentProfile());
 
-            path = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "unvocalized_driver_names.txt");
+            path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "unvocalized_driver_names.txt");
             path.Should().Be(DataFiles.unvocalized_driver_names);
 
-            path = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "Pace_notes");
+            path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "Pace_notes");
             path.Should().Be(DataFiles.PaceNotesFolder);
 
 
@@ -230,21 +227,19 @@ namespace UnitTest.Misc
             }
             else
             {
-                dataFilesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "DebugLogs");
+                dataFilesPath = Path.Combine(TestDocuments, "CrewChiefV4", "DebugLogs");
             }
             dataFilesPath = Path.GetFullPath(dataFilesPath);
             dataFilesPath.Should().Be(DataFiles.DebugLogsFolder);
 
-            string debugDataPath = Path.Combine(Environment.GetFolderPath(
-                             Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "VoiceRecognitionDebug");
+            string debugDataPath = Path.Combine(TestDocuments, "CrewChiefV4", "VoiceRecognitionDebug");
             debugDataPath = Path.GetFullPath(debugDataPath);
             debugDataPath.Should().Be(DataFiles.voiceRecognitionDebugFolder);
 
-            path = Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "Track_landmarks");
+            path = Path.Combine(TestDocuments, "CrewChiefV4", "Track_landmarks");
             path.Should().Be(DataFiles.track_landmarksFolder);
 
-            String userLandmarks = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "Track_landmarks");
+            String userLandmarks = Path.Combine(TestDocuments, "CrewChiefV4", "Track_landmarks");
             userLandmarks.Should().Be(DataFiles.track_landmarksFolder);
         }
 
@@ -252,14 +247,13 @@ namespace UnitTest.Misc
         // Copy of old method in MainWindow.cs
         private string logFilePath()
         {
-            return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "DebugLogs");
+            return System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "DebugLogs");
         }
 
         // Copy of old method in MacroManager.cs
         public static String getMacrosFileLocation(bool forceDefault = false)
         {
-            String path = System.IO.Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.MyDocuments), "CrewChiefV4", "saved_command_macros.json");
+            String path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "saved_command_macros.json");
 
             if (File.Exists(path) && !forceDefault) // forceDefault can/should only be true when called from the macro editor
             {

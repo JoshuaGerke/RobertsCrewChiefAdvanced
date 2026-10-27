@@ -34,9 +34,17 @@ namespace UnitTest.Misc.OpponentSpeechCommands
     {
         static AudioPlayer audioPlayer;
         static GameStateData currentGameState;
+        private Func<QueuedMessage, bool> previousMessageFilter;
+        private float previousSoundPackVersion;
         [SetUp] // nunit
         public void Init()
         {
+            // This fixture exercises the legacy voice path, independently of AI fixture order.
+            previousMessageFilter = AudioPlayer.messageFilter;
+            AudioPlayer.messageFilter = null;
+            previousSoundPackVersion = SoundPackVersionsHelper.currentSoundPackVersion;
+            // This fixture supplies the legacy numbers/23 fragment set. Do not inherit the installed soundpack format.
+            SoundPackVersionsHelper.currentSoundPackVersion = 106;
             sInit();
         }
         public void sInit()
@@ -107,6 +115,7 @@ namespace UnitTest.Misc.OpponentSpeechCommands
             SoundCache.availableSounds.Add("numbers/hundred");
             SoundCache.availableSounds.Add("numbers/point");
             SoundCache.availableSounds.Add("numbers/minutes");
+            SoundCache.availableSounds.Add("numbers/seconds");
             SoundCache.availableSounds.Add("licence/a_licence");
             SoundCache.availableSounds.Add("opponents/rating_intro");
             SoundCache.availableSounds.Add("acknowledge/no_data");
@@ -120,6 +129,8 @@ namespace UnitTest.Misc.OpponentSpeechCommands
         [TearDown] // nunit
         public void Cleanup()
         {
+            AudioPlayer.messageFilter = previousMessageFilter;
+            SoundPackVersionsHelper.currentSoundPackVersion = previousSoundPackVersion;
             audioPlayer?.Dispose();
         }
 
@@ -243,7 +254,15 @@ namespace UnitTest.Misc.OpponentSpeechCommands
                 Log.Commentary($"Testing gameEnum {gameEnum}");
                 audioPlayer.purgeQueues();
                 eventResult[0].abstractEvent.respond(voiceMessage);
-                ConsoleCapture.Contents.Should().Contain(shouldContain);
+                if (shouldContain.StartsWith("numbers/", StringComparison.Ordinal))
+                {
+                    // Time fragments are resolved into the audio queue, not printed as sound paths.
+                    // Verify the actual response, independently of diagnostic log verbosity.
+                    var response = audioPlayer.getFirstWaitingImmediateMessage(SoundType.OTHER);
+                    Assert.IsNotNull(response);
+                    CollectionAssert.Contains(response.messageFolders, shouldContain);
+                }
+                else ConsoleCapture.Contents.Should().Contain(shouldContain);
             }
         }
 

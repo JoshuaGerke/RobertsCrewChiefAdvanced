@@ -13,6 +13,7 @@ namespace CrewChiefV4.AiTeam
         private int pendingLap = -1;
         private float pendingSince;
         private bool finishCalled;
+        private static int finishVariant;
 
         public void Reset()
         {
@@ -58,12 +59,17 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionPhase == SessionPhase.Finished && ps.SessionPhase != SessionPhase.Finished && !finishCalled)
             {
                 finishCalled = true;
-                return "Im Ziel! Platz " + s.ClassPosition + "." + Gained(s);
+                if(s.IsDNF)return "Die Session ist beendet. Du bist als ausgefallen geführt.";
+                if(s.IsDisqualified)return "Die Session ist beendet. Die Wertung meldet eine Disqualifikation.";
+                if (s.ClassPosition == 1) return CrewSpeechPolicy.FinishPhrases[(System.Threading.Interlocked.Increment(ref finishVariant)-1) % CrewSpeechPolicy.FinishPhrases.Length];
+                if (s.ClassPosition <= 0) return "Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.";
+                return "Im Ziel! Platz " + s.ClassPosition + "." + Gained(s) +
+                    (s.ClassPosition <= 3 ? " Auf dem Podium, klasse gemacht!" : " Danke für deinen Einsatz. Wir schauen gemeinsam, wo noch Zeit drin ist.");
             }
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {
                 lastCalledLap = s.CompletedLaps;
-                return "Zielflagge ist draußen, das ist deine letzte Runde. Platz " + s.ClassPosition + "." + Duel(gapAhead, gapBehind);
+                return "Zielflagge ist draußen, bring die Runde sauber zu Ende." + (s.ClassPosition == 1 ? " Du führst, jetzt konzentriert nach Hause bringen." : s.ClassPosition > 0 ? " Platz " + s.ClassPosition + "." : "") + Duel(gapAhead, gapBehind);
             }
             if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)
             {
@@ -84,7 +90,7 @@ namespace CrewChiefV4.AiTeam
             if (left == 1)
             {
                 lastCalledLap = s.CompletedLaps;
-                return "Letzte Runde! Platz " + s.ClassPosition + "." + Duel(gapAhead, gapBehind);
+                return "Letzte Runde! " + (s.ClassPosition == 1 ? "Du führst. Bleib ruhig, bring es sauber nach Hause." : "Platz " + s.ClassPosition + ". Bleib konzentriert.") + Duel(gapAhead, gapBehind);
             }
             if (!minimalMode && left == 2)
             {
@@ -98,7 +104,7 @@ namespace CrewChiefV4.AiTeam
         {
             if (gapBehind > 0 && gapBehind < 1.5f)
             {
-                return " Hinter dir " + SaraLocal.Seconds(gapBehind) + ", mach die Tür zu.";
+                return " Hinter dir " + SaraLocal.Seconds(gapBehind) + ", bleib aufmerksam.";
             }
             if (gapAhead > 0 && gapAhead < 1.5f)
             {

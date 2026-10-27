@@ -17,6 +17,7 @@ namespace CrewChiefV4.AiTeam
         public DateTime NowUtc;
         public DateTime LastTelemetryUtc;
         public string GameName;
+        public string DriverName = "Rob";
         public bool SendDriverNames = true;
         /// <summary>Ergebnis von Fuel.GetAdditionalFuelToEndOfRace (Crew-Chief-Rechnung), float.MaxValue = unbekannt.</summary>
         public float CrewChiefAdditionalFuelNeeded = float.MaxValue;
@@ -39,7 +40,7 @@ namespace CrewChiefV4.AiTeam
         public static readonly string[] AllToolNames =
         {
             "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
-            "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
+            "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
         public static JArray BuildToolDefinitions()
@@ -73,10 +74,12 @@ namespace CrewChiefV4.AiTeam
                     },
                 },
             });
+            tools.Add(Tool("get_race_field", "Alle erfassten Gegner, seitenweise mit Name, Gesamt-/Klassenplatz, Startnummer, Rundenzeiten und Boxenstatus.", RaceFieldTools.Parameters(false)));
+            tools.Add(Tool("get_opponent", "Gezielt einen Gegner aus dem gesamten Feld abfragen. Genau ein Suchmerkmal: Name, Startnummer oder Gesamtplatz. Mehrdeutigkeit niemals raten.", RaceFieldTools.Parameters(true)));
             return tools;
         }
 
-        private static JObject Tool(string name, string description)
+        private static JObject Tool(string name, string description, JObject parameters = null)
         {
             return new JObject
             {
@@ -85,13 +88,26 @@ namespace CrewChiefV4.AiTeam
                 {
                     ["name"] = name,
                     ["description"] = description,
-                    ["parameters"] = new JObject { ["type"] = "object", ["properties"] = new JObject(), ["additionalProperties"] = false },
+                    ["parameters"] = parameters ?? new JObject { ["type"] = "object", ["properties"] = new JObject(), ["additionalProperties"] = false },
                 },
             };
         }
 
+        public static JObject Execute(string toolName, RaceDataContext ctx, string arguments)
+        {
+            if (toolName == "get_race_field" || toolName == "get_opponent") return RaceFieldTools.Read(toolName, ctx, arguments);
+            try
+            {
+                if ((arguments ?? "").Length > 2048 || JObject.Parse(string.IsNullOrWhiteSpace(arguments) ? "{}" : arguments).Count != 0)
+                    return new JObject { ["fehler"] = "Dieses Werkzeug akzeptiert keine Argumente." };
+            }
+            catch (Exception) { return new JObject { ["fehler"] = "Ungültige Werkzeugargumente." }; }
+            return Execute(toolName, ctx);
+        }
+
         public static JObject Execute(string toolName, RaceDataContext ctx)
         {
+            if (toolName == "get_race_field" || toolName == "get_opponent") return RaceFieldTools.Read(toolName, ctx, "{}");
             var missing = new List<string>();
             JObject data;
             if (ctx.GameState == null)
@@ -129,7 +145,7 @@ namespace CrewChiefV4.AiTeam
             {
                 ["quelle"] = "Crew-Chief-Telemetrie" + (string.IsNullOrEmpty(ctx.GameName) ? "" : " (" + ctx.GameName + ")"),
                 ["datenalter_s"] = ctx.TelemetryAgeSeconds > 9999 ? (JToken)null : Math.Round(ctx.TelemetryAgeSeconds, 1),
-                ["veraltet"] = ctx.TelemetryAgeSeconds > StaleAfterSeconds,
+                ["veraltet"] = ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > StaleAfterSeconds,
             };
             foreach (var property in data.Properties())
             {
@@ -162,7 +178,7 @@ namespace CrewChiefV4.AiTeam
                 ["runden_absolviert"] = s.CompletedLaps,
                 ["flagge"] = s.Flag.ToString(),
                 ["in_boxengasse"] = gs.PitData.InPitlane,
-                ["letzte_runde_des_rennens"] = LapWatch.OnLastLap(s),
+                ["letzte_runde_des_rennens"] = LapWatch.OnLastLap(s) || s.SessionPhase == SessionPhase.Checkered,
             };
             int lapsLeft = LapWatch.LapsLeft(s);
             if (s.SessionHasFixedTime)
@@ -267,10 +283,14 @@ namespace CrewChiefV4.AiTeam
             {
                 missing.Add("verbrauch_pro_runde (noch keine volle gemessene Runde)");
             }
-            if (ctx.CrewChiefAdditionalFuelNeeded != float.MaxValue && ctx.CrewChiefAdditionalFuelNeeded > -1000)
+            var estimate=FuelEstimate.From(ctx);
+            if (estimate != null)
             {
-                o["zusaetzlich_benoetigt_bis_rennende_l"] = Math.Round(ctx.CrewChiefAdditionalFuelNeeded, 1);
-                o["zusaetzlich_hinweis"] = "Crew-Chief-Rechnung ohne Reserve; negativ = Sprit reicht mit Überschuss";
+                o["zusaetzlich_benoetigt_bis_rennende_l"] = Math.Round(estimate.AdditionalWithoutReserve, 2);
+                o["reserve_ziel_l"] = Math.Round(estimate.ReserveLitres, 2);
+                o["fehlmenge_mit_reserve_l"] = Math.Round(estimate.AdditionalWithoutReserve+estimate.ReserveLitres, 2);
+                o["zusaetzlich_hinweis"] = estimate.Source + ". Negativer Bedarf ohne Reserve bedeutet: rechnerisch ausreichend. Fehlende Reserve ist KEIN bestätigter Spritmangel.";
+                o["zeitrennen_rest_distanz_geschaetzt"] = estimate.EstimatedFromTime;
             }
             else
             {
@@ -362,13 +382,13 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
-        private static JObject Describe(OpponentData op, RaceDataContext ctx, SessionData s)
+        internal static JObject Describe(OpponentData op, RaceDataContext ctx, SessionData s)
         {
             var d = new JObject
             {
                 ["position_klasse"] = op.ClassPosition,
-                ["letzte_runde_s"] = op.LastLapTime > 0 ? (JToken)Math.Round(op.LastLapTime, 3) : null,
-                ["beste_runde_s"] = op.CurrentBestLapTime > 0 ? (JToken)Math.Round(op.CurrentBestLapTime, 3) : null,
+                ["letzte_runde_s"] = op.LastLapTime > 0 && op.LastLapTime < 3600 ? (JToken)Math.Round(op.LastLapTime, 3) : null,
+                ["beste_runde_s"] = op.CurrentBestLapTime > 0 && op.CurrentBestLapTime < 3600 ? (JToken)Math.Round(op.CurrentBestLapTime, 3) : null,
                 ["in_der_box"] = op.InPits,
                 ["boxenstopps"] = op.NumPitStops,
                 ["reifen"] = op.CurrentTyres.ToString(),
@@ -382,8 +402,8 @@ namespace CrewChiefV4.AiTeam
                 d["klasse"] = op.CarClass.getClassIdentifier();
             }
             // Pace-Trend: Durchschnitt der letzten 3 gültigen Runden im Vergleich zu unseren
-            var theirs = op.OpponentLapData.Where(l => l.LapTime > 0 && l.IsValid).Reverse().Take(3).ToList();
-            var ours = s.PlayerLapData.Where(l => l.LapTime > 0 && l.IsValid).Reverse().Take(3).ToList();
+            var theirs = op.OpponentLapData.Where(l => l.LapTime > 0 && l.IsValid && !l.InLap && !l.OutLap).Reverse().Take(3).ToList();
+            var ours = s.PlayerLapData.Where(l => l.LapTime > 0 && l.IsValid && !l.InLap && !l.OutLap).Reverse().Take(3).ToList();
             if (theirs.Count >= 2 && ours.Count >= 2)
             {
                 double delta = ours.Average(l => l.LapTime) - theirs.Average(l => l.LapTime);

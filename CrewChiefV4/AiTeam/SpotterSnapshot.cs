@@ -23,7 +23,8 @@ namespace CrewChiefV4.AiTeam
 
         public bool IsFresh(DateTime nowUtc)
         {
-            return SpotterRunning && EvaluatedUtc != DateTime.MinValue && nowUtc - EvaluatedUtc <= MaxAgeForClearance;
+            return SpotterRunning && CarsLeft >= 0 && CarsRight >= 0 &&
+                EvaluatedUtc != DateTime.MinValue && nowUtc >= EvaluatedUtc && nowUtc - EvaluatedUtc <= MaxAgeForClearance;
         }
 
         /// <summary>Nur eine frische Auswertung zählt – alte Zählerstände (Spotter pausiert, Auto steht) blockieren sonst den Funk dauerhaft.</summary>

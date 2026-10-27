@@ -61,6 +61,7 @@ namespace CrewChiefV4
             AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(UnhandledExceptionHandler);
             Application.ThreadException += new System.Threading.ThreadExceptionEventHandler(ThreadExceptionHandler);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ApplicationExit += (s, e) => CrewChiefV4.AiTeam.LiveDiagnostics.Shutdown();
 
             BootTrace("0");
             CrewChief.Debug = new Debugging();
@@ -97,7 +98,7 @@ namespace CrewChiefV4
 
             // Internal.
             Boolean allowMultipleInst = CrewChief.CommandLine.Get("multi") != null;
-            
+
             if (!allowMultipleInst)
             {
                 String commandPassed = CrewChief.CommandLine.GetCommandArg();
