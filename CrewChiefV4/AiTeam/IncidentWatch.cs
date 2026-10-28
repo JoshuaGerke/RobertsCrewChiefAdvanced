@@ -33,6 +33,10 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastStopUtc = DateTime.MinValue;
         private int lastInvalidLap = -1;
         private int invalidCount;
+        // für die Bilanz im Ziel, unabhängig vom Funkmodus gezählt
+        public int Spins { get; private set; }
+        public int InvalidLaps { get; private set; }
+        public int Penalties { get; private set; }
         private int positionBeforeIncident;
         private DamageAssessment assessment;
         // AMS2 meldet gelegentlich kurz Platz 1 (Spieler taucht als Gegner auf) → Median statt Einzelwert
@@ -43,6 +47,7 @@ namespace CrewChiefV4.AiTeam
             lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = DateTime.MinValue;
             lastInvalidLap = -1;
             invalidCount = 0;
+            Spins = InvalidLaps = Penalties = 0;
             positionBeforeIncident = 0;
             assessment = null;
             recentPositions.Clear();
@@ -128,6 +133,7 @@ namespace CrewChiefV4.AiTeam
             else if (kmh < 10 && !inPit && nowUtc - lastFastUtc < TimeSpan.FromSeconds(4) && nowUtc - lastStopUtc > TimeSpan.FromSeconds(30))
             {
                 lastStopUtc = nowUtc;
+                Spins++;
                 string text = "Alles okay? Beim Wiederanfahren auf den Verkehr achten.";
                 float behind = current.SessionData.TimeDeltaBehind;
                 if (behind > 0 && behind < 15)
@@ -148,18 +154,38 @@ namespace CrewChiefV4.AiTeam
             else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties) penalty = "eine Strafe";
             if (penalty != null)
             {
+                Penalties++;
                 result.Add(Say(TeamMember.Ben, "Wir haben " + penalty + " bekommen." +
                     (p.HasDriveThrough || p.HasStopAndGo ? " Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick." : "")));
             }
 
             // 4. Runde ungültig (Track Limits), nicht im Funkmodus Minimal
             int lap = current.SessionData.CompletedLaps;
-            if (!minimalMode && previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit && lap != lastInvalidLap)
+            if (previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit && lap != lastInvalidLap)
             {
                 lastInvalidLap = lap;
-                result.Add(Say(TeamMember.Mik, CrewSpeechPolicy.TrackLimitPhrases[invalidCount++ % CrewSpeechPolicy.TrackLimitPhrases.Length]));
+                InvalidLaps++;
+                if (!minimalMode)
+                {
+                    result.Add(Say(TeamMember.Mik, CrewSpeechPolicy.TrackLimitPhrases[invalidCount++ % CrewSpeechPolicy.TrackLimitPhrases.Length]));
+                }
             }
             return result;
+        }
+
+        /// <summary>Kurze Bilanz fürs Rennende: Ausritte, Dreher, Strafen. Leer startet mit Leerzeichen, passt hinter die Zielansage.</summary>
+        public string FinishSummary()
+        {
+            var parts = new List<string>();
+            if (InvalidLaps > 0) parts.Add(InvalidLaps == 1 ? "eine Runde über die Limits" : InvalidLaps + " Runden über die Limits");
+            if (Spins > 0) parts.Add(Spins == 1 ? "ein Dreher" : Spins + " Dreher");
+            if (Penalties > 0) parts.Add(Penalties == 1 ? "eine Strafe" : Penalties + " Strafen");
+            if (parts.Count == 0)
+            {
+                return " Und das ohne einen einzigen Ausritt, richtig sauber.";
+            }
+            string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " und " + parts[parts.Count - 1];
+            return " Bilanz: " + list + "." + (InvalidLaps + Spins + Penalties >= 4 ? " Da ist beim nächsten Mal noch einiges drin." : "");
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>

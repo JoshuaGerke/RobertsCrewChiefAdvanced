@@ -64,7 +64,7 @@ namespace CrewChiefV4.AiTeam
                 if (s.ClassPosition == 1) return CrewSpeechPolicy.FinishPhrases[(System.Threading.Interlocked.Increment(ref finishVariant)-1) % CrewSpeechPolicy.FinishPhrases.Length];
                 if (s.ClassPosition <= 0) return "Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.";
                 return "Im Ziel! Platz " + s.ClassPosition + "." + Gained(s) +
-                    (s.ClassPosition <= 3 ? " Auf dem Podium, klasse gemacht!" : " Danke für deinen Einsatz. Wir schauen gemeinsam, wo noch Zeit drin ist.");
+                    (s.ClassPosition <= 3 ? " Podium, richtig stark!" : " Gut gekämpft, beim nächsten Mal holen wir mehr raus.");
             }
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {

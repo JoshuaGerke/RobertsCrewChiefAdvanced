@@ -880,7 +880,7 @@ namespace UnitTest.AiTeamTests
             var invalid = Racing(150);
             invalid.SessionData.CurrentLapIsValid = false;
             Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, true).Count);
-            StringAssert.Contains("ungültig", watch.Evaluate(Racing(150), invalid, now, false)[0].Value);
+            StringAssert.Contains("ungültig", (watch = new IncidentWatch()).Evaluate(Racing(150), invalid, now, false)[0].Value);
             Assert.AreEqual(0, watch.Evaluate(Racing(150), invalid, now, false).Count);
         }
 
@@ -1040,6 +1040,24 @@ namespace UnitTest.AiTeamTests
             going.CarDamageData = crash.CarDamageData;
             watch.Evaluate(crash, going, t.AddSeconds(6), false);
             Assert.AreEqual(8, watch.TakeDamageAssessment().PositionBefore);
+        }
+
+        [Test]
+        public void Rennbilanz_zaehlt_ungueltige_Runden_auch_im_Funkmodus_Minimal()
+        {
+            var watch = new IncidentWatch();
+            StringAssert.Contains("ohne einen einzigen Ausritt", watch.FinishSummary());
+            for (int lap = 1; lap <= 2; lap++)
+            {
+                var valid = Racing(150);
+                valid.SessionData.CompletedLaps = lap;
+                valid.SessionData.CurrentLapIsValid = true;
+                var cut = Racing(150);
+                cut.SessionData.CompletedLaps = lap;
+                cut.SessionData.CurrentLapIsValid = false;
+                watch.Evaluate(valid, cut, now.AddSeconds(lap * 90), true);
+            }
+            Assert.AreEqual(" Bilanz: 2 Runden über die Limits.", watch.FinishSummary());
         }
 
         [Test]

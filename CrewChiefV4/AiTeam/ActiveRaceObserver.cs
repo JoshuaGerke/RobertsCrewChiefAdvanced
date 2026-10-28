@@ -128,22 +128,22 @@ namespace CrewChiefV4.AiTeam
                         {
                             passCount++;
                             prefix = passCount % 3 == 1 ? "Sauber vorbeigekommen, " + SafeName(driverName) + ". " :
-                                passCount % 3 == 2 ? "Und wieder einen Platz erkämpft. " : "Stark, der nächste Positionsgewinn. ";
+                                passCount % 3 == 2 ? "Und den nächsten geschnappt. " : "Stark, wieder einer weniger vor dir. ";
                         }
                         else prefix = candidatePit ? "Durch den Boxenstopp vorgerückt. " : "In der Wertung vorgerückt. ";
                         Add("position", prefix + "Du liegst jetzt auf Position " + candidatePosition + ".", gs, now, 8, 3,
                             candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : candidatePit ? "rival_pit" : "stable_rank_cause_unknown");
                     }
-                    else Add("position", "Jetzt Position " + candidatePosition + ". Sammle dich, wir bleiben dran.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    else Add("position", "P" + candidatePosition + " jetzt. Kopf hoch, dranbleiben.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
                     stablePosition = candidatePosition; candidatePosition = 0;
                 }
             }
             if (green && wasGreen && !gs.PitData.InPitlane && !s.SessionHasFixedTime && s.SessionNumberOfLaps > 0 &&
-                s.SessionLapsRemaining == 3 && s.SessionLapsRemaining != lastEndLap)
+                s.SessionLapsRemaining > 0 && s.SessionLapsRemaining <= 3 && s.SessionLapsRemaining != lastEndLap)
             {
                 lastEndLap = s.SessionLapsRemaining;
-                // zwei Runden und die letzte Runde sagt LapWatch an, sonst käme es doppelt
-                string text = "Noch 3 Runden, " + SafeName(driverName) + ". Bleib bei deinem Rhythmus.";
+                string text = lastEndLap == 1 ? "Letzte Runde, " + SafeName(driverName) + ". Bleib konzentriert." :
+                    "Noch " + lastEndLap + " Runden, " + SafeName(driverName) + ". Bleib bei deinem Rhythmus.";
                 Add("race-end", text, gs, now, 12, 4, "fixed_lap_race_remaining_from_adapter");
                 pending.Last().LapsRemaining = lastEndLap;
             }

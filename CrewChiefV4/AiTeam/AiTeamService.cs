@@ -238,6 +238,11 @@ namespace CrewChiefV4.AiTeam
                 RaceDataTools.GapSeconds(current, RaceDataTools.Neighbour(current, false), false), settings.RadioMode == AiRadioMode.MINIMAL);
             if (lapCall != null && (current.SessionData.SessionHasFixedTime || current.SessionData.SessionPhase != SessionPhase.Green || settings.RadioMode == AiRadioMode.MINIMAL))
             {
+                if (current.SessionData.SessionPhase == SessionPhase.Finished && current.SessionData.SessionType == SessionType.Race &&
+                    !current.SessionData.IsDNF && !current.SessionData.IsDisqualified)
+                {
+                    lapCall += incidentWatch.FinishSummary();
+                }
                 Log("Rundenansage Mik: " + lapCall);
                 var valid = TimelyValidity(current, now, 12, live => live.SessionData.SessionPhase == current.SessionData.SessionPhase && live.SessionData.ClassPosition == current.SessionData.ClassPosition);
                 radioSchedule.NoteRadio(now);
