@@ -66,6 +66,7 @@
     </Compile>
     <None Include="GrammarFiles\TDD\TDD_GetGrammars.cs" />
     <Compile Include="AiTeam\AiTeamTests.cs" />
+    <Compile Include="AiTeam\RrcaFormSmokeTest.cs" />
     <Compile Include="AiTeam\RaceRadioDirectorTests.cs" />
     <Compile Include="AiTeam\LiveCrewV06Tests.cs" />
     <Compile Include="AiTeam\VerifiedV06Tests.cs" />
@@ -126,6 +127,9 @@
     </PackageReference>
     <PackageReference Include="MSTest.TestFramework">
       <Version>4.0.2</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Web.WebView2">
+      <Version>1.0.2535.41</Version>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
       <Version>13.0.3</Version>

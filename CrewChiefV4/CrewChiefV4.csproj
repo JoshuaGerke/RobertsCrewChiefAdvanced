@@ -249,6 +249,7 @@
     <Compile Include="AiTeam\AiRaceMemory.cs" />
     <Compile Include="AiTeam\AiSecretStore.cs" />
     <Compile Include="AiTeam\AiTeamForm.cs" />
+    <Compile Include="AiTeam\RrcaForm.cs" />
     <Compile Include="AiTeam\AiTeamService.cs" />
     <Compile Include="AiTeam\LiveDiagnostics.cs" />
     <Compile Include="AiTeam\AiTeamSettings.cs" />
@@ -1174,6 +1175,42 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="AiTeam\ui\rrca.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\rrca.css">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\rrca.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\logo.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\exo2-800i.woff2">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\inter.woff2">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\rajdhani-500.woff2">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\rajdhani-600.woff2">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\rajdhani-700.woff2">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\exo2-OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\inter-OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\fonts\rajdhani-OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="engineer_edited.ico" />
     <Content Include="AllGames\GameDefinitionTable.tt">
       <Generator>TextTemplatingFileGenerator</Generator>

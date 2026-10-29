@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>RRCA – Rob’s Race Crew Advanced</title>
+<link rel="stylesheet" href="rrca.css">
+</head>
+<body>
+<div id="rrca-design">
+  <header class="top"><div class="brand"><img src="logo.jpg" alt="RRCA – Rob’s Race Crew Advanced"></div><div class="top-right"><span class="chip"><span class="dot off" id="rrca-conn-dot"></span> <span id="rrca-conn">Kein Spiel verbunden</span></span><span class="tag" id="rrca-version">Vorschau</span></div></header>
+  <div id="rrca-notice" class="notification" role="status" aria-live="polite" hidden></div>
+  <div class="layout">
+    <nav class="rail" role="tablist" aria-label="Funktionsseiten">
+      <button class="nav-button" type="button" role="tab" aria-selected="true" data-page="cockpit"><span class="nav-num">01</span> Cockpit</button>
+      <button class="nav-button" type="button" role="tab" aria-selected="false" data-page="team"><span class="nav-num">02</span> Team & Stimmen</button>
+      <button class="nav-button" type="button" role="tab" aria-selected="false" data-page="settings"><span class="nav-num">03</span> KI & Funk</button>
+      <div class="rail-bottom"><strong>DEINE CREW.<br>DEIN RENNEN.</strong><small id="rrca-rail-hint">Wartet auf das Spiel</small></div>
+    </nav>
+    <main class="content">
+      <section id="rrca-cockpit" role="tabpanel">
+        <div class="page-head"><div><div class="eyebrow" id="rrca-where">Kein Spiel verbunden</div><h1>Alles im Blick. Dein Team am Funk.</h1><p id="rrca-sub">Crew Chief starten und ins Auto setzen, dann geht es hier los.</p></div><button class="button quiet" type="button" data-cmd="openOld">Altes Fenster</button></div>
+        <div class="warn" id="rrca-warn" hidden><span id="rrca-warn-text"></span><button type="button" class="button" id="rrca-warn-button" hidden></button></div>
+        <div class="metrics"><div class="metric"><div class="value lime" id="m-pos">–</div><div class="eyebrow">Position</div><small id="m-pos-sub">&nbsp;</small></div><div class="metric"><div class="value" id="m-lap">–</div><div class="eyebrow" id="m-lap-label">Runde</div><small id="m-lap-sub">&nbsp;</small></div><div class="metric"><div class="value" id="m-gap">–</div><div class="eyebrow">Abstand</div><small id="m-gap-sub">&nbsp;</small></div></div>
+        <div class="row between"><h2>Deine Crew</h2><button type="button" class="button quiet" data-goto="team">Stimmen & Geräte ↗</button></div>
+        <div class="crew-grid">
+          <div class="crew-card" data-card="ben"><div class="row between"><div class="row"><span class="avatar">B</span><div><div class="crew-name">BEN</div><div class="crew-role">Strategie</div></div></div><label class="switch"><input type="checkbox" data-member="ben" aria-label="Ben aktivieren"></label></div><div class="status" data-status="ben"></div></div>
+          <div class="crew-card" data-card="mik"><div class="row between"><div class="row"><span class="avatar">M</span><div><div class="crew-name">MIK</div><div class="crew-role">Renningenieur</div></div></div><label class="switch"><input type="checkbox" data-member="mik" aria-label="Mik aktivieren"></label></div><div class="status" data-status="mik"></div></div>
+          <div class="crew-card" data-card="sara"><div class="row between"><div class="row"><span class="avatar sara-avatar">S</span><div><div class="crew-name">SARA</div><div class="crew-role">Spotterin</div></div></div><label class="switch"><input type="checkbox" data-member="sara" aria-label="Sara aktivieren"></label></div><div class="status" data-status="sara"></div></div>
+        </div>
+        <div class="radio-panel"><div class="row between"><div class="eyebrow lime" id="rrca-speaker">Funk</div><div class="wave" aria-hidden="true"><i style="height:5px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:9px"></i><i style="height:15px"></i><i style="height:6px"></i><i style="height:11px"></i></div></div><p class="quote" id="rrca-quote">Noch kein Funkspruch.</p><small id="rrca-radio-hint">Saras Seitenwarnungen kommen direkt vom Spotter und stehen nicht im Verlauf.</small></div>
+        <div class="row between" style="margin:18px 0 4px"><h3>Letzte Funksprüche</h3><span class="eyebrow">Diese Session</span></div>
+        <div id="rrca-timeline"><div class="timeline empty"><span>Noch nichts gefunkt.</span></div></div>
+        <div class="bottom-console"><div class="query"><input id="rrca-question" type="text" placeholder="Ben, wie steht es um den Sprit?" aria-label="Frage an die Crew"><button type="button" class="button" id="rrca-send">Senden</button></div><button type="button" class="button" data-goto="settings">Funk einstellen</button></div>
+        <p class="note">Die Frage läuft wie ein Funkspruch über Telemetrie und Stimme, nur ohne Mikrofon. Im Auto weiter die Funktaste nutzen.</p>
+      </section>
+      <section id="rrca-team" role="tabpanel" hidden>
+        <div class="page-head"><div><div class="eyebrow">Team & Audio</div><h1>Drei Persönlichkeiten. Deine Stimmen.</h1><p>Mitglieder einzeln wählen und Stimmen zuordnen. Alles wird sofort gespeichert.</p></div><button type="button" class="button" id="rrca-sara-only">Nur Sara</button></div>
+        <div class="panel">
+          <div class="member-row"><span class="avatar">B</span><div><div class="crew-name">BEN</div><small>Strategie</small></div><label class="voice-choice"><span class="voice-label">ElevenLabs-Stimme</span><select data-voice-select="ben" aria-label="Bens Stimme"></select></label><button type="button" class="button" data-voice="ben">Probe</button><label class="switch"><input type="checkbox" data-member="ben" aria-label="Ben aktivieren"></label></div>
+          <div class="member-row"><span class="avatar">M</span><div><div class="crew-name">MIK</div><small>Renningenieur</small></div><label class="voice-choice"><span class="voice-label">ElevenLabs-Stimme</span><select data-voice-select="mik" aria-label="Miks Stimme"></select></label><button type="button" class="button" data-voice="mik">Probe</button><label class="switch"><input type="checkbox" data-member="mik" aria-label="Mik aktivieren"></label></div>
+          <div class="member-row"><span class="avatar sara-avatar">S</span><div><div class="crew-name">SARA</div><small>Spotterin</small></div><label class="voice-choice"><span class="voice-label">ElevenLabs-Stimme</span><select data-voice-select="sara" aria-label="Saras Stimme"></select></label><button type="button" class="button" data-voice="sara">Probe</button><label class="switch"><input type="checkbox" data-member="sara" aria-label="Sara aktivieren"></label></div>
+        </div>
+        <div class="row" style="margin-top:12px"><button type="button" class="button" data-cmd="loadVoices">Stimmenliste laden</button><button type="button" class="button" data-cmd="prepareVoices">Funkclips vorbereiten</button><button type="button" class="button" data-cmd="saraPack">Sara als Spotter erzeugen</button><span class="chip muted">Keine automatische Ersatzstimme</span></div>
+        <p class="note">Nach einem Stimmwechsel bei Sara einmal „Sara als Spotter erzeugen“ und Crew Chief neu starten, sonst spricht der englische Spotter. Neue Stimmen: in der ElevenLabs-Bibliothek nach „German“ filtern, zum Konto hinzufügen, hier neu laden.</p>
+        <div class="section-label"><h2>Geräte & Funktaste</h2><span class="tag">Push-to-Talk</span></div>
+        <div class="form-grid"><label class="field">Mikrofon<select id="rrca-mic"></select></label><label class="field">Funktaste<input id="rrca-ptt" type="text" disabled></label></div>
+        <div class="sound-row"><label class="switch"><input type="checkbox" id="rrca-radio-effect"> Funkfilter auf den Stimmen</label><small>Funktaste zuweisen: im Crew-Chief-Hauptfenster unter „Controller“ die Aktion „KI-Team anfunken“.</small></div>
+        <details id="rrca-keys" style="margin-top:15px"><summary>Dienste & Schlüssel</summary><div>
+          <small>Die Schlüssel werden verschlüsselt nur für deinen Windows-Benutzer gespeichert.</small>
+          <div class="field" style="margin-top:12px">OpenRouter (Ben, Mik, Spracherkennung) · <span id="key-openrouter">–</span></div>
+          <div class="key-row"><input type="password" id="key-openrouter-input" placeholder="sk-or-…" autocomplete="off"><button type="button" class="button" data-key-save="openrouter">Speichern</button><button type="button" class="button danger" data-key-delete="openrouter">Löschen</button></div>
+          <div class="field" style="margin-top:12px">ElevenLabs (Stimmen) · <span id="key-elevenlabs">–</span></div>
+          <div class="key-row"><input type="password" id="key-elevenlabs-input" placeholder="sk_…" autocomplete="off"><button type="button" class="button" data-key-save="elevenlabs">Speichern</button><button type="button" class="button danger" data-key-delete="elevenlabs">Löschen</button></div>
+          <div class="row" style="margin-top:12px"><button type="button" class="button" data-cmd="testConnection">Verbindung testen</button></div>
+        </div></details>
+      </section>
+      <section id="rrca-settings" role="tabpanel" hidden>
+        <div class="page-head"><div><div class="eyebrow">Intelligenz & Kommunikation</div><h1>Dein Funk. Dein Rhythmus.</h1><p>Ereignisse zuerst – regelmäßige Berichte ergänzen das Team.</p></div><label class="field" style="min-width:130px">Funkmodus<select data-setting="radioMode"><option value="NORMAL">Normal</option><option value="MINIMAL">Minimal</option><option value="ACTIVE">Aktiv</option></select></label></div>
+        <details open><summary>Modelle & Antworten</summary><div class="form-grid"><label class="field">Schnelle Antworten<input data-setting="fastModel" type="text"></label><label class="field">Vertiefte Analysen<input data-setting="deepModel" type="text"></label><label class="field">Spracherkennung<input data-setting="sttModel" type="text"></label><label class="field">ElevenLabs-Stimmmodell<select data-setting="ttsModel"><option>eleven_flash_v2_5</option><option>eleven_multilingual_v2</option></select></label><label class="field">Denkaufwand beim API-Anbieter<select data-setting="reasoning"><option value="none">None · kein zusätzlicher Denkaufwand</option><option value="low">Niedrig</option><option value="medium">Mittel</option><option value="high">Hoch</option></select></label><label class="field">Maximale KI-Aufrufe je Session<input data-setting="callLimit" type="number" min="0" max="5000"></label></div><p class="note">„None“ betrifft den zusätzlichen Denkaufwand des Modells. Die lokale Ereigniserkennung und Sara arbeiten unabhängig davon.</p></details>
+        <details open><summary>Regelmäßige Funkberichte <span class="tag" id="rrca-topic-count"></span></summary><div><div class="subtle">Das Team erkennt relevante Ereignisse eigenständig. Diese Intervalle ergänzen die Ereignismeldungen; Saras direkte Warnungen bleiben unabhängig.</div><div class="schedule-head"><span>Bericht</span><span>An</span><span>Alle / s</span><span>− / s</span><span>+ / s</span></div><div id="rrca-schedule"></div><p class="note">Beispiel: 120 −7/+8 bedeutet eine Planung zwischen 113 und 128 Sekunden. Dringender Funk und fehlende Messwerte können den Bericht zurückstellen.</p></div></details>
+        <details><summary>Fahrer, Telemetrie & Diagnose</summary><div><label class="switch"><input type="checkbox" id="rrca-recorder"> Lokalen Diagnoserecorder einschalten</label><p class="note">Begrenzte lokale Aufzeichnung: 128 MiB je Session · 512 MiB insgesamt. Keine Roh-Mikrofonaufnahmen oder Zugangsschlüssel.</p><div class="row between" style="margin-top:12px"><span class="muted" id="rrca-diag-status"></span><button type="button" class="button" data-cmd="openDiag">Diagnoseordner</button></div><div class="form-grid" style="margin-top:15px"><label class="field">KI-Zeitlimit / Sekunden<input data-setting="timeout" type="number" min="3" max="60"></label><label class="field">Fahrername (so spricht dich die Crew an)<input type="text" data-setting="driverName"></label></div></div></details>
+        <div class="save-row"><small id="rrca-save-hint">Modelle und Berichte bei gestopptem Crew Chief übernehmen, sie gelten ab dem nächsten Start.</small><button type="button" class="button primary" id="rrca-save">Übernehmen</button></div>
+      </section>
+    </main>
+  </div>
+  <footer class="footer"><span><span class="dot"></span> RRCA · Rob’s Race Crew Advanced · Vorschau</span><span>Basiert auf Crew Chief V4 (Britton IT Ltd, MIT-Lizenz) · <a href="#" data-cmd="openNotes">Hinweise, Lizenz und Dank</a></span></footer>
+</div>
+<script src="rrca.js"></script>
+</body>
+</html>

@@ -134,10 +134,7 @@ namespace CrewChiefV4
 
         private void aiTeamToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using (var form = new AiTeam.AiTeamForm())
-            {
-                form.ShowDialog(MainWindow.instance);
-            }
+            AiTeam.RrcaForm.ShowSingle(MainWindow.instance);
         }
 
         internal void helpToolStripMenuItem_Click(object sender, EventArgs e)

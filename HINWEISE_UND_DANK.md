@@ -27,6 +27,7 @@ Spotter, Ansagen und alle übrigen Funktionen von Crew Chief bleiben unveränder
 
 - Der Originalcode von Crew Chief steht unter der MIT-Lizenz. Der vollständige Lizenztext liegt jeder Version als `LICENSE_CrewChief_MIT.txt` bei.
 - Die Ergänzungen von RCCA stehen unter derselben MIT-Lizenz.
+- Die Oberfläche RRCA (Design: Rob) nutzt die Schriften Exo 2, Rajdhani und Inter unter der SIL Open Font License, die Lizenztexte liegen im Ordner `AiTeam/ui/fonts`.
 - Mitgelieferte Bibliotheken haben eigene Lizenzen, die Texte liegen bei (`Newtonsoft_Json_licence.txt`, `SharpDX_licence.txt`, `openvr_licence.txt`, `zlib_licence.txt`).
 - Die Sprachdateien von Crew Chief (Sound-Packs) sind **nicht** enthalten. Sie haben eigene Rechte und werden wie gewohnt über den Download in der App von den Crew-Chief-Servern geladen.
 
