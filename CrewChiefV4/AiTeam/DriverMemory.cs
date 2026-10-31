@@ -179,7 +179,7 @@ namespace CrewChiefV4.AiTeam
                             var record=JObject.Parse(line);
                             if(((string)record["kind"]=="memory.dialogue" || (string)record["kind"]=="memory.driver_input") && (string)record["data"]?["source"]=="driver_feedback")
                                 RememberFeedback(Clean((string)record["data"]?["transcript"]),(string)record["data"]?["game"],(string)record["data"]?["track"]);
-                        } catch(Newtonsoft.Json.JsonException) { }
+                        } catch(Exception e) when(e is Newtonsoft.Json.JsonException || e is ArgumentException || e is InvalidCastException || e is FormatException) { }
                     }
                 }
             }
@@ -261,7 +261,7 @@ namespace CrewChiefV4.AiTeam
             Task task;lock(sync)task=initialization;
             if(task!=null && !task.IsCompleted)task.Wait(250); // model worker only, never the telemetry or spotter thread
             try { var current=Volatile.Read(ref store);return current==null?"":current.PromptBlock(question,game,track); }
-            catch(IOException) { return ""; }
+            catch(Exception e) when(e is IOException || e is UnauthorizedAccessException) { return ""; }
         }
 
         public static bool TryAddNote(string note)

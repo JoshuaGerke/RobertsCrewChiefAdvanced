@@ -30,6 +30,8 @@ namespace CrewChiefV4.AiTeam
         private bool saraPackCurrent;
         private DateTime saraPackCheckedUtc = DateTime.MinValue;
 
+        public static bool IsOpen { get { return open != null && !open.IsDisposed; } }
+
         public static void ShowSingle(IWin32Window owner)
         {
             if (open == null || open.IsDisposed)
@@ -275,7 +277,7 @@ namespace CrewChiefV4.AiTeam
                 ["microphone"] = s.Microphone ?? "",
                 ["ptt"] = "Controller-Aktion „KI-Team anfunken“" + (string.IsNullOrEmpty(s.PttKey) ? "" : " oder Taste " + s.PttKey),
                 ["radioEffect"] = s.RadioEffect,
-                ["memoryEnabled"] = DriverMemory.Enabled,
+                ["memoryEnabled"] = service.Settings.PersistentMemory,
                 ["memoryStatus"] = DriverMemory.Status,
                 ["memoryFolder"] = DriverMemory.Folder,
                 ["recorder"] = LiveDiagnostics.Enabled,
@@ -326,7 +328,7 @@ namespace CrewChiefV4.AiTeam
                 o["running"] = MainWindow.instance.IsAppRunning;
                 o["game"] = MainWindow.instance.gameDefinitionList.Text;
             }
-            o["memoryEnabled"]=DriverMemory.Enabled;o["memoryStatus"]=DriverMemory.Status;o["memoryFolder"]=DriverMemory.Folder;
+            o["memoryEnabled"]=service.Settings.PersistentMemory;o["memoryStatus"]=DriverMemory.Status;o["memoryFolder"]=DriverMemory.Folder;
             if (connected)
             {
                 var s = gs.SessionData;

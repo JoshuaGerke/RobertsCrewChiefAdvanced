@@ -76,10 +76,18 @@ namespace CrewChiefV4.AiTeam
             return Regex.IsMatch(text ?? "", @"\b" + Regex.Escape(word) + @"\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
+        // "Reifendruck vorne links" oder "Ist die Box frei?" sind keine Fragen nach Autos neben dem Fahrer
+        private static readonly Regex notAboutSides = new Regex(
+            @"reifen|druck|temperatur|brems|flügel|felge|schaden|aufhängung|setup|kurve|vorne|hinten|\bbox|strecke|sprit|tank|motor",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
         public static bool IsSideQuestion(string text)
         {
-            return HasWord(text, "links") || HasWord(text, "rechts") || HasWord(text, "frei") ||
-                HasWord(text, "neben") || Regex.IsMatch(text ?? "", @"\büberlapp\w*\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (HasWord(text, "neben") || Regex.IsMatch(text ?? "", @"\büberlapp\w*\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return true;
+            }
+            return (HasWord(text, "links") || HasWord(text, "rechts") || HasWord(text, "frei")) && !notAboutSides.IsMatch(text ?? "");
         }
 
         private static string StripLeadingName(string text, string nameWord)

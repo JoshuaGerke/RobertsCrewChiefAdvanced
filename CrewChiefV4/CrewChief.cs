@@ -1049,8 +1049,14 @@ namespace CrewChiefV4
                             gameStateMapper.populateDerivedNonRaceSessionData(currentGameState);
                         }
                         // SessionFinished and all other flags must describe this tick, not the previous session.
-                        gameStateEventDetector.UpdateMappedState(previousGameState, currentGameState);
-                        if (!sessionFinished && GameEventBool.SessionFinished)
+                        // Der Abschluss läuft einen Tick nach der Erkennung: previousGameState ist dann der Tick im Ziel,
+                        // und Meldungen aus diesem Tick werden noch vom purgeQueues erfasst.
+                        bool finishedOnLastTick = GameEventBool.SessionFinished && !currentGameState.SessionData.IsNewSession;
+                        if (!Game.F1_20S)
+                        {
+                            gameStateEventDetector.UpdateMappedState(previousGameState, currentGameState);
+                        }
+                        if (!sessionFinished && finishedOnLastTick)
                         {
                             string positionMsg;
                             if (currentGameState.SessionData.IsDisqualified)

@@ -32,7 +32,9 @@ namespace CrewChiefV4.rFactor2
 
         private static readonly TimeSpan retryInterval = TimeSpan.FromSeconds(30);
         // The forecast may be edited (e.g. by a server admin) so re-read it occasionally
-        private static readonly TimeSpan refreshInterval = TimeSpan.FromSeconds(30);
+        // Der kurze Abruf ist nur für den Wetterfunk des KI-Teams nötig
+        private static TimeSpan refreshInterval { get { return AiTeam.AiTeamService.Instance.Settings.Enabled ? TimeSpan.FromSeconds(30) : TimeSpan.FromMinutes(5); } }
+        private static TimeSpan maxForecastAge { get { return AiTeam.AiTeamService.Instance.Settings.Enabled ? TimeSpan.FromSeconds(90) : TimeSpan.FromMinutes(10); } }
 
         public class ForecastNode
         {
@@ -92,7 +94,7 @@ namespace CrewChiefV4.rFactor2
 
             var cached = forecast;
             if (cached == null || cached.Epoch != Volatile.Read(ref forecastEpoch) || endET <= 0 || double.IsNaN(endET) || double.IsInfinity(endET) ||
-                double.IsNaN(currentET) || double.IsInfinity(currentET) || cgs.Now < cached.FetchedUtc || cgs.Now-cached.FetchedUtc > TimeSpan.FromSeconds(90))
+                double.IsNaN(currentET) || double.IsInfinity(currentET) || cgs.Now < cached.FetchedUtc || cgs.Now-cached.FetchedUtc > maxForecastAge)
             {   // No forecast or not a timed session
                 return;
             }

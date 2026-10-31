@@ -2390,6 +2390,8 @@ namespace CrewChiefV4
             }
         }
 
+        private bool voiceGateNotified;
+
         private void doStartAppStuff()
         {
             var ai = AiTeam.AiTeamService.Instance;
@@ -2402,8 +2404,14 @@ namespace CrewChiefV4
             if (!ready.Ready)
             {
                 Console.WriteLine("[KI-Team] Start angehalten: " + ready.Message);
-                // Die Spielerkennung versucht es alle paar Sekunden erneut, der Hinweis mit Knopf steht im RRCA-Fenster
-                AiTeam.RrcaForm.ShowSingle(this);
+                // Die Spielerkennung versucht es alle paar Sekunden erneut, der Hinweis mit Knopf steht im RRCA-Fenster.
+                // Ein offenes Fenster nicht nach vorn holen, sonst verliert das Spiel jedes Mal den Fokus.
+                if (!AiTeam.RrcaForm.IsOpen) AiTeam.RrcaForm.ShowSingle(this);
+                if (!voiceGateNotified)
+                {
+                    voiceGateNotified = true;
+                    System.Media.SystemSounds.Exclamation.Play();
+                }
                 return;
             }
             IsAppRunning = true;

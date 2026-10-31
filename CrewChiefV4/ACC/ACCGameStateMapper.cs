@@ -1314,7 +1314,8 @@ namespace CrewChiefV4.ACC
 
             // conditions
             // sometimes the game sends zeros, so don't take a sample if the temps are zero
-            currentGameState.Conditions.UpdateLiveSample(currentGameState.Now, currentGameState.SessionData.CompletedLaps, currentGameState.SessionData.SectorNumber,
+            if (shared.accPhysics.airTemp != 0 || shared.accPhysics.roadTemp != 0)
+                currentGameState.Conditions.UpdateLiveSample(currentGameState.Now, currentGameState.SessionData.CompletedLaps, currentGameState.SessionData.SectorNumber,
                 shared.accPhysics.airTemp, shared.accPhysics.roadTemp, (float)shared.accGraphic.rainIntensity / 5f,
                 0, 0, 0, 0, currentGameState.SessionData.IsNewLap, (ConditionsMonitor.TrackStatus)shared.accGraphic.trackGripStatus);
             if (currentGameState.Now > nextConditionsSampleDue && (shared.accPhysics.airTemp != 0 || shared.accPhysics.roadTemp != 0))

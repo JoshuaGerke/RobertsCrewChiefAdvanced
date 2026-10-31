@@ -125,7 +125,7 @@ namespace CrewChiefV4.AiTeam
         private void ApplySettings(AiTeamSettings newSettings)
         {
             settings = newSettings;
-            DriverMemory.Configure(settings.PersistentMemory);
+            DriverMemory.Configure(settings.Enabled && settings.PersistentMemory);
             ConfigureCrewLog(newSettings.WriteLog);
             AudioPlayer.aiTeamSpotterMuted = settings.Enabled && !settings.SaraEnabled;
             // "Nur noch das KI-Team spricht": Crew Chiefs eigene Ansagen nicht mehr einreihen (Spotter läuft separat weiter)
@@ -154,7 +154,7 @@ namespace CrewChiefV4.AiTeam
         {
             var user=UserSettings.GetUserSettings();
             user.setProperty("enable_ai_team_persistent_memory",enabled);user.saveUserSettings();
-            settings.PersistentMemory=enabled;DriverMemory.Configure(enabled);
+            settings.PersistentMemory=enabled;DriverMemory.Configure(settings.Enabled && enabled);
             Status(enabled ? "Dauerhaftes Fahrergedächtnis eingeschaltet." : "Fahrergedächtnis ausgeschaltet; gespeicherte Texte bleiben erhalten.");
         }
 
@@ -730,10 +730,8 @@ namespace CrewChiefV4.AiTeam
             if (quick != null)
             {
                 Stats.AddLocalAnswer();
-                // Recheck the actual answer at backend submission. A changed number is not still current merely because the session stayed the same.
-                await SpeakAsync(routed.Member, quick, true, CancellationToken.None, t => generation == Volatile.Read(ref sessionGeneration) &&
-                    DateTime.UtcNow >= Memory.LastTickUtc && (DateTime.UtcNow-Memory.LastTickUtc).TotalSeconds <= 1 &&
-                    t == LocalAnswers.TryAnswer(routed.Question, CrewChief.currentGameState, Memory)).ConfigureAwait(false);
+                // Der Fahrer hat gefragt: lieber der Wert von vor einer Sekunde als gar keine Antwort. Nur ein Sessionwechsel verwirft sie.
+                await SpeakAsync(routed.Member, quick, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 RememberExchange(routed.Member, routed.Question, quick);
                 return quick;
             }

@@ -135,6 +135,10 @@ namespace UnitTest.AiTeamTests
                         Assert.AreEqual(.62f, CrewChiefV4.MainWindow.currentMessageVolume, .001);
                         profileStage = 6;
                     }
+                    // Die Datenquelle gilt nur 3 s, die Schritte davor dauern länger
+                    GameDataConnectionStatus.Record("RaceRoom", DateTime.UtcNow);
+                    typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
+                    await System.Threading.Tasks.Task.Delay(300);
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +
                         "document.querySelector('[data-setting=fastModel]').value, document.querySelector('#rrca-warn').hidden, " +

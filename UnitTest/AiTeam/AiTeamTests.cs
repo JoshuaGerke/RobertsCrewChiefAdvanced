@@ -1068,6 +1068,38 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(" Bilanz: 2 ungültige Runden.", watch.FinishSummary());
         }
 
+        [TestCase("Wie ist der Reifendruck vorne links?")]
+        [TestCase("Ist die Box frei?")]
+        [TestCase("Bremstemperatur rechts?")]
+        [TestCase("Ist die Strecke frei?")]
+        public void Technikfrage_mit_links_oder_frei_ist_keine_Spotterfrage(string question)
+        {
+            Assert.IsFalse(TeamRouter.IsSideQuestion(question));
+            Assert.AreNotEqual(TeamMember.Sara, TeamRouter.Route(question, TeamMember.Mik).Member);
+            Assert.IsNull(SaraLocal.TryAnswer(question, new SpotterSnapshot(), null, now));
+        }
+
+        [TestCase("Ist links frei?")]
+        [TestCase("Hab ich links Platz?")]
+        [TestCase("Wer ist neben mir?")]
+        [TestCase("Bin ich frei?")]
+        public void Echte_Spotterfrage_geht_weiter_an_Sara(string question)
+        {
+            Assert.IsTrue(TeamRouter.IsSideQuestion(question));
+        }
+
+        [TestCase(SessionPhase.FullCourseYellow)]
+        [TestCase(SessionPhase.Formation)]
+        public void Boxentempo_gilt_auch_unter_Gelb_und_in_der_Formation(SessionPhase phase)
+        {
+            var gs = Racing(70);
+            gs.SessionData.SessionPhase = phase;
+            gs.PitData.InPitlane = true;
+            var call = new ObservedRaceCall { Topic = "pit-speed", Text = "x", AllowPitlane = true, Position = -1, SessionId = gs.SessionData.SessionId,
+                SessionType = gs.SessionData.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(5) };
+            Assert.IsTrue(call.IsValid(gs, now));
+        }
+
         [Test]
         public void Harter_Einschlag_fragt_zuerst_nach_dem_Fahrer()
         {

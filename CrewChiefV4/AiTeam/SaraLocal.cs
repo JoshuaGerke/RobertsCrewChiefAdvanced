@@ -21,7 +21,7 @@ namespace CrewChiefV4.AiTeam
             bool askRight = TeamRouter.HasWord(q, "rechts");
             bool askBeside = TeamRouter.IsSideQuestion(q);
 
-            if (askLeft || askRight || askBeside)
+            if (askBeside)
             {
                 if (!spotter.IsFresh(nowUtc))
                 {
