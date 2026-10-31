@@ -14,7 +14,30 @@ namespace CrewChiefV4.AiTeam
     public sealed class DriverMemoryStore : IDisposable
     {
         private readonly object sync = new object();
-        private readonly List<string> feedback = new List<string>();
+        private sealed class Feedback
+        { public string Text, Game, Track; public HashSet<string> Terms; }
+        private readonly List<Feedback> feedback = new List<Feedback>();
+        private static readonly HashSet<string> filler = new HashSet<string>(new[] {
+            "mochte", "bitte", "immer", "meine", "meinen", "meiner", "unser", "unsere", "diese", "dieser",
+            "diesem", "wichtig", "sollst", "sagen", "kannst", "konnen", "nicht", "keine", "mehr", "weniger",
+            "beim", "nachsten", "kunftig", "zukunft", "gerne", "will", "bevorzuge", "erinnere"
+        });
+        private static string Topic(string word)
+        {
+            if (word.StartsWith("bestzeit") || word.StartsWith("rekord")) return "bestzeit";
+            if (word.StartsWith("sprit") || word.StartsWith("kraftstoff") || word.StartsWith("benzin")) return "kraftstoff";
+            if (word.StartsWith("schad") || word.StartsWith("beschad")) return "schaden";
+            if (word.StartsWith("reif")) return "reifen";
+            if (word.StartsWith("brems")) return "bremsen";
+            if (word.StartsWith("funk") || word.StartsWith("ansag") || word.StartsWith("meldung")) return "funk";
+            return word;
+        }
+        private static HashSet<string> Terms(string text)
+        {
+            string normalized = (text ?? "").ToLowerInvariant().Replace("ä", "a").Replace("ö", "o").Replace("ü", "u").Replace("ß", "ss");
+            return new HashSet<string>(Regex.Matches(normalized, @"\p{L}{4,}").Cast<Match>().Select(m => m.Value)
+                .Where(w => !filler.Contains(w)).Select(Topic));
+        }
         private string[] secrets;
         private readonly DiagnosticRecorder journal;
         private int sessionEpoch;
@@ -23,7 +46,7 @@ namespace CrewChiefV4.AiTeam
         public string Status { get { return journal==null ? "Textarchiv voll oder nicht beschreibbar; Notizen bleiben erhalten" : journal.Status; } }
         public long Dropped { get { return journal==null ? 0 : journal.Dropped; } }
         private const int NoteLimit = 128 * 1024;
-        private static readonly Regex wishes = new Regex(@"\b(merk[e]? dir|erinnere dich|ich möchte|ich will|mir ist wichtig|du sollst|bitte immer|bitte künftig|in zukunft|beim nächsten mal|das war falsch|stimmt nicht)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        private static readonly Regex wishes = new Regex(@"\b(merk[e]? dir|erinnere dich|ich möchte|ich will|ich bevorzuge|mir ist wichtig|du sollst|bitte immer|bitte künftig|in zukunft|beim nächsten mal|das war falsch|stimmt nicht)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         public DriverMemoryStore(string folder, string[] knownSecrets = null, string legacyNotes = null, DiagnosticLimits limits = null)
         {
@@ -93,7 +116,7 @@ namespace CrewChiefV4.AiTeam
                 {"speaker",member.ToString()},{"transcript",q},{"text",a},{"game",game},{"track",track},
                 {"source",candidate?"driver_feedback":"dialogue"},{"result",proposedAnswer==null?"driver_input_only":"generated_or_queued_not_audible_proof"}
             },sessionId:sessionId,epoch:Volatile.Read(ref sessionEpoch));
-            if(accepted && candidate) RememberFeedback(FeedbackText(q,game,track));
+            if(accepted && candidate) RememberFeedback(q,game,track);
             return accepted;
         }
 
@@ -127,13 +150,14 @@ namespace CrewChiefV4.AiTeam
             return (label.Length==0?"":"["+label+"] ")+text;
         }
 
-        private void RememberFeedback(string text)
+        private void RememberFeedback(string text, string game = null, string track = null)
         {
             lock(sync)
             {
-                feedback.RemoveAll(s=>string.Equals(s,text,StringComparison.OrdinalIgnoreCase));
-                feedback.Add(text);
-                if(feedback.Count>30) feedback.RemoveAt(0);
+                string label = FeedbackText(text,game,track);
+                feedback.RemoveAll(s=>string.Equals(s.Text,label,StringComparison.OrdinalIgnoreCase));
+                feedback.Add(new Feedback { Text=label, Game=Clean(game), Track=Clean(track), Terms=Terms(text) });
+                if(feedback.Count>128) feedback.RemoveAt(0);
             }
         }
 
@@ -142,7 +166,7 @@ namespace CrewChiefV4.AiTeam
             string folder=Path.Combine(Folder,"Gespraeche");
             if(!Directory.Exists(folder))return;
             // Empty captures from repeated upgrades must not hide an older actual conversation.
-            // Disk history is quota-bound; only thirty feedback items are kept in memory.
+            // Disk history is quota-bound; only 128 feedback items are indexed, at most four enter a prompt.
             foreach(string file in Directory.EnumerateFiles(folder,"*.jsonl").OrderBy(File.GetLastWriteTimeUtc).ThenBy(p=>p))
             {
                 using(var reader=new StreamReader(new FileStream(file,FileMode.Open,FileAccess.Read,FileShare.ReadWrite),Encoding.UTF8))
@@ -154,23 +178,26 @@ namespace CrewChiefV4.AiTeam
                         try {
                             var record=JObject.Parse(line);
                             if(((string)record["kind"]=="memory.dialogue" || (string)record["kind"]=="memory.driver_input") && (string)record["data"]?["source"]=="driver_feedback")
-                                RememberFeedback(FeedbackText(Clean((string)record["data"]?["transcript"]),(string)record["data"]?["game"],(string)record["data"]?["track"]));
+                                RememberFeedback(Clean((string)record["data"]?["transcript"]),(string)record["data"]?["game"],(string)record["data"]?["track"]);
                         } catch(Newtonsoft.Json.JsonException) { }
                     }
                 }
             }
         }
 
-        public string PromptBlock(string question)
+        public string PromptBlock(string question, string game = null, string track = null)
         {
             string notes="";
             lock(sync)
             {
                 if(File.Exists(NotesPath) && new FileInfo(NotesPath).Length<=NoteLimit)
                     notes=string.Join("\n",File.ReadAllLines(NotesPath,Encoding.UTF8).Where(s=>!string.IsNullOrWhiteSpace(s)).Reverse().Take(30).Reverse().Select(Clean));
-                var words=new HashSet<string>(Regex.Matches(question ?? "",@"\p{L}{4,}").Cast<Match>().Select(m=>m.Value.ToLowerInvariant()));
-                var relevant=feedback.Select((text,index)=>new {text,index,score=words.Count(w=>text.IndexOf(w,StringComparison.OrdinalIgnoreCase)>=0)})
-                    .OrderByDescending(x=>x.score).ThenByDescending(x=>x.index).Take(4).Select(x=>x.text.Length>220?x.text.Substring(0,220):x.text);
+                var words=Terms(question);
+                var relevant=feedback.Select((item,index)=>new {item,index,score=words.Count(item.Terms.Contains),
+                    context=(game!=null && string.Equals(game,item.Game,StringComparison.OrdinalIgnoreCase)?2:0)+
+                        (track!=null && string.Equals(track,item.Track,StringComparison.OrdinalIgnoreCase)?1:0)})
+                    .Where(x=>x.score>0).OrderByDescending(x=>x.score).ThenByDescending(x=>x.context).ThenByDescending(x=>x.index)
+                    .Take(4).Select(x=>x.item.Text.Length>220?x.item.Text.Substring(0,220):x.item.Text);
                 if(notes.Length>1800)notes=notes.Substring(notes.Length-1800);
                 string history=string.Join("\n",relevant);
                 if(notes.Length==0 && history.Length==0)return "";
@@ -228,12 +255,12 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        public static string PromptBlock(string question=null)
+        public static string PromptBlock(string question=null, string game=null, string track=null)
         {
             if(!enabled)return "";
             Task task;lock(sync)task=initialization;
             if(task!=null && !task.IsCompleted)task.Wait(250); // model worker only, never the telemetry or spotter thread
-            try { var current=Volatile.Read(ref store);return current==null?"":current.PromptBlock(question); }
+            try { var current=Volatile.Read(ref store);return current==null?"":current.PromptBlock(question,game,track); }
             catch(IOException) { return ""; }
         }
 

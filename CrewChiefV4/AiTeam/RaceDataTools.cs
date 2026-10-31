@@ -837,7 +837,11 @@ namespace CrewChiefV4.AiTeam
         public static void Add(string note)
         { if (!DriverMemory.TryAddNote(note)) throw new System.IO.IOException("Fahrergedächtnis ist nicht verfügbar oder ausgeschaltet."); }
 
-        public static string PromptBlock(string question = null)
-        { return DriverMemory.PromptBlock(question); }
+        public static string PromptBlock(string question = null, RaceDataContext context = null)
+        {
+            var state=context==null?null:context.GameState;
+            string track=state==null?null:state.SessionData.TrackDefinition==null?state.trackName:state.SessionData.TrackDefinition.name;
+            return DriverMemory.PromptBlock(question,context==null?null:context.GameName,track);
+        }
     }
 }

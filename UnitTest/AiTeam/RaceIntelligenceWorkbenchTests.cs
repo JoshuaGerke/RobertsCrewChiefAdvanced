@@ -202,3 +202,75 @@ namespace UnitTest.AiTeamTests
         }
     }
 }
+
+namespace UnitTest.AiTeamTests
+{
+    [TestFixture, Category("AiTeam"), NonParallelizable]
+    public class DriverMemoryWorkbenchTests
+    {
+        private static string Folder()
+        {
+            string root=Environment.GetEnvironmentVariable("RCCA_DATA_ROOT"); Assert.IsNotEmpty(root);
+            return Path.Combine(root,"memory-workbench",Guid.NewGuid().ToString("N"));
+        }
+        [Test]
+        public void Unrelated_recent_complaints_do_not_enter_a_technical_answer()
+        {
+            using(var store=new DriverMemoryStore(Folder()))
+            {
+                store.RecordDialogue(TeamMember.Ben,"Ich möchte bei Bestzeiten eine Gratulation.",null);
+                Assert.AreEqual("",store.PromptBlock("Wie viel Sprit haben wir?"));
+                Assert.AreEqual("",store.PromptBlock("Bitte sag mir das."));
+            }
+        }
+        [TestCase("Schäden", "Schaden")]
+        [TestCase("Bestzeiten", "Bestzeit")]
+        [TestCase("Kraftstoff", "Sprit")]
+        public void German_topic_variants_recover_relevant_preferences(string recorded, string question)
+        {
+            string folder=Folder();
+            using(var store=new DriverMemoryStore(folder))
+                Assert.IsTrue(store.RecordDialogue(TeamMember.Mik,"Ich bevorzuge kurze Berichte zu "+recorded+".",null));
+            using(var store=new DriverMemoryStore(folder))
+                StringAssert.Contains(recorded,store.PromptBlock(question));
+        }
+        [Test]
+        public void Same_topic_prioritizes_the_current_sim_and_track_without_claiming_live_facts()
+        {
+            using(var store=new DriverMemoryStore(Folder()))
+            {
+                store.RecordDialogue(TeamMember.Mik,"Ich möchte Spritbericht für Monza.",null,"RaceRoom","Monza");
+                for(int i=0;i<6;i++)
+                    store.RecordDialogue(TeamMember.Mik,"Ich möchte Spritbericht Variante "+i+".",null,"AMS2","Imola");
+                string prompt=store.PromptBlock("Spritbericht","RaceRoom","Monza");
+                StringAssert.Contains("Spritbericht für Monza",prompt);
+                StringAssert.Contains("keine aktuellen Messwerte",prompt);
+                StringAssert.Contains("unbestaetigt",prompt);
+            }
+        }
+        [Test]
+        public void Relevant_preference_survives_more_than_thirty_other_feedback_items_and_restart()
+        {
+            string folder=Folder();
+            using(var store=new DriverMemoryStore(folder))
+            {
+                store.RecordDialogue(TeamMember.Ben,"Ich möchte bei Bestzeit eine kurze Gratulation.",null);
+                for(int i=0;i<40;i++) store.RecordDialogue(TeamMember.Mik,"Ich möchte Spritbericht Variante "+i+".",null);
+                StringAssert.Contains("Gratulation",store.PromptBlock("Bestzeit"));
+            }
+            using(var store=new DriverMemoryStore(folder))
+                StringAssert.Contains("Gratulation",store.PromptBlock("Bestzeiten"));
+        }
+        [Test]
+        public void Explicit_notes_remain_available_when_no_feedback_topic_matches()
+        {
+            using(var store=new DriverMemoryStore(Folder()))
+            {
+                store.AddNote("Nenne mich Rob.");
+                store.RecordDialogue(TeamMember.Mik,"Ich möchte bei Bestzeit kurze Gratulation.",null);
+                string prompt=store.PromptBlock("Kraftstoff");
+                StringAssert.Contains("Nenne mich Rob",prompt);StringAssert.DoesNotContain("Gratulation",prompt);
+            }
+        }
+    }
+}

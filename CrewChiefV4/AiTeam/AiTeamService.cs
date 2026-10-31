@@ -818,7 +818,7 @@ namespace CrewChiefV4.AiTeam
                 new JObject
                 {
                     ["role"] = "system",
-                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.RadioName, longAllowed) + DriverNotes.PromptBlock(routed.Question) +
+                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.RadioName, longAllowed) + DriverNotes.PromptBlock(routed.Question, ctx) +
                         "\n\nAktuelle Lage (Live-Daten mit Reifen, Sprit, direkten Gegnern und Box). Reicht sie für die Antwort, antworte direkt " +
                         "ohne Werkzeug. Werkzeuge nur für Details, die hier fehlen (Stintverlauf, Rundenzeiten, Schäden/Motor, Wetter, Ereignisse):\n" +
                         RaceDataTools.BuildBriefing(ctx).ToString(Newtonsoft.Json.Formatting.None) +
@@ -1071,7 +1071,7 @@ namespace CrewChiefV4.AiTeam
             var evidence = new RaceSpeechEvidence(ctx);
             var messages = new JArray
             {
-                new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.ProactivePrompt, settings.RadioName) + DriverNotes.PromptBlock(trigger) },
+                new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.ProactivePrompt, settings.RadioName) + DriverNotes.PromptBlock(trigger, ctx) },
                 new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
             };
             Interlocked.Increment(ref callsThisSession);
@@ -1187,7 +1187,7 @@ namespace CrewChiefV4.AiTeam
                     if (briefingCue != null) data["begruessungsregie"] = briefingCue;
                     var messages = new JArray
                     {
-                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.RadioName) + DriverNotes.PromptBlock(label) },
+                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.RadioName) + DriverNotes.PromptBlock(label, ctx) },
                         new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
                     };
                     Interlocked.Increment(ref callsThisSession);
