@@ -116,7 +116,8 @@
     $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : (d.sourceStatus ? 'Quelle erreichbar · Fahrdaten fehlen' : 'Wartet auf das Spiel');
     $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : (d.sourceStatus || 'Kein Spiel verbunden');
     $('#rrca-sub').textContent = d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
-      : (d.sourceStatus ? d.sourceHint : 'Spiel starten und ins Auto setzen, die Crew legt von selbst los.');
+      : !d.running ? ($('#rrca-auto').checked ? 'Automatische Spielerkennung ist eingeschaltet. Spiel starten und ins Auto setzen; nach einer Änderung der Erkennung die App neu starten.' : 'Spiel auswählen und Start drücken. Die automatische Spielerkennung ist ausgeschaltet.')
+      : (d.sourceStatus ? d.sourceHint : 'Die Crew läuft. Spiel starten und ins Auto setzen, damit Fahrdaten ankommen.');
     $('#m-pos').textContent = d.position > 0 ? 'P' + d.position : '–';
     $('#m-pos-sub').textContent = d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ';
     $('#m-lap-label').textContent = d.timed ? 'Restzeit' : 'Runde';

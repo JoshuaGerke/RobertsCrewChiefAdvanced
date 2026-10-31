@@ -139,6 +139,10 @@ namespace CrewChiefV4
                     System.Environment.Exit(1);
                 }
             }
+            // Restore the exclusive Sara choice before MainWindow or AudioPlayer snapshots any settings.
+            // A new portable folder may have fresh .NET application settings but an existing valid shared Sara pack.
+            try { AiTeam.CrewVoiceReadiness.PrepareStartupSelection(); }
+            catch (Exception e) { Console.WriteLine("[KI-Team] Sara-Startkonfiguration konnte nicht wiederhergestellt werden: " + e.GetType().Name); }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             bool showSplashScreen = false;

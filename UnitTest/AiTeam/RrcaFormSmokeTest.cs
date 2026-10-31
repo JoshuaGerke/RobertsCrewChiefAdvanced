@@ -89,7 +89,20 @@ namespace UnitTest.AiTeamTests
                         Assert.IsNotEmpty(dataRoot, "This UI test must be isolated from the real driver profile.");
                         Assert.IsTrue(System.IO.Directory.GetFiles(dataRoot, "*.json", System.IO.SearchOption.AllDirectories)
                             .Any(path => System.IO.File.ReadAllText(path).Contains("Robert Gerke")), "Driver name was not persisted to the isolated profile.");
-                        profileStage = 3;
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-setting=driverNickname]').value=''; " +
+                            "document.querySelector('#rrca-auto').checked=false");
+                        typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
+                        profileStage = 3; timer.Start(); return;
+                    }
+                    if (profileStage == 3)
+                    {
+                        string hint = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-sub').textContent");
+                        if ((hint == null || hint == "null") && DateTime.UtcNow < timeout) { timer.Start(); return; }
+                        TestContext.WriteLine(await web.CoreWebView2.ExecuteScriptAsync("JSON.stringify({url:location.href,ready:document.readyState,found:!!document.getElementById('rrca-sub'),text:document.getElementById('rrca-sub')?.textContent})"));
+                        StringAssert.Contains("Start drücken", hint, "Disabled auto detection must not claim that the crew starts by itself.");
+                        // Restore the default switch value for the existing fresh-profile assertions.
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-auto').checked=true");
+                        profileStage = 4;
                     }
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +
