@@ -97,10 +97,11 @@ namespace CrewChiefV4.AiTeam
 
         public static string LapTime(float seconds)
         {
-            var t = TimeSpan.FromSeconds(seconds);
-            int minutes = (int)t.TotalMinutes;
-            string secs = (seconds - minutes * 60).ToString("00.000", de);
-            return minutes > 0 ? minutes + ":" + secs : (seconds.ToString("0.000", de));
+            if (float.IsNaN(seconds) || float.IsInfinity(seconds) || seconds < 0 || seconds >= 86400) return "Zeit nicht verfügbar";
+            long milliseconds = (long)Math.Round((double)seconds * 1000, MidpointRounding.AwayFromZero);
+            long minutes = milliseconds / 60000;
+            decimal remainder = (milliseconds % 60000) / 1000m;
+            return minutes > 0 ? minutes + ":" + remainder.ToString("00.000", de) : remainder.ToString("0.000", de);
         }
     }
 }

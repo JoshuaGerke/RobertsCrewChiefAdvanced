@@ -52,7 +52,7 @@ namespace UnitTest.AiTeamTests
             gs.SessionData.CompletedLaps=1; gs.SessionData.PlayerLapTimeSessionBest=92; gs.SessionData.PlayerClassSessionBestLapTime=90;
             observer.Observe(gs,new LapRecord { LapNumber=1,LapTime=92,Valid=true },T.AddSeconds(100),true);
             var call=observer.Take(gs,T.AddSeconds(100),false);
-            Assert.IsNotNull(call); StringAssert.Contains("Erste gültige",call.Text); StringAssert.Contains("2,00",call.Text);
+            Assert.IsNotNull(call); StringAssert.Contains("Erste gültige",call.Text); StringAssert.Contains(LocalAnswers.LapTime(92),call.Text);
             Assert.IsTrue(call.IsValid(gs,T.AddSeconds(101))); Assert.IsNull(observer.Take(gs,T.AddSeconds(110),false));
         }
 

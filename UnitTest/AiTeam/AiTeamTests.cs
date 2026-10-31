@@ -861,6 +861,7 @@ namespace UnitTest.AiTeamTests
             var fast = Racing(150);
             watch.Evaluate(Racing(150), fast, now, false);
             var stopped = Racing(5);
+            stopped.SessionData.SessionType = SessionType.Race;
             stopped.SessionData.TimeDeltaBehind = 2.3f;
             var spin = watch.Evaluate(fast, stopped, now.AddSeconds(2), false);
             StringAssert.StartsWith("Alles okay?", spin[0].Value);
@@ -935,12 +936,15 @@ namespace UnitTest.AiTeamTests
         public void Abstand_wird_geschaetzt_wenn_das_Spiel_keinen_liefert()
         {
             var gs = Racing(150);
+            gs.SessionData.SessionType = SessionType.Race;
+            gs.carClass = new CrewChiefV4.CarData.CarClass { carClassEnum = CrewChiefV4.CarData.CarClassEnum.AUDI_TT_CUP };
             gs.SessionData.TrackDefinition = new CrewChiefV4.TrackDefinition("Test", 0, 5000, new float[] { 0, 0 }, new float[] { 0, 0 });
             gs.SessionData.LapTimePrevious = 100;      // 50 m/s
             gs.SessionData.CompletedLaps = 3;
             gs.SessionData.ClassPosition = 5;
             gs.PositionAndMotionData.DistanceRoundTrack = 1000;
-            var ahead = new OpponentData { ClassPosition = 4, CompletedLaps = 3, DistanceRoundTrack = 1100 };
+            var ahead = new OpponentData { ClassPosition = 4, CompletedLaps = 3, DistanceRoundTrack = 1100, CarClass = gs.carClass };
+            gs.SessionData.LapsDeltaFront = 0;
             gs.OpponentData["a"] = ahead;
             Assert.AreSame(ahead, RaceDataTools.Neighbour(gs, true));
             Assert.AreEqual(2.0f, RaceDataTools.GapSeconds(gs, ahead, true), 0.01f);
@@ -972,7 +976,7 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Zeitrennen_letzte_Runde_nach_Ablauf_der_Uhr()
+        public void Zeitrennen_letzte_Runde_nach_bestaetigtem_Spielsignal()
         {
             CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = -1;
             var watch = new LapWatch();
@@ -987,6 +991,7 @@ namespace UnitTest.AiTeamTests
             cross.SessionData.ClassPosition = 12;
             cross.SessionData.SessionRunningTime = 901;
             cross.SessionData.SessionTimeRemaining = -1;
+            cross.SessionData.IsLastLap = true;
             Assert.AreEqual("Letzte Runde! Platz 12. Bleib konzentriert.", watch.Evaluate(before, cross, 5f, 5f, false));
             Assert.IsTrue(LapWatch.OnLastLap(cross.SessionData));
         }
@@ -1009,7 +1014,7 @@ namespace UnitTest.AiTeamTests
             CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = 6;
             var later = Racing(150);
             later.SessionData = cross.SessionData;
-            Assert.AreEqual("Noch zwei Runden, Platz 8.", watch.Evaluate(cross, later, 5f, 5f, false));
+            Assert.AreEqual("Voraussichtlich noch zwei Runden, Platz 8.", watch.Evaluate(cross, later, 5f, 5f, false));
             CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap = -1;
         }
 
@@ -1046,7 +1051,7 @@ namespace UnitTest.AiTeamTests
         public void Rennbilanz_zaehlt_ungueltige_Runden_auch_im_Funkmodus_Minimal()
         {
             var watch = new IncidentWatch();
-            StringAssert.Contains("ohne einen einzigen Ausritt", watch.FinishSummary());
+            StringAssert.Contains("Keine Strafen, ungültigen Runden oder starken Verzögerungen erfasst", watch.FinishSummary());
             for (int lap = 1; lap <= 2; lap++)
             {
                 var valid = Racing(150);
@@ -1057,7 +1062,7 @@ namespace UnitTest.AiTeamTests
                 cut.SessionData.CurrentLapIsValid = false;
                 watch.Evaluate(valid, cut, now.AddSeconds(lap * 90), true);
             }
-            Assert.AreEqual(" Bilanz: 2 Runden über die Limits.", watch.FinishSummary());
+            Assert.AreEqual(" Bilanz: 2 ungültige Runden.", watch.FinishSummary());
         }
 
         [Test]

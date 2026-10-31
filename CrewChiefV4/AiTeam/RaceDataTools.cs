@@ -22,6 +22,7 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Ergebnis von Fuel.GetAdditionalFuelToEndOfRace (Crew-Chief-Rechnung), float.MaxValue = unbekannt.</summary>
         public float CrewChiefAdditionalFuelNeeded = float.MaxValue;
         public CornerCoach Corners;
+        public TrackAwareness Tracks;
 
         public double TelemetryAgeSeconds
         {
@@ -40,13 +41,14 @@ namespace CrewChiefV4.AiTeam
         public static readonly string[] AllToolNames =
         {
             "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
-            "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
+            "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
         public static JArray BuildToolDefinitions()
         {
             var tools = new JArray();
-            tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge."));
+            tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge und eigene Streckenposition/Start-Ziel-Distanz."));
+            tools.Add(Tool("get_track_situation", "Räumliche Verkehrslage: nächste Fahrzeuge auf der Strecke, Weltkoordinaten, Abstand in Metern entlang der Runde, Überrundungsbezug und über mehrere Samples gemessene Annäherung. Keine Seitenfreigabe oder Überholgarantie."));
             tools.Add(Tool("get_tyre_status", "Reifentemperaturen (innen/mitte/außen), Drücke, Verschleiß, Reifentyp, Bremsentemperaturen, blockierende/durchdrehende Räder."));
             tools.Add(Tool("get_fuel_status", "Tankinhalt, Verbrauch pro Runde (gemessen), Reichweite, Crew-Chief-Rechnung für benötigten Sprit bis Rennende."));
             tools.Add(Tool("get_lap_times", "Eigene letzte Rundenzeiten und Sektorzeiten, persönliche Bestzeit, Session-Bestzeit."));
@@ -110,7 +112,7 @@ namespace CrewChiefV4.AiTeam
             if (toolName == "get_race_field" || toolName == "get_opponent") return RaceFieldTools.Read(toolName, ctx, "{}");
             var missing = new List<string>();
             JObject data;
-            if (ctx.GameState == null)
+            if (ctx == null || ctx.GameState == null)
             {
                 return new JObject
                 {
@@ -123,6 +125,7 @@ namespace CrewChiefV4.AiTeam
                 switch (toolName)
                 {
                     case "get_race_state": data = RaceState(ctx, missing); break;
+                    case "get_track_situation": data = TrackAwareness.Read(ctx); break;
                     case "get_tyre_status": data = Tyres(ctx, missing); break;
                     case "get_fuel_status": data = Fuel(ctx, missing); break;
                     case "get_lap_times": data = LapTimes(ctx, missing); break;
@@ -144,7 +147,9 @@ namespace CrewChiefV4.AiTeam
             var result = new JObject
             {
                 ["quelle"] = "Crew-Chief-Telemetrie" + (string.IsNullOrEmpty(ctx.GameName) ? "" : " (" + ctx.GameName + ")"),
-                ["datenalter_s"] = ctx.TelemetryAgeSeconds > 9999 ? (JToken)null : Math.Round(ctx.TelemetryAgeSeconds, 1),
+                ["snapshot_utc"] = ctx.LastTelemetryUtc == DateTime.MinValue ? null : ctx.LastTelemetryUtc.ToString("o"),
+                ["zeitbasis"] = "Uebernahme des GameState; einzelne Adapterfelder koennen seltener aktualisiert werden.",
+                ["datenalter_s"] = ctx.TelemetryAgeSeconds > 9999 ? (JToken)null : Math.Round(ctx.TelemetryAgeSeconds, 3),
                 ["veraltet"] = ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > StaleAfterSeconds,
             };
             foreach (var property in data.Properties())
@@ -178,14 +183,19 @@ namespace CrewChiefV4.AiTeam
                 ["runden_absolviert"] = s.CompletedLaps,
                 ["flagge"] = s.Flag.ToString(),
                 ["in_boxengasse"] = gs.PitData.InPitlane,
-                ["letzte_runde_des_rennens"] = LapWatch.OnLastLap(s) || s.SessionPhase == SessionPhase.Checkered,
+                ["outlap"] = gs.PitData.OnOutLap,
+                ["streckenposition"] = TrackAwareness.Player(gs),
+                ["letzte_runde_des_rennens"] = LapWatch.OnLastLap(s),
+                ["restrunden_geschaetzt"] = LapWatch.LapsAreEstimated(s),
+                ["letzte_runde_geschaetzt"] = LapWatch.LapsAreEstimated(s) && LapWatch.LapsLeft(s) == 1,
             };
             int lapsLeft = LapWatch.LapsLeft(s);
             if (s.SessionHasFixedTime)
             {
-                // nach Ablauf der Uhr meldet das Spiel negative Werte: das ist 0, nicht "fehlt"
-                o["restzeit_s"] = Num(Math.Max(0f, s.SessionTimeRemaining), 0, 0, 200000, "restzeit_s", missing);
-                o["uhr_abgelaufen"] = s.SessionTimeRemaining <= 0 && s.SessionRunningTime > 60;
+                // Negative values can also be the adapter's unknown sentinel, not proof that time expired.
+                o["restzeit_s"] = Num(s.SessionTimeRemaining, 0, 0, 200000, "restzeit_s", missing);
+                o["uhr_abgelaufen"] = s.SessionTimeRemaining == 0 && Finite(s.SessionTotalRunTime) &&
+                    s.SessionTotalRunTime > 0 && Finite(s.SessionRunningTime) && s.SessionRunningTime >= s.SessionTotalRunTime;
                 if (lapsLeft > 0)
                 {
                     o["runden_verbleibend_inkl_aktueller_geschaetzt"] = lapsLeft;
@@ -229,7 +239,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (t.TyreWearActive)
             {
-                o["verschleiss_prozent"] = Round4(new[] { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear }, 1);
+                o["verschleiss_prozent"] = CheckedArray(new[] { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear }, 1, 0, 100, "reifenverschleiss", missing);
                 o["verschleiss_hinweis"] = "0 = neu, 100 = komplett abgefahren; Reihenfolge VL, VR, HL, HR";
                 var perLap = ctx.Memory != null ? ctx.Memory.AverageWearPerLap() : null;
                 if (perLap != null)
@@ -244,7 +254,7 @@ namespace CrewChiefV4.AiTeam
             float[] brakes = { t.LeftFrontBrakeTemp, t.RightFrontBrakeTemp, t.LeftRearBrakeTemp, t.RightRearBrakeTemp };
             if (brakes.Any(b => b > 1 && b < 1500))
             {
-                o["bremsentemperatur_c"] = Round4(brakes, 0);
+                o["bremsentemperatur_c"] = CheckedArray(brakes, 0, 1, 1500, "bremsentemperatur", missing);
             }
             else
             {
@@ -262,18 +272,18 @@ namespace CrewChiefV4.AiTeam
             var gs = ctx.GameState;
             var f = gs.FuelData;
             var o = new JObject();
-            if (!f.FuelUseActive || f.FuelLeft <= 0)
+            if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft <= 0 || f.FuelLeft > 10000)
             {
                 missing.Add("tankinhalt");
                 return o;
             }
             o["tankinhalt_l"] = Math.Round(f.FuelLeft, 1);
-            if (f.FuelCapacity > 0)
+            if (Finite(f.FuelCapacity) && f.FuelCapacity > 0 && f.FuelCapacity <= 10000)
             {
                 o["tankgroesse_l"] = Math.Round(f.FuelCapacity, 1);
             }
             float perLap = ctx.Memory != null ? ctx.Memory.AverageFuelPerLap() : -1;
-            if (perLap > 0)
+            if (Finite(perLap) && perLap > 0)
             {
                 o["verbrauch_pro_runde_l"] = Math.Round(perLap, 2);
                 o["reichweite_runden"] = Math.Round(f.FuelLeft / perLap, 1);
@@ -348,7 +358,7 @@ namespace CrewChiefV4.AiTeam
             if (ahead != null)
             {
                 var a = Describe(ahead, ctx, s);
-                a["abstand_s"] = Num(GapSeconds(gs, ahead, true), 2, 0.01f, 600, "abstand_vorne", missing);
+                AddGap(a, ctx, ahead, true, missing);
                 if (s.LapsDeltaFront > 0)
                 {
                     a["runden_rueckstand_auf_ihn"] = s.LapsDeltaFront;
@@ -362,7 +372,7 @@ namespace CrewChiefV4.AiTeam
             if (behind != null)
             {
                 var b = Describe(behind, ctx, s);
-                b["abstand_s"] = Num(GapSeconds(gs, behind, false), 2, 0.01f, 600, "abstand_hinten", missing);
+                AddGap(b, ctx, behind, false, missing);
                 if (s.LapsDeltaBehind > 0)
                 {
                     b["runden_vorsprung"] = s.LapsDeltaBehind;
@@ -373,13 +383,24 @@ namespace CrewChiefV4.AiTeam
             {
                 missing.Add("auto_hinter_uns");
             }
-            var leader = gs.OpponentData.Values.FirstOrDefault(op => op.ClassPosition == 1 && op.CarClass != null && gs.carClass != null &&
-                op.CarClass.getClassIdentifier() == gs.carClass.getClassIdentifier());
+            var leaders = gs.OpponentData.Values.Where(op => op.ClassPosition == 1 && EligibleNeighbour(gs, op)).Take(2).ToArray();
+            var leader = leaders.Length == 1 ? leaders[0] : null;
             if (leader != null && s.ClassPosition != 1)
             {
                 o["klassenfuehrender"] = Describe(leader, ctx, s);
             }
             return o;
+        }
+
+        private static void AddGap(JObject target, RaceDataContext ctx, OpponentData opponent, bool ahead, List<string> missing)
+        {
+            var gap = ReadGap(ctx.GameState, opponent, ahead);
+            target["abstand_messung"] = gap.Describe(ctx);
+            // Only an adapter timing value occupies the precise racing-gap field.
+            target["abstand_s"] = gap.Kind == RaceGapKind.SimulatorTiming ? (JToken)Math.Round(gap.Seconds, 3) : null;
+            if (gap.IsEstimated) target["abstand_ungefaehr_s"] = Math.Round(gap.Seconds, 1);
+            if (gap.Kind == RaceGapKind.BestLapDifference) target["bestzeitdifferenz_s"] = Math.Round(gap.Seconds, 3);
+            if (!gap.HasValue) missing.Add(ahead ? "abstand_vorne" : "abstand_hinten");
         }
 
         internal static JObject Describe(OpponentData op, RaceDataContext ctx, SessionData s)
@@ -469,9 +490,9 @@ namespace CrewChiefV4.AiTeam
                 {
                     o["schaden_prozent"] = new JObject
                     {
-                        ["aero"] = Math.Round(d.AeroDamagePercent, 0),
-                        ["motor"] = Math.Round(d.EngineDamagePercent, 0),
-                        ["getriebe"] = Math.Round(d.TransmissionDamagePercent, 0),
+                        ["aero"] = Num(d.AeroDamagePercent, 0, 0, 100, "aeroschaden_prozent", missing),
+                        ["motor"] = Num(d.EngineDamagePercent, 0, 0, 100, "motorschaden_prozent", missing),
+                        ["getriebe"] = Num(d.TransmissionDamagePercent, 0, 0, 100, "getriebeschaden_prozent", missing),
                     };
                 }
                 else
@@ -487,7 +508,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (e.EngineWaterTemp > 1)
             {
-                o["wassertemperatur_c"] = Math.Round(e.EngineWaterTemp, 0);
+                o["wassertemperatur_c"] = Num(e.EngineWaterTemp, 0, 1, 250, "wassertemperatur", missing);
             }
             else
             {
@@ -495,7 +516,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (e.EngineOilTemp > 1)
             {
-                o["oeltemperatur_c"] = Math.Round(e.EngineOilTemp, 0);
+                o["oeltemperatur_c"] = Num(e.EngineOilTemp, 0, 1, 300, "oeltemperatur", missing);
             }
             else
             {
@@ -536,14 +557,14 @@ namespace CrewChiefV4.AiTeam
             }
             o["luft_c"] = Num(c.AmbientTemperature, 1, -40, 70, "lufttemperatur", missing);
             o["strecke_c"] = Num(c.TrackTemperature, 1, -40, 90, "streckentemperatur", missing);
-            o["regen_0_bis_1"] = c.RainDensity >= 0 ? (JToken)Math.Round(c.RainDensity, 2) : null;
+            o["regen_0_bis_1"] = Num(c.RainDensity, 2, 0, 1, "regen", missing);
             if (c.RainDensity < 0)
             {
                 missing.Add("regen");
             }
             if (c.WindSpeed > 0)
             {
-                o["wind_ms"] = Math.Round(c.WindSpeed, 1);
+                o["wind_ms"] = Num(c.WindSpeed, 1, 0, 150, "wind", missing);
             }
             return o;
         }
@@ -602,7 +623,7 @@ namespace CrewChiefV4.AiTeam
         public static JObject BuildBriefing(RaceDataContext ctx)
         {
             var o = Execute("get_race_state", ctx);
-            if (ctx.GameState == null)
+            if (ctx == null || ctx.GameState == null)
             {
                 return o;
             }
@@ -610,18 +631,19 @@ namespace CrewChiefV4.AiTeam
             o["sprit"] = WithoutMeta(Execute("get_fuel_status", ctx));
             o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
+            o["streckenlage"] = TrackAwareness.Read(ctx);
             var s = ctx.GameState.SessionData;
-            float gapAhead = GapSeconds(ctx.GameState, Neighbour(ctx.GameState, true), true);
-            float gapBehind = GapSeconds(ctx.GameState, Neighbour(ctx.GameState, false), false);
-            if (gapAhead > 0) o["abstand_vorne_s"] = Math.Round(gapAhead, 2);
-            if (gapBehind > 0) o["abstand_hinten_s"] = Math.Round(gapBehind, 2);
+            var gapAhead = ReadGap(ctx.GameState, Neighbour(ctx.GameState, true), true);
+            var gapBehind = ReadGap(ctx.GameState, Neighbour(ctx.GameState, false), false);
+            if (gapAhead.Kind == RaceGapKind.SimulatorTiming) o["abstand_vorne_s"] = Math.Round(gapAhead.Seconds, 3);
+            if (gapBehind.Kind == RaceGapKind.SimulatorTiming) o["abstand_hinten_s"] = Math.Round(gapBehind.Seconds, 3);
             if (s.SessionStartClassPosition > 0 && s.ClassPosition > 0)
             {
                 o["startplatz"] = s.SessionStartClassPosition;
                 o["plaetze_gewonnen_seit_start"] = s.SessionStartClassPosition - s.ClassPosition;
             }
-            if (s.LapTimePrevious > 0) o["letzte_runde_s"] = Math.Round(s.LapTimePrevious, 3);
-            if (ctx.GameState.FuelData.FuelUseActive && ctx.GameState.FuelData.FuelLeft > 0)
+            if (ValidLap(s.LapTimePrevious)) o["letzte_runde_s"] = Math.Round(s.LapTimePrevious, 3);
+            if (ctx.GameState.FuelData.FuelUseActive && Finite(ctx.GameState.FuelData.FuelLeft) && ctx.GameState.FuelData.FuelLeft > 0 && ctx.GameState.FuelData.FuelLeft <= 10000)
             {
                 o["tankinhalt_l"] = Math.Round(ctx.GameState.FuelData.FuelLeft, 1);
             }
@@ -647,47 +669,61 @@ namespace CrewChiefV4.AiTeam
                 return null;
             }
             var s = gs.SessionData;
-            var op = Lookup(gs, ahead ? s.OpponentKeyInFront : s.OpponentKeyBehind);
-            if (op != null)
-            {
-                return op;
-            }
+            if (s.ClassPosition <= 0) return null;
             int pos = s.ClassPosition + (ahead ? -1 : 1);
-            return pos < 1 ? null : gs.OpponentData.Values.FirstOrDefault(o => o.ClassPosition == pos);
+            if (pos < 1) return null;
+            var op = Lookup(gs, ahead ? s.OpponentKeyInFront : s.OpponentKeyBehind);
+            if (EligibleNeighbour(gs, op) && op.ClassPosition == pos) return op;
+            var matches = gs.OpponentData.Values.Where(o => EligibleNeighbour(gs, o) && o.ClassPosition == pos).Take(2).ToArray();
+            return matches.Length == 1 ? matches[0] : null;
         }
 
-        /// <summary>
-        /// Abstand in Sekunden: Wert des Spiels, sonst geschätzt aus dem Streckenabstand und unserem Rundentempo
-        /// (nicht jedes Spiel liefert ihn laufend, z. B. AMS2 nur an Messpunkten). -1 = unbekannt oder überrundet.
-        /// </summary>
+        private static bool EligibleNeighbour(GameStateData gs, OpponentData op)
+        {
+            bool confirmedSingleClass = CrewChief.forceSingleClass ||
+                (GameStateData.NumberOfClasses == 1 && gs.SessionData.NumCarsOverall > 0 &&
+                 gs.SessionData.NumCarsOverall == gs.SessionData.NumCarsInPlayerClass);
+            return op != null && op.IsActive && (confirmedSingleClass ||
+                (op.CarClass != null && gs.carClass != null && CarData.IsCarClassEqual(gs.carClass, op.CarClass, false)));
+        }
+
+        /// <summary>Legacy numeric view. New callers must inspect ReadGap.Kind before interpreting seconds.</summary>
         public static float GapSeconds(GameStateData gs, OpponentData op, bool ahead)
         {
-            if (gs == null)
-            {
-                return -1;
-            }
+            return ReadGap(gs, op, ahead).Seconds;
+        }
+
+        public static RaceGapMeasurement ReadGap(GameStateData gs, OpponentData op, bool ahead)
+        {
+            if (gs == null || op == null || !ReferenceEquals(op, Neighbour(gs, ahead))) return new RaceGapMeasurement();
             var s = gs.SessionData;
-            float fromGame = ahead ? s.TimeDeltaFront : s.TimeDeltaBehind;
-            if (fromGame > 0)
+            if (s.SessionType != SessionType.Race)
             {
-                return fromGame;
+                if (!SessionLapObserver.Supported(s.SessionType) || !ValidLap(s.PlayerLapTimeSessionBest) || !ValidLap(op.CurrentBestLapTime))
+                    return new RaceGapMeasurement();
+                return new RaceGapMeasurement(Math.Abs(s.PlayerLapTimeSessionBest - op.CurrentBestLapTime), RaceGapKind.BestLapDifference);
             }
+            // A lapped car's distance must not become a same-lap seconds gap.
+            if ((ahead ? s.LapsDeltaFront : s.LapsDeltaBehind) != 0) return new RaceGapMeasurement();
+            float mapped = ahead ? s.TimeDeltaFront : s.TimeDeltaBehind;
+            if (Finite(mapped) && mapped >= 0 && mapped <= 3600)
+                return new RaceGapMeasurement(mapped, RaceGapKind.SimulatorTiming);
             float len = s.TrackDefinition != null ? s.TrackDefinition.trackLength : 0;
-            if (op == null || len <= 0)
-            {
-                return -1;
-            }
+            if (!Finite(len) || len <= 0 || !Finite(gs.PositionAndMotionData.DistanceRoundTrack) || !Finite(op.DistanceRoundTrack) ||
+                gs.PositionAndMotionData.DistanceRoundTrack < 0 || op.DistanceRoundTrack < 0 ||
+                gs.PositionAndMotionData.DistanceRoundTrack > len || op.DistanceRoundTrack > len ||
+                s.CompletedLaps < 0 || op.CompletedLaps < 0) return new RaceGapMeasurement();
             float own = s.CompletedLaps * len + gs.PositionAndMotionData.DistanceRoundTrack;
             float other = op.CompletedLaps * len + op.DistanceRoundTrack;
-            float d = ahead ? other - own : own - other;
-            if (d <= 0 || d > len)
-            {
-                return -1;
-            }
-            float lap = s.LapTimePrevious > 0 ? s.LapTimePrevious : s.PlayerLapTimeSessionBest;
-            float speed = lap > 0 ? len / lap : gs.PositionAndMotionData.CarSpeed;
-            return speed > 5 ? d / speed : -1;
+            float distance = ahead ? other - own : own - other;
+            if (!Finite(distance) || distance <= 0 || distance > len) return new RaceGapMeasurement();
+            float lap = ValidLap(s.LapTimePrevious) ? s.LapTimePrevious : s.PlayerLapTimeSessionBest;
+            float speed = ValidLap(lap) ? len / lap : gs.PositionAndMotionData.CarSpeed;
+            return Finite(speed) && speed > 5 ? new RaceGapMeasurement(distance / speed, RaceGapKind.TrackDistanceEstimate) : new RaceGapMeasurement();
         }
+
+        private static bool Finite(float number) { return !float.IsNaN(number) && !float.IsInfinity(number); }
+        private static bool ValidLap(float seconds) { return Finite(seconds) && seconds >= 1 && seconds < 3600; }
 
         private static OpponentData Lookup(GameStateData gs, string key)
         {
@@ -749,6 +785,11 @@ namespace CrewChiefV4.AiTeam
                 ["HL"] = new JArray(corners[2].Select(v => Math.Round(v, 0))),
                 ["HR"] = new JArray(corners[3].Select(v => Math.Round(v, 0))),
             };
+        }
+
+        private static JArray CheckedArray(float[] values, int decimals, float min, float max, string name, List<string> missing)
+        {
+            return new JArray(values.Select((v,i) => Num(v, decimals, min, max, name + "_" + new[] { "VL", "VR", "HL", "HR" }[i], missing)));
         }
 
         private static JArray Round4(float[] values, int decimals)

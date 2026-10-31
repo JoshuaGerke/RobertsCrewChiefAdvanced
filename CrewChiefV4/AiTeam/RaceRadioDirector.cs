@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
 {
@@ -52,6 +53,17 @@ namespace CrewChiefV4.AiTeam
         /// Geringe Abstände dienen ausschließlich der Funkruhe, nicht für
         /// Gegner- oder Überholprognosen ohne stabile Gegner-ID.
         /// </summary>
+        /// <summary>Non-race TimeDelta fields are best-lap differences, never physical traffic.</summary>
+        public bool Observe(DateTime nowUtc, GameStateData state)
+        {
+            if (state == null || state.SessionData.SessionType != SessionType.Race)
+            {
+                lastTrafficUtc = DateTime.MinValue;
+                return Observe(nowUtc, -1, -1);
+            }
+            return Observe(nowUtc, state.SessionData.TimeDeltaFront, state.SessionData.TimeDeltaBehind);
+        }
+
         public bool Observe(DateTime nowUtc, float gapFrontSeconds, float gapBehindSeconds)
         {
             if (nowUtc <= lastSampleUtc || nowUtc - lastSampleUtc < SamplePeriod)

@@ -11,10 +11,17 @@ $root = Split-Path -Parent $PSScriptRoot
 $src = Join-Path $root 'CrewChiefV4'
 $bin = Join-Path $src "bin/$Configuration"
 
-if (Test-Path $OutDir) { Remove-Item -Recurse -Force $OutDir }
-New-Item -ItemType Directory -Force $OutDir | Out-Null
-Copy-Item -Recurse "$bin/*" $OutDir
-Get-ChildItem $OutDir -Recurse -Include *.pdb | Remove-Item
+$OutDir = [IO.Path]::GetFullPath($OutDir)
+if (Test-Path -LiteralPath $OutDir) { throw "Ziel existiert bereits; zum Schutz vorhandener Dateien einen neuen Paketordner angeben: $OutDir" }
+New-Item -ItemType Directory -Path $OutDir | Out-Null
+foreach ($file in Get-ChildItem -LiteralPath $bin -Recurse -File) {
+    if ($file.Extension -in '.pdb','.wav','.bin','.zip','.log','.jsonl' -or $file.Name -like '.env*') { continue }
+    $relative = $file.FullName.Substring($bin.Length + 1)
+    if ($relative -match '(?i)(^|[\\/])(cache|voicecache|logs|userdata)([\\/]|$)') { continue }
+    $destination = Join-Path $OutDir $relative
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+    Copy-Item -LiteralPath $file.FullName -Destination $destination
+}
 
 foreach ($folder in 'plugins', 'Resources') {
     Copy-Item -Recurse -Force (Join-Path $src $folder) (Join-Path $OutDir $folder)

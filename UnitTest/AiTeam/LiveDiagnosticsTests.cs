@@ -37,6 +37,7 @@ namespace UnitTest.AiTeamTests
             StringAssert.StartsWith(root,DataFiles.ProfilesFolder);
             StringAssert.StartsWith(root,AiSecretStore.Folder);
             StringAssert.StartsWith(root,LiveDiagnostics.DefaultFolder);
+            StringAssert.StartsWith(root,DataFiles.SoundFilesFolder);
         }
         [Test]
         public void Recorder_ist_standardmaessig_aus_und_deaktivierbar()
@@ -70,9 +71,9 @@ namespace UnitTest.AiTeamTests
         {
             string folder=Folder();
             using(var recorder=new DiagnosticRecorder(folder,null,new[]{"EXACT-SECRET-EXAMPLE"}))
-                recorder.TryRecord("privacy",LiveDiagnostics.Data("text","EXACT-SECRET-EXAMPLE Bearer abc123 sk-or-abcdefghijklmnopqrstuvwxyz", "Authorization","Bearer hidden", "request_body","private", "microphone",new byte[100],"transcript","api_key=hidden"));
+                recorder.TryRecord("privacy",LiveDiagnostics.Data("text","EXACT-SECRET-EXAMPLE Bearer abc123 sk-or-abcdefghijklmnopqrstuvwxyz sk_abcdefghijklmno", "Authorization","Bearer hidden", "request_body","private", "microphone",new byte[100],"transcript","api_key=hidden"));
             string all=string.Join("\n",Directory.GetFiles(folder,"*.jsonl").Select(File.ReadAllText));
-            foreach(string forbidden in new[]{"EXACT-SECRET-EXAMPLE","abc123","sk-or-abcdefghijklmnopqrstuvwxyz","Authorization","request_body","microphone","api_key=hidden"}) StringAssert.DoesNotContain(forbidden,all);
+            foreach(string forbidden in new[]{"EXACT-SECRET-EXAMPLE","abc123","sk-or-abcdefghijklmnopqrstuvwxyz","sk_abcdefghijklmno","Authorization","request_body","microphone","api_key=hidden"}) StringAssert.DoesNotContain(forbidden,all);
             StringAssert.Contains("[redacted]",all);
         }
         [Test]

@@ -42,8 +42,8 @@ namespace UnitTest.Misc
         [Test]
         public void TestSoundFilesFolder()
         {
-            Assert.AreEqual(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CrewChiefV4", "Sounds"), DataFiles.SoundFilesFolder);
+            Assert.AreEqual(DataFiles.IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CrewChiefV4", "Sounds") : Path.Combine(DataFiles.IsolatedRoot, "Sounds"), DataFiles.SoundFilesFolder);
             // A test runner may have a different Windows LocalApplicationData than the interactive driver.
             // Validate the real sound pack explicitly provided by WINDOWS_V06_TEST, without creating a fake Voice folder.
             string soundRoot = Environment.GetEnvironmentVariable("RCCA_TEST_SOUND_ROOT") ?? DataFiles.SoundFilesFolder;
@@ -107,7 +107,7 @@ namespace UnitTest.Misc
                 Console.WriteLine("AB tests don't work in debug mode as MyDocuments has CrewChiefDebug appended");
                 return;
             }
-            String defaultSoundFilesPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\CrewChiefV4\Sounds";
+            String defaultSoundFilesPath = DataFiles.IsolatedRoot == null ? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\CrewChiefV4\Sounds" : Path.Combine(DataFiles.IsolatedRoot, "Sounds");
             defaultSoundFilesPath.Should().Be(DataFiles.SoundFilesFolder);
             string path = System.IO.Path.Combine(TestDocuments, "CrewChiefV4", "sounds-variety-data.txt");
             path.Should().Be(DataFiles.sounds_variety_data); 
@@ -152,7 +152,7 @@ namespace UnitTest.Misc
             tempSplashImagePath.Should().Be(splashImageFolderPath + @"splash_image_tmp.png");
             splashImagePath.Should().Be(splashImageFolderPath + @"splash_image.png");
 
-            string soundPackLocation = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + @"\CrewChiefV4\Sounds\Voice";
+            string soundPackLocation = Path.Combine(DataFiles.SoundFilesFolder, "Voice");
             soundPackLocation.Should().Be(DataFiles.VoiceFilesFolder);
 
             path = logFilePath();

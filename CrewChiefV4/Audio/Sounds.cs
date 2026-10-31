@@ -2088,6 +2088,7 @@ namespace CrewChiefV4.Audio
             if (!PlaybackModerator.ShouldPlaySound(this, soundMetadata))
             {
                 AiTeam.LiveDiagnostics.Audio("rejected",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+                if (isAiAudio) AiTeam.AiAudioStore.Remove(aiAudioId);
                 return;
             }
 
@@ -2144,8 +2145,12 @@ namespace CrewChiefV4.Audio
                 {
                     LoadAndCacheSound();
                     AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
-                    this.soundPlayer.PlaySync();
-                    if (isAiAudio) AiTeam.AiAudioStore.MarkStarted(aiAudioId);
+                    if (isAiAudio)
+                    {
+                        // Legacy synchronous backend: acknowledgment is completion, never a false start on failure.
+                        if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => this.soundPlayer.PlaySync())) return;
+                    }
+                    else this.soundPlayer.PlaySync();
                 }
                 if (!cacheSoundPlayer)
                 {
@@ -2219,8 +2224,12 @@ namespace CrewChiefV4.Audio
                         SoundCache.currentlyPlayingSound = this;
                         this.playbackStartTime = DateTime.UtcNow;
                         AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
-                        this.nAudioOut.Play();
-                        if (isAiAudio) AiTeam.AiAudioStore.MarkStarted(aiAudioId);
+                        if (isAiAudio)
+                        {
+                            if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => this.nAudioOut.Play()))
+                            { SoundCache.currentlyPlayingSound = null; return; }
+                        }
+                        else this.nAudioOut.Play();
                         // Special case for the listen start beep - don't wait for it to finish playing before returning
                         if (!isListenStartBeep)
                         {

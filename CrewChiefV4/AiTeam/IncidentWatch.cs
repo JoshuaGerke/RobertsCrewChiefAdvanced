@@ -32,9 +32,11 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastFastUtc = DateTime.MinValue;
         private DateTime lastStopUtc = DateTime.MinValue;
         private int lastInvalidLap = -1;
-        private int invalidCount;
-        // für die Bilanz im Ziel, unabhängig vom Funkmodus gezählt
+        private int lastReportedCutWarnings = -1;
+        private readonly RaceRadioLanguage language = new RaceRadioLanguage();
+        // Compatibility name: speed loss alone proves a strong slowdown, not an actual spin.
         public int Spins { get; private set; }
+        public int TrackLimitWarnings { get; private set; }
         public int InvalidLaps { get; private set; }
         public int Penalties { get; private set; }
         private int positionBeforeIncident;
@@ -46,8 +48,8 @@ namespace CrewChiefV4.AiTeam
         {
             lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = DateTime.MinValue;
             lastInvalidLap = -1;
-            invalidCount = 0;
-            Spins = InvalidLaps = Penalties = 0;
+            lastReportedCutWarnings = -1;
+            TrackLimitWarnings = Spins = InvalidLaps = Penalties = 0;
             positionBeforeIncident = 0;
             assessment = null;
             recentPositions.Clear();
@@ -125,7 +127,7 @@ namespace CrewChiefV4.AiTeam
                 positionBeforeIncident = 0;
             }
 
-            // 2. Dreher oder Stillstand: eben noch schnell, jetzt fast stehend, außerhalb der Box
+            // 2. Starker Geschwindigkeitsabfall: Ursache (Dreher, Bremsen, Kontakt) ist damit noch nicht belegt.
             if (kmh > 70)
             {
                 lastFastUtc = nowUtc;
@@ -136,7 +138,7 @@ namespace CrewChiefV4.AiTeam
                 Spins++;
                 string text = "Alles okay? Beim Wiederanfahren auf den Verkehr achten.";
                 float behind = current.SessionData.TimeDeltaBehind;
-                if (behind > 0 && behind < 15)
+                if (current.SessionData.SessionType == SessionType.Race && behind > 0 && behind < 15)
                 {
                     text += " Der Nächste war zuletzt etwa " + SaraLocal.Seconds(behind) + " hinter dir.";
                 }
@@ -159,30 +161,44 @@ namespace CrewChiefV4.AiTeam
                     (p.HasDriveThrough || p.HasStopAndGo ? " Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick." : "")));
             }
 
-            // 4. Runde ungültig (Track Limits), nicht im Funkmodus Minimal
+            // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
+            // increase supports a track-limit comment; a warning need not invalidate the lap.
             int lap = current.SessionData.CompletedLaps;
-            if (previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit && lap != lastInvalidLap)
+            bool invalidated = previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit &&
+                !current.PitData.OnOutLap && !previous.PitData.OnOutLap && !current.SessionData.IsNewLap && lap != lastInvalidLap;
+            if (invalidated)
             {
                 lastInvalidLap = lap;
                 InvalidLaps++;
-                if (!minimalMode)
-                {
-                    result.Add(Say(TeamMember.Mik, CrewSpeechPolicy.TrackLimitPhrases[invalidCount++ % CrewSpeechPolicy.TrackLimitPhrases.Length]));
-                }
+            }
+            if (p.CutTrackWarnings < pp.CutTrackWarnings) lastReportedCutWarnings = -1;
+            bool limitWarning = !inPit && pp.CutTrackWarnings >= 0 && p.CutTrackWarnings > pp.CutTrackWarnings &&
+                p.CutTrackWarnings != lastReportedCutWarnings;
+            if (limitWarning)
+            {
+                lastReportedCutWarnings = p.CutTrackWarnings;
+                TrackLimitWarnings++;
+            }
+            if (!minimalMode && (limitWarning || invalidated))
+            {
+                string text = limitWarning ? language.TrackLimit(TrackLimitWarnings > 1, invalidated)
+                    : language.InvalidLap(InvalidLaps > 1);
+                result.Add(Say(TeamMember.Mik, text));
             }
             return result;
         }
 
-        /// <summary>Kurze Bilanz fürs Rennende: Ausritte, Dreher, Strafen. Leer startet mit Leerzeichen, passt hinter die Zielansage.</summary>
+        /// <summary>Kurze Bilanz erfasster Ungültigkeiten, Cut-Warnungen, Verzögerungen und Strafen. Startet mit Leerzeichen.</summary>
         public string FinishSummary()
         {
             var parts = new List<string>();
-            if (InvalidLaps > 0) parts.Add(InvalidLaps == 1 ? "eine Runde über die Limits" : InvalidLaps + " Runden über die Limits");
-            if (Spins > 0) parts.Add(Spins == 1 ? "ein Dreher" : Spins + " Dreher");
+            if (InvalidLaps > 0) parts.Add(InvalidLaps == 1 ? "eine ungültige Runde" : InvalidLaps + " ungültige Runden");
+            if (TrackLimitWarnings > 0) parts.Add(TrackLimitWarnings == 1 ? "eine Tracklimit-Meldung" : TrackLimitWarnings + " Tracklimit-Meldungen");
+            if (Spins > 0) parts.Add(Spins == 1 ? "eine starke Verzögerung" : Spins + " starke Verzögerungen");
             if (Penalties > 0) parts.Add(Penalties == 1 ? "eine Strafe" : Penalties + " Strafen");
             if (parts.Count == 0)
             {
-                return " Und das ohne einen einzigen Ausritt, richtig sauber.";
+                return " Keine Strafen, ungültigen Runden oder starken Verzögerungen erfasst.";
             }
             string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " und " + parts[parts.Count - 1];
             return " Bilanz: " + list + "." + (InvalidLaps + Spins + Penalties >= 4 ? " Da ist beim nächsten Mal noch einiges drin." : "");

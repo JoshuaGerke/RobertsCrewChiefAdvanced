@@ -62,8 +62,9 @@ namespace CrewChiefV4.AiTeam
             "gap_front_s gap_behind_s opponent_front opponent_behind position flag tyre_wear_pct tyre_temp_c tyre_wear_active " +
             "lap_time_s fuel_used_l fuel_per_lap_l laps_remaining time_remaining_s laps_comparable lap_times_s fuel_used_window_l " +
             "overlap_left overlap_right telemetry_age_s api_calls budget radio_mode deadline_s correlation_parent utterance_sequence " +
-            "prompt_tokens completion_tokens sample_count input_ticks duplicate late silence_s source trigger result").Split(' '));
-        private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk-[a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
+            "prompt_tokens completion_tokens sample_count input_ticks duplicate late silence_s source trigger result " +
+            "position_matrix matrix_columns row_offset total_cars track_length_m source_utc").Split(' '));
+        private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk[-_][a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
 
         public DiagnosticRecorder(string folder, DiagnosticLimits options = null, string[] secrets = null)
         {
@@ -171,6 +172,8 @@ namespace CrewChiefV4.AiTeam
                         using (var sha = System.Security.Cryptography.SHA256.Create())
                             data[field.Key] = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(salt + (string)field.Value))).Replace("-", "").Substring(0, 16);
                     }
+                    else if (field.Key == "position_matrix" && field.Value is float[])
+                        data[field.Key] = new JArray(((float[])field.Value).Take(144).Select(x => Value(x)));
                     else data[field.Key] = Value(field.Value);
                 }
             object path;
@@ -255,6 +258,7 @@ namespace CrewChiefV4.AiTeam
         private static DiagnosticRecorder recorder;
         private static DiagnosticRecorder last;
         private static long lastSample;
+        private static long lastTrackSampleTicks;
         private static int epoch;
         private static readonly AsyncLocal<string> flow = new AsyncLocal<string>();
         public static string DefaultFolder { get { return DataFiles.IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChief20", "RCCA-LiveDiagnostics") : Path.Combine(DataFiles.IsolatedRoot,"Diagnostics"); } }
@@ -267,7 +271,7 @@ namespace CrewChiefV4.AiTeam
             try
             {
                 var next = new DiagnosticRecorder(folder ?? DefaultFolder, limits, new[]{AiSecretStore.Load(),AiSecretStore.LoadElevenLabs()});
-                last = next; Interlocked.Exchange(ref lastSample,0); Volatile.Write(ref recorder,next);
+                last = next; Interlocked.Exchange(ref lastSample,0); Interlocked.Exchange(ref lastTrackSampleTicks,0); Volatile.Write(ref recorder,next);
                 return "Lokale Diagnose aktiv: " + next.Folder;
             }
             catch (Exception e) { return "Diagnose konnte nicht starten: " + e.GetType().Name; }
@@ -315,6 +319,38 @@ namespace CrewChiefV4.AiTeam
                 "gap_front_s",s.TimeDeltaFront,"gap_behind_s",s.TimeDeltaBehind,"opponent_front",s.OpponentKeyInFront,"opponent_behind",s.OpponentKeyBehind,"position",s.ClassPosition,"flag",s.Flag.ToString(),"lap_time_s",s.LapTimePrevious,"laps_remaining",s.SessionLapsRemaining,"time_remaining_s",s.SessionTimeRemaining,
                 "tyre_wear_active",t.TyreWearActive,"tyre_wear_pct",t.TyreWearActive?new[]{t.FrontLeftPercentWear,t.FrontRightPercentWear,t.RearLeftPercentWear,t.RearRightPercentWear}:null,
                 "tyre_temp_c",new[]{t.PeakFrontLeftTemperatureForLap,t.PeakFrontRightTemperatureForLap,t.PeakRearLeftTemperatureForLap,t.PeakRearRightTemperatureForLap}));
+        }
+        /// <summary>Full bounded mapped field at 2 Hz, batches of 16 cars. The observer itself runs up to 20 Hz.
+        /// Numeric snapshots only; no driver names, request data or audio. Disk work remains on the recorder thread.</summary>
+        public static void TrackPositions(TrackPositionSnapshot snapshot)
+        {
+            if(!Enabled || snapshot==null)return;
+            long prior=Interlocked.Read(ref lastTrackSampleTicks),now=snapshot.Utc.Ticks;
+            if(now-prior<TimeSpan.TicksPerSecond/2 || Interlocked.CompareExchange(ref lastTrackSampleTicks,now,prior)!=prior)return;
+            Func<double?,float> number=n=>n.HasValue ? (float)n.Value : float.NaN;
+            for(int offset=0;offset<snapshot.Cars.Count+1;offset+=16)
+            {
+                int rows=Math.Min(16,snapshot.Cars.Count+1-offset);
+                float[] matrix=new float[rows*9];
+                for(int i=0;i<rows;i++)
+                {
+                    int index=offset+i,cell=i*9;
+                    var car=index==0 ? null : snapshot.Cars[index-1];
+                    matrix[cell]=car==null ? 0 : car.Id;
+                    matrix[cell+1]=number(car==null ? snapshot.PlayerX : car.X);
+                    matrix[cell+2]=number(car==null ? snapshot.PlayerZ : car.Z);
+                    matrix[cell+3]=number(car==null ? snapshot.PlayerDistanceM : car.LapDistanceM);
+                    matrix[cell+4]=car==null ? 0 : number(car.SpatiallyConsistent ? car.RouteGapM : null);
+                    matrix[cell+5]=number(car==null ? snapshot.PlayerSpeedMps : car.SpeedMps);
+                    matrix[cell+6]=car==null ? 0 : car.LapOffset.HasValue ? car.LapOffset.Value : float.NaN;
+                    matrix[cell+7]=(car==null ? snapshot.PlayerInPits : car.InPits) ? 1 : 0;
+                    matrix[cell+8]=car==null ? 1 : car.SpatiallyConsistent ? 1 : 0;
+                }
+                Emit("track.positions",Data("track",snapshot.Track,"source_utc",snapshot.Utc.ToString("o"),"sample_count",rows,"row_offset",offset,
+                    "total_cars",snapshot.Cars.Count+1,"track_length_m",number(snapshot.LengthM),
+                    "matrix_columns","id,x_m,z_m,lap_distance_m,route_gap_m,speed_m_s,lap_offset,pit,consistent",
+                    "position_matrix",matrix));
+            }
         }
         public static void Lap(AiRaceMemory memory)
         {
