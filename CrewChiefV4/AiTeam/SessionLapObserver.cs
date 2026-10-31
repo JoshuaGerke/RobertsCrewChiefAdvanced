@@ -36,13 +36,15 @@ namespace CrewChiefV4.AiTeam
                 classBest = s.PlayerClassSessionBestLapTime;
                 return;
             }
-            if (s.SessionPhase != SessionPhase.Green) { pending.Clear(); return; }
+            bool green = s.SessionPhase == SessionPhase.Green;
+            if (!green && s.SessionPhase != SessionPhase.Checkered && s.SessionPhase != SessionPhase.Finished)
+            { pending.Clear(); return; }
             bool ownCall = false;
             var length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float step = previous == null ? float.NaN : s.SessionRunningTime - previous.SessionData.SessionRunningTime;
             bool continuous = !float.IsNaN(step) && !float.IsInfinity(step) && step > 0 && step <= 1.5f && previous != null &&
                 length - previous.PositionAndMotionData.DistanceRoundTrack + gs.PositionAndMotionData.DistanceRoundTrack <= 180 * step + 15;
-            if (!firstTimedLapCalled && continuous && previous != null && previous.SessionData.SessionId == s.SessionId &&
+            if (green && !firstTimedLapCalled && continuous && previous != null && previous.SessionData.SessionId == s.SessionId &&
                 previous.SessionData.SessionType == s.SessionType && previous.PitData.OnOutLap && !gs.PitData.OnOutLap &&
                 !gs.PitData.InPitlane && s.IsNewLap && gs.SessionData.CurrentLapIsValid && length > 100 &&
                 previous.PositionAndMotionData.DistanceRoundTrack > length * .8f &&
@@ -61,18 +63,28 @@ namespace CrewChiefV4.AiTeam
                     bool first = !Good(personalBest), improved = !first && time < personalBest - .01f;
                     if (first || improved)
                     {
-                        string lead = first ? "Erste gültige Zeit steht: " : (++improvements % 2 == 1 ? "Sauber, neue persönliche Bestzeit: " : "Wieder verbessert, stark: ");
-                        string text = lead + LocalAnswers.LapTime(time) + ".";
+                        bool classRecord = Good(s.PlayerClassSessionBestLapTime) && Math.Abs(time - s.PlayerClassSessionBestLapTime) < .01f &&
+                            (!Good(classBest) || time < classBest - .01f);
+                        string lead = first ? "Erste gültige Zeit steht: " :
+                            new[] { "Sauber, neue persönliche Bestzeit: ", "Wieder verbessert, stark: ", "Klasse Runde, persönliche Bestzeit: ", "Ja, das war deine bisher schnellste Runde: " }[improvements++ % 4];
+                        string text = lead + LocalAnswers.LapTime(time) + "." + (classRecord ? " Das ist die Klassenbestzeit!" : "");
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", 4);
+                        ownCall = true;
+                    }
+                    else if (Good(personalBest) && time > personalBest + .01f && time - personalBest <= .30f)
+                    {
+                        string delta = (time - personalBest).ToString("0.00", CultureInfo.GetCultureInfo("de-DE"));
+                        Add(gs, now, "near-best", "Knapp dran: " + delta + " Sekunden über deiner Bestzeit. Bleib bei deinem Rhythmus.",
+                            "valid_lap_within_0.30s_of_recorded_personal_best", 3);
                         ownCall = true;
                     }
                     personalBest = Good(personalBest) ? Math.Min(personalBest, time) : time;
                 }
             }
             float nextBest = s.PlayerClassSessionBestLapTime;
-            if (Good(nextBest) && Good(classBest) && nextBest < classBest - .01f && !ownCall)
+            if (green && Good(nextBest) && Good(classBest) && nextBest < classBest - .01f && !ownCall)
             {
                 var rival = gs.OpponentData.Values.FirstOrDefault(o => o.IsActive && gs.carClass != null &&
                     CarData.IsCarClassEqual(gs.carClass, o.CarClass) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - nextBest) < .01f);
@@ -92,6 +104,7 @@ namespace CrewChiefV4.AiTeam
             pending.RemoveAll(c => c.Topic == topic);
             pending.Add(new ObservedRaceCall { Topic=topic, Text=text, Evidence=evidence, Priority=priority, Member=TeamMember.Mik,
                 Position=-1, SessionId=session, SessionType=type, CompletedLaps=gs.SessionData.CompletedLaps,
+                AllowLapFinish=topic == "own-lap" || topic == "near-best",
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic == "timed-lap-start" ? 4 : 12) });
             LiveDiagnostics.Decision(topic,"detected",evidence,text);
         }

@@ -42,13 +42,14 @@ namespace UnitTest.AiTeamTests
                         string ready = await web.CoreWebView2.ExecuteScriptAsync("!!document.querySelector('#rrca-diag-status')");
                         if (ready != "true" && DateTime.UtcNow < timeout) { timer.Start(); return; }
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-diag-status').textContent='STALE'");
+                        GameDataConnectionStatus.Record("RaceRoom", DateTime.UtcNow);
                         typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
                         liveRefreshRequested = true; timer.Start(); return;
                     }
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +
                         "document.querySelector('[data-setting=fastModel]').value, document.querySelector('#rrca-warn').hidden, " +
-                        "document.querySelector('#rrca-diag-status').textContent, getComputedStyle(document.querySelector('.notification')).position].join('|')");
+                        "document.querySelector('#rrca-diag-status').textContent, getComputedStyle(document.querySelector('.notification')).position, document.querySelector('#rrca-conn').textContent, !!document.querySelector('#rrca-game'), document.querySelector('#rrca-run').textContent, document.querySelector('#rrca-auto').checked].join('|')");
                     if ((result == null || result == "null" || result.StartsWith("\"0|")) && DateTime.UtcNow < timeout)
                     { timer.Start(); return; }
                 }
@@ -86,6 +87,10 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotEmpty(parts[2]);
             StringAssert.StartsWith("Diagnose: ", parts[4], "Recorder status did not refresh from the live bridge");
             Assert.AreEqual("sticky", parts[5], "Connection feedback should stay visible when scrolled");
+            StringAssert.Contains("Datenquelle erreichbar", parts[6], "Raw-source availability must not be reported as missing game or valid driving telemetry.");
+            Assert.AreEqual("true", parts[7], "Joshua's cockpit game selector must remain present.");
+            Assert.AreEqual("Start", parts[8], "Joshua's cockpit run control must remain present.");
+            Assert.AreEqual("true", parts[9], "Automatic game detection must remain enabled by default in the fresh test profile.");
         }
     }
 }

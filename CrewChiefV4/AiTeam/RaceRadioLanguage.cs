@@ -47,6 +47,8 @@ namespace CrewChiefV4.AiTeam
         public string Contact(bool heavy)
         { return heavy ? Select("contact-heavy", CrewSpeechPolicy.HeavyContactPhrases) : Select("contact", CrewSpeechPolicy.ContactPhrases); }
 
+        public string DamageChanged() { return Select("damage-detected", CrewSpeechPolicy.DamageDetectedPhrases); }
+
         public string Stopped() { return Select("stopped", CrewSpeechPolicy.StoppedPhrases); }
 
         public string OffTrack(bool wet)

@@ -293,7 +293,10 @@ namespace CrewChiefV4.AiTeam
             var gs = CrewChief.currentGameState;
             var tick = service.Memory.LastTickUtc;
             bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
-            var o = new JObject { ["type"] = "live", ["connected"] = connected };
+            string source = GameDataConnectionStatus.SourceAt(DateTime.UtcNow);
+            var o = new JObject { ["type"] = "live", ["connected"] = connected,
+                ["sourceStatus"] = !connected && source != null ? source + ": Datenquelle erreichbar" : null,
+                ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein." };
             if (MainWindow.instance != null)
             {
                 o["running"] = MainWindow.instance.IsAppRunning;

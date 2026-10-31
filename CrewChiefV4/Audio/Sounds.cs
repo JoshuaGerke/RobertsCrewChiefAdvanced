@@ -565,6 +565,15 @@ namespace CrewChiefV4.Audio
             return (ttsVoice != null);
         }
 
+        public static void InterruptForAiHazard(int priority)
+        {
+            // Inspect and stop the same sound instance. A concurrent Sara clip must never be stopped instead.
+            var sound = System.Threading.Volatile.Read(ref currentlyPlayingSound);
+            if (AudioPlayer.playWithNAudio && sound != null &&
+                AiTeam.CrewSpeechPolicy.CanInterruptForHazard(sound.isAiAudio, sound.isSpotter, sound.isBleep, sound.playbackPriority, priority))
+                sound.Stop();
+        }
+
         public static void InterruptCurrentlyPlayingSound(Boolean blockBeeps)
         {
             // only works with nAudio
@@ -1802,6 +1811,7 @@ namespace CrewChiefV4.Audio
 
         // RCCA: KI-Funkspruch (WAV im Speicher), wird nach dem Abspielen sofort freigegeben
         internal Boolean isAiAudio = false;
+        internal int playbackPriority;
         private String aiAudioId;
         private string diagnosticClip;
         private string diagnosticKey;
@@ -2074,6 +2084,7 @@ namespace CrewChiefV4.Audio
          */
         internal void Play(SoundMetadata soundMetadata)
         {
+            playbackPriority = soundMetadata == null ? SoundMetadata.DEFAULT_PRIORITY : soundMetadata.priority;
             if (AiTeam.LiveDiagnostics.Enabled && !isBleep)
             {
                 diagnosticClip = isAiAudio ? aiAudioId : Guid.NewGuid().ToString("N");

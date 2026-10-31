@@ -794,7 +794,7 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Schadensbericht_erst_wenn_wieder_unterwegs_mit_Platzverlust()
+        public void Leichter_Schadensbericht_erst_wenn_wieder_unterwegs_mit_Platzverlust()
         {
             var watch = new IncidentWatch();
             var before = Racing(150);
@@ -804,8 +804,8 @@ namespace UnitTest.AiTeamTests
             var crash = Racing(20);
             crash.SessionData.ClassPosition = 8;
             crash.CarDamageData.DamageEnabled = true;
-            crash.CarDamageData.OverallAeroDamage = DamageLevel.MAJOR;
-            crash.CarDamageData.AeroDamagePercent = 13;
+            crash.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
+            crash.CarDamageData.AeroDamagePercent = 3;
             watch.Evaluate(before, crash, now, false);
             var standing = Racing(20);
             standing.SessionData.ClassPosition = 13;
@@ -819,8 +819,8 @@ namespace UnitTest.AiTeamTests
             var a = watch.TakeDamageAssessment();
             Assert.AreEqual(8, a.PositionBefore);
             Assert.AreEqual(13, a.PositionNow);
-            Assert.IsTrue(a.Serious);
-            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero stark beschädigt (13 Prozent). Wenn sich das Auto komisch anfühlt, komm an die Box.", a.LocalReport);
+            Assert.IsFalse(a.Serious);
+            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero leicht beschädigt (3 Prozent). Sollte fahrbar sein.", a.LocalReport);
         }
 
         [Test]
@@ -833,7 +833,7 @@ namespace UnitTest.AiTeamTests
             var after = Racing(150);
             after.CarDamageData.DamageEnabled = true;
             after.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
-            CollectionAssert.Contains(CrewSpeechPolicy.IncidentPhrases, watch.Evaluate(before, after, now, false)[0].Value);
+            CollectionAssert.Contains(CrewSpeechPolicy.DamageDetectedPhrases, watch.Evaluate(before, after, now, false)[0].Value);
             var unknown = Racing(150);
             unknown.CarDamageData.DamageEnabled = true;
             Assert.IsFalse(IncidentWatch.DamageIncreased(unknown.CarDamageData, after.CarDamageData), "erster Messwert ist kein Kontakt");
@@ -859,7 +859,10 @@ namespace UnitTest.AiTeamTests
         {
             var watch = new IncidentWatch();
             var fast = Racing(150);
-            watch.Evaluate(Racing(150), fast, now, false);
+            fast.SessionData.SessionType = SessionType.Race;
+            var beforeFast = Racing(150);
+            beforeFast.SessionData.SessionType = SessionType.Race;
+            watch.Evaluate(beforeFast, fast, now, false);
             var stopped = Racing(5);
             stopped.SessionData.SessionType = SessionType.Race;
             stopped.SessionData.TimeDeltaBehind = 2.3f;

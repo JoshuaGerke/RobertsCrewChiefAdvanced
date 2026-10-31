@@ -93,17 +93,17 @@
     state.voiceReadiness = d.voiceReadiness;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = d.recorderStatus;
-    $('#rrca-conn').textContent = d.connected ? d.game : 'Kein Spiel verbunden';
+    $('#rrca-conn').textContent = d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden');
     const run = $('#rrca-run'), game = $('#rrca-game');
     run.textContent = d.running ? 'Stopp' : 'Start';
     run.classList.toggle('primary', !d.running); run.classList.toggle('danger', !!d.running);
     game.disabled = !!d.running;
     if (d.game && document.activeElement !== game) game.value = d.game;
     $('#rrca-conn-dot').classList.toggle('off', !d.connected);
-    $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : 'Wartet auf das Spiel';
-    $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : 'Kein Spiel verbunden';
+    $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : (d.sourceStatus ? 'Quelle erreichbar · Fahrdaten fehlen' : 'Wartet auf das Spiel');
+    $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : (d.sourceStatus || 'Kein Spiel verbunden');
     $('#rrca-sub').textContent = d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
-      : 'Spiel starten und ins Auto setzen, die Crew legt von selbst los.';
+      : (d.sourceStatus ? d.sourceHint : 'Spiel starten und ins Auto setzen, die Crew legt von selbst los.');
     $('#m-pos').textContent = d.position > 0 ? 'P' + d.position : '–';
     $('#m-pos-sub').textContent = d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ';
     $('#m-lap-label').textContent = d.timed ? 'Restzeit' : 'Runde';

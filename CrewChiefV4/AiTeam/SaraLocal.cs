@@ -17,9 +17,9 @@ namespace CrewChiefV4.AiTeam
         public static string TryAnswer(string question, SpotterSnapshot spotter, GameStateData gs, DateTime nowUtc)
         {
             string q = " " + (question ?? "").ToLowerInvariant() + " ";
-            bool askLeft = q.Contains("links");
-            bool askRight = q.Contains("rechts");
-            bool askBeside = q.Contains("neben") || q.Contains("frei") || q.Contains("überlapp") || q.Contains("seite");
+            bool askLeft = TeamRouter.HasWord(q, "links");
+            bool askRight = TeamRouter.HasWord(q, "rechts");
+            bool askBeside = TeamRouter.IsSideQuestion(q);
 
             if (askLeft || askRight || askBeside)
             {

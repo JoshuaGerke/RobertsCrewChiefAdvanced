@@ -55,7 +55,7 @@ namespace CrewChiefV4.AiTeam
 
             string lower = " " + text.ToLowerInvariant() + " ";
             TeamMember? byTopic = null;
-            if (saraTopics.Any(t => lower.Contains(t)) && (lower.Contains("frei") || lower.Contains("neben")))
+            if (IsSideQuestion(lower))
             {
                 byTopic = TeamMember.Sara;
             }
@@ -69,6 +69,17 @@ namespace CrewChiefV4.AiTeam
             }
             TeamMember member = byTopic ?? lastMember ?? TeamMember.Mik;
             return new RoutedRequest { Member = member, Question = text, AddressedByName = false };
+        }
+
+        internal static bool HasWord(string text, string word)
+        {
+            return Regex.IsMatch(text ?? "", @"\b" + Regex.Escape(word) + @"\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        public static bool IsSideQuestion(string text)
+        {
+            return HasWord(text, "links") || HasWord(text, "rechts") || HasWord(text, "frei") ||
+                HasWord(text, "neben") || Regex.IsMatch(text ?? "", @"\büberlapp\w*\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
         private static string StripLeadingName(string text, string nameWord)

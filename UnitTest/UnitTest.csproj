@@ -80,6 +80,7 @@
     <Compile Include="AiTeam\RaceRadioLanguageTests.cs" />
     <Compile Include="AiTeam\CrewVoiceReadinessTests.cs" />
     <Compile Include="AiTeam\LiveEventDeliveryTests.cs" />
+    <Compile Include="AiTeam\LiveSessionFixTests.cs" />
     <Compile Include="Misc\CommandLineParametersReader.cs" />
     <Compile Include="Misc\RegressionTestGameDefinition.cs" />
     <Compile Include="Misc\TDD_email.cs" />

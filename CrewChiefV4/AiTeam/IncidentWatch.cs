@@ -41,6 +41,7 @@ namespace CrewChiefV4.AiTeam
         public int Penalties { get; private set; }
         public int OffTracks { get; private set; }
         private DateTime offTrackSinceUtc = DateTime.MinValue;
+        private bool offTrackCounted;
         private DateTime lastOffTrackCallUtc = DateTime.MinValue;
         private int positionBeforeIncident;
         private DamageAssessment assessment;
@@ -54,6 +55,7 @@ namespace CrewChiefV4.AiTeam
             lastReportedCutWarnings = -1;
             TrackLimitWarnings = Spins = InvalidLaps = Penalties = OffTracks = 0;
             offTrackSinceUtc = lastOffTrackCallUtc = DateTime.MinValue;
+            offTrackCounted = false;
             positionBeforeIncident = 0;
             assessment = null;
             recentPositions.Clear();
@@ -81,7 +83,9 @@ namespace CrewChiefV4.AiTeam
         public List<KeyValuePair<TeamMember, string>> Evaluate(GameStateData previous, GameStateData current, DateTime nowUtc, bool minimalMode)
         {
             var result = new List<KeyValuePair<TeamMember, string>>();
-            if (previous == null || current == null || current.SessionData.SessionPhase != SessionPhase.Green)
+            if (previous == null || current == null || current.SessionData.SessionPhase != SessionPhase.Green ||
+                current.SessionData.IsNewSession || previous.SessionData.SessionId != current.SessionData.SessionId ||
+                previous.SessionData.SessionType != current.SessionData.SessionType)
             {
                 return result;
             }
@@ -97,12 +101,12 @@ namespace CrewChiefV4.AiTeam
             //    Einschlagzeitpunkt wie RaceRoom und Assetto Corsa – ein Schadenswert ist gestiegen
             float impact = current.CarDamageData.LastImpactTime;
             bool impactChanged = impact > 0 && impact != previous.CarDamageData.LastImpactTime;
+            bool heavyContact = impactChanged && (previous.PositionAndMotionData.CarSpeed * 3.6f - kmh > 40 || IsSerious(current.CarDamageData));
             if ((impactChanged || DamageIncreased(previous.CarDamageData, current.CarDamageData)) && !inPit)
             {
-                if (nowUtc - lastContactUtc > TimeSpan.FromSeconds(15))
+                if ((impactChanged || !IsSerious(current.CarDamageData)) && nowUtc - lastContactUtc > TimeSpan.FromSeconds(15))
                 {
-                    bool heavy = previous.PositionAndMotionData.CarSpeed * 3.6f - kmh > 40 || IsSerious(current.CarDamageData);
-                    result.Add(Say(TeamMember.Mik, language.Contact(heavy)));
+                    result.Add(Say(TeamMember.Mik, impactChanged ? language.Contact(heavyContact) : language.DamageChanged()));
                 }
                 if (positionBeforeIncident <= 0)
                 {
@@ -110,10 +114,19 @@ namespace CrewChiefV4.AiTeam
                 }
                 lastContactUtc = nowUtc;
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
+                // Preserve Joshua's driver check before the damage report after a proven heavy impact.
+                // A serious damage change without an impact signal is reported immediately, without inventing a collision.
+                if (IsSerious(current.CarDamageData) && !heavyContact)
+                {
+                    assessment = new DamageAssessment { PositionBefore=positionBeforeIncident,
+                        PositionNow=current.SessionData.ClassPosition, Serious=true, LocalReport=DamageReport(current.CarDamageData) };
+                    pendingDamageCheckUtc = DateTime.MinValue;
+                    positionBeforeIncident = 0;
+                }
             }
             // Bericht erst, wenn der Wagen wieder auf Tempo ist (dann stehen Schaden und Position fest), spätestens nach 25 s
             if (pendingDamageCheckUtc != DateTime.MinValue && nowUtc >= pendingDamageCheckUtc &&
-                (kmh > 50 || nowUtc - lastContactUtc > DamageCheckMaxDelay))
+                (IsSerious(current.CarDamageData) || kmh > 50 || nowUtc - lastContactUtc > DamageCheckMaxDelay))
             {
                 pendingDamageCheckUtc = DateTime.MinValue;
                 string report = DamageReport(current.CarDamageData);
@@ -154,20 +167,28 @@ namespace CrewChiefV4.AiTeam
             if (current.PenaltiesData.IsOffRacingSurface && !inPit)
             {
                 if (offTrackSinceUtc == DateTime.MinValue) offTrackSinceUtc = nowUtc;
-                if (nowUtc - offTrackSinceUtc > TimeSpan.FromSeconds(2) && nowUtc - lastOffTrackCallUtc > TimeSpan.FromSeconds(20))
+                if (!offTrackCounted && nowUtc - offTrackSinceUtc > TimeSpan.FromSeconds(2))
                 {
-                    lastOffTrackCallUtc = nowUtc;
+                    offTrackCounted = true;
                     OffTracks++;
-                    if (!minimalMode)
+                    if (!minimalMode && nowUtc - lastOffTrackCallUtc > TimeSpan.FromSeconds(20))
                     {
+                        lastOffTrackCallUtc = nowUtc;
                         var conditions = current.Conditions != null ? current.Conditions.getMostRecentConditions() : null;
-                        result.Add(Say(TeamMember.Mik, language.OffTrack(conditions != null && conditions.RainDensity > 0)));
+                        bool fresh = conditions != null && current.Now >= conditions.Time && current.Now-conditions.Time <= TimeSpan.FromSeconds(30);
+                        bool wet = fresh && (conditions.TrackWetness >= ConditionsMonitor.TrackWetness.VeryLightlyWet && conditions.TrackWetness <= ConditionsMonitor.TrackWetness.ExtremelyWet ||
+                            conditions.TrackStatus == ConditionsMonitor.TrackStatus.DAMP || conditions.TrackStatus == ConditionsMonitor.TrackStatus.WET ||
+                            conditions.TrackStatus == ConditionsMonitor.TrackStatus.FLOODED);
+                        string text = language.OffTrack(wet);
+                        if (!wet && fresh && conditions.RainDensity > 0 && conditions.RainDensity <= 1) text += CrewSpeechPolicy.RainTrackHint;
+                        result.Add(Say(TeamMember.Mik, text));
                     }
                 }
             }
             else
             {
                 offTrackSinceUtc = DateTime.MinValue;
+                offTrackCounted = false;
             }
 
             // 3. Neue Strafe
@@ -277,7 +298,42 @@ namespace CrewChiefV4.AiTeam
                 return false;
             }
             return Increased(before.OverallAeroDamage, now.OverallAeroDamage) || Increased(before.OverallEngineDamage, now.OverallEngineDamage) ||
-                Increased(before.OverallTransmissionDamage, now.OverallTransmissionDamage);
+                Increased(before.OverallTransmissionDamage, now.OverallTransmissionDamage) ||
+                CornerDamageIncreased(before.SuspensionDamageStatus, now.SuspensionDamageStatus) ||
+                CornerDamageIncreased(before.BrakeDamageStatus, now.BrakeDamageStatus);
+        }
+
+        private static bool CornerDamageIncreased(CornerData before, CornerData now)
+        {
+            for (int corner = 0; corner < 4; corner++)
+                if (Increased(CornerLevel(before, corner), CornerLevel(now, corner))) return true;
+            return false;
+        }
+
+        private static DamageLevel CornerLevel(CornerData data, int corner)
+        {
+            if (data == null) return DamageLevel.UNKNOWN;
+            DamageLevel result = DamageLevel.UNKNOWN;
+            foreach (var entry in data.cornersForEachStatus)
+            {
+                if (!(entry.Key is DamageLevel)) continue;
+                int mask;
+                switch (entry.Value)
+                {
+                    case CornerData.Corners.FRONT_LEFT: mask = 1; break;
+                    case CornerData.Corners.FRONT_RIGHT: mask = 2; break;
+                    case CornerData.Corners.REAR_LEFT: mask = 4; break;
+                    case CornerData.Corners.REAR_RIGHT: mask = 8; break;
+                    case CornerData.Corners.FRONTS: mask = 3; break;
+                    case CornerData.Corners.REARS: mask = 12; break;
+                    case CornerData.Corners.LEFTS: mask = 5; break;
+                    case CornerData.Corners.RIGHTS: mask = 10; break;
+                    case CornerData.Corners.ALL: mask = 15; break;
+                    default: mask = 0; break;
+                }
+                if ((mask & (1 << corner)) != 0 && (DamageLevel)entry.Key > result) result = (DamageLevel)entry.Key;
+            }
+            return result;
         }
 
         // UNKNOWN (0) → bekannter Wert ist kein Schaden, sondern nur der erste gültige Messwert

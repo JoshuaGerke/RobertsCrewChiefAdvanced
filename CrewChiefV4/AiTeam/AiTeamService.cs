@@ -242,7 +242,9 @@ namespace CrewChiefV4.AiTeam
                 Log("Zwischenfall " + TeamRouter.DisplayName(radio.Key) + ": " + radio.Value);
                 var valid = TimelyValidity(current, now, 6, live => live.SessionData.CompletedLaps == current.SessionData.CompletedLaps);
                 radioSchedule.NoteRadio(now);
-                Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None, valid, true, 6));
+                int incidentPriority = CrewSpeechPolicy.HeavyContactPhrases.Contains(radio.Value) ? 7 : 6;
+                // The following priority-7 damage report may not interrupt the driver's safety check.
+                Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None, valid, true, incidentPriority));
             }
             string lapCall = lapWatch.Evaluate(previous, current,
                 RaceDataTools.GapSeconds(current, RaceDataTools.Neighbour(current, true), true),
@@ -696,7 +698,10 @@ namespace CrewChiefV4.AiTeam
             if (quick != null)
             {
                 Stats.AddLocalAnswer();
-                await SpeakAsync(routed.Member, quick, true, CancellationToken.None, t => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
+                // Recheck the actual answer at backend submission. A changed number is not still current merely because the session stayed the same.
+                await SpeakAsync(routed.Member, quick, true, CancellationToken.None, t => generation == Volatile.Read(ref sessionGeneration) &&
+                    DateTime.UtcNow >= Memory.LastTickUtc && (DateTime.UtcNow-Memory.LastTickUtc).TotalSeconds <= 1 &&
+                    t == LocalAnswers.TryAnswer(routed.Question, CrewChief.currentGameState, Memory)).ConfigureAwait(false);
                 RememberExchange(routed.Member, routed.Question, quick);
                 return quick;
             }
@@ -845,7 +850,7 @@ namespace CrewChiefV4.AiTeam
                         {
                             log("Notiz gespeichert: " + note);
                         }
-                        result = new JObject { ["gespeichert"] = !string.IsNullOrWhiteSpace(note), ["hinweis"] = "Gilt ab jetzt auch für alle künftigen Rennen." };
+                        result = new JObject { ["gespeichert"] = !string.IsNullOrWhiteSpace(note), ["hinweis"] = "Lokal als Fahrerwunsch gespeichert und für künftige KI-Gespräche verfügbar. Keine Änderung der Ereignislogik, Einstellungen oder Software dadurch erfolgt." };
                     }
                     else
                     {
@@ -1094,13 +1099,13 @@ namespace CrewChiefV4.AiTeam
             if(current==null || generation!=Volatile.Read(ref sessionGeneration))return;
             string measured=IncidentWatch.DamageReport(current.CarDamageData);
             if(string.IsNullOrWhiteSpace(measured))return;
-            int position=current.SessionData.ClassPosition;
-            string report=(position>0 ? "Aktuell Position "+position+". " : "")+measured;
+            // Damage remains relevant while positions change. Keep transient classification out of this warning.
+            string report=measured;
             await SpeakAsync(TeamMember.Mik,report,true,CancellationToken.None,_=> {
                 var live=CrewChief.currentGameState;
                 return generation==Volatile.Read(ref sessionGeneration) && live!=null &&
                     DateTime.UtcNow>=Memory.LastTickUtc && (DateTime.UtcNow-Memory.LastTickUtc).TotalSeconds<=1 &&
-                    live.SessionData.ClassPosition==position && IncidentWatch.DamageReport(live.CarDamageData)==measured;
+                    IncidentWatch.DamageReport(live.CarDamageData)==measured;
             },true,7).ConfigureAwait(false);
         }
 
@@ -1311,9 +1316,9 @@ namespace CrewChiefV4.AiTeam
             {
                 try
                 {
-            if (string.IsNullOrWhiteSpace(text))
+            if (!CrewSpeechPolicy.HasSpokenText(text))
             {
-                { LiveDiagnostics.Decision("radio","suppressed","empty_text"); return false; }
+                { LiveDiagnostics.Decision("radio","suppressed","no_spoken_text"); return false; }
             }
             int generation = Volatile.Read(ref sessionGeneration);
             DateTime deadline = DateTime.UtcNow.AddSeconds(CrewSpeechPolicy.LifetimeSeconds(localOnly, localPriority));
@@ -1402,7 +1407,7 @@ namespace CrewChiefV4.AiTeam
                 // End-to-end deadline is checked again at driver playback by AiAudioStore.
                 var message = new QueuedMessage("ai_team_reply_" + id, Math.Max(1, (int)Math.Ceiling((deadline-DateTime.UtcNow).TotalSeconds)), messageFragments: fragments,
                     type: localOnly ? (localPriority >= 6 ? SoundType.CRITICAL_MESSAGE : SoundType.IMPORTANT_MESSAGE) : SoundType.VOICE_COMMAND_RESPONSE, priority: localOnly ? localPriority : 5);
-                audioPlayer.playMessageImmediately(message, interruptForAiHazard: localOnly && localPriority >= 8);
+                audioPlayer.playMessageImmediately(message, interruptForAiHazard: localOnly && localPriority >= 7);
             }
             else
             {

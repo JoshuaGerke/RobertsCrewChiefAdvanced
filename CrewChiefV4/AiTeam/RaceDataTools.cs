@@ -181,6 +181,7 @@ namespace CrewChiefV4.AiTeam
                 ["autos_in_klasse"] = Pos(s.NumCarsInPlayerClass, "autos_in_klasse", missing),
                 ["autos_gesamt"] = Pos(s.NumCarsOverall, "autos_gesamt", missing),
                 ["runden_absolviert"] = s.CompletedLaps,
+                ["runden_bedeutung"] = "Absolviert ist Vergangenheit; Restdistanz separat unter runden_verbleibend. Null ist unbekannt, nicht null Runden.",
                 ["flagge"] = s.Flag.ToString(),
                 ["in_boxengasse"] = gs.PitData.InPitlane,
                 ["outlap"] = gs.PitData.OnOutLap,
@@ -430,11 +431,16 @@ namespace CrewChiefV4.AiTeam
                 double delta = ours.Average(l => l.LapTime) - theirs.Average(l => l.LapTime);
                 d["pace_unterschied_s_pro_runde"] = Math.Round(delta, 2);
                 d["pace_hinweis"] = "positiv = er ist schneller als wir, negativ = wir sind schneller (Mittel letzte Runden)";
-                if (op.SectorTimesComparable(s))
-                {
-                    d["sektoren_bester_lauf_s"] = new JArray(Math.Round(op.bestSector1Time, 3), Math.Round(op.bestSector2Time, 3), Math.Round(op.bestSector3Time, 3));
-                }
             }
+            // Sector availability is independent of a three-lap pace comparison or our own lap count.
+            d["beste_einzelsektoren_s"] = new JArray(SectorValue(op.bestSector1Time), SectorValue(op.bestSector2Time), SectorValue(op.bestSector3Time));
+            d["sektoren_hinweis"] = "Einzelsektorzeiten in Sekunden, nicht kumulativ. Einzelbestwerte können aus verschiedenen Runden stammen; unbekannt = null. Historie ist auf drei zuletzt erfasste Runden begrenzt.";
+            d["sektorrunden"] = new JArray(op.OpponentLapData.OrderByDescending(l => l.LapNumber).Take(3).Select(l => new JObject {
+                ["runde"] = l.LapNumber, ["gueltig"] = l.IsValid, ["boxenrunde"] = l.InLap || l.OutLap,
+                ["rundenzeit_s"] = SectorValue(l.LapTime),
+                ["sektoren_s"] = new JArray(Enumerable.Range(0,3).Select(i => l.SectorTimes != null && i < l.SectorTimes.Length ? SectorValue(l.SectorTimes[i]) : null)),
+                ["sektorende_simulationszeit_s"] = new JArray(Enumerable.Range(0,3).Select(i => l.GameTimeAtSectorEnd != null && i < l.GameTimeAtSectorEnd.Length ? SectorValue(l.GameTimeAtSectorEnd[i], 200000) : null))
+            }));
             return d;
         }
 
@@ -731,9 +737,9 @@ namespace CrewChiefV4.AiTeam
             return key != null && gs.OpponentData.TryGetValue(key, out op) ? op : null;
         }
 
-        private static bool SectorTimesComparable(this OpponentData op, SessionData s)
+        private static JToken SectorValue(float value, float maximum = 3600)
         {
-            return op.bestSector1Time > 0 && op.bestSector2Time > 0 && op.bestSector3Time > 0;
+            return Finite(value) && value > 0 && value < maximum ? (JToken)Math.Round(value, 3) : null;
         }
 
         private static JToken Text(string value, string name, List<string> missing)

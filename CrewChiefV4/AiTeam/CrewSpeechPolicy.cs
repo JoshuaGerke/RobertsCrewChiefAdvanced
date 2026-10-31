@@ -62,8 +62,22 @@ namespace CrewChiefV4.AiTeam
             "Du bist draußen. Schau auf den Verkehr, bevor du zurückkommst.",
             "Achtung, neben der Strecke. Komm kontrolliert zurück."
         };
+        public static readonly string[] DamageDetectedPhrases = {
+            "Neuer Schaden gemeldet. Ich schau mir das an.",
+            "Die Telemetrie meldet mehr Schaden. Ich prüf das Auto.",
+            "Am Auto ist neuer Schaden gemeldet. Ich sehe nach.",
+            "Ein Schadenswert ist gestiegen. Ich prüfe, was betroffen ist."
+        };
+        public const string RainTrackHint = " Es regnet gerade, vorsichtig am Gas.";
         public const string WetTrackHint = " Die Strecke ist nass, vorsichtig am Gas.";
-        public static readonly string[] IncidentPhrases = ContactPhrases.Concat(HeavyContactPhrases).Concat(StoppedPhrases).Concat(OffTrackPhrases).ToArray();
+        public static readonly string[] IncidentPhrases = ContactPhrases.Concat(HeavyContactPhrases).Concat(DamageDetectedPhrases).Concat(StoppedPhrases).Concat(OffTrackPhrases)
+            .Concat(OffTrackPhrases.Select(p => p + WetTrackHint)).Concat(OffTrackPhrases.Select(p => p + RainTrackHint)).ToArray();
+
+        public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
+        { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
+
+        public static bool HasSpokenText(string text)
+        { return text != null && text.Any(char.IsLetterOrDigit); }
 
         public static string VoiceIdentity(AiTeamSettings s, TeamMember member)
         {

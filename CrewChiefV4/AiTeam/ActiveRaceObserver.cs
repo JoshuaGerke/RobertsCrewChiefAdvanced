@@ -17,6 +17,8 @@ namespace CrewChiefV4.AiTeam
         public string AheadName, BehindName;
         public float AheadGap = -1, BehindGap = -1;
         public Func<GameStateData,bool> AdditionalValidity;
+        // Only a just-completed practice/qualifying lap can outlive the timed session phase.
+        public bool AllowLapFinish;
         public DateTime DetectedUtc, ExpiresUtc;
         private int deliveryState, attempts;
         private long playbackStartedTicks, retryNotBeforeTicks;
@@ -57,7 +59,10 @@ namespace CrewChiefV4.AiTeam
         {
             if (gs == null || DeliveryFailed || now < DetectedUtc || now > ExpiresUtc) return false;
             var s = gs.SessionData;
-            return s.SessionId == SessionId && s.SessionType == SessionType && s.SessionPhase == SessionPhase.Green &&
+            bool phaseValid = s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+                SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
+                (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
+            return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
                 !gs.PitData.InPitlane && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, true, AheadName, AheadGap) && GapStillValid(gs, false, BehindName, BehindGap);

@@ -2206,8 +2206,8 @@ namespace CrewChiefV4.Audio
                         }
                         immediateClips.Insert(getInsertionIndex(immediateClips, queuedMessage), queuedMessage.messageName, queuedMessage);
                         AiTeam.LiveDiagnostics.Queue("inserted",queuedMessage.messageName,queuedMessage.metadata.priority,immediateClips.Count,null,queuedMessage.metadata.messageId);
-                        if (interruptForAiHazard && queuedMessage.messageName.StartsWith("ai_team_reply_", StringComparison.Ordinal) && !PlaybackModerator.lastSoundWasSpotter)
-                            SoundCache.InterruptCurrentlyPlayingSound(false);
+                        if (interruptForAiHazard && AiTeam.AiAudioStore.IsMessage(queuedMessage.messageName, true))
+                            SoundCache.InterruptForAiHazard(queuedMessage.metadata.priority);
 
                         // wake up the monitor thread immediately
                         monitorQueueWakeUpEvent.Set();
@@ -2219,7 +2219,7 @@ namespace CrewChiefV4.Audio
 
         private void ReleaseUnqueuedAiMessage(QueuedMessage message, OrderedDictionary queue)
         {
-            if (message.messageName == null || !message.messageName.StartsWith("ai_team_", StringComparison.Ordinal)) return;
+            if (!AiTeam.AiAudioStore.IsMessage(message.messageName)) return;
             lock (queue) { if (!queue.Contains(message.messageName)) AiTeam.AiAudioStore.DiscardMessage(message.messageName); }
         }
 

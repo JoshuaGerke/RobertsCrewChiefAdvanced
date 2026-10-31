@@ -73,7 +73,7 @@ namespace CrewChiefV4.AiTeam
             // Rennstart aus der Box: nur im Stand, innerhalb des kurzen Begrüßungsfensters
             // (Zeitfenster wird vom AiTeamService kontrolliert).
             if (type == SessionType.Race) return inPitlane && speedMetresPerSecond < 1.0f;
-            return speedMetresPerSecond < 1.0f;
+            return speedMetresPerSecond < 1.0f || inPitlane && speedMetresPerSecond <= 8.3f;
         }
 
         public string NextCue(SessionType type, SessionPhase phase, bool inPitlane, float speedMetresPerSecond)
@@ -87,7 +87,7 @@ namespace CrewChiefV4.AiTeam
                 type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Qualifikation" : "Training bzw. freie Fahrt";
             return "Begrüßungsvorlage (sinngemäß, natürlich umformulieren, nicht wörtlich ablesen): '" + Openings[next] +
                 "'. Sicher erkannter Sessiontyp: " + session + ". Standortklassifikation: " + context +
-                ". Keine Behauptung über Wetter, Grip, Training oder Strategie ohne bestätigte Daten. " +
+                ". Verwende eine zeitneutrale Begrüßung, keine erfundene Tageszeit. Keine Behauptung über Wetter, Grip, Training oder Strategie ohne bestätigte Daten. " +
                 "Ben begrüßt zuerst; Mik ergänzt nur bei einem Rennen und nur bei einem echten strategischen Befund. " +
                 "Keine Grußwiederholung und keine Aufzählung aller Telemetriegrößen.";
         }

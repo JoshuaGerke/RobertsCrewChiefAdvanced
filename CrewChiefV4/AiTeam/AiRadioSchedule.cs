@@ -105,7 +105,8 @@ namespace CrewChiefV4.AiTeam
                     outstanding = null;
                 }
             }
-            if (gs == null || busy || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(20), now).Any(r => r.TimeUtc <= now);
+            if (gs == null || busy || recentRadio || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(20)) return null;
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
