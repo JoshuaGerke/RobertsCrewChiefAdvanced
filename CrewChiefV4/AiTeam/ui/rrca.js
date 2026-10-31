@@ -64,6 +64,12 @@
     });
   }
 
+  function updateGreetingPreview() {
+    const name = $('[data-setting=driverNickname]').value.trim() || $('[data-setting=driverName]').value.trim();
+    $('#rrca-greeting-preview').textContent = name ? 'Beispiel: „Hallo ' + name + ', willkommen in …“ · Strecke und Session kommen aus der Simulation.' : 'Trage deinen Fahrernamen ein.';
+  }
+  ['driverName', 'driverNickname'].forEach(key => $('[data-setting=' + key + ']').addEventListener('input', updateGreetingPreview));
+
   function applyInit(d) {
     state = d;
     $('#rrca-version').textContent = d.version;
@@ -89,6 +95,7 @@
       }
       i.value = v == null ? '' : v;
     });
+    updateGreetingPreview();
     buildSchedule(d.topics);
   }
 
@@ -174,6 +181,7 @@
   }));
   $$('[data-key-delete]').forEach(b => b.addEventListener('click', () => send('deleteKey', { provider: b.dataset.keyDelete })));
   $('#rrca-save').addEventListener('click', () => {
+    if (!$$('[data-setting]').every(i => i.reportValidity())) return;
     const settings = {}; $$('[data-setting]').forEach(i => { settings[i.dataset.setting] = i.value; });
     send('saveSettings', { settings, topics: readTopics() });
   });

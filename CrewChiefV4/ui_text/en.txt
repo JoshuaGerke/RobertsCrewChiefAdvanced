@@ -3429,10 +3429,14 @@ ai_team_radio_mode_listprop_value_0 = Minimal
 ai_team_radio_mode_listprop_value_1 = Normal
 ai_team_radio_mode_listprop_value_2 = Aktiv
 ai_team_radio_mode_listprop_metadata = RESTART_REQUIRED
-ai_team_driver_name = KI-Team Name des Fahrers
-ai_team_driver_name_help = So spricht dich das Team an.
+ai_team_driver_name = KI-Team vollständiger Fahrername
+ai_team_driver_name_help = Dein vollständiger Name. Ohne Spitznamen wird dieser auch am Funk verwendet.
 ai_team_driver_name_category = AI_TEAM
 ai_team_driver_name_metadata = RESTART_REQUIRED
+ai_team_driver_nickname = KI-Team Spitzname / Funkname
+ai_team_driver_nickname_help = So spricht dich die Crew an. Leer lassen, um den Fahrernamen zu verwenden.
+ai_team_driver_nickname_category = AI_TEAM
+ai_team_driver_nickname_metadata = RESTART_REQUIRED
 ai_team_ptt_key = KI-Team Funktaste (Tastatur)
 ai_team_ptt_key_help = Optional eine Tastaturtaste zum Gedrückthalten, z. B. F9, Scroll, Pause, NumPad0. Leer = nur der Controller-Knopf "KI-Team anfunken".
 ai_team_ptt_key_category = AI_TEAM

@@ -7220,6 +7220,14 @@ namespace CrewChiefV4.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ai_team_driver_nickname {
+            get { return ((string)(this["ai_team_driver_nickname"])); }
+            set { this["ai_team_driver_nickname"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string ai_team_ptt_key {
             get {
                 return ((string)(this["ai_team_ptt_key"]));

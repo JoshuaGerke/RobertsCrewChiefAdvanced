@@ -22,12 +22,27 @@ namespace UnitTest.AiTeamTests
             // NUnit's synchronization context is not the WinForms message pump used by WebView2.
             var previousContext = System.Threading.SynchronizationContext.Current;
             System.Threading.SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
-            RrcaForm.ShowSingle(null);
-            var form = (Form)typeof(RrcaForm).GetField("open", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            bool offscreen = Environment.GetEnvironmentVariable("RRCA_HEADLESS_UI_TEST") == "1";
+            Form form;
+            if (offscreen)
+            {
+                form = (Form)Activator.CreateInstance(typeof(RrcaForm), true);
+                form.StartPosition = FormStartPosition.Manual;
+                form.Location = new Point(-20000, -20000);
+                form.ShowInTaskbar = false;
+                form.Show();
+            }
+            else
+            {
+                RrcaForm.ShowSingle(null);
+                form = (Form)typeof(RrcaForm).GetField("open", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            }
             var web = form.Controls.OfType<WebView2>().Single();
             string result = null;
             Exception failure = null;
             bool liveRefreshRequested = false;
+            int profileStage = 0;
+            string savedProfile = null, clearedProfile = null;
             var timeout = DateTime.UtcNow.AddSeconds(25);
             var timer = new Timer { Interval = 500 };
             timer.Tick += async (s, e) =>
@@ -46,6 +61,36 @@ namespace UnitTest.AiTeamTests
                         typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
                         liveRefreshRequested = true; timer.Start(); return;
                     }
+                    if (profileStage == 0)
+                    {
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-page=settings]').click(); " +
+                            "document.querySelector('[data-setting=driverName]').value='Robert Gerke'; " +
+                            "document.querySelector('[data-setting=driverNickname]').value='Rob'; " +
+                            "document.querySelector('[data-setting=driverNickname]').dispatchEvent(new Event('input')); " +
+                            "document.querySelector('#rrca-save').click()");
+                        profileStage = 1; timer.Start(); return;
+                    }
+                    if (profileStage == 1)
+                    {
+                        Assert.AreEqual("Robert Gerke", AiTeamSettings.Load().DriverName);
+                        Assert.AreEqual("Rob", AiTeamSettings.Load().DriverNickname);
+                        Assert.AreEqual("Rob", AiTeamSettings.Load().RadioName);
+                        savedProfile = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-greeting-preview').textContent");
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-setting=driverNickname]').value=''; document.querySelector('#rrca-save').click()");
+                        profileStage = 2; timer.Start(); return;
+                    }
+                    if (profileStage == 2)
+                    {
+                        Assert.AreEqual("", AiTeamSettings.Load().DriverNickname);
+                        Assert.AreEqual("Robert Gerke", AiTeamSettings.Load().RadioName);
+                        clearedProfile = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-greeting-preview').textContent");
+                        // Check persisted profile content, not only the current JavaScript value.
+                        string dataRoot = Environment.GetEnvironmentVariable("RCCA_DATA_ROOT");
+                        Assert.IsNotEmpty(dataRoot, "This UI test must be isolated from the real driver profile.");
+                        Assert.IsTrue(System.IO.Directory.GetFiles(dataRoot, "*.json", System.IO.SearchOption.AllDirectories)
+                            .Any(path => System.IO.File.ReadAllText(path).Contains("Robert Gerke")), "Driver name was not persisted to the isolated profile.");
+                        profileStage = 3;
+                    }
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +
                         "document.querySelector('[data-setting=fastModel]').value, document.querySelector('#rrca-warn').hidden, " +
@@ -59,7 +104,12 @@ namespace UnitTest.AiTeamTests
                     if (!timer.Enabled)
                     {
                     string shot = Environment.GetEnvironmentVariable("RRCA_SHOT");
-                    if (!string.IsNullOrEmpty(shot))
+                    if (!string.IsNullOrEmpty(shot) && offscreen && web.CoreWebView2 != null)
+                    {
+                        using (var stream = System.IO.File.Create(shot))
+                            await web.CoreWebView2.CapturePreviewAsync(Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png, stream);
+                    }
+                    if (!string.IsNullOrEmpty(shot) && !offscreen)
                     {
                         var b = form.Bounds;
                         using (var bmp = new Bitmap(b.Width, b.Height))
@@ -74,13 +124,15 @@ namespace UnitTest.AiTeamTests
                 }
             };
             // ShowSingle has already shown the form: subscribing to Shown here misses the event.
-            form.TopMost = true; timer.Start();
+            form.TopMost = !offscreen; timer.Start();
             try { Application.Run(form); }
             finally { System.Threading.SynchronizationContext.SetSynchronizationContext(previousContext); }
             TestContext.WriteLine(result);
             timer.Dispose();
             Assert.IsNull(failure, "WebView2 smoke test failed: " + failure);
             Assert.IsNotNull(result, "Seite nicht geladen");
+            StringAssert.Contains("Hallo Rob,", savedProfile);
+            StringAssert.Contains("Hallo Robert Gerke,", clearedProfile);
             var parts = result.Trim('"').Split('|');
             Assert.AreEqual(AiRadioPreferences.Options.Length.ToString(), parts[0], "Berichtsthemen nicht angekommen");
             StringAssert.Contains("KI-Team anfunken", parts[1]);

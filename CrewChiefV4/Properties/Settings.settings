@@ -1769,6 +1769,9 @@
     <Setting Name="ai_team_driver_name" Type="System.String" Scope="User">
       <Value Profile="(Default)">Rob</Value>
     </Setting>
+    <Setting Name="ai_team_driver_nickname" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
     <Setting Name="ai_team_ptt_key" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>

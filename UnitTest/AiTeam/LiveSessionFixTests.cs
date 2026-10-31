@@ -23,6 +23,92 @@ namespace UnitTest.AiTeamTests
             return gs;
         }
 
+        [TestCase("Rob", "Rob")] [TestCase("", "Robert Gerke")] [TestCase("  ", "Robert Gerke")]
+        public void Personal_radio_uses_nickname_with_backward_compatible_name_fallback(string nickname, string expected)
+        {
+            var settings = new AiTeamSettings { DriverName = "Robert Gerke", DriverNickname = nickname };
+            Assert.AreEqual(expected, settings.RadioName);
+            var call = new SessionGreetingDirector().CreateCall(GreetingContext(), T.AddSeconds(40), settings.RadioName, TeamMember.Ben);
+            StringAssert.Contains(expected, call.Text);
+        }
+
+        private static RaceDataContext GreetingContext()
+        {
+            var gs = State(); gs.PitData.InPitlane = true; gs.PositionAndMotionData.CarSpeed = 0;
+            gs.SessionData.TrackDefinition = new TrackDefinition("Monza", 0, 5793, new float[] { 0, 0 }, new float[] { 0, 0 });
+            return new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T };
+        }
+
+        [Test]
+        public void Greeting_uses_confirmed_session_and_driver_without_inventing_weather()
+        {
+            var c = GreetingContext(); var director = new SessionGreetingDirector();
+            var call = director.CreateCall(c, T.AddSeconds(40), "Robert", TeamMember.Ben);
+            Assert.IsNotNull(call); StringAssert.Contains("Robert", call.Text); StringAssert.Contains("Monza", call.Text);
+            StringAssert.Contains("Training", call.Text); StringAssert.DoesNotContain("Sonne", call.Text);
+            StringAssert.DoesNotContain("Grad", call.Text);
+            c.GameState.SessionData.ClassPosition = 20; c.GameState.SessionData.TimeDeltaFront = 10;
+            c.GameState.EngineData.EngineOilTemp = 110;
+            Assert.IsTrue(call.IsValid(c.GameState, T.AddSeconds(2)), "Unspoken gaps, position or engine values must not cancel the greeting.");
+        }
+
+        [Test]
+        public void Greeting_audio_discard_retries_once_then_stops_after_backend_start()
+        {
+            var c = GreetingContext(); var call = new SessionGreetingDirector().CreateCall(c, T.AddSeconds(40), "Robert", TeamMember.Ben);
+            Assert.IsTrue(call.TryReserve(T));
+            string first = AiAudioStore.Put(new byte[44], call.Text, null,
+                () => call.MarkPlaybackStarted(T), () => call.ReleaseForRetry(T));
+            AiAudioStore.DiscardMessage("COMPOUND_ai_team_reply_" + first);
+            Assert.AreEqual(DateTime.MinValue, call.DeliveryStartedUtc);
+            Assert.IsFalse(call.TryReserve(T.AddMilliseconds(500)));
+            Assert.IsTrue(call.TryReserve(T.AddSeconds(2)));
+            int backend = 0;
+            string second = AiAudioStore.Put(new byte[44], call.Text, () => call.IsValid(c.GameState, T.AddSeconds(2)),
+                () => call.MarkPlaybackStarted(T.AddSeconds(2)), () => call.ReleaseForRetry(T.AddSeconds(2)));
+            Assert.IsTrue(AiAudioStore.TryStart(second, () => backend++));
+            AiAudioStore.Remove(second);
+            Assert.AreEqual(1, backend); Assert.AreEqual(T.AddSeconds(2), call.DeliveryStartedUtc);
+            Assert.IsFalse(call.TryReserve(T.AddSeconds(3)));
+        }
+
+        [Test]
+        public void Greeting_second_audio_failure_is_terminal_and_never_spams()
+        {
+            var c = GreetingContext(); var call = new SessionGreetingDirector().CreateCall(c, T.AddSeconds(40), "Robert", TeamMember.Ben);
+            Assert.IsTrue(call.TryReserve(T)); call.ReleaseForRetry(T);
+            Assert.IsTrue(call.TryReserve(T.AddSeconds(2))); call.ReleaseForRetry(T.AddSeconds(2));
+            Assert.IsTrue(call.DeliveryFailed); Assert.IsFalse(call.TryReserve(T.AddSeconds(10)));
+        }
+
+        [TestCase("driving")] [TestCase("session")] [TestCase("track")] [TestCase("ended")] [TestCase("expired")]
+        public void Greeting_never_crosses_into_unsafe_or_other_context(string change)
+        {
+            var c = GreetingContext(); var call = new SessionGreetingDirector().CreateCall(c, T.AddSeconds(40), "Robert", TeamMember.Ben);
+            DateTime now = T.AddSeconds(2);
+            if (change == "driving") { c.GameState.PitData.InPitlane = false; c.GameState.PositionAndMotionData.CarSpeed = 40; }
+            if (change == "session") c.GameState.SessionData.SessionId++;
+            if (change == "track") c.GameState.SessionData.TrackDefinition = null;
+            if (change == "ended") c.GameState.SessionData.SessionPhase = SessionPhase.Finished;
+            if (change == "expired") now = T.AddSeconds(41);
+            Assert.IsFalse(call.IsValid(c.GameState, now));
+        }
+
+        [Test]
+        public void Greeting_omits_stale_weather_but_reports_fresh_temperature_and_rain()
+        {
+            var c = GreetingContext(); var director = new SessionGreetingDirector();
+            c.GameState.Conditions.UpdateLiveSample(T.AddMinutes(-5),0,1,20,30,.4f,0,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
+            StringAssert.DoesNotContain("Grad", director.CreateCall(c,T.AddSeconds(40),"Robert",TeamMember.Mik).Text);
+            c.NowUtc = c.LastTelemetryUtc = DateTime.UtcNow;
+            c.GameState.Conditions.UpdateLiveSample(c.NowUtc,0,1,20,30,.4f,0,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
+            var call = director.CreateCall(c,c.NowUtc.AddSeconds(40),"Robert",TeamMember.Mik);
+            StringAssert.Contains("Luft 20 Grad", call.Text); StringAssert.Contains("Regen wird gemeldet", call.Text);
+            Assert.IsTrue(call.IsValid(c.GameState,c.NowUtc));
+            c.GameState.Conditions.UpdateLiveSample(c.NowUtc,0,1,20,30,0,0,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
+            Assert.IsFalse(call.IsValid(c.GameState,c.NowUtc));
+        }
+
         [OneTimeSetUp]
         public void Init()
         {

@@ -41,7 +41,7 @@ Copy-Item -Force (Join-Path $root 'HINWEISE_UND_DANK.md') (Join-Path $OutDir 'HI
 Copy-Item -Force (Join-Path $root 'docs/ANLEITUNG_KI-TEAM.md') (Join-Path $OutDir 'ANLEITUNG_KI-TEAM.md')
 
 # Fachliche Änderungen gehören in beide lokalen und CI-Testpakete, ohne private Aufzeichnungen.
-foreach ($note in 'AENDERUNGEN_LIVEFIXES_v0.7.md', 'AENDERUNGEN_GEDAECHTNIS_WETTER_v0.7.md', 'AENDERUNGEN_RGDUNK_v0.8.md') {
+foreach ($note in 'AENDERUNGEN_LIVEFIXES_v0.7.md', 'AENDERUNGEN_GEDAECHTNIS_WETTER_v0.7.md', 'AENDERUNGEN_RGDUNK_v0.8.md', 'AENDERUNGEN_v0.8_AUDIOFIX.md') {
     if (Test-Path -LiteralPath (Join-Path $root $note)) { Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note) }
 }
 

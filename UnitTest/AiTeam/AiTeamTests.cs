@@ -1128,6 +1128,67 @@ namespace UnitTest.AiTeamTests
             return new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         }
 
+        [TestCase("stop")] [TestCase("content_filter")] [TestCase(null)]
+        public void Empty_model_output_is_an_explicit_failure_not_missing_telemetry(string finish)
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, new JObject { ["choices"] = new JArray(new JObject {
+                ["finish_reason"] = finish, ["message"] = new JObject { ["content"] = "" } }) }.ToString()));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            var error = Assert.ThrowsAsync<AiApiException>(() => AiTeamService.RunToolLoopAsync(client, "test", "low",
+                new JArray(), 250, 260, () => Ctx(new GameStateData(1)), null, null, CancellationToken.None));
+            StringAssert.Contains("keinen nutzbaren Antworttext", error.Message);
+            Assert.AreEqual(1, server.Requests.Count);
+        }
+
+        [Test]
+        public async Task Truncated_answer_retries_once_with_bounded_budget_then_returns_complete_text()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"Fahre in\"}}]}"));
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"Verstanden, du kommst in die Box.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            string answer = await AiTeamService.RunToolLoopAsync(client, "test", "high", new JArray(), 250, 260,
+                () => Ctx(new GameStateData(1)), null, null, CancellationToken.None);
+            Assert.AreEqual("Verstanden, du kommst in die Box.", answer);
+            Assert.AreEqual(2, server.Requests.Count);
+            var retry = JObject.Parse(server.Requests[1]);
+            Assert.AreEqual("low", (string)retry["reasoning_effort"]);
+            Assert.AreEqual(2048, (int)retry["max_completion_tokens"]);
+        }
+
+        [Test]
+        public void Repeated_length_failures_do_not_loop_or_speak_partial_recommendations()
+        {
+            var server = new FakeServer();
+            for (int i = 0; i < 2; i++) server.Responses.Enqueue(Json(200,
+                "{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"Du solltest\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            Assert.ThrowsAsync<AiApiException>(() => AiTeamService.RunToolLoopAsync(client, "test", "high", new JArray(),
+                250, 260, () => Ctx(new GameStateData(1)), null, null, CancellationToken.None));
+            Assert.AreEqual(2, server.Requests.Count);
+        }
+
+        [TestCase("none", 250)] [TestCase("low", 1536)] [TestCase("high", 4096)]
+        public async Task Request_budget_reserves_room_for_reasoning(string effort, int budget)
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"message\":{\"content\":\"Funk steht.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            await client.ChatAsync("test", new JArray(), null, effort, 250, false, CancellationToken.None);
+            Assert.AreEqual(budget, (int)JObject.Parse(server.Requests[0])["max_completion_tokens"]);
+            Assert.AreEqual(effort == "high" ? "low" : effort, OpenAiCompatibleClient.RadioReasoningEffort(effort, false));
+            Assert.AreEqual(effort, OpenAiCompatibleClient.RadioReasoningEffort(effort, true));
+        }
+
+        [TestCase("length", "Funk st")] [TestCase("stop", "")]
+        public void Connection_check_cannot_claim_success_for_empty_or_truncated_reply(string finish, string text)
+        {
+            var response = new JObject { ["choices"] = new JArray(new JObject {
+                ["finish_reason"] = finish, ["message"] = new JObject { ["content"] = text } }) };
+            Assert.Throws<AiApiException>(() => AiTeamService.RequireCompleteAnswer(response, 100));
+        }
+
         private class FakeServer : HttpMessageHandler
         {
             public readonly Queue<HttpResponseMessage> Responses = new Queue<HttpResponseMessage>();

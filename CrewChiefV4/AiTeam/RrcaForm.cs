@@ -217,7 +217,13 @@ namespace CrewChiefV4.AiTeam
             user.setProperty("enable_spotter", true);
             user.setProperty("use_naudio", true);
             user.saveUserSettings();
-            if (!Utilities.RestartApp(app_restart: true)) Notice("Gespeichert. Bitte Crew Chief einmal von Hand neu starten.");
+            if (Utilities.RestartApp(app_restart: true))
+            {
+                // RestartApp launches with -multi; the caller must close the old host, not just this child window.
+                if (MainWindow.instance != null) MainWindow.instance.Close();
+                else Application.Exit();
+            }
+            else Notice("Gespeichert. Bitte Crew Chief einmal von Hand neu starten.");
         }
 
         private static void ShowMainWindow()
@@ -283,6 +289,7 @@ namespace CrewChiefV4.AiTeam
                     ["callLimit"] = s.MaxCallsPerSession,
                     ["timeout"] = s.TimeoutSeconds,
                     ["driverName"] = s.DriverName,
+                    ["driverNickname"] = s.DriverNickname,
                 },
                 ["topics"] = new JArray(AiRadioPreferences.Options.Select(o => new JObject
                 {
@@ -319,7 +326,7 @@ namespace CrewChiefV4.AiTeam
                 o["game"] = CrewChief.gameDefinition != null ? CrewChief.gameDefinition.friendlyName : "";
                 o["track"] = s.TrackDefinition != null ? s.TrackDefinition.name : "";
                 o["session"] = SessionName(s.SessionType);
-                o["driver"] = service.Settings.DriverName;
+                o["driver"] = service.Settings.RadioName;
                 o["carClass"] = gs.carClass != null ? gs.carClass.getClassIdentifier() : "";
                 o["lastLap"] = s.LapTimePrevious > 0 ? LapTime(s.LapTimePrevious) : "";
                 o["position"] = s.ClassPosition;
@@ -441,6 +448,14 @@ namespace CrewChiefV4.AiTeam
                 Notice("Beide Modellnamen müssen ausgefüllt sein.");
                 return;
             }
+            string fullName = ((string)v["driverName"] ?? "").Trim();
+            string nickname = ((string)v["driverNickname"] ?? "").Trim();
+            if (fullName.Length == 0 || fullName.Length > 80 || nickname.Length > 40 ||
+                fullName.Any(char.IsControl) || nickname.Any(char.IsControl))
+            {
+                Notice("Bitte einen Fahrernamen (maximal 80 Zeichen) und optional einen Funknamen (maximal 40 Zeichen) eintragen.");
+                return;
+            }
             var prefs = new AiRadioPreferences();
             foreach (JObject t in topics)
             {
@@ -459,7 +474,8 @@ namespace CrewChiefV4.AiTeam
             u.setProperty("ai_team_max_calls_per_session", Math.Max(0, Int(v["callLimit"], 300)));
             u.setProperty("ai_team_timeout_seconds", Math.Max(3, Math.Min(60, Int(v["timeout"], 12))));
             if (Enum.TryParse((string)v["radioMode"], out mode)) u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
-            if (!string.IsNullOrWhiteSpace((string)v["driverName"])) u.setProperty("ai_team_driver_name", ((string)v["driverName"]).Trim());
+            u.setProperty("ai_team_driver_name", fullName);
+            u.setProperty("ai_team_driver_nickname", nickname);
             prefs.Save();
             service.ReloadSettings();
             Post(BuildInit());
