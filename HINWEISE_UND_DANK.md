@@ -16,6 +16,19 @@ Crew Chief ist über viele Jahre und tausende Stunden freiwilliger Arbeit entsta
 
 Wer Crew Chief unterstützen möchte, findet auf https://thecrewchief.org den Weg dorthin.
 
+## Technische Referenz: Simulator Controller
+
+Unser Dank gilt auch **Oliver Juwig (TheBigO)** und den Mitwirkenden von **Simulator Controller**:
+
+- Projekt und Quellcode: https://github.com/SeriousOldMan/Simulator-Controller
+- Lizenzhinweise des Projekts: https://github.com/SeriousOldMan/Simulator-Controller/blob/main/License
+
+Simulator Controller diente bei Alpha.4 als technische Referenz für die Analyse von Telemetrie-Datenwegen, ereignisgesteuerter Rennbeobachtung, KI-Wissensübergabe und zeitkritischem Funk. Die daraus abgeleiteten Verbesserungen wurden für RCCA selbst implementiert. Es wurden keine SC-Quelldateien, Sprachvorlagen oder Sounddateien in diese Fassung übernommen; Simulator Controller ist keine mitgelieferte Laufzeitkomponente.
+
+Der überwiegende Teil von Simulator Controller steht laut dessen Lizenzdatei unter **CC BY-NC-SA 4.0**; enthaltene Fremdkomponenten können eigene Bedingungen haben. Diese Bedingungen gelten für das jeweilige fremde Material. Die Nennung als Referenz ersetzt keine Lizenzprüfung bei einer späteren direkten Übernahme.
+
+RCCA ist auch kein offizielles Produkt von Simulator Controller und wird von dessen Entwicklern weder geprüft noch unterstützt.
+
 ## Was RCCA ergänzt
 
 - Das KI-Team (Ben, Mik, Sara) im Ordner `CrewChiefV4/AiTeam`: Funk auf Deutsch per Funktaste, Auswertung der Telemetrie, Sprachausgabe, deutsche Spotter-Ansagen
