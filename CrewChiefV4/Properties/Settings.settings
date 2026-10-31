@@ -243,7 +243,7 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="enable_auto_detect" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
+      <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="enable_automatic_disk_telemetry_recording" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>

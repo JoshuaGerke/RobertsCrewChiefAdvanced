@@ -303,6 +303,11 @@ namespace CrewChiefV4
 
         private void FormMain_Load(object sender, EventArgs e)
         {
+            if (AiTeam.AiTeamService.Instance.Settings.Enabled)
+            {
+                // RRCA ist das Gesicht der App, das Crew-Chief-Fenster bleibt über "Crew-Chief-Fenster" erreichbar
+                Shown += (s, args) => { AiTeam.RrcaForm.ShowSingle(this); WindowState = FormWindowState.Minimized; };
+            }
             ServicePointManager.Expect100Continue = true;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             // Restore window position and size.
@@ -2389,7 +2394,8 @@ namespace CrewChiefV4
             if (!ready.Ready)
             {
                 Console.WriteLine("[KI-Team] Start angehalten: " + ready.Message);
-                MessageBox.Show(ready.Message, "KI-Team – Stimmen vorbereiten", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Die Spielerkennung versucht es alle paar Sekunden erneut, der Hinweis mit Knopf steht im RRCA-Fenster
+                AiTeam.RrcaForm.ShowSingle(this);
                 return;
             }
             IsAppRunning = true;

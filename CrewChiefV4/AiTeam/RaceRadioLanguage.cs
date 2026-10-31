@@ -44,6 +44,14 @@ namespace CrewChiefV4.AiTeam
             return lapInvalid ? text + " Diese Runde ist ungültig." : text;
         }
 
+        public string Contact(bool heavy)
+        { return heavy ? Select("contact-heavy", CrewSpeechPolicy.HeavyContactPhrases) : Select("contact", CrewSpeechPolicy.ContactPhrases); }
+
+        public string Stopped() { return Select("stopped", CrewSpeechPolicy.StoppedPhrases); }
+
+        public string OffTrack(bool wet)
+        { return Select("off-track", CrewSpeechPolicy.OffTrackPhrases) + (wet ? CrewSpeechPolicy.WetTrackHint : ""); }
+
         public string Finish(SessionData s)
         {
             if (s == null || s.SessionPhase != SessionPhase.Finished) return null;

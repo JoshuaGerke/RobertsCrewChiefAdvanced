@@ -35,7 +35,8 @@ namespace CrewChiefV4.AiTeam
             if (open == null || open.IsDisposed)
             {
                 open = new RrcaForm();
-                open.Show(owner);
+                // ohne Besitzer: sonst verschwindet RRCA, sobald das Crew-Chief-Fenster minimiert ist
+                open.Show();
             }
             else
             {
@@ -55,7 +56,7 @@ namespace CrewChiefV4.AiTeam
             Controls.Add(web);
             live.Tick += (s, e) => PushLive();
             service.StatusChanged += OnStatus;
-            FormClosed += (s, e) => { live.Stop(); service.StatusChanged -= OnStatus; };
+            FormClosed += (s, e) => { live.Stop(); service.StatusChanged -= OnStatus; ShowMainWindow(); };
             Load += async (s, e) => await InitAsync();
         }
 
@@ -170,6 +171,22 @@ namespace CrewChiefV4.AiTeam
                 case "openNotes":
                     System.Diagnostics.Process.Start("https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/blob/main/HINWEISE_UND_DANK.md");
                     break;
+                case "toggleRun":
+                    if (MainWindow.instance != null) MainWindow.instance.startApplicationButton_Click(this, EventArgs.Empty);
+                    break;
+                case "setGame":
+                    if (MainWindow.instance != null && !MainWindow.instance.IsAppRunning) MainWindow.instance.gameDefinitionList.Text = (string)m["name"];
+                    break;
+                case "setAutoDetect":
+                    SaveProperty("enable_auto_detect", (bool)m["on"]);
+                    Notice("Gespeichert. Die Spielerkennung ändert sich nach dem nächsten Start von Crew Chief.");
+                    break;
+                case "fixVoices":
+                    FixVoicesAndRestart();
+                    break;
+                case "openMain":
+                    ShowMainWindow();
+                    break;
                 case "openOld":
                     OpenOld();
                     Post(BuildInit());
@@ -178,6 +195,31 @@ namespace CrewChiefV4.AiTeam
                     SaveSettings((JObject)m["settings"], (JArray)m["topics"]);
                     break;
             }
+        }
+
+        /// <summary>Stellt alles so ein, dass nur Sara spottet, und startet neu, damit die Audioengine ihre Clips lädt.</summary>
+        private void FixVoicesAndRestart()
+        {
+            if (MainWindow.instance != null && MainWindow.instance.IsAppRunning)
+            {
+                Notice("Crew Chief zuerst stoppen.");
+                return;
+            }
+            var user = UserSettings.GetUserSettings();
+            user.setProperty("spotter_name", SaraSpotterPack.SpotterName);
+            user.setProperty("enable_spotter", true);
+            user.setProperty("use_naudio", true);
+            user.saveUserSettings();
+            if (!Utilities.RestartApp(app_restart: true)) Notice("Gespeichert. Bitte Crew Chief einmal von Hand neu starten.");
+        }
+
+        private static void ShowMainWindow()
+        {
+            var main = MainWindow.instance;
+            if (main == null || main.IsDisposed) return;
+            if (main.WindowState == FormWindowState.Minimized) main.WindowState = FormWindowState.Normal;
+            main.Show();
+            main.Activate();
         }
 
         private void OpenOld()
@@ -205,6 +247,8 @@ namespace CrewChiefV4.AiTeam
             {
                 ["type"] = "init",
                 ["version"] = Version(),
+                ["games"] = new JArray(MainWindow.instance != null ? MainWindow.instance.gameDefinitionList.Items.Cast<object>().Select(g => g.ToString()) : Enumerable.Empty<string>()),
+                ["autoDetect"] = UserSettings.GetUserSettings().getBoolean("enable_auto_detect"),
                 ["roles"] = roles,
                 ["voices"] = voices,
                 ["microphones"] = new JArray(mics),
@@ -250,6 +294,11 @@ namespace CrewChiefV4.AiTeam
             var tick = service.Memory.LastTickUtc;
             bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
             var o = new JObject { ["type"] = "live", ["connected"] = connected };
+            if (MainWindow.instance != null)
+            {
+                o["running"] = MainWindow.instance.IsAppRunning;
+                o["game"] = MainWindow.instance.gameDefinitionList.Text;
+            }
             if (connected)
             {
                 var s = gs.SessionData;
@@ -351,6 +400,9 @@ namespace CrewChiefV4.AiTeam
                 var warning = new JObject { ["text"] = readiness.Message };
                 if (readiness.Reason == "pack_missing_or_mismatched")
                 { warning["cmd"] = "saraPack"; warning["button"] = "Sara-Clips vorbereiten"; }
+                else if (readiness.Reason == "spotter_not_selected" || readiness.Reason == "restart_required" ||
+                    readiness.Reason == "spotter_disabled" || readiness.Reason == "interruptible_audio_required")
+                { warning["cmd"] = "fixVoices"; warning["button"] = "Beheben und neu starten"; }
                 return warning;
             }
             // Prepared local Sara clips continue to work without either cloud key.

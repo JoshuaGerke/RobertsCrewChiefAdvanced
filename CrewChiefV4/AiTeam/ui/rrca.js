@@ -25,7 +25,7 @@
     });
     $$('[data-status]').forEach(el => {
       const m = el.dataset.status, on = state.roles[m];
-      el.textContent = !on ? 'Ausgeschaltet' : speaking === m ? '● Funkt gerade' : m === 'sara' && state.voiceReadiness ? state.voiceReadiness.message : idle[m];
+      el.textContent = !on ? 'Ausgeschaltet' : speaking === m ? '● Funkt gerade' : m === 'sara' && state.voiceReadiness && !state.voiceReadiness.ready ? 'Noch nicht bereit, siehe Hinweis oben' : idle[m];
       el.classList.toggle('lime', on && speaking === m);
     });
   }
@@ -67,6 +67,8 @@
   function applyInit(d) {
     state = d;
     $('#rrca-version').textContent = d.version;
+    fillSelect($('#rrca-game'), d.games.map(g => ({ id: g, name: g })), null);
+    $('#rrca-auto').checked = d.autoDetect;
     syncRoles(null);
     fillVoices(null, d.voices);
     fillSelect($('#rrca-mic'), [{ id: '', name: 'Windows-Standardgerät' }].concat(d.microphones.map(m => ({ id: m, name: m }))), d.microphone);
@@ -92,11 +94,16 @@
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = d.recorderStatus;
     $('#rrca-conn').textContent = d.connected ? d.game : 'Kein Spiel verbunden';
+    const run = $('#rrca-run'), game = $('#rrca-game');
+    run.textContent = d.running ? 'Stopp' : 'Start';
+    run.classList.toggle('primary', !d.running); run.classList.toggle('danger', !!d.running);
+    game.disabled = !!d.running;
+    if (d.game && document.activeElement !== game) game.value = d.game;
     $('#rrca-conn-dot').classList.toggle('off', !d.connected);
     $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : 'Wartet auf das Spiel';
     $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : 'Kein Spiel verbunden';
     $('#rrca-sub').textContent = d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
-      : 'Crew Chief starten und ins Auto setzen, dann geht es hier los.';
+      : 'Spiel starten und ins Auto setzen, die Crew legt von selbst los.';
     $('#m-pos').textContent = d.position > 0 ? 'P' + d.position : '–';
     $('#m-pos-sub').textContent = d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ';
     $('#m-lap-label').textContent = d.timed ? 'Restzeit' : 'Runde';
@@ -148,6 +155,8 @@
     if (b.dataset.cmd === 'openKeys') { page('team'); $('#rrca-keys').open = true; $('#rrca-keys').scrollIntoView(); return; }
     send(b.dataset.cmd);
   });
+  $('#rrca-game').addEventListener('change', e => send('setGame', { name: e.target.value }));
+  $('#rrca-auto').addEventListener('change', e => send('setAutoDetect', { on: e.target.checked }));
   $('#rrca-mic').addEventListener('change', e => send('setMicrophone', { name: e.target.value }));
   $('#rrca-radio-effect').addEventListener('change', e => send('setRadioEffect', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));

@@ -39,6 +39,9 @@ namespace CrewChiefV4.AiTeam
         public int TrackLimitWarnings { get; private set; }
         public int InvalidLaps { get; private set; }
         public int Penalties { get; private set; }
+        public int OffTracks { get; private set; }
+        private DateTime offTrackSinceUtc = DateTime.MinValue;
+        private DateTime lastOffTrackCallUtc = DateTime.MinValue;
         private int positionBeforeIncident;
         private DamageAssessment assessment;
         // AMS2 meldet gelegentlich kurz Platz 1 (Spieler taucht als Gegner auf) → Median statt Einzelwert
@@ -49,7 +52,8 @@ namespace CrewChiefV4.AiTeam
             lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = DateTime.MinValue;
             lastInvalidLap = -1;
             lastReportedCutWarnings = -1;
-            TrackLimitWarnings = Spins = InvalidLaps = Penalties = 0;
+            TrackLimitWarnings = Spins = InvalidLaps = Penalties = OffTracks = 0;
+            offTrackSinceUtc = lastOffTrackCallUtc = DateTime.MinValue;
             positionBeforeIncident = 0;
             assessment = null;
             recentPositions.Clear();
@@ -97,7 +101,8 @@ namespace CrewChiefV4.AiTeam
             {
                 if (nowUtc - lastContactUtc > TimeSpan.FromSeconds(15))
                 {
-                    result.Add(Say(TeamMember.Mik, "Kontakt. Ich schau mir den Schaden an."));
+                    bool heavy = previous.PositionAndMotionData.CarSpeed * 3.6f - kmh > 40 || IsSerious(current.CarDamageData);
+                    result.Add(Say(TeamMember.Mik, language.Contact(heavy)));
                 }
                 if (positionBeforeIncident <= 0)
                 {
@@ -136,13 +141,33 @@ namespace CrewChiefV4.AiTeam
             {
                 lastStopUtc = nowUtc;
                 Spins++;
-                string text = "Alles okay? Beim Wiederanfahren auf den Verkehr achten.";
+                string text = language.Stopped();
                 float behind = current.SessionData.TimeDeltaBehind;
                 if (current.SessionData.SessionType == SessionType.Race && behind > 0 && behind < 15)
                 {
                     text += " Der Nächste war zuletzt etwa " + SaraLocal.Seconds(behind) + " hinter dir.";
                 }
                 result.Add(Say(TeamMember.Mik, text));
+            }
+
+            // Ausritt: nur Spiele, die den Untergrund melden (RaceRoom z. B. nicht). Kurz übers Gras zählt nicht.
+            if (current.PenaltiesData.IsOffRacingSurface && !inPit)
+            {
+                if (offTrackSinceUtc == DateTime.MinValue) offTrackSinceUtc = nowUtc;
+                if (nowUtc - offTrackSinceUtc > TimeSpan.FromSeconds(2) && nowUtc - lastOffTrackCallUtc > TimeSpan.FromSeconds(20))
+                {
+                    lastOffTrackCallUtc = nowUtc;
+                    OffTracks++;
+                    if (!minimalMode)
+                    {
+                        var conditions = current.Conditions != null ? current.Conditions.getMostRecentConditions() : null;
+                        result.Add(Say(TeamMember.Mik, language.OffTrack(conditions != null && conditions.RainDensity > 0)));
+                    }
+                }
+            }
+            else
+            {
+                offTrackSinceUtc = DateTime.MinValue;
             }
 
             // 3. Neue Strafe
@@ -194,6 +219,7 @@ namespace CrewChiefV4.AiTeam
             var parts = new List<string>();
             if (InvalidLaps > 0) parts.Add(InvalidLaps == 1 ? "eine ungültige Runde" : InvalidLaps + " ungültige Runden");
             if (TrackLimitWarnings > 0) parts.Add(TrackLimitWarnings == 1 ? "eine Tracklimit-Meldung" : TrackLimitWarnings + " Tracklimit-Meldungen");
+            if (OffTracks > 0) parts.Add(OffTracks == 1 ? "ein Ausritt" : OffTracks + " Ausritte");
             if (Spins > 0) parts.Add(Spins == 1 ? "eine starke Verzögerung" : Spins + " starke Verzögerungen");
             if (Penalties > 0) parts.Add(Penalties == 1 ? "eine Strafe" : Penalties + " Strafen");
             if (parts.Count == 0)
@@ -201,7 +227,7 @@ namespace CrewChiefV4.AiTeam
                 return " Keine Strafen, ungültigen Runden oder starken Verzögerungen erfasst.";
             }
             string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " und " + parts[parts.Count - 1];
-            return " Bilanz: " + list + "." + (InvalidLaps + Spins + Penalties >= 4 ? " Da ist beim nächsten Mal noch einiges drin." : "");
+            return " Bilanz: " + list + "." + (InvalidLaps + OffTracks + Spins + Penalties >= 4 ? " Da ist beim nächsten Mal noch einiges drin." : "");
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>

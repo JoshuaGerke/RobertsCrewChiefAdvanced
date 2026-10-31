@@ -39,6 +39,32 @@ namespace CrewChiefV4.AiTeam
             "Der Sieg ist deiner! Glückwunsch!"
         };
 
+        public static readonly string[] ContactPhrases = {
+            "Kontakt. Ich schau mir den Schaden an.",
+            "Das hat gerumst. Ich prüf das Auto.",
+            "Kontakt gesehen. Moment, ich check den Schaden.",
+            "Autsch. Ich schau, was am Auto ist."
+        };
+        // Nur bei belegtem Kontakt mit starkem Tempoverlust oder schwerem Schaden, danach kommt der Schadensbericht.
+        public static readonly string[] HeavyContactPhrases = {
+            "Uff, das war heftig. Alles okay bei dir?",
+            "Oh, das sah nicht gut aus. Geht's dir gut?",
+            "Das war ein harter Einschlag. Alles in Ordnung?",
+            "Oha. Alles okay bei dir? Ich schau mir das Auto an."
+        };
+        public static readonly string[] StoppedPhrases = {
+            "Alles okay? Beim Wiederanfahren auf den Verkehr achten.",
+            "Alles gut bei dir? Erst schauen, dann wieder rein.",
+            "Alles klar? Ganz ruhig, pass beim Anfahren auf den Verkehr auf."
+        };
+        public static readonly string[] OffTrackPhrases = {
+            "Neben der Strecke. Beim Zurückfahren auf den Verkehr achten.",
+            "Du bist draußen. Schau auf den Verkehr, bevor du zurückkommst.",
+            "Achtung, neben der Strecke. Komm kontrolliert zurück."
+        };
+        public const string WetTrackHint = " Die Strecke ist nass, vorsichtig am Gas.";
+        public static readonly string[] IncidentPhrases = ContactPhrases.Concat(HeavyContactPhrases).Concat(StoppedPhrases).Concat(OffTrackPhrases).ToArray();
+
         public static string VoiceIdentity(AiTeamSettings s, TeamMember member)
         {
             string voice = s.TtsProvider == AiTtsProvider.ELEVENLABS ? s.ElevenLabsModel + "|" + s.ElevenLabsVoiceFor(member)
@@ -52,7 +78,7 @@ namespace CrewChiefV4.AiTeam
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
-                member == TeamMember.Mik && TrackLimitPhrases.Contains(text) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
+                member == TeamMember.Mik && (TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
                 member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text));
         }
 

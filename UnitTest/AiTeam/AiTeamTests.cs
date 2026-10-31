@@ -785,7 +785,7 @@ namespace UnitTest.AiTeamTests
             hit.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
             var first = watch.Evaluate(before, hit, now, false);
             Assert.AreEqual(1, first.Count);
-            Assert.AreEqual("Kontakt. Ich schau mir den Schaden an.", first[0].Value);
+            CollectionAssert.Contains(CrewSpeechPolicy.IncidentPhrases, first[0].Value);
             Assert.AreEqual(0, watch.Evaluate(hit, hit, now.AddSeconds(1), false).Count);
             Assert.IsNull(watch.TakeDamageAssessment());
             watch.Evaluate(hit, hit, now.AddSeconds(4.5), false);
@@ -833,7 +833,7 @@ namespace UnitTest.AiTeamTests
             var after = Racing(150);
             after.CarDamageData.DamageEnabled = true;
             after.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
-            Assert.AreEqual("Kontakt. Ich schau mir den Schaden an.", watch.Evaluate(before, after, now, false)[0].Value);
+            CollectionAssert.Contains(CrewSpeechPolicy.IncidentPhrases, watch.Evaluate(before, after, now, false)[0].Value);
             var unknown = Racing(150);
             unknown.CarDamageData.DamageEnabled = true;
             Assert.IsFalse(IncidentWatch.DamageIncreased(unknown.CarDamageData, after.CarDamageData), "erster Messwert ist kein Kontakt");
@@ -864,7 +864,7 @@ namespace UnitTest.AiTeamTests
             stopped.SessionData.SessionType = SessionType.Race;
             stopped.SessionData.TimeDeltaBehind = 2.3f;
             var spin = watch.Evaluate(fast, stopped, now.AddSeconds(2), false);
-            StringAssert.StartsWith("Alles okay?", spin[0].Value);
+            Assert.IsTrue(CrewSpeechPolicy.StoppedPhrases.Any(p => spin[0].Value.StartsWith(p)), spin[0].Value);
             StringAssert.Contains("2,3 Sekunden", spin[0].Value);
 
             var penalised = Racing(150);
@@ -1063,6 +1063,31 @@ namespace UnitTest.AiTeamTests
                 watch.Evaluate(valid, cut, now.AddSeconds(lap * 90), true);
             }
             Assert.AreEqual(" Bilanz: 2 ungültige Runden.", watch.FinishSummary());
+        }
+
+        [Test]
+        public void Harter_Einschlag_fragt_zuerst_nach_dem_Fahrer()
+        {
+            var before = Racing(150);
+            var crash = Racing(40);
+            crash.CarDamageData.DamageEnabled = true;
+            crash.CarDamageData.LastImpactTime = 12f;
+            var calls = new IncidentWatch().Evaluate(before, crash, now, false);
+            CollectionAssert.Contains(CrewSpeechPolicy.HeavyContactPhrases, calls[0].Value);
+        }
+
+        [Test]
+        public void Ausritt_warnt_einmal_erst_nach_zwei_Sekunden_und_zaehlt_fuer_die_Bilanz()
+        {
+            var watch = new IncidentWatch();
+            var off = Racing(120);
+            off.PenaltiesData.IsOffRacingSurface = true;
+            Assert.AreEqual(0, watch.Evaluate(Racing(120), off, now, false).Count, "kurz übers Gras zählt nicht");
+            var calls = watch.Evaluate(off, off, now.AddSeconds(2.5), false);
+            Assert.AreEqual(1, calls.Count);
+            Assert.IsTrue(CrewSpeechPolicy.OffTrackPhrases.Contains(calls[0].Value), calls[0].Value);
+            Assert.AreEqual(0, watch.Evaluate(off, off, now.AddSeconds(4), false).Count, "keine Wiederholung");
+            StringAssert.Contains("ein Ausritt", watch.FinishSummary());
         }
 
         [Test]
