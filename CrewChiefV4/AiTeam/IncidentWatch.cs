@@ -174,7 +174,7 @@ namespace CrewChiefV4.AiTeam
                     if (!minimalMode && nowUtc - lastOffTrackCallUtc > TimeSpan.FromSeconds(20))
                     {
                         lastOffTrackCallUtc = nowUtc;
-                        var conditions = current.Conditions != null ? current.Conditions.getMostRecentConditions() : null;
+                        var conditions = current.Conditions != null ? current.Conditions.LatestConditions : null;
                         bool fresh = conditions != null && current.Now >= conditions.Time && current.Now-conditions.Time <= TimeSpan.FromSeconds(30);
                         bool wet = fresh && (conditions.TrackWetness >= ConditionsMonitor.TrackWetness.VeryLightlyWet && conditions.TrackWetness <= ConditionsMonitor.TrackWetness.ExtremelyWet ||
                             conditions.TrackStatus == ConditionsMonitor.TrackStatus.DAMP || conditions.TrackStatus == ConditionsMonitor.TrackStatus.WET ||

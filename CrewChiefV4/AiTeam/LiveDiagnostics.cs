@@ -17,6 +17,7 @@ namespace CrewChiefV4.AiTeam
     public sealed class DiagnosticLimits
     {
         public int QueueCapacity = 2048;
+        public bool RecordResources = true;
         public long SegmentBytes = 8L * 1024 * 1024;
         public long CaptureBytes = 128L * 1024 * 1024;
         public long FolderBytes = 512L * 1024 * 1024;
@@ -111,13 +112,15 @@ namespace CrewChiefV4.AiTeam
                 Volatile.Write(ref knownSecrets,knownSecrets.Concat(new[]{secret}).ToArray());
             }
         }
-        private string Clean(string text)
+        public static string RedactText(string text, params string[] secrets)
         {
             if (text == null) return null;
-            foreach (string secret in Volatile.Read(ref knownSecrets)) text = text.Replace(secret, "[redacted]");
+            foreach (string secret in secrets ?? new string[0])
+                if (!string.IsNullOrWhiteSpace(secret)) text = text.Replace(secret, "[redacted]");
             text = credentials.Replace(text, "[redacted]");
             return text.Length > 1200 ? text.Substring(0, 1200) + "…" : text;
         }
+        private string Clean(string text) { return RedactText(text, Volatile.Read(ref knownSecrets)); }
         private JToken Value(object value)
         {
             if (value == null) return JValue.CreateNull();
@@ -222,7 +225,7 @@ namespace CrewChiefV4.AiTeam
                         Interlocked.Decrement(ref queued); write(next);
                     }
                     long now = Stopwatch.GetTimestamp();
-                    if (now - lastResources >= Stopwatch.Frequency * 2)
+                    if (limits.RecordResources && now - lastResources >= Stopwatch.Frequency * 2)
                     {
                         process.Refresh();
                         TimeSpan currentCpu = process.TotalProcessorTime;
@@ -290,6 +293,8 @@ namespace CrewChiefV4.AiTeam
         }
         public static void Decision(string topic,string status,string reason,string text=null)
         {
+            if(status=="detected" || status=="delivered")
+                DriverMemory.RememberObservation(topic,status,reason,text,CrewChief.currentGameState==null?int.MinValue:CrewChief.currentGameState.SessionData.SessionId);
             if(Enabled)Emit("decision",Data("topic",topic,"status",status,"reason",reason,"text",text));
         }
         public static string NoTrend(string topic,string reason) { Decision(topic,"rejected",reason); return null; }
@@ -361,7 +366,7 @@ namespace CrewChiefV4.AiTeam
         {
             if(Enabled && clip != null)Emit("audio."+stage,Data("clip_id",clip,"sound_key",key,"text",text,"priority",priority,"message_id",messageId,"_sound_path",path),clip);
         }
-        public static void RememberSecret(string secret) { var r=Volatile.Read(ref recorder);if(r!=null&&r.Accepting)r.RememberSecret(secret); }
+        public static void RememberSecret(string secret) { DriverMemory.RememberSecret(secret); var r=Volatile.Read(ref recorder);if(r!=null&&r.Accepting)r.RememberSecret(secret); }
         public static void Queue(string stage,string name,int priority,int length,string reason=null,int messageId=0)
         {
             if(!Enabled)return;

@@ -49,7 +49,7 @@ namespace UnitTest.AiTeamTests
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +
                         "document.querySelector('[data-setting=fastModel]').value, document.querySelector('#rrca-warn').hidden, " +
-                        "document.querySelector('#rrca-diag-status').textContent, getComputedStyle(document.querySelector('.notification')).position, document.querySelector('#rrca-conn').textContent, !!document.querySelector('#rrca-game'), document.querySelector('#rrca-run').textContent, document.querySelector('#rrca-auto').checked].join('|')");
+                        "document.querySelector('#rrca-diag-status').textContent, getComputedStyle(document.querySelector('.notification')).position, document.querySelector('#rrca-conn').textContent, !!document.querySelector('#rrca-game'), document.querySelector('#rrca-run').textContent, document.querySelector('#rrca-auto').checked, document.querySelector('#rrca-memory').checked, document.querySelector('#rrca-memory-folder').textContent].join('|')");
                     if ((result == null || result == "null" || result.StartsWith("\"0|")) && DateTime.UtcNow < timeout)
                     { timer.Start(); return; }
                 }
@@ -91,6 +91,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("true", parts[7], "Joshua's cockpit game selector must remain present.");
             Assert.AreEqual("Start", parts[8], "Joshua's cockpit run control must remain present.");
             Assert.AreEqual("true", parts[9], "Automatic game detection must remain enabled by default in the fresh test profile.");
+            Assert.AreEqual("true", parts[10], "Text memory must be visible and enabled in the fresh profile.");
+            StringAssert.Contains("isolated-user-data", parts[11], "The UI test must not write the driver's shared real memory folder.");
         }
     }
 }

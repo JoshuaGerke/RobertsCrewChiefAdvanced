@@ -1085,6 +1085,9 @@ namespace CrewChiefV4.PMR
             }
 
             //PMR doesn't provide much in the way of conditions
+            con.UpdateLiveSample(currentGameState.Now, sData.CompletedLaps, sData.SectorNumber,
+                    raceInfo.m_ambientTemperature, raceInfo.m_trackTemperature, isRaining ? 1 : 0, 0, 0, 0, 0,
+                    sData.IsNewLap, ConditionsMonitor.TrackStatus.UNKNOWN);
             if (currentGameState.Now > nextConditionsSampleDue)
             {
                 nextConditionsSampleDue = currentGameState.Now.Add(ConditionsMonitor.ConditionsSampleFrequency);

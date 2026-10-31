@@ -47,6 +47,11 @@ namespace CrewChiefV4.AiTeam
         public string Contact(bool heavy)
         { return heavy ? Select("contact-heavy", CrewSpeechPolicy.HeavyContactPhrases) : Select("contact", CrewSpeechPolicy.ContactPhrases); }
 
+        public string WeatherRain(bool raining)
+        { return Select(raining?"rain-start":"rain-stop",raining?CrewSpeechPolicy.RainStartPhrases:CrewSpeechPolicy.RainStopPhrases); }
+        public string WeatherWetness(bool wetter)
+        { return Select(wetter?"wetter":"drier",wetter?CrewSpeechPolicy.WetterPhrases:CrewSpeechPolicy.DrierPhrases); }
+
         public string DamageChanged() { return Select("damage-detected", CrewSpeechPolicy.DamageDetectedPhrases); }
 
         public string Stopped() { return Select("stopped", CrewSpeechPolicy.StoppedPhrases); }

@@ -19,6 +19,7 @@ namespace CrewChiefV4.AiTeam
         public Func<GameStateData,bool> AdditionalValidity;
         // Only a just-completed practice/qualifying lap can outlive the timed session phase.
         public bool AllowLapFinish;
+        public bool AllowPitlane;
         public DateTime DetectedUtc, ExpiresUtc;
         private int deliveryState, attempts;
         private long playbackStartedTicks, retryNotBeforeTicks;
@@ -59,11 +60,13 @@ namespace CrewChiefV4.AiTeam
         {
             if (gs == null || DeliveryFailed || now < DetectedUtc || now > ExpiresUtc) return false;
             var s = gs.SessionData;
-            bool phaseValid = s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            bool weather = AllowPitlane && (Topic ?? "").StartsWith("weather-", StringComparison.Ordinal);
+            bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed");
+            bool phaseValid = (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                !gs.PitData.InPitlane && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) &&
+                (!gs.PitData.InPitlane || weather || pit) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, true, AheadName, AheadGap) && GapStillValid(gs, false, BehindName, BehindGap);
         }

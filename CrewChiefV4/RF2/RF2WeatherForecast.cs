@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 
 using Newtonsoft.Json.Linq;
 
@@ -31,7 +32,7 @@ namespace CrewChiefV4.rFactor2
 
         private static readonly TimeSpan retryInterval = TimeSpan.FromSeconds(30);
         // The forecast may be edited (e.g. by a server admin) so re-read it occasionally
-        private static readonly TimeSpan refreshInterval = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan refreshInterval = TimeSpan.FromSeconds(30);
 
         public class ForecastNode
         {
@@ -41,7 +42,14 @@ namespace CrewChiefV4.rFactor2
             public ConditionsMonitor.RainLevel rainLevel;
         }
 
-        private volatile List<ForecastNode> forecast; // set by the fetch task
+        private sealed class CachedForecast
+        {
+            public List<ForecastNode> Nodes;
+            public DateTime FetchedUtc;
+            public int Epoch;
+        }
+        private volatile CachedForecast forecast; // immutable snapshot published by the fetch task
+        private int forecastEpoch, mappedSessionId = int.MinValue;
         private volatile string forecastSessionType;
         private DateTime nextFetchDue = DateTime.MinValue;
         private Task fetchTask;
@@ -54,6 +62,10 @@ namespace CrewChiefV4.rFactor2
         public void update(GameStateData cgs, int rF2SessionType, float raining, double currentET, double endET)
         {
             var conditions = cgs.Conditions;
+            conditions.RainForecastAvailable=false;
+            conditions.RainForecastSource=null;
+            conditions.RainChanceIn10Mins=conditions.RainChanceIn30Mins=-1;
+            conditions.ForecastAirTempIn10Mins=conditions.ForecastAirTempIn30Mins=float.NaN;
             conditions.rainLevelNow = ConditionsMonitor.getRainLevel(raining);
             conditions.rainLevelIn10Mins = conditions.rainLevelNow;
             conditions.rainLevelIn30Mins = conditions.rainLevelNow;
@@ -63,25 +75,37 @@ namespace CrewChiefV4.rFactor2
             }
 
             var sessionType = getForecastSessionType(rF2SessionType);
-            if (sessionType != forecastSessionType)
+            if (sessionType != forecastSessionType || cgs.SessionData.IsNewSession || mappedSessionId != cgs.SessionData.SessionId)
             {   // New session type, the old forecast doesn't apply
                 forecast = null;
+                Interlocked.Increment(ref forecastEpoch);
+                mappedSessionId=cgs.SessionData.SessionId;
                 forecastSessionType = sessionType;
                 nextFetchDue = DateTime.MinValue;
             }
             if (cgs.Now > nextFetchDue && (fetchTask == null || fetchTask.IsCompleted))
             {
                 nextFetchDue = cgs.Now.Add(forecast == null ? retryInterval : refreshInterval);
-                fetchTask = Task.Run(() => fetch(sessionType));
+                int epoch=Volatile.Read(ref forecastEpoch);
+                fetchTask = Task.Run(() => fetch(sessionType,epoch));
             }
 
-            var nodes = forecast;
-            if (nodes == null || endET <= 0)
+            var cached = forecast;
+            if (cached == null || cached.Epoch != Volatile.Read(ref forecastEpoch) || endET <= 0 || double.IsNaN(endET) || double.IsInfinity(endET) ||
+                double.IsNaN(currentET) || double.IsInfinity(currentET) || cgs.Now < cached.FetchedUtc || cgs.Now-cached.FetchedUtc > TimeSpan.FromSeconds(90))
             {   // No forecast or not a timed session
                 return;
             }
+            var nodes=cached.Nodes;
             conditions.rainLevelIn10Mins = getRainLevelAt(nodes, currentET + 10 * 60, endET);
             conditions.rainLevelIn30Mins = getRainLevelAt(nodes, currentET + 30 * 60, endET);
+            conditions.RainForecastAvailable=true;
+            conditions.RainForecastReadUtc=cached.FetchedUtc;
+            conditions.RainForecastSource=Game.RF2_64BIT ? "rFactor 2 lokale Spiel-/Server-REST-Vorhersage" : "Le Mans Ultimate lokale Spiel-/Server-REST-Vorhersage";
+            conditions.RainChanceIn10Mins=getNodeAt(nodes,currentET+10*60,endET).rainChance;
+            conditions.RainChanceIn30Mins=getNodeAt(nodes,currentET+30*60,endET).rainChance;
+            conditions.ForecastAirTempIn10Mins=getNodeAt(nodes,currentET+10*60,endET).temperature;
+            conditions.ForecastAirTempIn30Mins=getNodeAt(nodes,currentET+30*60,endET).temperature;
         }
 
         public static string getForecastSessionType(int rF2SessionType)
@@ -100,9 +124,8 @@ namespace CrewChiefV4.rFactor2
 
         public static ConditionsMonitor.RainLevel getRainLevelAt(List<ForecastNode> nodes, double sessionTime, double endET)
         {
-            var fraction = Math.Min(Math.Max(sessionTime / endET, 0), 1);
-            var index = Math.Min((int)(fraction * nodes.Count), nodes.Count - 1);
-            return nodes[index].rainLevel;
+            var node=getNodeAt(nodes,sessionTime,endET);
+            return node==null ? ConditionsMonitor.RainLevel.NONE : node.rainLevel;
         }
 
         /// <summary>
@@ -135,21 +158,28 @@ namespace CrewChiefV4.rFactor2
             }
         }
 
-        private void fetch(string sessionType)
+        private static ForecastNode getNodeAt(List<ForecastNode> nodes,double sessionTime,double endET)
+        {
+            if(nodes==null || nodes.Count==0 || endET<=0 || double.IsNaN(endET) || double.IsInfinity(endET) || double.IsNaN(sessionTime) || double.IsInfinity(sessionTime))return null;
+            var fraction=Math.Min(Math.Max(sessionTime/endET,0),1);
+            return nodes[Math.Min((int)(fraction*nodes.Count),nodes.Count-1)];
+        }
+
+        private void fetch(string sessionType,int epoch)
         {
             try
             {
                 var nodes = parse(new RestAPI().get<JObject>(SessionsWeather.endPoint), sessionType);
-                if (nodes == null || sessionType != forecastSessionType)
+                if (nodes == null || sessionType != forecastSessionType || epoch != Volatile.Read(ref forecastEpoch))
                 {   // No forecast or session changed while reading
                     return;
                 }
-                if (forecast == null || !forecast.Select(n => n.rainLevel).SequenceEqual(nodes.Select(n => n.rainLevel)))
+                if (forecast == null || !forecast.Nodes.Select(n => n.rainLevel).SequenceEqual(nodes.Select(n => n.rainLevel)))
                 {
                     Log.Info($"Weather forecast for {sessionType}: " + string.Join(", ", nodes.Select(n =>
                         $"sky {n.sky} rain chance {n.rainChance}% {n.temperature}C => {n.rainLevel}")));
                 }
-                forecast = nodes;
+                forecast = new CachedForecast { Nodes=nodes,FetchedUtc=DateTime.UtcNow,Epoch=epoch };
             }
             catch (Exception e)
             {
@@ -177,13 +207,17 @@ namespace CrewChiefV4.rFactor2
                     Log.Warning($"Weather forecast node {nodeName} missing for {sessionType}");
                     return null;
                 }
-                var sky = node["WNV_SKY"]?["currentValue"]?.Value<int>() ?? 0;
-                var rainChance = node["WNV_RAIN_CHANCE"]?["currentValue"]?.Value<float>() ?? 0;
+                var skyValue = node["WNV_SKY"]?["currentValue"]?.Value<int?>();
+                var chanceValue = node["WNV_RAIN_CHANCE"]?["currentValue"]?.Value<float?>();
+                if(!skyValue.HasValue || skyValue.Value<0 || skyValue.Value>10 || !chanceValue.HasValue ||
+                    float.IsNaN(chanceValue.Value) || float.IsInfinity(chanceValue.Value) || chanceValue.Value<0 || chanceValue.Value>100)return null;
+                int sky=skyValue.Value;
+                float rainChance=chanceValue.Value;
                 nodes.Add(new ForecastNode
                 {
                     sky = sky,
                     rainChance = rainChance,
-                    temperature = node["WNV_TEMPERATURE"]?["currentValue"]?.Value<float>() ?? 0,
+                    temperature = node["WNV_TEMPERATURE"]?["currentValue"]?.Value<float>() ?? float.NaN,
                     rainLevel = skyToRainLevel(sky, rainChance),
                 });
             }

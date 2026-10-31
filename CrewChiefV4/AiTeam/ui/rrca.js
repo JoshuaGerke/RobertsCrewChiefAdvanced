@@ -75,6 +75,9 @@
     $('#rrca-ptt').value = d.ptt;
     $('#rrca-radio-effect').checked = d.radioEffect;
     $('#rrca-recorder').checked = d.recorder;
+    $('#rrca-memory').checked = d.memoryEnabled;
+    $('#rrca-memory-status').textContent = d.memoryStatus || '';
+    $('#rrca-memory-folder').textContent = d.memoryFolder || '';
     $('#rrca-diag-status').textContent = d.recorderStatus;
     $('#key-openrouter').textContent = d.keys.openrouter || 'kein Schlüssel hinterlegt';
     $('#key-elevenlabs').textContent = d.keys.elevenlabs || 'kein Schlüssel hinterlegt';
@@ -91,6 +94,9 @@
 
   function applyLive(d) {
     state.voiceReadiness = d.voiceReadiness;
+    if (typeof d.memoryEnabled === 'boolean') $('#rrca-memory').checked = d.memoryEnabled;
+    if (d.memoryStatus != null) $('#rrca-memory-status').textContent = d.memoryStatus;
+    if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = d.recorderStatus;
     $('#rrca-conn').textContent = d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden');
@@ -159,6 +165,7 @@
   $('#rrca-auto').addEventListener('change', e => send('setAutoDetect', { on: e.target.checked }));
   $('#rrca-mic').addEventListener('change', e => send('setMicrophone', { name: e.target.value }));
   $('#rrca-radio-effect').addEventListener('change', e => send('setRadioEffect', { on: e.target.checked }));
+  $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
   $$('[data-key-save]').forEach(b => b.addEventListener('click', () => {
     const input = $('#key-' + b.dataset.keySave + '-input'); const key = input.value.trim();

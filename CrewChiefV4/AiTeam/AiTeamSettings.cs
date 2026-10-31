@@ -48,6 +48,7 @@ namespace CrewChiefV4.AiTeam
         public bool RadioEffect = true;
         public bool SendDriverNames = true;
         public bool WriteLog = true;
+        public bool PersistentMemory = true;
         public bool ReplaceCrewChiefVoice = true;
 
         public static AiTeamSettings Load()
@@ -85,6 +86,7 @@ namespace CrewChiefV4.AiTeam
             s.RadioEffect = Get(() => u.getBoolean("enable_ai_team_radio_effect"), s.RadioEffect);
             s.SendDriverNames = Get(() => u.getBoolean("enable_ai_team_send_driver_names"), s.SendDriverNames);
             s.WriteLog = Get(() => u.getBoolean("enable_ai_team_log"), s.WriteLog);
+            s.PersistentMemory = Get(() => u.getBoolean("enable_ai_team_persistent_memory"), true);
             s.ReplaceCrewChiefVoice = Get(() => u.getBoolean("enable_ai_team_replaces_crew_chief_voice"), s.ReplaceCrewChiefVoice);
             s.RadioPreferences = AiRadioPreferences.Load();
             return s;

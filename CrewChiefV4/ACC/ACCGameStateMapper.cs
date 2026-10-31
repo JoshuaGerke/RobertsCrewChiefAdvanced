@@ -1314,6 +1314,9 @@ namespace CrewChiefV4.ACC
 
             // conditions
             // sometimes the game sends zeros, so don't take a sample if the temps are zero
+            currentGameState.Conditions.UpdateLiveSample(currentGameState.Now, currentGameState.SessionData.CompletedLaps, currentGameState.SessionData.SectorNumber,
+                shared.accPhysics.airTemp, shared.accPhysics.roadTemp, (float)shared.accGraphic.rainIntensity / 5f,
+                0, 0, 0, 0, currentGameState.SessionData.IsNewLap, (ConditionsMonitor.TrackStatus)shared.accGraphic.trackGripStatus);
             if (currentGameState.Now > nextConditionsSampleDue && (shared.accPhysics.airTemp != 0 || shared.accPhysics.roadTemp != 0))
             {
                 float currentRainLevel = (float)shared.accGraphic.rainIntensity / 5f;   // 5 enum levels for rain from 0 (none) to 1 (monsoon)
@@ -1326,6 +1329,11 @@ namespace CrewChiefV4.ACC
             currentGameState.Conditions.rainLevelNow = (ConditionsMonitor.RainLevel)shared.accGraphic.rainIntensity;
             currentGameState.Conditions.rainLevelIn10Mins = (ConditionsMonitor.RainLevel)shared.accGraphic.rainIntensityIn10min;
             currentGameState.Conditions.rainLevelIn30Mins = (ConditionsMonitor.RainLevel)shared.accGraphic.rainIntensityIn30min;
+            currentGameState.Conditions.RainForecastAvailable = ((int)shared.accGraphic.rainIntensityIn10min >= 0 && (int)shared.accGraphic.rainIntensityIn10min <= 5) ||
+                ((int)shared.accGraphic.rainIntensityIn30min >= 0 && (int)shared.accGraphic.rainIntensityIn30min <= 5);
+            currentGameState.Conditions.RainForecastReadUtc = DateTime.SpecifyKind(currentGameState.Now, DateTimeKind.Utc);
+            currentGameState.Conditions.RainForecastSource = "ACC Shared Memory – Spiel-/Servervorhersage";
+            currentGameState.Conditions.RainChanceIn10Mins = currentGameState.Conditions.RainChanceIn30Mins = -1;
 
             if (currentGameState.SessionData.TrackDefinition != null)
             {

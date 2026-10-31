@@ -1162,6 +1162,9 @@ namespace CrewChiefV4.PCars2
                 currentGameState.TyreData.RightRearIsSpinning = Math.Abs(shared.mTyreRPS[3]) > maxRotatingSpeed;
             }
 
+            currentGameState.Conditions.UpdateLiveSample(currentGameState.Now, currentGameState.SessionData.CompletedLaps, currentGameState.SessionData.SectorNumber,
+                    shared.mAmbientTemperature, shared.mTrackTemperature, shared.mRainDensity, shared.mWindSpeed, shared.mWindDirectionX, shared.mWindDirectionY, shared.mCloudBrightness,
+                    currentGameState.SessionData.IsNewLap, ConditionsMonitor.TrackStatus.UNKNOWN);
             if (currentGameState.Now > nextConditionsSampleDue)
             {
                 nextConditionsSampleDue = currentGameState.Now.Add(ConditionsMonitor.ConditionsSampleFrequency);

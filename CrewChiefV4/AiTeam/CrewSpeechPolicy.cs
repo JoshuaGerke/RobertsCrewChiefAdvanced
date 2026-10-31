@@ -39,6 +39,30 @@ namespace CrewChiefV4.AiTeam
             "Der Sieg ist deiner! Glückwunsch!"
         };
 
+        public static readonly string[] RainStartPhrases = {
+            "Regen setzt ein. Achte auf die Bedingungen.",
+            "Es fängt an zu regnen. Fahr vorausschauend.",
+            "Erste Regentropfen gemeldet. Bleib aufmerksam."
+        };
+        public static readonly string[] RainStopPhrases = {
+            "Der Regen ist abgeklungen. Die Strecke kann weiter nass sein.",
+            "Kein nennenswerter Regen mehr gemeldet. Pass weiter auf die Nässe auf.",
+            "Der Regen lässt nach. Mit der Strecke weiter vorsichtig bleiben."
+        };
+        public static readonly string[] WetterPhrases = {
+            "Mehr Streckennässe gemeldet. Bleib vorsichtig.",
+            "Die gemeldete Streckennässe nimmt zu. Fahr mit Reserve."
+        };
+        public static readonly string[] DrierPhrases = {
+            "Weniger Streckennässe gemeldet. Das heißt noch nicht, dass überall Grip da ist.",
+            "Die gemeldete Streckennässe nimmt ab. Geh weiter mit Gefühl ans Gas."
+        };
+        public static readonly string[] PitSpeedPhrases = {
+            "Boxenlimit, du bist zu schnell. Tempo runter.",
+            "Achte aufs Boxenlimit. Reduziere dein Tempo."
+        };
+        public static readonly string[] WeatherPhrases = PitSpeedPhrases.Concat(RainStartPhrases).Concat(RainStopPhrases).Concat(WetterPhrases).Concat(DrierPhrases).ToArray();
+
         public static readonly string[] ContactPhrases = {
             "Kontakt. Ich schau mir den Schaden an.",
             "Das hat gerumst. Ich prüf das Auto.",
@@ -92,7 +116,7 @@ namespace CrewChiefV4.AiTeam
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
-                member == TeamMember.Mik && (TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
+                member == TeamMember.Mik && (TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
                 member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text));
         }
 

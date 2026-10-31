@@ -164,7 +164,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (topic == "weather")
             {
-                var c = gs.Conditions.CurrentConditions; if (c == null) return null;
+                var c = gs.Conditions.LatestConditions; if (c == null) return null;
                 var parts = new List<string>();
                 if (Good(c.AmbientTemperature, -30, 60)) parts.Add("Luft " + Number(c.AmbientTemperature) + " Grad");
                 if (Good(c.TrackTemperature, -30, 85)) parts.Add("Strecke " + Number(c.TrackTemperature) + " Grad");

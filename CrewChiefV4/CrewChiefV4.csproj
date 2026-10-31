@@ -246,6 +246,10 @@
     <Compile Include="Audio\Sounds.cs" />
     <Compile Include="AiTeam\AiAudio.cs" />
     <Compile Include="AiTeam\GameDataConnectionStatus.cs" />
+    <Compile Include="AiTeam\DriverMemory.cs" />
+    <Compile Include="AiTeam\WeatherWatch.cs" />
+    <Compile Include="AiTeam\PitLaneWatch.cs" />
+    <Compile Include="AiTeam\TelemetryCapabilities.cs" />
     <Compile Include="AiTeam\AiPersonas.cs" />
     <Compile Include="AiTeam\AiRaceMemory.cs" />
     <Compile Include="AiTeam\AiSecretStore.cs" />

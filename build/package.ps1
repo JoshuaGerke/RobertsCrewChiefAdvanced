@@ -40,6 +40,11 @@ Copy-Item -Force (Join-Path $root 'LICENSE') (Join-Path $OutDir 'LICENSE_CrewChi
 Copy-Item -Force (Join-Path $root 'HINWEISE_UND_DANK.md') (Join-Path $OutDir 'HINWEISE_UND_DANK.md')
 Copy-Item -Force (Join-Path $root 'docs/ANLEITUNG_KI-TEAM.md') (Join-Path $OutDir 'ANLEITUNG_KI-TEAM.md')
 
+# Fachliche Änderungen gehören in beide lokalen und CI-Testpakete, ohne private Aufzeichnungen.
+foreach ($note in 'AENDERUNGEN_LIVEFIXES_v0.7.md', 'AENDERUNGEN_GEDAECHTNIS_WETTER_v0.7.md') {
+    if (Test-Path -LiteralPath (Join-Path $root $note)) { Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note) }
+}
+
 # Selbstprüfung: diese Dateien müssen im Paket liegen
 foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt')) {
     if (-not (Test-Path (Join-Path $OutDir $required))) { throw "Paket unvollständig: $required fehlt" }

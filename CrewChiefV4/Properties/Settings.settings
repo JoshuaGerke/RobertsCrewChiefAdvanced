@@ -1706,6 +1706,9 @@
     <Setting Name="enable_ai_team_sara" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
+    <Setting Name="enable_ai_team_persistent_memory" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
     <Setting Name="enable_ai_team" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>

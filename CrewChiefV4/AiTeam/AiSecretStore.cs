@@ -48,6 +48,7 @@ namespace CrewChiefV4.AiTeam
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             byte[] encrypted = ProtectedData.Protect(Encoding.UTF8.GetBytes(apiKey.Trim()), entropy, DataProtectionScope.CurrentUser);
             File.WriteAllBytes(path, encrypted);
+            DriverMemory.RememberSecret(apiKey.Trim());
         }
 
         public static string Load(string path = null, params string[] envVars)

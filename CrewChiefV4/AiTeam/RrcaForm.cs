@@ -164,6 +164,13 @@ namespace CrewChiefV4.AiTeam
                 case "setRecorder":
                     if ((bool)m["on"]) Notice(LiveDiagnostics.Start()); else { LiveDiagnostics.Stop(); Notice("Diagnose gestoppt."); }
                     break;
+                case "setMemory":
+                    service.SetPersistentMemory((bool)m["on"]);
+                    break;
+                case "openMemory":
+                    Directory.CreateDirectory(DriverMemory.Folder);
+                    System.Diagnostics.Process.Start("explorer.exe", "\"" + DriverMemory.Folder + "\"");
+                    break;
                 case "openDiag":
                     Directory.CreateDirectory(LiveDiagnostics.DefaultFolder);
                     System.Diagnostics.Process.Start("explorer.exe", "\"" + LiveDiagnostics.DefaultFolder + "\"");
@@ -255,6 +262,9 @@ namespace CrewChiefV4.AiTeam
                 ["microphone"] = s.Microphone ?? "",
                 ["ptt"] = "Controller-Aktion „KI-Team anfunken“" + (string.IsNullOrEmpty(s.PttKey) ? "" : " oder Taste " + s.PttKey),
                 ["radioEffect"] = s.RadioEffect,
+                ["memoryEnabled"] = DriverMemory.Enabled,
+                ["memoryStatus"] = DriverMemory.Status,
+                ["memoryFolder"] = DriverMemory.Folder,
                 ["recorder"] = LiveDiagnostics.Enabled,
                 ["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status,
                 ["keys"] = new JObject
@@ -302,6 +312,7 @@ namespace CrewChiefV4.AiTeam
                 o["running"] = MainWindow.instance.IsAppRunning;
                 o["game"] = MainWindow.instance.gameDefinitionList.Text;
             }
+            o["memoryEnabled"]=DriverMemory.Enabled;o["memoryStatus"]=DriverMemory.Status;o["memoryFolder"]=DriverMemory.Folder;
             if (connected)
             {
                 var s = gs.SessionData;
@@ -602,8 +613,12 @@ namespace CrewChiefV4.AiTeam
             try
             {
                 string file = Path.Combine(Application.StartupPath, "VERSION.txt");
-                var commit = File.Exists(file) ? File.ReadAllLines(file).FirstOrDefault(l => l.StartsWith("Commit:")) : null;
-                if (commit != null) return "Vorschau · " + commit.Substring(7).Trim().Substring(0, 7);
+                var lines = File.Exists(file) ? File.ReadAllLines(file) : new string[0];
+                var commit = lines.FirstOrDefault(l => l.StartsWith("Commit:"));
+                var version = lines.FirstOrDefault(l => l.StartsWith("Version:"));
+                string label = version == null ? "Vorschau" : version.Substring(8).Trim();
+                if (commit != null) return label + " · " + commit.Substring(7).Trim().Substring(0, 7);
+                if (version != null) return label;
             }
             catch (Exception) { }
             return "Vorschau";

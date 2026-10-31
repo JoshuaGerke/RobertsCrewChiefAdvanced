@@ -6972,6 +6972,14 @@ namespace CrewChiefV4.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool enable_ai_team_persistent_memory {
+            get { return ((bool)(this["enable_ai_team_persistent_memory"])); }
+            set { this["enable_ai_team_persistent_memory"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool enable_ai_team {
             get {
                 return ((bool)(this["enable_ai_team"]));
