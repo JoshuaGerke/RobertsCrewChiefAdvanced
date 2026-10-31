@@ -292,7 +292,7 @@ namespace CrewChiefV4.AiTeam
             var radioPrefs = settings.RadioPreferences;
             activeRace.Observe(current, now, settings.RadioName, 0);
             radioSchedule.Observe(current, now, radioPrefs);
-            foreach (var situation in situationWatch.Evaluate(previous,current,now)) activeRace.Enqueue(situation);
+            foreach (var situation in situationWatch.Evaluate(previous,current,now,settings.RadioName)) activeRace.Enqueue(situation);
             var trafficCall = trackWatch.Evaluate(Tracks,current,now);
             if (trafficCall != null) activeRace.Enqueue(trafficCall);
             weatherWatch.Observe(current,now);
@@ -1743,7 +1743,7 @@ namespace CrewChiefV4.AiTeam
                     "Frei, keiner neben dir.", "Noch einer links, rechts frei.", "Noch einer rechts, links frei.", SaraLocal.NoDataAnswer }.Concat(FlagWatch.Phrases);
                 var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
                     .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(CrewSpeechPolicy.FinishPhrases).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(CrewSpeechPolicy.WeatherPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
-                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.ApproachingPhrases).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
+                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.ApproachingPhrases).Concat(RaceSituationWatch.PreparedPhrases(settings.RadioName)).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
                     .Where(p=>settings.IsMemberEnabled(p.Key)).ToArray();
                 foreach (var phrase in phrases)
                 {

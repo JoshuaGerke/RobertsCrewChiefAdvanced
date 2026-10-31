@@ -63,7 +63,7 @@ namespace CrewChiefV4.AiTeam
             "gap_front_s gap_behind_s opponent_front opponent_behind position flag tyre_wear_pct tyre_temp_c tyre_wear_active " +
             "lap_time_s fuel_used_l fuel_per_lap_l laps_remaining time_remaining_s laps_comparable lap_times_s fuel_used_window_l " +
             "overlap_left overlap_right telemetry_age_s api_calls budget radio_mode deadline_s correlation_parent utterance_sequence " +
-            "prompt_tokens completion_tokens sample_count input_ticks duplicate late silence_s source trigger result " +
+            "prompt_tokens completion_tokens finish_reason reasoning_tokens content_chars completion_limit sample_count input_ticks duplicate late silence_s source trigger result " +
             "position_matrix matrix_columns row_offset total_cars track_length_m source_utc").Split(' '));
         private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk[-_][a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
 

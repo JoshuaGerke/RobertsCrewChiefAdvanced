@@ -72,6 +72,7 @@
     <Compile Include="AiTeam\VerifiedV06Tests.cs" />
     <Compile Include="AiTeam\LiveDiagnosticsTests.cs" />
     <Compile Include="AiTeam\ActiveRaceIntelligenceTests.cs" />
+    <Compile Include="AiTeam\RaceIntelligenceWorkbenchTests.cs" />
     <Compile Include="AiTeam\ActiveCrewRegressionTests.cs" />
     <Compile Include="AiTeam\RaceDataAccuracyTests.cs" />
     <Compile Include="AiTeam\TrackAwarenessTests.cs" />

@@ -437,13 +437,32 @@ namespace CrewChiefV4.AiTeam
             // Sector availability is independent of a three-lap pace comparison or our own lap count.
             d["beste_einzelsektoren_s"] = new JArray(SectorValue(op.bestSector1Time), SectorValue(op.bestSector2Time), SectorValue(op.bestSector3Time));
             d["sektoren_hinweis"] = "Einzelsektorzeiten in Sekunden, nicht kumulativ. Einzelbestwerte können aus verschiedenen Runden stammen; unbekannt = null. Historie ist auf drei zuletzt erfasste Runden begrenzt.";
-            d["sektorrunden"] = new JArray(op.OpponentLapData.OrderByDescending(l => l.LapNumber).Take(3).Select(l => new JObject {
-                ["runde"] = l.LapNumber, ["gueltig"] = l.IsValid, ["boxenrunde"] = l.InLap || l.OutLap,
-                ["rundenzeit_s"] = SectorValue(l.LapTime),
-                ["sektoren_s"] = new JArray(Enumerable.Range(0,3).Select(i => l.SectorTimes != null && i < l.SectorTimes.Length ? SectorValue(l.SectorTimes[i]) : null)),
-                ["sektorende_simulationszeit_s"] = new JArray(Enumerable.Range(0,3).Select(i => l.GameTimeAtSectorEnd != null && i < l.GameTimeAtSectorEnd.Length ? SectorValue(l.GameTimeAtSectorEnd[i], 200000) : null))
-            }));
+            d["sektorrunden"] = new JArray(op.OpponentLapData.OrderByDescending(l => l.LapNumber).Take(3).Select(DescribeSectorLap));
             return d;
+        }
+
+        private static JObject DescribeSectorLap(LapData lap)
+        {
+            var sectors = Enumerable.Range(0, 3).Select(i => lap.SectorTimes != null && i < lap.SectorTimes.Length
+                ? SectorValue(lap.SectorTimes[i]) : null).ToArray();
+            bool complete = sectors.All(s => s != null && s.Type != JTokenType.Null);
+            double? difference = complete && ValidLap(lap.LapTime) ? (double?)(sectors.Sum(s => (double)s) - lap.LapTime) : null;
+            // Plausibility only: this tolerance does not claim millisecond accuracy or turn estimates into measurements.
+            bool? consistent = difference.HasValue ? (bool?)(Math.Abs(difference.Value) <= .15) : null;
+            bool comparable = lap.IsValid && !lap.InLap && !lap.OutLap && consistent == true;
+            return new JObject {
+                ["runde"] = lap.LapNumber, ["gueltig"] = lap.IsValid, ["boxenrunde"] = lap.InLap || lap.OutLap,
+                ["rundenzeit_s"] = SectorValue(lap.LapTime), ["sektoren_s"] = new JArray(sectors),
+                ["sektoren_vollstaendig"] = complete,
+                ["sektorsumme_abweichung_s"] = difference.HasValue ? (JToken)Math.Round(difference.Value, 3) : null,
+                ["sektorsumme_plausibel"] = consistent.HasValue ? (JToken)consistent.Value : null,
+                ["fuer_pacevergleich_geeignet"] = comparable,
+                ["qualitaet"] = !complete ? "unvollstaendig" : !consistent.HasValue ? "rundenzeit_fehlt" :
+                    !consistent.Value ? "sektorsumme_widerspricht_rundenzeit" : !lap.IsValid ? "ungueltige_runde" :
+                    lap.InLap || lap.OutLap ? "boxenrunde" : "plausibel_keine_genauigkeitsgarantie",
+                ["hinweis"] = "Adapterhistorie, keine neuen Messwerte. Summentoleranz 0,15 s prueft Plausibilitaet. Nur geeignete Runden vergleichen.",
+                ["sektorende_simulationszeit_s"] = new JArray(Enumerable.Range(0,3).Select(i => lap.GameTimeAtSectorEnd != null && i < lap.GameTimeAtSectorEnd.Length ? SectorValue(lap.GameTimeAtSectorEnd[i], 200000) : null))
+            };
         }
 
         private static JObject Pit(RaceDataContext ctx, List<string> missing)
