@@ -19,11 +19,16 @@ namespace UnitTest.Misc
         [OneTimeSetUp]
         public void InitSoundCache()
         {
-            SoundCache.prepareDriverNamesWithoutLoading(new DirectoryInfo(@"../../../CrewChiefV4/sounds/driver_names"), false,
-                SoundCache.singleSounds,
-                SoundCache.availableDriverNames,
-                SoundCache.availableDriverNamesForUI
-                );
+            // This fixture tests name matching, not audio playback. Use the committed name catalog;
+            // copyright-restricted WAVs are intentionally absent from clean checkouts and CI.
+            string catalog = Path.Combine(TestContext.CurrentContext.TestDirectory, "../../misc/driverNameFiles.txt");
+            foreach (string line in File.ReadLines(catalog).OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!line.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)) continue;
+                string name = Path.GetFileNameWithoutExtension(line.Trim()).ToLowerInvariant();
+                SoundCache.availableDriverNames.Add(name);
+                SoundCache.availableDriverNamesForUI.Add(string.Join(" ", name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(part => char.ToUpperInvariant(part[0]) + part.Substring(1))));
+            }
             SoundCache.availableDriverNamesForUIAsArray = SoundCache.availableDriverNamesForUI.ToArray<string>();
         }
         [SetUp]

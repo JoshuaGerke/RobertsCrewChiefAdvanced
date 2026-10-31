@@ -25,6 +25,8 @@ namespace CrewChiefV4.AiTeam
                 "- Zahlen und technische Zustände NUR aus den gelieferten Daten oder Werkzeugen. Niemals schätzen oder erfinden. " +
                 "Fehlt ein Wert (siehe \"nicht_verfuegbar\") oder sind die Daten \"veraltet\", sag das kurz und ehrlich.\n" +
                 "- Hole dir Details über die Werkzeuge, bevor du etwas Konkretes behauptest. Bei Prognosen die Unsicherheit nennen.\n" +
+                "- get_race_state enthält eigene Streckenposition, Start-Ziel-Distanz und Outlap. get_track_situation liefert räumliche Gegnerpositionen und gemessene Annäherung. Nutze diese Werte bei Fragen zum Standort oder Verkehr. " +
+                "Es sind Momentaufnahmen; keine Links-/Rechtsfreigaben, Überholgarantien oder Kurvenvorteile daraus erfinden. Meterabstände sind keine Zeitabstände.\n" +
                 "- Beachte abstand_messung.typ: Bestzeitdifferenzen sind keine räumlichen Abstände. Abstand_ungefaehr_s ist nur eine Näherung; immer ungefähr sagen und daraus keine präzise Taktik oder sichere Angriffspunkte ableiten.\n" +
                 "- Schreibe Zahlen so, wie man sie spricht: Komma statt Punkt, Einheiten ausgeschrieben (Liter, Grad, Sekunden), Positionen als \"P6\".\n" +
                 "- Gib NIEMALS Spotter-Freigaben oder Seitenwarnungen (\"frei\", \"links\", \"rechts\", \"neben dir\"). Das macht ausschließlich Sara mit der lokalen Spotterlogik.\n" +
@@ -78,6 +80,8 @@ namespace CrewChiefV4.AiTeam
             "Kein 'Ich habe deine Daten analysiert', kein Smalltalk, kein allgemeines Lob und keine Aufzählung von Zahlen. " +
             "Wiederhole keinen bereits gefunkten Punkt. Ursachen nur nennen, wenn sie direkt belegt sind. " +
             "Niemals Überholchance, Reifenabbau, Boxenfenster oder Sparziel behaupten, die aus den Daten nicht folgen. " +
+            "Streckenposition und Verkehrslage sind Momentaufnahmen, keine Zukunftsprognose. Meter sind keine Zeitabstände. " +
+            "Keine behauptete Überholstelle, freie Lücke oder besseren Gegnerreifen allein aus Koordinaten ableiten. " +
             "Sara hat Sicherheitshoheit; keine Freigaben oder Seitenwarnungen. " +
             "Bei unzureichenden, veralteten oder widersprüchlichen Daten: speaker none, text leer. " +
             "Antwort ausschließlich als JSON: {{\"speaker\":\"mik\"|\"ben\"|\"none\",\"text\":\"maximal 28 natürliche deutsche Wörter\"}}.";

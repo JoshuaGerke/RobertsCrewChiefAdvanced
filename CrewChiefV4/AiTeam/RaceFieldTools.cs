@@ -95,6 +95,7 @@ namespace CrewChiefV4.AiTeam
             result["position_gesamt"] = o.OverallPosition > 0 ? (JToken)o.OverallPosition : null;
             result["startnummer"] = string.IsNullOrEmpty(o.CarNumber) || o.CarNumber == "-1" ? null : o.CarNumber;
             result["aktiv"] = o.IsActive;
+            result["streckenposition"] = TrackAwareness.OpponentPosition(ctx.GameState,o);
             result["runden_absolviert"] = o.CompletedLaps;
             var lap = o.OpponentLapData.LastOrDefault(l => l.LapTime > 0);
             result["letzte_runde_gueltig"] = lap != null ? (JToken)lap.IsValid : null;

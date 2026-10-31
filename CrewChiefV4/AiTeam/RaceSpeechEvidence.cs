@@ -15,7 +15,7 @@ namespace CrewChiefV4.AiTeam
         private readonly JObject facts;
         private static readonly HashSet<string> metadata = new HashSet<string> {
             "quelle", "datenalter_s", "veraltet", "snapshot_utc", "datenalter_hinweis", "snapshot_aktuell",
-            "nicht_verfuegbar", "verfuegbar"
+            "nicht_verfuegbar", "verfuegbar", "streckenposition"
         };
 
         public RaceSpeechEvidence(RaceDataContext context)

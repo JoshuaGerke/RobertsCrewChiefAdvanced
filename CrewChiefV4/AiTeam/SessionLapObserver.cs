@@ -14,14 +14,16 @@ namespace CrewChiefV4.AiTeam
         private SessionType type = SessionType.Unavailable;
         private float personalBest = -1, classBest = -1;
         private DateTime lastRadio = DateTime.MinValue;
+        internal const string TimedLapStartPhrase = "Zeit läuft. Die erste gezeitete Runde beginnt, bleib bei deinem Rhythmus.";
+        private bool firstTimedLapCalled;
 
         public void Reset()
-        { pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1; lastLap = -1; improvements = 0; lastRadio = DateTime.MinValue; }
+        { pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1; lastLap = -1; improvements = 0; lastRadio = DateTime.MinValue; firstTimedLapCalled = false; }
 
         public static bool Supported(SessionType t)
         { return t == SessionType.Practice || t == SessionType.LonePractice || t == SessionType.Qualify || t == SessionType.PrivateQualify || t == SessionType.HotLap; }
 
-        public void Observe(GameStateData gs, LapRecord completed, DateTime now, bool names)
+        public void Observe(GameStateData gs, LapRecord completed, DateTime now, bool names, GameStateData previous = null)
         {
             if (gs == null) return;
             var s = gs.SessionData;
@@ -36,6 +38,20 @@ namespace CrewChiefV4.AiTeam
             }
             if (s.SessionPhase != SessionPhase.Green) { pending.Clear(); return; }
             bool ownCall = false;
+            var length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
+            float step = previous == null ? float.NaN : s.SessionRunningTime - previous.SessionData.SessionRunningTime;
+            bool continuous = !float.IsNaN(step) && !float.IsInfinity(step) && step > 0 && step <= 1.5f && previous != null &&
+                length - previous.PositionAndMotionData.DistanceRoundTrack + gs.PositionAndMotionData.DistanceRoundTrack <= 180 * step + 15;
+            if (!firstTimedLapCalled && continuous && previous != null && previous.SessionData.SessionId == s.SessionId &&
+                previous.SessionData.SessionType == s.SessionType && previous.PitData.OnOutLap && !gs.PitData.OnOutLap &&
+                !gs.PitData.InPitlane && s.IsNewLap && gs.SessionData.CurrentLapIsValid && length > 100 &&
+                previous.PositionAndMotionData.DistanceRoundTrack > length * .8f &&
+                gs.PositionAndMotionData.DistanceRoundTrack >= 0 && gs.PositionAndMotionData.DistanceRoundTrack < length * .2f)
+            {
+                firstTimedLapCalled = true;
+                Add(gs, now, "timed-lap-start", TimedLapStartPhrase,
+                    "mapped_outlap_end_new_lap_and_start_finish_crossing", 3);
+            }
             if (completed != null && completed.LapNumber != lastLap)
             {
                 lastLap = completed.LapNumber;
@@ -76,7 +92,7 @@ namespace CrewChiefV4.AiTeam
             pending.RemoveAll(c => c.Topic == topic);
             pending.Add(new ObservedRaceCall { Topic=topic, Text=text, Evidence=evidence, Priority=priority, Member=TeamMember.Mik,
                 Position=-1, SessionId=session, SessionType=type, CompletedLaps=gs.SessionData.CompletedLaps,
-                DetectedUtc=now, ExpiresUtc=now.AddSeconds(12) });
+                DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic == "timed-lap-start" ? 4 : 12) });
             LiveDiagnostics.Decision(topic,"detected",evidence,text);
         }
         public ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy)

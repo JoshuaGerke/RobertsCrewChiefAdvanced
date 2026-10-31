@@ -27,6 +27,7 @@ namespace UnitTest.AiTeamTests
             var web = form.Controls.OfType<WebView2>().Single();
             string result = null;
             Exception failure = null;
+            bool liveRefreshRequested = false;
             var timeout = DateTime.UtcNow.AddSeconds(25);
             var timer = new Timer { Interval = 500 };
             timer.Tick += async (s, e) =>
@@ -36,9 +37,18 @@ namespace UnitTest.AiTeamTests
                 try
                 {
                     if (web.CoreWebView2 == null) throw new TimeoutException("WebView2 was not initialized within 25 seconds.");
+                    if (!liveRefreshRequested)
+                    {
+                        string ready = await web.CoreWebView2.ExecuteScriptAsync("!!document.querySelector('#rrca-diag-status')");
+                        if (ready != "true" && DateTime.UtcNow < timeout) { timer.Start(); return; }
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-diag-status').textContent='STALE'");
+                        typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
+                        liveRefreshRequested = true; timer.Start(); return;
+                    }
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +
-                        "document.querySelector('[data-setting=fastModel]').value, document.querySelector('#rrca-warn').hidden].join('|')");
+                        "document.querySelector('[data-setting=fastModel]').value, document.querySelector('#rrca-warn').hidden, " +
+                        "document.querySelector('#rrca-diag-status').textContent, getComputedStyle(document.querySelector('.notification')).position].join('|')");
                     if ((result == null || result == "null" || result.StartsWith("\"0|")) && DateTime.UtcNow < timeout)
                     { timer.Start(); return; }
                 }
@@ -74,6 +84,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(AiRadioPreferences.Options.Length.ToString(), parts[0], "Berichtsthemen nicht angekommen");
             StringAssert.Contains("KI-Team anfunken", parts[1]);
             Assert.IsNotEmpty(parts[2]);
+            StringAssert.StartsWith("Diagnose: ", parts[4], "Recorder status did not refresh from the live bridge");
+            Assert.AreEqual("sticky", parts[5], "Connection feedback should stay visible when scrolled");
         }
     }
 }

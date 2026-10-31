@@ -28,6 +28,8 @@ namespace CrewChiefV4.AiTeam
         public readonly AiUsageStats Stats = new AiUsageStats();
         public readonly AiRaceMemory Memory = new AiRaceMemory();
         public readonly CornerCoach Corners = new CornerCoach();
+        public TrackAwareness Tracks { get; private set; } = new TrackAwareness();
+        private readonly TrackSituationWatch trackWatch = new TrackSituationWatch();
         private readonly FuelWatch fuelWatch = new FuelWatch();
         private readonly IncidentWatch incidentWatch = new IncidentWatch();
         private readonly FlagWatch flagWatch = new FlagWatch();
@@ -184,6 +186,8 @@ namespace CrewChiefV4.AiTeam
                 radioDirector.Reset();
                 activeRace.Reset();
                 situationWatch.Reset();
+                Tracks.Reset();
+                trackWatch.Reset();
                 radioSchedule.Reset();
                 lastStatusUtc = now;
                 cornerTrackKey = null;
@@ -193,6 +197,7 @@ namespace CrewChiefV4.AiTeam
             bool sampleDue = radioDirector.Observe(now, current);
             UpdateCornerTrack(current);
             bool lapCompleted = Memory.Update(previous, current, now);
+            if (sampleDue && Tracks.Observe(current, now)) LiveDiagnostics.TrackPositions(Tracks.Snapshot);
             if (lapCompleted)
             {
                 LiveDiagnostics.Lap(Memory);
@@ -261,11 +266,13 @@ namespace CrewChiefV4.AiTeam
                 Task.Run(() => ReportDamageAsync(damage, damageGeneration));
             }
             MaybeSessionBriefing(previous, current, now);
-            sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames);
+            sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous);
             var radioPrefs = settings.RadioPreferences;
             activeRace.Observe(current, now, settings.DriverName, 0);
             radioSchedule.Observe(current, now, radioPrefs);
             foreach (var situation in situationWatch.Evaluate(previous,current,now)) activeRace.Enqueue(situation);
+            var trafficCall = trackWatch.Evaluate(Tracks,current,now);
+            if (trafficCall != null) activeRace.Enqueue(trafficCall);
             var raceCall = activeRace.Take(current, now, Spotter().HasOverlap,
                 Volatile.Read(ref localRaceSpeechRunning) != 0,
                 settings.RadioMode == AiRadioMode.MINIMAL, 0, Memory.GetLaps(), settings.DriverName);
@@ -1679,7 +1686,9 @@ namespace CrewChiefV4.AiTeam
                 var sara = new[] { "Links frei.", "Rechts frei.", "Noch einer links.", "Noch einer rechts.", "Noch zwei links.", "Noch zwei rechts.",
                     "Frei, keiner neben dir.", "Noch einer links, rechts frei.", "Noch einer rechts, links frei.", SaraLocal.NoDataAnswer }.Concat(FlagWatch.Phrases);
                 var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
-                    .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(CrewSpeechPolicy.FinishPhrases).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t))).Where(p=>settings.IsMemberEnabled(p.Key)).ToArray();
+                    .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(CrewSpeechPolicy.FinishPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
+                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.ApproachingPhrases).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
+                    .Where(p=>settings.IsMemberEnabled(p.Key)).ToArray();
                 foreach (var phrase in phrases)
                 {
                     if (!settings.IsMemberEnabled(phrase.Key)) continue;
@@ -1717,6 +1726,7 @@ namespace CrewChiefV4.AiTeam
                 DriverName = settings.DriverName,
                 CrewChiefAdditionalFuelNeeded = extraFuel,
                 Corners = Corners,
+                Tracks = Tracks,
             };
         }
 

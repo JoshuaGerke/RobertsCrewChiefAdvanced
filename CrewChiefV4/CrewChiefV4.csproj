@@ -271,6 +271,8 @@
     <Compile Include="AiTeam\RaceRadioLanguage.cs" />
     <Compile Include="AiTeam\CrewVoiceReadiness.cs" />
     <Compile Include="AiTeam\RaceFieldTools.cs" />
+    <Compile Include="AiTeam\TrackAwareness.cs" />
+    <Compile Include="AiTeam\TrackSituationWatch.cs" />
     <Compile Include="AiTeam\ActiveRaceObserver.cs" />
     <Compile Include="AiTeam\RaceSituationWatch.cs" />
     <Compile Include="AiTeam\AiRadioSchedule.cs" />

@@ -164,7 +164,8 @@ namespace CrewChiefV4.AiTeam
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
             // increase supports a track-limit comment; a warning need not invalidate the lap.
             int lap = current.SessionData.CompletedLaps;
-            bool invalidated = previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit && lap != lastInvalidLap;
+            bool invalidated = previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit &&
+                !current.PitData.OnOutLap && !previous.PitData.OnOutLap && !current.SessionData.IsNewLap && lap != lastInvalidLap;
             if (invalidated)
             {
                 lastInvalidLap = lap;
@@ -180,7 +181,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (!minimalMode && (limitWarning || invalidated))
             {
-                string text = limitWarning ? language.TrackLimit(TrackLimitWarnings > 1, !current.SessionData.CurrentLapIsValid)
+                string text = limitWarning ? language.TrackLimit(TrackLimitWarnings > 1, invalidated)
                     : language.InvalidLap(InvalidLaps > 1);
                 result.Add(Say(TeamMember.Mik, text));
             }

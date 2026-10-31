@@ -322,6 +322,8 @@ namespace CrewChiefV4.AiTeam
             var readiness = VoiceReadiness();
             o["voiceReadiness"] = new JObject { ["ready"] = readiness.Ready, ["reason"] = readiness.Reason, ["message"] = readiness.Message };
             o["warning"] = Warning(readiness);
+            o["recorder"] = LiveDiagnostics.Enabled;
+            o["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status;
             Post(o);
         }
 

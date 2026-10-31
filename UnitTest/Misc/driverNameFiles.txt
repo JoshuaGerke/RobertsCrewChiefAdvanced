@@ -9979,3 +9979,5 @@ z”chling.wav
 ›stberg.wav
 reh cek.wav
 sliwinski.wav
+Hoff.wav
+Leclerc.wav

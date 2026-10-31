@@ -52,7 +52,8 @@ namespace CrewChiefV4.AiTeam
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
-                member == TeamMember.Mik && TrackLimitPhrases.Contains(text) || member == TeamMember.Mik && FinishPhrases.Contains(text);
+                member == TeamMember.Mik && TrackLimitPhrases.Contains(text) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
+                member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text));
         }
 
         public static bool CacheOnly(bool automatic, int priority, TeamMember member)

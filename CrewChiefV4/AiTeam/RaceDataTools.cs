@@ -22,6 +22,7 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Ergebnis von Fuel.GetAdditionalFuelToEndOfRace (Crew-Chief-Rechnung), float.MaxValue = unbekannt.</summary>
         public float CrewChiefAdditionalFuelNeeded = float.MaxValue;
         public CornerCoach Corners;
+        public TrackAwareness Tracks;
 
         public double TelemetryAgeSeconds
         {
@@ -40,13 +41,14 @@ namespace CrewChiefV4.AiTeam
         public static readonly string[] AllToolNames =
         {
             "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
-            "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
+            "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
         public static JArray BuildToolDefinitions()
         {
             var tools = new JArray();
-            tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge."));
+            tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge und eigene Streckenposition/Start-Ziel-Distanz."));
+            tools.Add(Tool("get_track_situation", "Räumliche Verkehrslage: nächste Fahrzeuge auf der Strecke, Weltkoordinaten, Abstand in Metern entlang der Runde, Überrundungsbezug und über mehrere Samples gemessene Annäherung. Keine Seitenfreigabe oder Überholgarantie."));
             tools.Add(Tool("get_tyre_status", "Reifentemperaturen (innen/mitte/außen), Drücke, Verschleiß, Reifentyp, Bremsentemperaturen, blockierende/durchdrehende Räder."));
             tools.Add(Tool("get_fuel_status", "Tankinhalt, Verbrauch pro Runde (gemessen), Reichweite, Crew-Chief-Rechnung für benötigten Sprit bis Rennende."));
             tools.Add(Tool("get_lap_times", "Eigene letzte Rundenzeiten und Sektorzeiten, persönliche Bestzeit, Session-Bestzeit."));
@@ -123,6 +125,7 @@ namespace CrewChiefV4.AiTeam
                 switch (toolName)
                 {
                     case "get_race_state": data = RaceState(ctx, missing); break;
+                    case "get_track_situation": data = TrackAwareness.Read(ctx); break;
                     case "get_tyre_status": data = Tyres(ctx, missing); break;
                     case "get_fuel_status": data = Fuel(ctx, missing); break;
                     case "get_lap_times": data = LapTimes(ctx, missing); break;
@@ -180,6 +183,8 @@ namespace CrewChiefV4.AiTeam
                 ["runden_absolviert"] = s.CompletedLaps,
                 ["flagge"] = s.Flag.ToString(),
                 ["in_boxengasse"] = gs.PitData.InPitlane,
+                ["outlap"] = gs.PitData.OnOutLap,
+                ["streckenposition"] = TrackAwareness.Player(gs),
                 ["letzte_runde_des_rennens"] = LapWatch.OnLastLap(s),
                 ["restrunden_geschaetzt"] = LapWatch.LapsAreEstimated(s),
                 ["letzte_runde_geschaetzt"] = LapWatch.LapsAreEstimated(s) && LapWatch.LapsLeft(s) == 1,
@@ -626,6 +631,7 @@ namespace CrewChiefV4.AiTeam
             o["sprit"] = WithoutMeta(Execute("get_fuel_status", ctx));
             o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
+            o["streckenlage"] = TrackAwareness.Read(ctx);
             var s = ctx.GameState.SessionData;
             var gapAhead = ReadGap(ctx.GameState, Neighbour(ctx.GameState, true), true);
             var gapBehind = ReadGap(ctx.GameState, Neighbour(ctx.GameState, false), false);
