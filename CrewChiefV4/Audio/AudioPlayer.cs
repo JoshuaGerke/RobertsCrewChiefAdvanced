@@ -113,6 +113,11 @@ namespace CrewChiefV4.Audio
         private OrderedDictionary immediateClips = new OrderedDictionary();
 
         private BackgroundPlayer backgroundPlayer;
+        public void RefreshBackgroundVolume()
+        {
+            var player = backgroundPlayer;
+            if (player != null) player.refreshVolume();
+        }
 
         public static String soundFilesPath;
         private static String soundFilesPathTraineeChief;

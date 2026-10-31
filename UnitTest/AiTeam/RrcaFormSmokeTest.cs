@@ -102,7 +102,38 @@ namespace UnitTest.AiTeamTests
                         StringAssert.Contains("Start drücken", hint, "Disabled auto detection must not claim that the crew starts by itself.");
                         // Restore the default switch value for the existing fresh-profile assertions.
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-auto').checked=true");
-                        profileStage = 4;
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-page=cockpit]').click(); " +
+                            "document.querySelector('#rrca-messages-volume').value=37; document.querySelector('#rrca-messages-volume').dispatchEvent(new Event('change')); " +
+                            "document.querySelector('#rrca-background-volume').value=0; document.querySelector('#rrca-background-volume').dispatchEvent(new Event('change'))");
+                        profileStage = 4; timer.Start(); return;
+                    }
+                    if (profileStage == 4)
+                    {
+                        var levels = (Newtonsoft.Json.Linq.JObject)typeof(RrcaForm).GetMethod("AudioLevels", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null);
+                        Assert.AreEqual(37, (int)levels["messages"]); Assert.AreEqual(0, (int)levels["background"]);
+                        Assert.AreEqual(.37f, CrewChiefV4.MainWindow.currentMessageVolume, .001);
+                        var userType = typeof(AiTeamService).Assembly.GetType("CrewChiefV4.UserSettings");
+                        var user = userType.GetMethod("GetUserSettings").Invoke(null, null);
+                        Assert.AreEqual(.37f, (float)userType.GetMethod("getFloat").Invoke(user, new object[] { "messages_volume" }), .001);
+                        Assert.AreEqual(0f, (float)userType.GetMethod("getFloat").Invoke(user, new object[] { "background_volume" }), .001);
+                        // Backend-side change (e.g. classic window/controller) must refresh the new UI as well.
+                        CrewChiefV4.MainWindow.currentMessageVolume = .62f;
+                        userType.GetMethod("setProperty").Invoke(user, new object[] { "background_volume", .12f });
+                        typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
+                        profileStage = 5; timer.Start(); return;
+                    }
+                    if (profileStage == 5)
+                    {
+                        string levels = await web.CoreWebView2.ExecuteScriptAsync("[document.querySelector('#rrca-messages-volume').value, document.querySelector('#rrca-background-volume').value].join('|')");
+                        if ((levels == null || levels == "null") && DateTime.UtcNow < timeout) { timer.Start(); return; }
+                        Assert.AreEqual("\"62|12\"", levels);
+                        string probes = await web.CoreWebView2.ExecuteScriptAsync("!!document.querySelector('#rrca-mik-numbers') && !!document.querySelector('#rrca-mik-numbers-spelled')");
+                        Assert.AreEqual("true", probes);
+                        // Invalid input must not alter the current level.
+                        typeof(RrcaForm).GetMethod("SetAudioLevel", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form,
+                            new object[] { "messages", new Newtonsoft.Json.Linq.JValue(101), true });
+                        Assert.AreEqual(.62f, CrewChiefV4.MainWindow.currentMessageVolume, .001);
+                        profileStage = 6;
                     }
                     result = await web.CoreWebView2.ExecuteScriptAsync(
                         "[document.querySelectorAll('#rrca-schedule .schedule-row').length, document.querySelector('#rrca-ptt').value, " +

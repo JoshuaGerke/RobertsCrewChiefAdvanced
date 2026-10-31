@@ -244,6 +244,18 @@ namespace CrewChiefV4.AiTeam
         /// Spielt einen Clip direkt ab. Nur für Tests im KI-Team-Fenster, solange Crew Chief nicht gestartet ist
         /// (dann verwirft die Crew-Chief-Audioengine alle Ansagen). Im Rennen läuft alles über Crew Chief.
         /// </summary>
+        private static float DirectPlaybackVolume()
+        {
+            float volume = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume :
+                UserSettings.GetUserSettings().getFloat("messages_volume");
+            return float.IsNaN(volume) || float.IsInfinity(volume) ? 0 : Math.Max(0, Math.Min(1, volume));
+        }
+
+        public static void RefreshDirectVolume()
+        {
+            lock (directSync) { if (directOut != null) directOut.Volume = DirectPlaybackVolume(); }
+        }
+
         public static void PlayDirect(byte[] wav, int deviceNumber)
         {
             lock (directSync)
@@ -253,15 +265,19 @@ namespace CrewChiefV4.AiTeam
                     directOut.Stop();
                 }
                 var reader = new WaveFileReader(new MemoryStream(wav));
-                var output = new WaveOutEvent { DeviceNumber = deviceNumber };
+                var output = new WaveOutEvent { DeviceNumber = deviceNumber, Volume = DirectPlaybackVolume() };
                 output.PlaybackStopped += (s, e) =>
                 {
-                    output.Dispose();
-                    reader.Dispose();
+                    lock (directSync)
+                    {
+                        if (ReferenceEquals(directOut, output)) directOut = null;
+                        output.Dispose();
+                        reader.Dispose();
+                    }
                 };
                 output.Init(reader);
-                output.Play();
                 directOut = output;
+                output.Play();
             }
         }
 

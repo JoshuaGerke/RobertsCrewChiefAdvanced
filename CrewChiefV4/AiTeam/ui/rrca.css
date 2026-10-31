@@ -75,3 +75,10 @@ html,body{margin:0;background:#0b0e10;min-height:100%}
 #rrca-design .key-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-top:8px}
 #rrca-design .footer a{color:var(--rr-dim)}
 #rrca-design .dot.off{background:#59646b}
+
+#rrca-design .audio-levels{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;padding:14px 16px;margin-bottom:14px;background:var(--rr-panel);border:1px solid var(--rr-line);border-radius:7px}
+#rrca-design .audio-levels .field{position:relative;padding-right:0}
+#rrca-design .audio-levels input[type=range]{width:100%;height:24px;padding:0;accent-color:var(--rr-lime);cursor:pointer;background:transparent;border:0}
+#rrca-design .audio-levels .level-value{position:absolute;right:0;top:0;color:var(--rr-lime);font-variant-numeric:tabular-nums}
+#rrca-design .audio-levels .note{grid-column:1/-1}
+@media(max-width:680px){#rrca-design .audio-levels{grid-template-columns:1fr}}

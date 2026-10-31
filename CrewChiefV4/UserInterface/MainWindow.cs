@@ -770,11 +770,19 @@ namespace CrewChiefV4
             NativeMethods.waveOutSetVolume(IntPtr.Zero, NewVolumeAllChannels);
         }
 
+        public void updateBackgroundVolume(float volume, bool saveChange, bool updateSlider)
+        {
+            volume = float.IsNaN(volume) || float.IsInfinity(volume) ? 0 : Math.Max(0, Math.Min(1, volume));
+            var user = UserSettings.GetUserSettings();
+            user.setProperty("background_volume", volume);
+            if (saveChange) user.saveUserSettings();
+            if (updateSlider) backgroundVolumeSlider.Value = (int)Math.Round(volume * 100);
+            if (crewChief != null && crewChief.audioPlayer != null) crewChief.audioPlayer.RefreshBackgroundVolume();
+        }
+
         private void backgroundVolumeSlider_Scroll(object sender, EventArgs e)
         {
-            float volFloat = (float)backgroundVolumeSlider.Value / 100;
-            UserSettings.GetUserSettings().setProperty("background_volume", volFloat);
-            UserSettings.GetUserSettings().saveUserSettings();
+            updateBackgroundVolume((float)backgroundVolumeSlider.Value / 100, true, false);
         }
 
         /// <summary>

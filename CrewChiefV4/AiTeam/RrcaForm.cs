@@ -113,6 +113,12 @@ namespace CrewChiefV4.AiTeam
                     live.Start();
                     if (service.HasElevenLabsKey) LoadVoices(false);
                     break;
+                case "setAudioLevel":
+                    SetAudioLevel((string)m["channel"], m["percent"], (bool?)m["persist"] ?? true);
+                    break;
+                case "testMikNumbers":
+                    TestMikNumbers((bool?)m["spelled"] ?? false);
+                    break;
                 case "setMember":
                     service.SetMemberEnabled(Member((string)m["member"]), (bool)m["on"]);
                     break;
@@ -261,6 +267,7 @@ namespace CrewChiefV4.AiTeam
                 ["type"] = "init",
                 ["version"] = Version(),
                 ["games"] = new JArray(MainWindow.instance != null ? MainWindow.instance.gameDefinitionList.Items.Cast<object>().Select(g => g.ToString()) : Enumerable.Empty<string>()),
+                ["audioLevels"] = AudioLevels(),
                 ["autoDetect"] = UserSettings.GetUserSettings().getBoolean("enable_auto_detect"),
                 ["roles"] = roles,
                 ["voices"] = voices,
@@ -311,7 +318,7 @@ namespace CrewChiefV4.AiTeam
             var tick = service.Memory.LastTickUtc;
             bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
             string source = GameDataConnectionStatus.SourceAt(DateTime.UtcNow);
-            var o = new JObject { ["type"] = "live", ["connected"] = connected,
+            var o = new JObject { ["type"] = "live", ["connected"] = connected, ["audioLevels"] = AudioLevels(),
                 ["sourceStatus"] = !connected && source != null ? source + ": Datenquelle erreichbar" : null,
                 ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein." };
             if (MainWindow.instance != null)
@@ -543,6 +550,46 @@ namespace CrewChiefV4.AiTeam
             SaveProperty(member == TeamMember.Mik ? "ai_team_elevenlabs_voice_mik" : member == TeamMember.Sara ? "ai_team_elevenlabs_voice_sara" : "ai_team_elevenlabs_voice_ben", voiceId);
             saraPackCheckedUtc = DateTime.MinValue;
             Notice(TeamRouter.DisplayName(member) + ": Stimme gespeichert." + (member == TeamMember.Sara ? " Jetzt „Sara als Spotter erzeugen“ drücken." : ""));
+        }
+
+        private static JObject AudioLevels()
+        {
+            var user = UserSettings.GetUserSettings();
+            float messages = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume : user.getFloat("messages_volume");
+            return new JObject { ["messages"] = Percent(messages), ["background"] = Percent(user.getFloat("background_volume")) };
+        }
+
+        private static int Percent(float value)
+        { return float.IsNaN(value) || float.IsInfinity(value) ? 0 : (int)Math.Round(Math.Max(0, Math.Min(1, value)) * 100); }
+
+        private void SetAudioLevel(string channel, JToken value, bool persist)
+        {
+            int percent;
+            if ((channel != "messages" && channel != "background") || value == null ||
+                value.Type != JTokenType.Integer || !int.TryParse(value.ToString(), out percent) || percent < 0 || percent > 100)
+            { Notice("Lautstärke muss zwischen 0 und 100 Prozent liegen."); return; }
+            float volume = percent / 100f;
+            var main = MainWindow.instance;
+            var user = UserSettings.GetUserSettings();
+            if (channel == "messages")
+            {
+                if (main != null) main.updateMessagesVolume(volume, persist, true);
+                else { MainWindow.currentMessageVolume = volume; user.setProperty("messages_volume", volume); if (persist) user.saveUserSettings(); }
+                AiAudio.RefreshDirectVolume();
+            }
+            else if (main != null) main.updateBackgroundVolume(volume, persist, true);
+            else { user.setProperty("background_volume", volume); if (persist) user.saveUserSettings(); }
+            Post(new JObject { ["type"] = "audioLevels", ["audioLevels"] = AudioLevels() });
+        }
+
+        private void TestMikNumbers(bool spelled)
+        {
+            if (MainWindow.instance != null && MainWindow.instance.IsAppRunning)
+            { Notice("Für die Zahlenprobe Crew Chief zuerst stoppen."); return; }
+            string text = spelled
+                ? "Zahlenprobe. Rundenzeit: eine Minute zweiundfünfzig Komma drei zwei acht. Abstand: null Komma sieben Sekunden. Reifendruck: sechsundzwanzig Komma fünf PSI. Öltemperatur: einhundertzwei Grad."
+                : "Zahlenprobe. Rundenzeit: 1:52,328. Abstand: 0,7 Sekunden. Reifendruck: 26,5 PSI. Öltemperatur: 102 Grad.";
+            Run(service.SpeakAsync(TeamMember.Mik, text, true, CancellationToken.None).ContinueWith(t => t.Exception == null ? null : t.Exception.GetBaseException().Message));
         }
 
         private void TestVoice(TeamMember member)

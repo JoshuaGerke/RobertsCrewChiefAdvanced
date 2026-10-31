@@ -74,4 +74,57 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(1,discarded);
         }
     }
+
+    [TestFixture, Category("AiTeam"), NonParallelizable, Apartment(System.Threading.ApartmentState.STA)]
+    public class AudioLevelControlTests
+    {
+        [TestCase(0)] [TestCase(37)] [TestCase(100)]
+        public void Classic_message_and_background_controls_stay_in_sync(int percent)
+        {
+            var type = typeof(CrewChiefV4.MainWindow);
+            var main = (CrewChiefV4.MainWindow)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
+            var message = new System.Windows.Forms.TrackBar { Maximum = 100 };
+            var background = new System.Windows.Forms.TrackBar { Maximum = 100 };
+            var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            type.GetField("messagesVolumeSlider", flags).SetValue(main, message);
+            type.GetField("backgroundVolumeSlider", flags).SetValue(main, background);
+            try
+            {
+                main.updateMessagesVolume(percent / 100f, true, true);
+                main.updateBackgroundVolume(percent / 100f, true, true);
+                Assert.AreEqual(percent, message.Value); Assert.AreEqual(percent, background.Value);
+                Assert.AreEqual(percent / 100f, CrewChiefV4.MainWindow.currentMessageVolume, .001);
+            }
+            finally { message.Dispose(); background.Dispose(); }
+        }
+
+        [TestCase("NAudioBackgroundPlayerWaveOut", 0f)] [TestCase("NAudioBackgroundPlayerWaveOut", .4f)]
+        [TestCase("NAudioBackgroundPlayerWasapi", 0f)] [TestCase("NAudioBackgroundPlayerWasapi", .4f)]
+        public void Running_background_sample_channel_applies_new_gain_without_restarting(string backend, float level)
+        {
+            var asm = typeof(CrewChiefV4.Audio.AudioPlayer).Assembly;
+            var userType = asm.GetType("CrewChiefV4.UserSettings"); var user = userType.GetMethod("GetUserSettings").Invoke(null, null);
+            userType.GetMethod("setProperty").Invoke(user, new object[] { "background_volume", level });
+            var global = asm.GetType("CrewChiefV4.GameState.GlobalBehaviourSettings").GetField("racingType");
+            var previous = global.GetValue(null); global.SetValue(null, CrewChiefV4.CrewChief.RacingType.Circuit);
+            var audioAsm = System.Reflection.Assembly.Load("NAudio.Core");
+            var pcm = new byte[480]; for (int i = 0; i < pcm.Length; i += 2) { pcm[i] = 0; pcm[i + 1] = 64; }
+            var reader = (IDisposable)Activator.CreateInstance(audioAsm.GetType("NAudio.Wave.WaveFileReader"),
+                new object[] { new System.IO.MemoryStream(AiAudio.PcmToWav(pcm, 24000)) });
+            try
+            {
+                var channelType = audioAsm.GetType("NAudio.Wave.SampleProviders.SampleChannel");
+                var channel = Activator.CreateInstance(channelType, new object[] { reader, false });
+                var backendType = asm.GetType("CrewChiefV4.Audio." + backend);
+                var player = Activator.CreateInstance(backendType, new object[] { new SynchronizationContext(), "", "" });
+                backendType.GetField("volumeChannel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(player, channel);
+                backendType.GetMethod("refreshVolume").Invoke(player, null);
+                Assert.AreEqual(level, (float)channelType.GetProperty("Volume").GetValue(channel), .001);
+                var samples = new float[20];
+                int count = (int)channelType.GetMethod("Read").Invoke(channel, new object[] { samples, 0, samples.Length });
+                Assert.Greater(count, 0); Assert.AreEqual(.5f * level, samples[0], .001, "Real sample gain, no audio hardware or playback.");
+            }
+            finally { reader.Dispose(); global.SetValue(null, previous); }
+        }
+    }
 }

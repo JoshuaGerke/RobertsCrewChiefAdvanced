@@ -70,8 +70,31 @@
   }
   ['driverName', 'driverNickname'].forEach(key => $('[data-setting=' + key + ']').addEventListener('input', updateGreetingPreview));
 
+  function syncAudioLevels(levels) {
+    if (!levels) return;
+    $$('[data-audio-level]').forEach(i => {
+      const channel = i.dataset.audioLevel;
+      if (document.activeElement !== i && !i.dataset.dragging) i.value = levels[channel];
+      $('#rrca-' + channel + '-value').textContent = i.value + ' %';
+      i.setAttribute('aria-valuetext', i.value + ' Prozent');
+    });
+  }
+  $$('[data-audio-level]').forEach(i => {
+    let timer;
+    const sendLevel = persist => send('setAudioLevel', { channel: i.dataset.audioLevel, percent: Number(i.value), persist });
+    i.addEventListener('input', () => {
+      i.dataset.dragging = 'true';
+      $('#rrca-' + i.dataset.audioLevel + '-value').textContent = i.value + ' %';
+      clearTimeout(timer); timer = setTimeout(() => sendLevel(false), 100);
+    });
+    i.addEventListener('change', () => { clearTimeout(timer); delete i.dataset.dragging; sendLevel(true); });
+  });
+  $('#rrca-mik-numbers').addEventListener('click', () => send('testMikNumbers', { spelled: false }));
+  $('#rrca-mik-numbers-spelled').addEventListener('click', () => send('testMikNumbers', { spelled: true }));
+
   function applyInit(d) {
     state = d;
+    syncAudioLevels(d.audioLevels);
     $('#rrca-version').textContent = d.version;
     fillSelect($('#rrca-game'), d.games.map(g => ({ id: g, name: g })), null);
     $('#rrca-auto').checked = d.autoDetect;
@@ -100,6 +123,7 @@
   }
 
   function applyLive(d) {
+    syncAudioLevels(d.audioLevels);
     state.voiceReadiness = d.voiceReadiness;
     if (typeof d.memoryEnabled === 'boolean') $('#rrca-memory').checked = d.memoryEnabled;
     if (d.memoryStatus != null) $('#rrca-memory-status').textContent = d.memoryStatus;
@@ -195,6 +219,7 @@
       const d = e.data;
       if (d.type === 'init') applyInit(d);
       else if (d.type === 'live') applyLive(d);
+      else if (d.type === 'audioLevels') syncAudioLevels(d.audioLevels);
       else if (d.type === 'voices') fillVoices(d.list, d.current);
       else if (d.type === 'notice') notify(d.text);
     });
