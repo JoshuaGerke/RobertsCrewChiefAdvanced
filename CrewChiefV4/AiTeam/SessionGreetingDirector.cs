@@ -55,6 +55,48 @@ namespace CrewChiefV4.AiTeam
             return previousOpening;
         }
 
+        /// <summary>Small, factual greeting independent of changing gaps, RPM, laps and cloud reasoning.</summary>
+        public ObservedRaceCall CreateCall(RaceDataContext context, DateTime windowEnd, string driverName, TeamMember speaker)
+        {
+            var gs = context == null ? null : context.GameState;
+            if (gs == null || context.TelemetryAgeSeconds < 0 || context.TelemetryAgeSeconds > 1 ||
+                context.NowUtc > windowEnd || !SafeToGreet(gs.SessionData.SessionType, gs.SessionData.SessionPhase,
+                    gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed)) return null;
+            string track = gs.SessionData.TrackDefinition == null ? null : gs.SessionData.TrackDefinition.name;
+            if (string.IsNullOrWhiteSpace(track)) return null;
+            string name = string.IsNullOrWhiteSpace(driverName) ? "Rob" : driverName.Trim();
+            string opening = Openings[NextVariant()].Replace("Rob", name).Replace("Ben", TeamRouter.DisplayName(speaker));
+            var type = gs.SessionData.SessionType;
+            string session = type == SessionType.Race ? "Rennen" :
+                type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Qualifying" : "Training";
+            string weather = GreetingWeather(context);
+            string encouragement = type == SessionType.Race ? "Bleib ruhig am Start, wir sind bei dir." :
+                type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Finde deinen Rhythmus, dann setzen wir eine saubere Zeit." :
+                "Komm in Ruhe auf Tempo, wir begleiten deine Runden.";
+            return new ObservedRaceCall {
+                Topic = "greeting", Text = opening + " Wir sind in " + track + " zum " + session + ". " + weather + encouragement,
+                Evidence = "confirmed_track_and_session; weather_only_when_fresh", Member = speaker, Priority = 2,
+                SessionId = gs.SessionData.SessionId, SessionType = type, Position = -1, AllowPitlane = true,
+                DetectedUtc = context.NowUtc, ExpiresUtc = windowEnd,
+                AdditionalValidity = live => live.SessionData.TrackDefinition != null && live.SessionData.TrackDefinition.name == track &&
+                    (weather.Length == 0 || weather == GreetingWeather(new RaceDataContext { GameState = live, NowUtc = DateTime.UtcNow }))
+            };
+        }
+
+        private static string GreetingWeather(RaceDataContext context)
+        {
+            var c = context.GameState.Conditions.LatestConditions;
+            if (c == null || !WeatherWatch.Fresh(context.NowUtc, c.Time)) return "";
+            var parts = new System.Collections.Generic.List<string>();
+            if (!float.IsNaN(c.AmbientTemperature) && c.AmbientTemperature >= -30 && c.AmbientTemperature <= 60)
+                parts.Add("Luft " + Math.Round(c.AmbientTemperature).ToString(System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " Grad");
+            if (!float.IsNaN(c.TrackTemperature) && c.TrackTemperature >= -30 && c.TrackTemperature <= 85)
+                parts.Add("Strecke " + Math.Round(c.TrackTemperature).ToString(System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " Grad");
+            if (c.RainDensity >= .01 && c.RainDensity <= 1) parts.Add("Regen wird gemeldet");
+            // Zero rain does not establish sunshine, cloud cover or a dry track.
+            return parts.Count == 0 ? "" : string.Join(", ", parts) + ". ";
+        }
+
         public static bool SafeToGreet(SessionType type, SessionPhase phase, bool inPitlane, float speedMetresPerSecond)
         {
             if (type == SessionType.Unavailable || phase == SessionPhase.Unavailable ||
@@ -73,7 +115,7 @@ namespace CrewChiefV4.AiTeam
             // Rennstart aus der Box: nur im Stand, innerhalb des kurzen Begrüßungsfensters
             // (Zeitfenster wird vom AiTeamService kontrolliert).
             if (type == SessionType.Race) return inPitlane && speedMetresPerSecond < 1.0f;
-            return speedMetresPerSecond < 1.0f;
+            return speedMetresPerSecond < 1.0f || inPitlane && speedMetresPerSecond <= 8.3f;
         }
 
         public string NextCue(SessionType type, SessionPhase phase, bool inPitlane, float speedMetresPerSecond)
@@ -87,7 +129,7 @@ namespace CrewChiefV4.AiTeam
                 type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Qualifikation" : "Training bzw. freie Fahrt";
             return "Begrüßungsvorlage (sinngemäß, natürlich umformulieren, nicht wörtlich ablesen): '" + Openings[next] +
                 "'. Sicher erkannter Sessiontyp: " + session + ". Standortklassifikation: " + context +
-                ". Keine Behauptung über Wetter, Grip, Training oder Strategie ohne bestätigte Daten. " +
+                ". Verwende eine zeitneutrale Begrüßung, keine erfundene Tageszeit. Keine Behauptung über Wetter, Grip, Training oder Strategie ohne bestätigte Daten. " +
                 "Ben begrüßt zuerst; Mik ergänzt nur bei einem Rennen und nur bei einem echten strategischen Befund. " +
                 "Keine Grußwiederholung und keine Aufzählung aller Telemetriegrößen.";
         }

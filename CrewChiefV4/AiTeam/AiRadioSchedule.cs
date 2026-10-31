@@ -105,7 +105,8 @@ namespace CrewChiefV4.AiTeam
                     outstanding = null;
                 }
             }
-            if (gs == null || busy || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(20), now).Any(r => r.TimeUtc <= now);
+            if (gs == null || busy || recentRadio || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(20)) return null;
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
@@ -163,7 +164,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (topic == "weather")
             {
-                var c = gs.Conditions.CurrentConditions; if (c == null) return null;
+                var c = gs.Conditions.LatestConditions; if (c == null) return null;
                 var parts = new List<string>();
                 if (Good(c.AmbientTemperature, -30, 60)) parts.Add("Luft " + Number(c.AmbientTemperature) + " Grad");
                 if (Good(c.TrackTemperature, -30, 85)) parts.Add("Strecke " + Number(c.TrackTemperature) + " Grad");

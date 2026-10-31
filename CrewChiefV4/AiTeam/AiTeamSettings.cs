@@ -39,6 +39,8 @@ namespace CrewChiefV4.AiTeam
         public string WindowsVoiceSara = "";
         public AiRadioMode RadioMode = AiRadioMode.NORMAL;
         public string DriverName = "Rob";
+        public string DriverNickname = "";
+        public string RadioName { get { return string.IsNullOrWhiteSpace(DriverNickname) ? DriverName : DriverNickname.Trim(); } }
         public string PttKey = "";
         public string Microphone = "";
         public int TimeoutSeconds = 12;
@@ -48,6 +50,7 @@ namespace CrewChiefV4.AiTeam
         public bool RadioEffect = true;
         public bool SendDriverNames = true;
         public bool WriteLog = true;
+        public bool PersistentMemory = true;
         public bool ReplaceCrewChiefVoice = true;
 
         public static AiTeamSettings Load()
@@ -77,6 +80,7 @@ namespace CrewChiefV4.AiTeam
             s.WindowsVoiceSara = Get(() => u.getString("ai_team_windows_voice_sara"), s.WindowsVoiceSara);
             s.RadioMode = GetEnum(() => u.getString("ai_team_radio_mode_listprop"), s.RadioMode);
             s.DriverName = GetString(() => u.getString("ai_team_driver_name"), s.DriverName);
+            s.DriverNickname = Get(() => u.getString("ai_team_driver_nickname"), "");
             s.PttKey = Get(() => u.getString("ai_team_ptt_key"), s.PttKey);
             s.Microphone = Get(() => u.getString("ai_team_microphone"), s.Microphone);
             s.TimeoutSeconds = Math.Max(3, Get(() => u.getInt("ai_team_timeout_seconds"), s.TimeoutSeconds));
@@ -85,6 +89,7 @@ namespace CrewChiefV4.AiTeam
             s.RadioEffect = Get(() => u.getBoolean("enable_ai_team_radio_effect"), s.RadioEffect);
             s.SendDriverNames = Get(() => u.getBoolean("enable_ai_team_send_driver_names"), s.SendDriverNames);
             s.WriteLog = Get(() => u.getBoolean("enable_ai_team_log"), s.WriteLog);
+            s.PersistentMemory = Get(() => u.getBoolean("enable_ai_team_persistent_memory"), true);
             s.ReplaceCrewChiefVoice = Get(() => u.getBoolean("enable_ai_team_replaces_crew_chief_voice"), s.ReplaceCrewChiefVoice);
             s.RadioPreferences = AiRadioPreferences.Load();
             return s;

@@ -970,6 +970,8 @@ namespace CrewChiefV4
 #endif
 
                             latestRawGameData = gameDataReader.ReadGameData(false);
+                            if (latestRawGameData != null)
+                                AiTeam.GameDataConnectionStatus.Record(gameDefinition.friendlyName, DateTime.UtcNow);
                             ticksWhenRead = DateTime.UtcNow.Ticks; // Not exact but close enough for speech trace
                         }
                         catch (GameDataReadException e) when (Debug.LogException(e))
@@ -1046,6 +1048,8 @@ namespace CrewChiefV4
                         {
                             gameStateMapper.populateDerivedNonRaceSessionData(currentGameState);
                         }
+                        // SessionFinished and all other flags must describe this tick, not the previous session.
+                        gameStateEventDetector.UpdateMappedState(previousGameState, currentGameState);
                         if (!sessionFinished && GameEventBool.SessionFinished)
                         {
                             string positionMsg;
@@ -1281,12 +1285,6 @@ namespace CrewChiefV4
                                         }
                                     }
                                 }
-
-                                // Check for any GameEvents and GameBooleans that
-                                // are triggered by a change in game state, and
-                                // trigger them before we check the other events
-                                // which may use the GameEvents or GameBooleans.
-                                gameStateEventDetector?.trigger(previousGameState, currentGameState);
 
                                 // Exception "Collection was modified; enumeration operation may not execute."
                                 // reported by user, avoid it.

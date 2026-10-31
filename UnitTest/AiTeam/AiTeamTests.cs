@@ -794,7 +794,7 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Schadensbericht_erst_wenn_wieder_unterwegs_mit_Platzverlust()
+        public void Leichter_Schadensbericht_erst_wenn_wieder_unterwegs_mit_Platzverlust()
         {
             var watch = new IncidentWatch();
             var before = Racing(150);
@@ -804,8 +804,8 @@ namespace UnitTest.AiTeamTests
             var crash = Racing(20);
             crash.SessionData.ClassPosition = 8;
             crash.CarDamageData.DamageEnabled = true;
-            crash.CarDamageData.OverallAeroDamage = DamageLevel.MAJOR;
-            crash.CarDamageData.AeroDamagePercent = 13;
+            crash.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
+            crash.CarDamageData.AeroDamagePercent = 3;
             watch.Evaluate(before, crash, now, false);
             var standing = Racing(20);
             standing.SessionData.ClassPosition = 13;
@@ -819,8 +819,8 @@ namespace UnitTest.AiTeamTests
             var a = watch.TakeDamageAssessment();
             Assert.AreEqual(8, a.PositionBefore);
             Assert.AreEqual(13, a.PositionNow);
-            Assert.IsTrue(a.Serious);
-            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero stark beschädigt (13 Prozent). Wenn sich das Auto komisch anfühlt, komm an die Box.", a.LocalReport);
+            Assert.IsFalse(a.Serious);
+            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero leicht beschädigt (3 Prozent). Sollte fahrbar sein.", a.LocalReport);
         }
 
         [Test]
@@ -833,7 +833,7 @@ namespace UnitTest.AiTeamTests
             var after = Racing(150);
             after.CarDamageData.DamageEnabled = true;
             after.CarDamageData.OverallAeroDamage = DamageLevel.MINOR;
-            CollectionAssert.Contains(CrewSpeechPolicy.IncidentPhrases, watch.Evaluate(before, after, now, false)[0].Value);
+            CollectionAssert.Contains(CrewSpeechPolicy.DamageDetectedPhrases, watch.Evaluate(before, after, now, false)[0].Value);
             var unknown = Racing(150);
             unknown.CarDamageData.DamageEnabled = true;
             Assert.IsFalse(IncidentWatch.DamageIncreased(unknown.CarDamageData, after.CarDamageData), "erster Messwert ist kein Kontakt");
@@ -859,7 +859,10 @@ namespace UnitTest.AiTeamTests
         {
             var watch = new IncidentWatch();
             var fast = Racing(150);
-            watch.Evaluate(Racing(150), fast, now, false);
+            fast.SessionData.SessionType = SessionType.Race;
+            var beforeFast = Racing(150);
+            beforeFast.SessionData.SessionType = SessionType.Race;
+            watch.Evaluate(beforeFast, fast, now, false);
             var stopped = Racing(5);
             stopped.SessionData.SessionType = SessionType.Race;
             stopped.SessionData.TimeDeltaBehind = 2.3f;
@@ -1123,6 +1126,67 @@ namespace UnitTest.AiTeamTests
         private static HttpResponseMessage Json(int status, string body)
         {
             return new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        }
+
+        [TestCase("stop")] [TestCase("content_filter")] [TestCase(null)]
+        public void Empty_model_output_is_an_explicit_failure_not_missing_telemetry(string finish)
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, new JObject { ["choices"] = new JArray(new JObject {
+                ["finish_reason"] = finish, ["message"] = new JObject { ["content"] = "" } }) }.ToString()));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            var error = Assert.ThrowsAsync<AiApiException>(() => AiTeamService.RunToolLoopAsync(client, "test", "low",
+                new JArray(), 250, 260, () => Ctx(new GameStateData(1)), null, null, CancellationToken.None));
+            StringAssert.Contains("keinen nutzbaren Antworttext", error.Message);
+            Assert.AreEqual(1, server.Requests.Count);
+        }
+
+        [Test]
+        public async Task Truncated_answer_retries_once_with_bounded_budget_then_returns_complete_text()
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"Fahre in\"}}]}"));
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"Verstanden, du kommst in die Box.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            string answer = await AiTeamService.RunToolLoopAsync(client, "test", "high", new JArray(), 250, 260,
+                () => Ctx(new GameStateData(1)), null, null, CancellationToken.None);
+            Assert.AreEqual("Verstanden, du kommst in die Box.", answer);
+            Assert.AreEqual(2, server.Requests.Count);
+            var retry = JObject.Parse(server.Requests[1]);
+            Assert.AreEqual("low", (string)retry["reasoning_effort"]);
+            Assert.AreEqual(2048, (int)retry["max_completion_tokens"]);
+        }
+
+        [Test]
+        public void Repeated_length_failures_do_not_loop_or_speak_partial_recommendations()
+        {
+            var server = new FakeServer();
+            for (int i = 0; i < 2; i++) server.Responses.Enqueue(Json(200,
+                "{\"choices\":[{\"finish_reason\":\"length\",\"message\":{\"content\":\"Du solltest\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            Assert.ThrowsAsync<AiApiException>(() => AiTeamService.RunToolLoopAsync(client, "test", "high", new JArray(),
+                250, 260, () => Ctx(new GameStateData(1)), null, null, CancellationToken.None));
+            Assert.AreEqual(2, server.Requests.Count);
+        }
+
+        [TestCase("none", 250)] [TestCase("low", 1536)] [TestCase("high", 4096)]
+        public async Task Request_budget_reserves_room_for_reasoning(string effort, int budget)
+        {
+            var server = new FakeServer();
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"message\":{\"content\":\"Funk steht.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            await client.ChatAsync("test", new JArray(), null, effort, 250, false, CancellationToken.None);
+            Assert.AreEqual(budget, (int)JObject.Parse(server.Requests[0])["max_completion_tokens"]);
+            Assert.AreEqual(effort == "high" ? "low" : effort, OpenAiCompatibleClient.RadioReasoningEffort(effort, false));
+            Assert.AreEqual(effort, OpenAiCompatibleClient.RadioReasoningEffort(effort, true));
+        }
+
+        [TestCase("length", "Funk st")] [TestCase("stop", "")]
+        public void Connection_check_cannot_claim_success_for_empty_or_truncated_reply(string finish, string text)
+        {
+            var response = new JObject { ["choices"] = new JArray(new JObject {
+                ["finish_reason"] = finish, ["message"] = new JObject { ["content"] = text } }) };
+            Assert.Throws<AiApiException>(() => AiTeamService.RequireCompleteAnswer(response, 100));
         }
 
         private class FakeServer : HttpMessageHandler

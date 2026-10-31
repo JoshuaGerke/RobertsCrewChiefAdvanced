@@ -21,6 +21,15 @@ namespace CrewChiefV4.Audio
         AutoResetEvent playWaitHandle = new AutoResetEvent(false);
         private int deviceIdWhenCached = 0;
         private float volumeWhenCached = 0;
+        private NAudio.Wave.SampleProviders.SampleChannel volumeChannel;
+        public override void refreshVolume()
+        {
+            lock (this)
+            {
+                volumeWhenCached = getBackgroundVolume();
+                if (volumeChannel != null) volumeChannel.Volume = volumeWhenCached;
+            }
+        }
 
         private TimeSpan backgroundLength = TimeSpan.Zero;
         EventHandler<NAudio.Wave.StoppedEventArgs> eventHandler;
@@ -95,9 +104,9 @@ namespace CrewChiefV4.Audio
             this.volumeWhenCached = getBackgroundVolume();
             this.deviceIdWhenCached = AudioPlayer.naudioBackgroundPlaybackDeviceId;
             this.wasapiOut = new NAudio.Wave.WasapiOut(new MMDeviceEnumerator().GetDevice(AudioPlayer.naudioBackgroundPlaybackDeviceGuid), AudioClientShareMode.Shared, false, 10);
-            NAudio.Wave.SampleProviders.SampleChannel sampleChannel = new NAudio.Wave.SampleProviders.SampleChannel(new NAudioLoopStream(reader));
-            sampleChannel.Volume = this.volumeWhenCached;
-            this.wasapiOut.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(sampleChannel));
+            volumeChannel = new NAudio.Wave.SampleProviders.SampleChannel(new NAudioLoopStream(reader));
+            volumeChannel.Volume = this.volumeWhenCached;
+            this.wasapiOut.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(volumeChannel));
         }
 
         public override void initialise(String initialBackgroundSound)

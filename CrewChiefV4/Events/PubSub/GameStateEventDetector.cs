@@ -14,6 +14,12 @@ namespace CrewChiefV4.Events.PubSub
             ResetEventBools();
         }
 
+        /// <summary>Evaluate once per mapped tick, before any lifecycle consumer. Never compare two sessions.</summary>
+        public void UpdateMappedState(GameStateData previous, GameStateData current)
+        {
+            trigger(current != null && current.SessionData.IsNewSession ? null : previous, current);
+        }
+
         protected override void triggerInternal(
             GameStateData previousGameState,
             GameStateData currentGameState)

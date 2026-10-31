@@ -19,6 +19,8 @@ namespace CrewChiefV4.Audio
 
         public abstract void play();
 
+        public virtual void refreshVolume() { }
+
         public abstract void stop();
 
         public abstract void initialise(String initialBackgroundSound);

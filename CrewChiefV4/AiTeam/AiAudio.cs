@@ -114,10 +114,29 @@ namespace CrewChiefV4.AiTeam
 
         public static void DiscardMessage(string messageName)
         {
-            if (messageName == null) return;
+            string id;
+            if (TryMessageId(messageName, false, out id)) Remove(id);
+        }
+
+        public static bool IsMessage(string messageName, bool replyOnly = false)
+        {
+            string id;
+            return TryMessageId(messageName, replyOnly, out id);
+        }
+
+        private static bool TryMessageId(string name, bool replyOnly, out string id)
+        {
+            id = null;
+            if (name == null) return false;
+            // QueuedMessage adds this prefix when the AI clip is a message fragment.
+            if (name.StartsWith("COMPOUND_", StringComparison.Ordinal)) name = name.Substring(9);
             const string reply = "ai_team_reply_", info = "ai_team_info_";
-            if (messageName.StartsWith(reply, StringComparison.Ordinal)) Remove(messageName.Substring(reply.Length));
-            else if (messageName.StartsWith(info, StringComparison.Ordinal)) Remove(messageName.Substring(info.Length));
+            string prefix = name.StartsWith(reply, StringComparison.Ordinal) ? reply :
+                !replyOnly && name.StartsWith(info, StringComparison.Ordinal) ? info : null;
+            Guid parsed;
+            if (prefix == null || !Guid.TryParseExact(name.Substring(prefix.Length), "N", out parsed)) return false;
+            id = parsed.ToString("N");
+            return true;
         }
 
         public static int Count { get { return clips.Count; } }
@@ -225,6 +244,18 @@ namespace CrewChiefV4.AiTeam
         /// Spielt einen Clip direkt ab. Nur für Tests im KI-Team-Fenster, solange Crew Chief nicht gestartet ist
         /// (dann verwirft die Crew-Chief-Audioengine alle Ansagen). Im Rennen läuft alles über Crew Chief.
         /// </summary>
+        private static float DirectPlaybackVolume()
+        {
+            float volume = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume :
+                UserSettings.GetUserSettings().getFloat("messages_volume");
+            return float.IsNaN(volume) || float.IsInfinity(volume) ? 0 : Math.Max(0, Math.Min(1, volume));
+        }
+
+        public static void RefreshDirectVolume()
+        {
+            lock (directSync) { if (directOut != null) directOut.Volume = DirectPlaybackVolume(); }
+        }
+
         public static void PlayDirect(byte[] wav, int deviceNumber)
         {
             lock (directSync)
@@ -234,15 +265,19 @@ namespace CrewChiefV4.AiTeam
                     directOut.Stop();
                 }
                 var reader = new WaveFileReader(new MemoryStream(wav));
-                var output = new WaveOutEvent { DeviceNumber = deviceNumber };
+                var output = new WaveOutEvent { DeviceNumber = deviceNumber, Volume = DirectPlaybackVolume() };
                 output.PlaybackStopped += (s, e) =>
                 {
-                    output.Dispose();
-                    reader.Dispose();
+                    lock (directSync)
+                    {
+                        if (ReferenceEquals(directOut, output)) directOut = null;
+                        output.Dispose();
+                        reader.Dispose();
+                    }
                 };
                 output.Init(reader);
-                output.Play();
                 directOut = output;
+                output.Play();
             }
         }
 

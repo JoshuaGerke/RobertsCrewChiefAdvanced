@@ -14,6 +14,45 @@ namespace CrewChiefV4.AiTeam
             public Result(bool ready, string reason, string message) { Ready=ready; Reason=reason; Message=message; }
         }
 
+        /// <summary>Only at process startup, before any AudioPlayer access. Application-scoped .NET
+        /// settings can be fresh in a new installation folder while the shared KI profile and pack remain intact.</summary>
+        public static void PrepareStartupSelection()
+        {
+            var user = UserSettings.GetUserSettings();
+            if (user.initFailed) return;
+            var settings = AiTeamSettings.Load();
+            if (!OwnsSara(settings)) return;
+            // Do not use AudioPlayer or SaraSpotterPack.VoiceFolder here: that would freeze the old
+            // static readonly AudioPlayer.playWithNAudio before we can restore its required setting.
+            string soundRoot = user.getString("override_default_sound_pack_location");
+            if (string.IsNullOrWhiteSpace(soundRoot) || !System.IO.Directory.Exists(soundRoot))
+                soundRoot = DataFiles.SoundFilesFolder;
+            RestoreStartupSelection(settings, System.IO.Path.Combine(soundRoot, "voice"),
+                user.getString("spotter_name"), user.getBoolean("enable_spotter"), user.getBoolean("use_naudio"),
+                user.setProperty, user.saveUserSettings);
+        }
+
+        private static bool OwnsSara(AiTeamSettings settings)
+        {
+            return settings != null && settings.Enabled && settings.SaraEnabled && settings.ReplaceCrewChiefVoice &&
+                settings.TtsProvider != AiTtsProvider.WINDOWS;
+        }
+
+        /// <summary>Local pack validation and settings only; never generates clips, calls an API, restarts,
+        /// or marks a pack as loaded. The normal audio constructor still has to load the actual Sara identity.</summary>
+        public static bool RestoreStartupSelection(AiTeamSettings settings, string voiceFolder, string selectedSpotter,
+            bool spotterEnabled, bool nAudioEnabled, Action<string, object> setProperty, Action save)
+        {
+            if (!OwnsSara(settings) || !SaraSpotterPack.IsGenerated(voiceFolder, ExpectedSaraVoiceKey(settings))) return false;
+            bool changed = false;
+            if (!string.Equals(selectedSpotter, SaraSpotterPack.SpotterName, StringComparison.Ordinal))
+            { setProperty("spotter_name", SaraSpotterPack.SpotterName); changed = true; }
+            if (!spotterEnabled) { setProperty("enable_spotter", true); changed = true; }
+            if (!nAudioEnabled) { setProperty("use_naudio", true); changed = true; }
+            if (changed) save();
+            return changed;
+        }
+
         private static string loadedSaraVoiceKey;
         public static string LoadedSaraVoiceKey { get { return Volatile.Read(ref loadedSaraVoiceKey); } }
 

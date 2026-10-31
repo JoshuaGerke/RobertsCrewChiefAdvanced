@@ -33,6 +33,8 @@ namespace CrewChiefV4.AiTeam
         private readonly FuelWatch fuelWatch = new FuelWatch();
         private readonly IncidentWatch incidentWatch = new IncidentWatch();
         private readonly FlagWatch flagWatch = new FlagWatch();
+        private readonly WeatherWatch weatherWatch = new WeatherWatch();
+        private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly RaceRadioDirector radioDirector = new RaceRadioDirector();
@@ -74,7 +76,7 @@ namespace CrewChiefV4.AiTeam
         private int lastProactiveLap = -1;
         private DateTime lastOverlapUtc = DateTime.MinValue;
         private volatile bool proactiveRunning;
-        private int briefedSession = int.MinValue;
+        private ObservedRaceCall pendingGreeting;
         private DateTime sessionSeenUtc = DateTime.MinValue;
 
         private readonly Dictionary<string, byte[]> phraseCache = new Dictionary<string, byte[]>();
@@ -88,6 +90,7 @@ namespace CrewChiefV4.AiTeam
             ApplySettings(settings);
             AppDomain.CurrentDomain.ProcessExit += (sender, args) => {
                 var log = Volatile.Read(ref crewLog); if (log != null) log.Dispose();
+                DriverMemory.Stop();
             };
         }
 
@@ -122,6 +125,7 @@ namespace CrewChiefV4.AiTeam
         private void ApplySettings(AiTeamSettings newSettings)
         {
             settings = newSettings;
+            DriverMemory.Configure(settings.PersistentMemory);
             ConfigureCrewLog(newSettings.WriteLog);
             AudioPlayer.aiTeamSpotterMuted = settings.Enabled && !settings.SaraEnabled;
             // "Nur noch das KI-Team spricht": Crew Chiefs eigene Ansagen nicht mehr einreihen (Spotter läuft separat weiter)
@@ -144,6 +148,14 @@ namespace CrewChiefV4.AiTeam
             {
                 pushToTalk.Stop();
             }
+        }
+
+        public void SetPersistentMemory(bool enabled)
+        {
+            var user=UserSettings.GetUserSettings();
+            user.setProperty("enable_ai_team_persistent_memory",enabled);user.saveUserSettings();
+            settings.PersistentMemory=enabled;DriverMemory.Configure(enabled);
+            Status(enabled ? "Dauerhaftes Fahrergedächtnis eingeschaltet." : "Fahrergedächtnis ausgeschaltet; gespeicherte Texte bleiben erhalten.");
         }
 
         public void SetMemberEnabled(TeamMember member, bool enabled)
@@ -175,12 +187,14 @@ namespace CrewChiefV4.AiTeam
             {
                 OnSessionCleared();
                 Corners.SetTrack(null, 0);
-                briefedSession = int.MinValue;
+                pendingGreeting = null;
                 Interlocked.Exchange(ref callsThisSession, 0);
                 lastProactiveLap = -1;
                 fuelWatch.Reset();
                 incidentWatch.Reset();
                 flagWatch.Reset();
+                weatherWatch.Reset();
+                pitLaneWatch.Reset();
                 lapWatch.Reset();
                 sessionLaps.Reset();
                 radioDirector.Reset();
@@ -192,6 +206,9 @@ namespace CrewChiefV4.AiTeam
                 lastStatusUtc = now;
                 cornerTrackKey = null;
                 sessionSeenUtc = now;
+                DriverMemory.BeginSession(CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName,
+                    current.SessionData.TrackDefinition==null?null:current.SessionData.TrackDefinition.name,
+                    current.carName,current.SessionData.SessionType.ToString(),current.SessionData.SessionId);
             }
             // Leichtgewichtige lokale Auswertung; max. 20 Hz, keine Cloud-Anfrage.
             bool sampleDue = radioDirector.Observe(now, current);
@@ -201,6 +218,9 @@ namespace CrewChiefV4.AiTeam
             if (lapCompleted)
             {
                 LiveDiagnostics.Lap(Memory);
+                DriverMemory.RememberLap(CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName,
+                    current.SessionData.TrackDefinition == null ? null : current.SessionData.TrackDefinition.name,
+                    current.carName,Memory.GetLaps(1).LastOrDefault(),current.SessionData.SessionId);
                 var lap = Memory.GetLaps(1).LastOrDefault();
                 bool cleanLap = lap != null && lap.Valid && !lap.InPitLap;
                 Corners.CompleteLap(current.SessionData.CompletedLaps, current.SessionData.LapTimePrevious,
@@ -242,7 +262,9 @@ namespace CrewChiefV4.AiTeam
                 Log("Zwischenfall " + TeamRouter.DisplayName(radio.Key) + ": " + radio.Value);
                 var valid = TimelyValidity(current, now, 6, live => live.SessionData.CompletedLaps == current.SessionData.CompletedLaps);
                 radioSchedule.NoteRadio(now);
-                Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None, valid, true, 6));
+                int incidentPriority = CrewSpeechPolicy.HeavyContactPhrases.Contains(radio.Value) ? 7 : 6;
+                // The following priority-7 damage report may not interrupt the driver's safety check.
+                Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None, valid, true, incidentPriority));
             }
             string lapCall = lapWatch.Evaluate(previous, current,
                 RaceDataTools.GapSeconds(current, RaceDataTools.Neighbour(current, true), true),
@@ -268,16 +290,24 @@ namespace CrewChiefV4.AiTeam
             MaybeSessionBriefing(previous, current, now);
             sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous);
             var radioPrefs = settings.RadioPreferences;
-            activeRace.Observe(current, now, settings.DriverName, 0);
+            activeRace.Observe(current, now, settings.RadioName, 0);
             radioSchedule.Observe(current, now, radioPrefs);
-            foreach (var situation in situationWatch.Evaluate(previous,current,now)) activeRace.Enqueue(situation);
+            foreach (var situation in situationWatch.Evaluate(previous,current,now,settings.RadioName)) activeRace.Enqueue(situation);
             var trafficCall = trackWatch.Evaluate(Tracks,current,now);
             if (trafficCall != null) activeRace.Enqueue(trafficCall);
-            var raceCall = activeRace.Take(current, now, Spotter().HasOverlap,
+            weatherWatch.Observe(current,now);
+            pitLaneWatch.Observe(current,now);
+            bool weatherBusy = !settings.IsMemberEnabled(TeamMember.Mik) || Spotter().HasOverlap ||
+                Volatile.Read(ref localRaceSpeechRunning) != 0 || currentRequest != null;
+            var raceCall = pitLaneWatch.Take(current,now,weatherBusy,7);
+            if (raceCall == null) raceCall = weatherWatch.Take(current,now,weatherBusy,5);
+            if (raceCall == null) raceCall = activeRace.Take(current, now, Spotter().HasOverlap,
                 Volatile.Read(ref localRaceSpeechRunning) != 0,
-                settings.RadioMode == AiRadioMode.MINIMAL, 0, Memory.GetLaps(), settings.DriverName);
+                settings.RadioMode == AiRadioMode.MINIMAL, 0, Memory.GetLaps(), settings.RadioName);
             if (raceCall == null) raceCall = sessionLaps.Take(current, now, settings.RadioMode == AiRadioMode.MINIMAL ||
                 Spotter().HasOverlap || radioDirector.TrafficQuiet(now) || Volatile.Read(ref localRaceSpeechRunning) != 0 || currentRequest != null);
+            if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,weatherBusy);
+            if (raceCall == null) raceCall = weatherWatch.Take(current,now,weatherBusy || radioDirector.TrafficQuiet(now));
             if (raceCall == null)
             {
                 raceCall = radioSchedule.Take(BuildContext(current), radioPrefs, settings.RadioMode == AiRadioMode.MINIMAL ||
@@ -659,6 +689,10 @@ namespace CrewChiefV4.AiTeam
             DateTime started = askedUtc ?? DateTime.UtcNow;
             int generation = Volatile.Read(ref sessionGeneration);
             var routed = TeamRouter.Route(transcript, RecentMember());
+            var memoryState=CrewChief.currentGameState;
+            DriverMemory.RememberDialogue(routed.Member,routed.Question,null,CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName,
+                memoryState==null||memoryState.SessionData.TrackDefinition==null?null:memoryState.SessionData.TrackDefinition.name,
+                memoryState==null?int.MinValue:memoryState.SessionData.SessionId);
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("routing",LiveDiagnostics.Data("transcript",transcript,"speaker",routed.Member.ToString(),"routing","local_heuristic","confidence_available",false));
             Status("Fahrer → " + TeamRouter.DisplayName(routed.Member) + ": " + routed.Question);
             if (!settings.IsMemberEnabled(routed.Member))
@@ -696,7 +730,10 @@ namespace CrewChiefV4.AiTeam
             if (quick != null)
             {
                 Stats.AddLocalAnswer();
-                await SpeakAsync(routed.Member, quick, true, CancellationToken.None, t => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
+                // Recheck the actual answer at backend submission. A changed number is not still current merely because the session stayed the same.
+                await SpeakAsync(routed.Member, quick, true, CancellationToken.None, t => generation == Volatile.Read(ref sessionGeneration) &&
+                    DateTime.UtcNow >= Memory.LastTickUtc && (DateTime.UtcNow-Memory.LastTickUtc).TotalSeconds <= 1 &&
+                    t == LocalAnswers.TryAnswer(routed.Question, CrewChief.currentGameState, Memory)).ConfigureAwait(false);
                 RememberExchange(routed.Member, routed.Question, quick);
                 return quick;
             }
@@ -781,7 +818,7 @@ namespace CrewChiefV4.AiTeam
                 new JObject
                 {
                     ["role"] = "system",
-                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.DriverName, longAllowed) + DriverNotes.PromptBlock() +
+                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.RadioName, longAllowed) + DriverNotes.PromptBlock(routed.Question, ctx) +
                         "\n\nAktuelle Lage (Live-Daten mit Reifen, Sprit, direkten Gegnern und Box). Reicht sie für die Antwort, antworte direkt " +
                         "ohne Werkzeug. Werkzeuge nur für Details, die hier fehlen (Stintverlauf, Rundenzeiten, Schäden/Motor, Wetter, Ereignisse):\n" +
                         RaceDataTools.BuildBriefing(ctx).ToString(Newtonsoft.Json.Formatting.None) +
@@ -795,7 +832,7 @@ namespace CrewChiefV4.AiTeam
             }
             messages.Add(new JObject { ["role"] = "user", ["content"] = "[an " + TeamRouter.DisplayName(routed.Member) + "] " + routed.Question });
 
-            return await RunToolLoopAsync(client, model, settings.ReasoningEffort, messages, longAllowed ? 600 : 250, longAllowed ? 600 : 260,
+            return await RunToolLoopAsync(client, model, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, longAllowed && NeedsDeepModel(routed.Question)), messages, longAllowed ? 600 : 250, longAllowed ? 600 : 260,
                 () => BuildContext(CrewChief.currentGameState), () => Interlocked.Increment(ref callsThisSession), Log, ct).ConfigureAwait(false);
         }
 
@@ -806,6 +843,7 @@ namespace CrewChiefV4.AiTeam
             int maxTokens, int maxChars, Func<RaceDataContext> contextProvider, Action countCall, Action<string> log, CancellationToken ct)
         {
             JArray tools = RaceDataTools.BuildToolDefinitions();
+            bool recoveredLength = false;
             for (int round = 0; round < 4; round++)
             {
                 if (countCall != null)
@@ -819,6 +857,17 @@ namespace CrewChiefV4.AiTeam
                 {
                     throw new AiApiException("Leere Antwort vom Modell.");
                 }
+                string finish = (string)response.SelectToken("choices[0].finish_reason");
+                if (finish == "length")
+                {
+                    // Do not execute truncated tool calls or speak a cut-off technical recommendation.
+                    if (recoveredLength || round == 3) throw new AiApiException("KI-Antwort am Ausgabelimit abgebrochen.");
+                    recoveredLength = true;
+                    reasoningEffort = OpenAiCompatibleClient.RadioReasoningEffort(reasoningEffort, false);
+                    maxTokens = Math.Max(maxTokens, 2048);
+                    if (log != null) log("KI-Ausgabelimit erreicht; ein begrenzter Wiederholungsversuch.");
+                    continue;
+                }
                 var toolCalls = message["tool_calls"] as JArray;
                 if (log != null)
                 {
@@ -827,8 +876,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 if (toolCalls == null || toolCalls.Count == 0)
                 {
-                    string text = AiPersonas.CleanForRadio(ContentText(message["content"]), maxChars, true);
-                    return string.IsNullOrWhiteSpace(text) ? "Dazu hab ich gerade keine belastbare Aussage." : text;
+                    return RequireCompleteAnswer(response, maxChars);
                 }
                 messages.Add(new JObject { ["role"] = "assistant", ["content"] = message["content"], ["tool_calls"] = toolCalls });
                 RaceDataContext ctx = contextProvider();
@@ -840,12 +888,12 @@ namespace CrewChiefV4.AiTeam
                     {
                         string note = null;
                         try { note = (string)JObject.Parse((string)call.SelectToken("function.arguments") ?? "{}")["notiz"]; } catch (Exception) { }
-                        DriverNotes.Add(note);
-                        if (log != null)
+                        bool saved=DriverMemory.TryAddNote(note);
+                        if (saved && log != null)
                         {
-                            log("Notiz gespeichert: " + note);
+                            log("Fahrerwunsch dauerhaft gespeichert.");
                         }
-                        result = new JObject { ["gespeichert"] = !string.IsNullOrWhiteSpace(note), ["hinweis"] = "Gilt ab jetzt auch für alle künftigen Rennen." };
+                        result = new JObject { ["gespeichert"] = saved, ["status"] = DriverMemory.Status, ["hinweis"] = saved ? "Lokal als Fahrerwunsch gespeichert und für künftige KI-Gespräche verfügbar. Keine Änderung der Ereignislogik, Einstellungen oder Software dadurch erfolgt." : "Nicht gespeichert: Gedächtnis ausgeschaltet oder noch nicht verfügbar. Das dem Fahrer ehrlich sagen." };
                     }
                     else
                     {
@@ -860,6 +908,16 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             return "Ich komm mit der Auswertung gerade nicht zu einem sauberen Ergebnis.";
+        }
+
+        public static string RequireCompleteAnswer(JObject response, int maxChars)
+        {
+            string finish = (string)response.SelectToken("choices[0].finish_reason");
+            if (finish == "length") throw new AiApiException("KI-Antwort am Ausgabelimit abgebrochen.");
+            string text = AiPersonas.CleanForRadio(ContentText(response.SelectToken("choices[0].message.content")), maxChars, true);
+            if (string.IsNullOrWhiteSpace(text))
+                throw new AiApiException("KI lieferte keinen nutzbaren Antworttext (Abschluss: " + (finish ?? "unbekannt") + ").");
+            return text;
         }
 
         /// <summary>content ist meist ein String, manche kompatiblen Server liefern aber eine Liste von Textteilen.</summary>
@@ -1013,14 +1071,14 @@ namespace CrewChiefV4.AiTeam
             var evidence = new RaceSpeechEvidence(ctx);
             var messages = new JArray
             {
-                new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.ProactivePrompt, settings.DriverName) },
+                new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.ProactivePrompt, settings.RadioName) + DriverNotes.PromptBlock(trigger, ctx) },
                 new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
             };
             Interlocked.Increment(ref callsThisSession);
             JObject response;
             using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
             {
-                response = await client.ChatAsync(settings.FastModel, messages, null, settings.ReasoningEffort, 200, true, cts.Token).ConfigureAwait(false);
+                response = await client.ChatAsync(settings.FastModel, messages, null, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, false), 200, true, cts.Token).ConfigureAwait(false);
             }
             string content = (string)response.SelectToken("choices[0].message.content");
             TeamMember member;
@@ -1059,32 +1117,16 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         private void MaybeSessionBriefing(GameStateData previous, GameStateData current, DateTime now)
         {
-            if (settings.RadioMode == AiRadioMode.MINIMAL || !HasApiKey || proactiveRunning)
-            {
-                return;
-            }
-            var s = current.SessionData;
-            int session = s.SessionId;
-            bool ended = s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished;
-            if (briefedSession == session || ended || s.SessionPhase == SessionPhase.Unavailable || s.SessionType == SessionType.Unavailable)
-            {
-                return;
-            }
-            // Im laufenden Rennen keine verspätete Begrüßung während der Fahrt.
-            // Nur im ersten kurzen Zeitfenster einer echten Session begrüßen.
-            if ((now - sessionSeenUtc).TotalSeconds < 4 || (now - sessionSeenUtc).TotalSeconds > 45 ||
-                string.IsNullOrEmpty(current.SessionData.TrackDefinition != null ? current.SessionData.TrackDefinition.name : null) ||
-                Spotter().HasOverlap || radioDirector.TrafficQuiet(now) ||
-                !SessionGreetingDirector.SafeToGreet(s.SessionType, s.SessionPhase, current.PitData.InPitlane,
-                    current.PositionAndMotionData.CarSpeed))
-            {
-                return;
-            }
-            string briefingCue = greetingDirector.NextCue(s.SessionType, s.SessionPhase,
-                current.PitData.InPitlane, current.PositionAndMotionData.CarSpeed);
-            LiveDiagnostics.Decision("greeting","queued","safe_start_window",briefingCue);
-            briefedSession = session;
-            RunScripted(AiPersonas.SessionBriefingPrompt, "Begrüßung", briefingCue);
+            if (settings.RadioMode == AiRadioMode.MINIMAL || proactiveRunning || currentRequest != null ||
+                Volatile.Read(ref localRaceSpeechRunning) != 0 || Spotter().HasOverlap || radioDirector.TrafficQuiet(now)) return;
+            TeamMember speaker = settings.IsMemberEnabled(TeamMember.Ben) ? TeamMember.Ben : TeamMember.Mik;
+            if (!settings.IsMemberEnabled(speaker) || now < sessionSeenUtc.AddSeconds(4) || now > sessionSeenUtc.AddSeconds(45)) return;
+            // Reserve once, acknowledge only at the audio backend, retry at most once within the safe window.
+            if (pendingGreeting == null)
+                pendingGreeting = greetingDirector.CreateCall(BuildContext(current), sessionSeenUtc.AddSeconds(45), settings.RadioName, speaker);
+            if (pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
+                pendingGreeting.IsValid(current, now) && pendingGreeting.TryReserve(now))
+                QueueLocalRaceCall(pendingGreeting);
         }
 
         /// <summary>Mik bewertet den Schaden mit der KI (Lage, Restdistanz, Empfehlung Box oder weiter); ohne KI der lokale Bericht.</summary>
@@ -1094,13 +1136,13 @@ namespace CrewChiefV4.AiTeam
             if(current==null || generation!=Volatile.Read(ref sessionGeneration))return;
             string measured=IncidentWatch.DamageReport(current.CarDamageData);
             if(string.IsNullOrWhiteSpace(measured))return;
-            int position=current.SessionData.ClassPosition;
-            string report=(position>0 ? "Aktuell Position "+position+". " : "")+measured;
+            // Damage remains relevant while positions change. Keep transient classification out of this warning.
+            string report=measured;
             await SpeakAsync(TeamMember.Mik,report,true,CancellationToken.None,_=> {
                 var live=CrewChief.currentGameState;
                 return generation==Volatile.Read(ref sessionGeneration) && live!=null &&
                     DateTime.UtcNow>=Memory.LastTickUtc && (DateTime.UtcNow-Memory.LastTickUtc).TotalSeconds<=1 &&
-                    live.SessionData.ClassPosition==position && IncidentWatch.DamageReport(live.CarDamageData)==measured;
+                    IncidentWatch.DamageReport(live.CarDamageData)==measured;
             },true,7).ConfigureAwait(false);
         }
 
@@ -1145,14 +1187,14 @@ namespace CrewChiefV4.AiTeam
                     if (briefingCue != null) data["begruessungsregie"] = briefingCue;
                     var messages = new JArray
                     {
-                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.DriverName) },
+                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.RadioName) + DriverNotes.PromptBlock(label, ctx) },
                         new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
                     };
                     Interlocked.Increment(ref callsThisSession);
                     JObject response;
                     using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
                     {
-                        response = await client.ChatAsync(settings.FastModel, messages, null, settings.ReasoningEffort, 400, true, cts.Token).ConfigureAwait(false);
+                        response = await client.ChatAsync(settings.FastModel, messages, null, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, false), 400, true, cts.Token).ConfigureAwait(false);
                     }
                     // Langsame KI-Antworten dürfen weder in neue Sessions hineinfunken
                     // noch die Startphase übersprechen. Nach jedem TTS erneut kontrollieren.
@@ -1269,6 +1311,13 @@ namespace CrewChiefV4.AiTeam
             throw new InvalidOperationException("Originalstimme noch nicht vorbereitet. Im KI-Team-Fenster Funkstimmen vorbereiten; keine Ersatzstimme wird verwendet.");
         }
 
+        private bool TelemetryFresh()
+        {
+            DateTime last = Memory.LastTickUtc;
+            DateTime now = DateTime.UtcNow;
+            return now >= last && (now - last).TotalSeconds <= 1;
+        }
+
         private void QueueLocalRaceCall(ObservedRaceCall call)
         {
             int generation = Volatile.Read(ref sessionGeneration);
@@ -1282,7 +1331,7 @@ namespace CrewChiefV4.AiTeam
                 try
                 {
                     Func<string, bool> valid = _ => settings.Enabled && generation == Volatile.Read(ref sessionGeneration) &&
-                        DateTime.UtcNow >= Memory.LastTickUtc && (DateTime.UtcNow - Memory.LastTickUtc).TotalSeconds <= 1 && !Spotter().HasOverlap &&
+                        TelemetryFresh() && !Spotter().HasOverlap &&
                         call.IsValid(CrewChief.currentGameState, DateTime.UtcNow);
                     if (!valid(call.Text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid"); return; }
                     bool queued = await SpeakAsync(call.Member, call.Text, true, CancellationToken.None, valid, true, Math.Min(8, call.Priority),
@@ -1311,9 +1360,9 @@ namespace CrewChiefV4.AiTeam
             {
                 try
                 {
-            if (string.IsNullOrWhiteSpace(text))
+            if (!CrewSpeechPolicy.HasSpokenText(text))
             {
-                { LiveDiagnostics.Decision("radio","suppressed","empty_text"); return false; }
+                { LiveDiagnostics.Decision("radio","suppressed","no_spoken_text"); return false; }
             }
             int generation = Volatile.Read(ref sessionGeneration);
             DateTime deadline = DateTime.UtcNow.AddSeconds(CrewSpeechPolicy.LifetimeSeconds(localOnly, localPriority));
@@ -1385,14 +1434,21 @@ namespace CrewChiefV4.AiTeam
                     { LiveDiagnostics.Decision("radio","suppressed","direct_playback_error"); return false; }
                 }
                 Memory.AddRadio(member, text, DateTime.UtcNow);
+                DriverMemory.RememberRadio(member,text,Memory.SessionId);
                 if (playbackStarted != null) playbackStarted();
                 return true;
             }
-            string id = AiAudioStore.Put(wav, TeamRouter.DisplayName(member) + ": " + text, () => settings.IsMemberEnabled(member) && DateTime.UtcNow <= deadline && generation == Volatile.Read(ref sessionGeneration) &&
-                (stillValid == null || stillValid(text)) &&
-                (isReply || (!Spotter().HasOverlap && !radioDirector.TrafficQuiet(DateTime.UtcNow))),
+            string id = AiAudioStore.Put(wav, TeamRouter.DisplayName(member) + ": " + text, () => {
+                    string reason = !settings.IsMemberEnabled(member) ? "member_disabled" : DateTime.UtcNow > deadline ? "audio_deadline_expired" :
+                        generation != Volatile.Read(ref sessionGeneration) ? "session_changed" :
+                        stillValid != null && !stillValid(text) ? "event_or_facts_changed" :
+                        !isReply && (Spotter().HasOverlap || radioDirector.TrafficQuiet(DateTime.UtcNow)) ? "traffic_priority" : null;
+                    if (reason != null) LiveDiagnostics.Decision("audio", "suppressed", reason);
+                    return reason == null;
+                },
                 () => { if (generation == Volatile.Read(ref sessionGeneration)) {
                     Memory.AddRadio(member, text, DateTime.UtcNow);
+                DriverMemory.RememberRadio(member,text,Memory.SessionId);
                     if (playbackStarted != null) playbackStarted();
                 } }, discarded);
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("radio.enqueue",LiveDiagnostics.Data("clip_id",id,"speaker",member.ToString(),"text",text,"priority",localOnly?localPriority:isReply?5:SoundMetadata.DEFAULT_PRIORITY,"immediate",isReply));
@@ -1402,7 +1458,7 @@ namespace CrewChiefV4.AiTeam
                 // End-to-end deadline is checked again at driver playback by AiAudioStore.
                 var message = new QueuedMessage("ai_team_reply_" + id, Math.Max(1, (int)Math.Ceiling((deadline-DateTime.UtcNow).TotalSeconds)), messageFragments: fragments,
                     type: localOnly ? (localPriority >= 6 ? SoundType.CRITICAL_MESSAGE : SoundType.IMPORTANT_MESSAGE) : SoundType.VOICE_COMMAND_RESPONSE, priority: localOnly ? localPriority : 5);
-                audioPlayer.playMessageImmediately(message, interruptForAiHazard: localOnly && localPriority >= 8);
+                audioPlayer.playMessageImmediately(message, interruptForAiHazard: localOnly && localPriority >= 7);
             }
             else
             {
@@ -1661,8 +1717,8 @@ namespace CrewChiefV4.AiTeam
             {
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
                 {
-                    JObject response = await client.ChatAsync(settings.FastModel, messages, null, settings.ReasoningEffort, 20, false, cts.Token).ConfigureAwait(false);
-                    string text = (string)response.SelectToken("choices[0].message.content");
+                    JObject response = await client.ChatAsync(settings.FastModel, messages, null, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, false), 100, false, cts.Token).ConfigureAwait(false);
+                    string text = RequireCompleteAnswer(response, 100);
                     return "OK – " + settings.FastModel + " antwortet in " + sw.ElapsedMilliseconds + " ms: \"" + (text ?? "").Trim() + "\"";
                 }
             }
@@ -1686,8 +1742,8 @@ namespace CrewChiefV4.AiTeam
                 var sara = new[] { "Links frei.", "Rechts frei.", "Noch einer links.", "Noch einer rechts.", "Noch zwei links.", "Noch zwei rechts.",
                     "Frei, keiner neben dir.", "Noch einer links, rechts frei.", "Noch einer rechts, links frei.", SaraLocal.NoDataAnswer }.Concat(FlagWatch.Phrases);
                 var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
-                    .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(CrewSpeechPolicy.FinishPhrases).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
-                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.ApproachingPhrases).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
+                    .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(CrewSpeechPolicy.FinishPhrases).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(CrewSpeechPolicy.WeatherPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
+                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.ApproachingPhrases).Concat(RaceSituationWatch.PreparedPhrases(settings.RadioName)).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
                     .Where(p=>settings.IsMemberEnabled(p.Key)).ToArray();
                 foreach (var phrase in phrases)
                 {
@@ -1723,7 +1779,7 @@ namespace CrewChiefV4.AiTeam
                 LastTelemetryUtc = Memory.LastTickUtc,
                 GameName = CrewChief.gameDefinition != null ? CrewChief.gameDefinition.friendlyName : null,
                 SendDriverNames = settings.SendDriverNames,
-                DriverName = settings.DriverName,
+                DriverName = settings.RadioName,
                 CrewChiefAdditionalFuelNeeded = extraFuel,
                 Corners = Corners,
                 Tracks = Tracks,
@@ -1760,6 +1816,10 @@ namespace CrewChiefV4.AiTeam
 
         private void RememberExchange(TeamMember member, string question, string answer)
         {
+            var current=CrewChief.currentGameState;
+            DriverMemory.RememberDialogue(member,question,answer,CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName,
+                current==null||current.SessionData.TrackDefinition==null?null:current.SessionData.TrackDefinition.name,
+                current==null?int.MinValue:current.SessionData.SessionId);
             lock (dialogSync)
             {
                 dialog.Add(new JObject { ["role"] = "user", ["content"] = "[an " + TeamRouter.DisplayName(member) + "] " + question });

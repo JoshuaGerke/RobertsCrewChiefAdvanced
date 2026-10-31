@@ -1324,6 +1324,9 @@ namespace CrewChiefV4.iRacing
             }
 
             //conditions
+            currentGameState.Conditions.UpdateLiveSample(currentGameState.Now, currentGameState.SessionData.CompletedLaps, currentGameState.SessionData.SectorNumber,
+                    shared.Telemetry.AirTemp, shared.Telemetry.TrackTempCrew, shared.Telemetry.Precipitation, shared.Telemetry.WindVel, 0, 0, 0,
+                    currentGameState.SessionData.IsNewLap, ConditionsMonitor.TrackStatus.UNKNOWN, (object)shared.Telemetry.TrackWetness != null ? (ConditionsMonitor.TrackWetness)shared.Telemetry.TrackWetness : ConditionsMonitor.TrackWetness.UNKNOWN);
             if (currentGameState.Now > nextConditionsSampleDue)
             {
                 nextConditionsSampleDue = currentGameState.Now.Add(ConditionsMonitor.ConditionsSampleFrequency);                    

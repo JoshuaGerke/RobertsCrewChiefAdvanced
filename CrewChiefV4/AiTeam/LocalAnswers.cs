@@ -28,6 +28,13 @@ namespace CrewChiefV4.AiTeam
                 return null;
             }
 
+            if (q.Contains("wo bin ich") || q.Contains("wo auf der strecke") || q.Contains("welchem sektor"))
+            {
+                int sector = gs.SessionData.SectorNumber;
+                return gs.PitData.InPitlane ? "Du bist in der Boxengasse." : sector >= 1 && sector <= 3 ?
+                    "Du bist in Sektor " + sector + "." : "Den aktuellen Streckensektor liefert die Simulation gerade nicht sicher.";
+            }
+
             var named = RaceFieldTools.NamedInQuestion(question, gs);
             if (named.Count > 1) return "Der Fahrername ist nicht eindeutig. Welche Startnummer meinst du?";
             if (named.Count == 1)

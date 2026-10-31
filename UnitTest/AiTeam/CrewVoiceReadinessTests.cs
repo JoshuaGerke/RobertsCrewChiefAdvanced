@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using CrewChiefV4.AiTeam;
 using NUnit.Framework;
@@ -71,11 +72,73 @@ namespace UnitTest.AiTeamTests
             s=Settings();s.TtsProvider=AiTtsProvider.OPENAI_COMPATIBLE;Assert.AreNotEqual(original,CrewVoiceReadiness.ExpectedSaraVoiceKey(s));
         }
 
-        private static async Task<string> Pack()
+        [Test]
+        public async Task New_program_folder_restores_exclusive_sara_from_the_valid_shared_pack()
+        {
+            var settings = Settings();
+            string voiceFolder = await Pack(CrewVoiceReadiness.ExpectedSaraVoiceKey(settings));
+            var properties = new Dictionary<string, object> {
+                { "spotter_name", "Jim (default)" }, { "enable_spotter", false }, { "use_naudio", false }
+            };
+            int saves = 0;
+            Assert.IsTrue(CrewVoiceReadiness.RestoreStartupSelection(settings, voiceFolder,
+                (string)properties["spotter_name"], (bool)properties["enable_spotter"], (bool)properties["use_naudio"],
+                (key, value) => properties[key] = value, () => saves++));
+            Assert.AreEqual("Sara", properties["spotter_name"]);
+            Assert.AreEqual(true, properties["enable_spotter"]);
+            Assert.AreEqual(true, properties["use_naudio"]);
+            Assert.AreEqual(1, saves);
+            // At the next startup those same persisted settings need neither writes nor another repair/restart.
+            Assert.IsFalse(CrewVoiceReadiness.RestoreStartupSelection(settings, voiceFolder,
+                (string)properties["spotter_name"], (bool)properties["enable_spotter"], (bool)properties["use_naudio"],
+                (key, value) => Assert.Fail("Already-correct setting was overwritten"), () => Assert.Fail("Unnecessary save")));
+            // Selecting Sara must not falsely claim that the old Jim audio was already reloaded.
+            Assert.AreEqual("restart_required", CrewVoiceReadiness.Evaluate(settings, true, "Sara", "spotter/car_left", "", true).Reason);
+        }
+
+        [TestCase("team")] [TestCase("sara")] [TestCase("legacy")] [TestCase("windows")]
+        public async Task Startup_restoration_respects_explicitly_disabled_sara_or_other_voice_mode(string disabled)
+        {
+            var settings = Settings();
+            string voiceFolder = await Pack(CrewVoiceReadiness.ExpectedSaraVoiceKey(settings));
+            if (disabled == "team") settings.Enabled = false;
+            if (disabled == "sara") settings.SaraEnabled = false;
+            if (disabled == "legacy") settings.ReplaceCrewChiefVoice = false;
+            if (disabled == "windows") settings.TtsProvider = AiTtsProvider.WINDOWS;
+            Assert.IsFalse(CrewVoiceReadiness.RestoreStartupSelection(settings, voiceFolder, "Jim (default)", false, false,
+                (key, value) => Assert.Fail("Must not change explicit configuration"), () => Assert.Fail("Must not save")));
+        }
+
+        [TestCase("missing")] [TestCase("mismatched")] [TestCase("corrupt")]
+        public async Task Startup_restoration_does_not_select_an_unusable_sara_pack(string failure)
+        {
+            var settings = Settings();
+            string voiceFolder = await Pack(CrewVoiceReadiness.ExpectedSaraVoiceKey(settings));
+            if (failure == "missing") voiceFolder = Path.Combine(voiceFolder, "nonexistent");
+            if (failure == "mismatched") settings.ElevenLabsVoiceSara = "different-chosen-voice";
+            if (failure == "corrupt") {
+                string clip = Path.Combine(voiceFolder, "spotter_Sara", "car_left", "1.wav");
+                byte[] bytes = File.ReadAllBytes(clip); bytes[100] ^= 1; File.WriteAllBytes(clip, bytes);
+            }
+            Assert.IsFalse(CrewVoiceReadiness.RestoreStartupSelection(settings, voiceFolder, "Jim (default)", false, false,
+                (key, value) => Assert.Fail("Must not select an invalid pack"), () => Assert.Fail("Must not save")));
+        }
+
+        [Test]
+        public async Task Startup_restoration_changes_only_required_audio_settings_and_saves_once()
+        {
+            var settings = Settings(); string voiceFolder = await Pack(CrewVoiceReadiness.ExpectedSaraVoiceKey(settings));
+            var changed = new List<string>(); int saves = 0;
+            Assert.IsTrue(CrewVoiceReadiness.RestoreStartupSelection(settings, voiceFolder, "Sara", true, false,
+                (key, value) => { changed.Add(key); Assert.AreEqual(true, value); }, () => saves++));
+            CollectionAssert.AreEqual(new [] { "use_naudio" }, changed); Assert.AreEqual(1, saves);
+        }
+
+        private static async Task<string> Pack(string voiceKey = "test|selected-original")
         {
             string folder=Path.Combine(Path.GetTempPath(),"rrca_voice_integrity_"+Guid.NewGuid().ToString("N"));
             // Synthetic local audio only. Retained for inspection; never reads or modifies the driver's sounds.
-            await SaraSpotterPack.GenerateAsync(folder,"test|selected-original",text => {
+            await SaraSpotterPack.GenerateAsync(folder,voiceKey,text => {
                 byte[] pcm=new byte[4800];for(int i=0;i<pcm.Length;i+=2){pcm[i]=100;pcm[i+1]=10;}return Task.FromResult(pcm);
             },null);
             TestContext.WriteLine("Retained synthetic pack: "+folder);return folder;

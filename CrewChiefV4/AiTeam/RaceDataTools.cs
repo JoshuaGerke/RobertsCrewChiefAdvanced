@@ -40,13 +40,14 @@ namespace CrewChiefV4.AiTeam
 
         public static readonly string[] AllToolNames =
         {
-            "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
+            "get_data_capabilities", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
         public static JArray BuildToolDefinitions()
         {
             var tools = new JArray();
+            tools.Add(Tool("get_data_capabilities", "Nachweis der im aktuellen Adapter angekommenen Daten: Gegner/Zeiten/Sektoren, räumliche Beobachtung, Fahrzeug, Wetter und bestätigte Spiel-/Servervorhersage. Vor Behauptungen über fehlende Daten verwenden."));
             tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge und eigene Streckenposition/Start-Ziel-Distanz."));
             tools.Add(Tool("get_track_situation", "Räumliche Verkehrslage: nächste Fahrzeuge auf der Strecke, Weltkoordinaten, Abstand in Metern entlang der Runde, Überrundungsbezug und über mehrere Samples gemessene Annäherung. Keine Seitenfreigabe oder Überholgarantie."));
             tools.Add(Tool("get_tyre_status", "Reifentemperaturen (innen/mitte/außen), Drücke, Verschleiß, Reifentyp, Bremsentemperaturen, blockierende/durchdrehende Räder."));
@@ -55,7 +56,7 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_opponents_nearby", "Gegner direkt vor und hinter uns: Abstand, letzte/beste Runde, Pace-Trend, Boxenstopps, Reifen. Dazu der Führende."));
             tools.Add(Tool("get_pit_info", "Boxenfenster, Pflichtstopp, eigene Stopps, Boxengasse, Gegner die gerade stoppen."));
             tools.Add(Tool("get_damage_and_engine", "Schäden (Aero, Motor, Getriebe, Aufhängung, Bremsen), Motortemperaturen und Warnungen."));
-            tools.Add(Tool("get_track_conditions", "Luft- und Streckentemperatur, Regen, Wind."));
+            tools.Add(Tool("get_track_conditions", "Aktuelle Luft-/Streckentemperatur, Regen, Wind, gemeldete Nässe und bestätigte Spiel-/Servervorhersagen mit Quelle, Alter und Wahrscheinlichkeit. Fehlende Prognose bleibt unbekannt."));
             tools.Add(Tool("get_stint_analysis", "Runde-für-Runde-Verlauf dieses Stints: Rundenzeit, Spritverbrauch, Reifenverschleiß, Reifentemperaturspitzen, Abstände. Für Trends und Prognosen."));
             tools.Add(Tool("get_corner_analysis", "Kurve für Kurve: letzte gültige Runde gegen die eigene Bestrunde – Zeitverlust, Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt. Für Fahrercoaching (\"wo verliere ich Zeit\", \"wie fahre ich Kurve X\")."));
             tools.Add(Tool("get_recent_events", "Was in den letzten Minuten passiert ist (Positionswechsel, Gegner an der Box, Flaggen, Kontakte) und was das Team zuletzt gefunkt hat."));
@@ -124,6 +125,7 @@ namespace CrewChiefV4.AiTeam
             {
                 switch (toolName)
                 {
+                    case "get_data_capabilities": data = TelemetryCapabilities.Describe(ctx); break;
                     case "get_race_state": data = RaceState(ctx, missing); break;
                     case "get_track_situation": data = TrackAwareness.Read(ctx); break;
                     case "get_tyre_status": data = Tyres(ctx, missing); break;
@@ -181,6 +183,7 @@ namespace CrewChiefV4.AiTeam
                 ["autos_in_klasse"] = Pos(s.NumCarsInPlayerClass, "autos_in_klasse", missing),
                 ["autos_gesamt"] = Pos(s.NumCarsOverall, "autos_gesamt", missing),
                 ["runden_absolviert"] = s.CompletedLaps,
+                ["runden_bedeutung"] = "Absolviert ist Vergangenheit; Restdistanz separat unter runden_verbleibend. Null ist unbekannt, nicht null Runden.",
                 ["flagge"] = s.Flag.ToString(),
                 ["in_boxengasse"] = gs.PitData.InPitlane,
                 ["outlap"] = gs.PitData.OnOutLap,
@@ -430,12 +433,36 @@ namespace CrewChiefV4.AiTeam
                 double delta = ours.Average(l => l.LapTime) - theirs.Average(l => l.LapTime);
                 d["pace_unterschied_s_pro_runde"] = Math.Round(delta, 2);
                 d["pace_hinweis"] = "positiv = er ist schneller als wir, negativ = wir sind schneller (Mittel letzte Runden)";
-                if (op.SectorTimesComparable(s))
-                {
-                    d["sektoren_bester_lauf_s"] = new JArray(Math.Round(op.bestSector1Time, 3), Math.Round(op.bestSector2Time, 3), Math.Round(op.bestSector3Time, 3));
-                }
             }
+            // Sector availability is independent of a three-lap pace comparison or our own lap count.
+            d["beste_einzelsektoren_s"] = new JArray(SectorValue(op.bestSector1Time), SectorValue(op.bestSector2Time), SectorValue(op.bestSector3Time));
+            d["sektoren_hinweis"] = "Einzelsektorzeiten in Sekunden, nicht kumulativ. Einzelbestwerte können aus verschiedenen Runden stammen; unbekannt = null. Historie ist auf drei zuletzt erfasste Runden begrenzt.";
+            d["sektorrunden"] = new JArray(op.OpponentLapData.OrderByDescending(l => l.LapNumber).Take(3).Select(DescribeSectorLap));
             return d;
+        }
+
+        private static JObject DescribeSectorLap(LapData lap)
+        {
+            var sectors = Enumerable.Range(0, 3).Select(i => lap.SectorTimes != null && i < lap.SectorTimes.Length
+                ? SectorValue(lap.SectorTimes[i]) : null).ToArray();
+            bool complete = sectors.All(s => s != null && s.Type != JTokenType.Null);
+            double? difference = complete && ValidLap(lap.LapTime) ? (double?)(sectors.Sum(s => (double)s) - lap.LapTime) : null;
+            // Plausibility only: this tolerance does not claim millisecond accuracy or turn estimates into measurements.
+            bool? consistent = difference.HasValue ? (bool?)(Math.Abs(difference.Value) <= .15) : null;
+            bool comparable = lap.IsValid && !lap.InLap && !lap.OutLap && consistent == true;
+            return new JObject {
+                ["runde"] = lap.LapNumber, ["gueltig"] = lap.IsValid, ["boxenrunde"] = lap.InLap || lap.OutLap,
+                ["rundenzeit_s"] = SectorValue(lap.LapTime), ["sektoren_s"] = new JArray(sectors),
+                ["sektoren_vollstaendig"] = complete,
+                ["sektorsumme_abweichung_s"] = difference.HasValue ? (JToken)Math.Round(difference.Value, 3) : null,
+                ["sektorsumme_plausibel"] = consistent.HasValue ? (JToken)consistent.Value : null,
+                ["fuer_pacevergleich_geeignet"] = comparable,
+                ["qualitaet"] = !complete ? "unvollstaendig" : !consistent.HasValue ? "rundenzeit_fehlt" :
+                    !consistent.Value ? "sektorsumme_widerspricht_rundenzeit" : !lap.IsValid ? "ungueltige_runde" :
+                    lap.InLap || lap.OutLap ? "boxenrunde" : "plausibel_keine_genauigkeitsgarantie",
+                ["hinweis"] = "Adapterhistorie, keine neuen Messwerte. Summentoleranz 0,15 s prueft Plausibilitaet. Nur geeignete Runden vergleichen.",
+                ["sektorende_simulationszeit_s"] = new JArray(Enumerable.Range(0,3).Select(i => lap.GameTimeAtSectorEnd != null && i < lap.GameTimeAtSectorEnd.Length ? SectorValue(lap.GameTimeAtSectorEnd[i], 200000) : null))
+            };
         }
 
         private static JObject Pit(RaceDataContext ctx, List<string> missing)
@@ -548,13 +575,17 @@ namespace CrewChiefV4.AiTeam
 
         private static JObject Conditions(RaceDataContext ctx, List<string> missing)
         {
-            var c = ctx.GameState.Conditions.CurrentConditions;
-            var o = new JObject();
+            var c = ctx.GameState.Conditions.LatestConditions;
+            var o = new JObject { ["vorhersage"]=WeatherWatch.ForecastData(ctx.GameState.Conditions,ctx.NowUtc) };
             if (c == null)
             {
                 missing.Add("wetterdaten");
                 return o;
             }
+            o["messzeit_utc"] = DateTime.SpecifyKind(c.Time,DateTimeKind.Utc).ToString("o");
+            o["messung_veraltet"] = !WeatherWatch.Fresh(ctx.NowUtc,c.Time);
+            o["streckennaesse"] = c.TrackWetness==CrewChiefV4.Events.ConditionsMonitor.TrackWetness.UNKNOWN ? null : c.TrackWetness.ToString();
+            o["streckenstatus"] = c.TrackStatus==CrewChiefV4.Events.ConditionsMonitor.TrackStatus.UNKNOWN ? null : c.TrackStatus.ToString();
             o["luft_c"] = Num(c.AmbientTemperature, 1, -40, 70, "lufttemperatur", missing);
             o["strecke_c"] = Num(c.TrackTemperature, 1, -40, 90, "streckentemperatur", missing);
             o["regen_0_bis_1"] = Num(c.RainDensity, 2, 0, 1, "regen", missing);
@@ -731,9 +762,9 @@ namespace CrewChiefV4.AiTeam
             return key != null && gs.OpponentData.TryGetValue(key, out op) ? op : null;
         }
 
-        private static bool SectorTimesComparable(this OpponentData op, SessionData s)
+        private static JToken SectorValue(float value, float maximum = 3600)
         {
-            return op.bestSector1Time > 0 && op.bestSector2Time > 0 && op.bestSector3Time > 0;
+            return Finite(value) && value > 0 && value < maximum ? (JToken)Math.Round(value, 3) : null;
         }
 
         private static JToken Text(string value, string name, List<string> missing)
@@ -801,35 +832,16 @@ namespace CrewChiefV4.AiTeam
     /// <summary>Notizen des Fahrers, die über alle Rennen erhalten bleiben ("merk dir das").</summary>
     public static class DriverNotes
     {
-        // ponytail: Textdatei, letzte 30 Einträge im Prompt; Datenbank erst, wenn das nicht mehr reicht
-        public static string Path { get { return System.IO.Path.Combine(AiSecretStore.Folder, "notizen.txt"); } }
+        public static string Path { get { return DriverMemory.NotesPath; } }
 
         public static void Add(string note)
-        {
-            note = (note ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
-            if (note.Length == 0)
-            {
-                return;
-            }
-            System.IO.Directory.CreateDirectory(AiSecretStore.Folder);
-            System.IO.File.AppendAllText(Path, DateTime.Now.ToString("dd.MM.yyyy") + ": " + note + Environment.NewLine, System.Text.Encoding.UTF8);
-        }
+        { if (!DriverMemory.TryAddNote(note)) throw new System.IO.IOException("Fahrergedächtnis ist nicht verfügbar oder ausgeschaltet."); }
 
-        public static string PromptBlock()
+        public static string PromptBlock(string question = null, RaceDataContext context = null)
         {
-            try
-            {
-                if (!System.IO.File.Exists(Path))
-                {
-                    return "";
-                }
-                var lines = System.IO.File.ReadAllLines(Path, System.Text.Encoding.UTF8).Where(l => l.Trim().Length > 0).ToList();
-                return lines.Count == 0 ? "" : "\n\nNotizen des Fahrers aus früheren Gesprächen (beachten):\n" + string.Join("\n", lines.Skip(Math.Max(0, lines.Count - 30)));
-            }
-            catch (Exception)
-            {
-                return "";
-            }
+            var state=context==null?null:context.GameState;
+            string track=state==null?null:state.SessionData.TrackDefinition==null?state.trackName:state.SessionData.TrackDefinition.name;
+            return DriverMemory.PromptBlock(question,context==null?null:context.GameName,track);
         }
     }
 }

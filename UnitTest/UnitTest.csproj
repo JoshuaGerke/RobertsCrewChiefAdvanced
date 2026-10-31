@@ -72,6 +72,7 @@
     <Compile Include="AiTeam\VerifiedV06Tests.cs" />
     <Compile Include="AiTeam\LiveDiagnosticsTests.cs" />
     <Compile Include="AiTeam\ActiveRaceIntelligenceTests.cs" />
+    <Compile Include="AiTeam\RaceIntelligenceWorkbenchTests.cs" />
     <Compile Include="AiTeam\ActiveCrewRegressionTests.cs" />
     <Compile Include="AiTeam\RaceDataAccuracyTests.cs" />
     <Compile Include="AiTeam\TrackAwarenessTests.cs" />
@@ -80,6 +81,9 @@
     <Compile Include="AiTeam\RaceRadioLanguageTests.cs" />
     <Compile Include="AiTeam\CrewVoiceReadinessTests.cs" />
     <Compile Include="AiTeam\LiveEventDeliveryTests.cs" />
+    <Compile Include="AiTeam\LiveSessionFixTests.cs" />
+    <Compile Include="AiTeam\DriverMemoryTests.cs" />
+    <Compile Include="AiTeam\WeatherWatchTests.cs" />
     <Compile Include="Misc\CommandLineParametersReader.cs" />
     <Compile Include="Misc\RegressionTestGameDefinition.cs" />
     <Compile Include="Misc\TDD_email.cs" />

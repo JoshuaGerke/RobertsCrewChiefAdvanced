@@ -113,6 +113,12 @@ namespace CrewChiefV4.AiTeam
                     live.Start();
                     if (service.HasElevenLabsKey) LoadVoices(false);
                     break;
+                case "setAudioLevel":
+                    SetAudioLevel((string)m["channel"], m["percent"], (bool?)m["persist"] ?? true);
+                    break;
+                case "testMikNumbers":
+                    TestMikNumbers((bool?)m["spelled"] ?? false);
+                    break;
                 case "setMember":
                     service.SetMemberEnabled(Member((string)m["member"]), (bool)m["on"]);
                     break;
@@ -164,6 +170,13 @@ namespace CrewChiefV4.AiTeam
                 case "setRecorder":
                     if ((bool)m["on"]) Notice(LiveDiagnostics.Start()); else { LiveDiagnostics.Stop(); Notice("Diagnose gestoppt."); }
                     break;
+                case "setMemory":
+                    service.SetPersistentMemory((bool)m["on"]);
+                    break;
+                case "openMemory":
+                    Directory.CreateDirectory(DriverMemory.Folder);
+                    System.Diagnostics.Process.Start("explorer.exe", "\"" + DriverMemory.Folder + "\"");
+                    break;
                 case "openDiag":
                     Directory.CreateDirectory(LiveDiagnostics.DefaultFolder);
                     System.Diagnostics.Process.Start("explorer.exe", "\"" + LiveDiagnostics.DefaultFolder + "\"");
@@ -210,7 +223,13 @@ namespace CrewChiefV4.AiTeam
             user.setProperty("enable_spotter", true);
             user.setProperty("use_naudio", true);
             user.saveUserSettings();
-            if (!Utilities.RestartApp(app_restart: true)) Notice("Gespeichert. Bitte Crew Chief einmal von Hand neu starten.");
+            if (Utilities.RestartApp(app_restart: true))
+            {
+                // RestartApp launches with -multi; the caller must close the old host, not just this child window.
+                if (MainWindow.instance != null) MainWindow.instance.Close();
+                else Application.Exit();
+            }
+            else Notice("Gespeichert. Bitte Crew Chief einmal von Hand neu starten.");
         }
 
         private static void ShowMainWindow()
@@ -248,6 +267,7 @@ namespace CrewChiefV4.AiTeam
                 ["type"] = "init",
                 ["version"] = Version(),
                 ["games"] = new JArray(MainWindow.instance != null ? MainWindow.instance.gameDefinitionList.Items.Cast<object>().Select(g => g.ToString()) : Enumerable.Empty<string>()),
+                ["audioLevels"] = AudioLevels(),
                 ["autoDetect"] = UserSettings.GetUserSettings().getBoolean("enable_auto_detect"),
                 ["roles"] = roles,
                 ["voices"] = voices,
@@ -255,6 +275,9 @@ namespace CrewChiefV4.AiTeam
                 ["microphone"] = s.Microphone ?? "",
                 ["ptt"] = "Controller-Aktion „KI-Team anfunken“" + (string.IsNullOrEmpty(s.PttKey) ? "" : " oder Taste " + s.PttKey),
                 ["radioEffect"] = s.RadioEffect,
+                ["memoryEnabled"] = DriverMemory.Enabled,
+                ["memoryStatus"] = DriverMemory.Status,
+                ["memoryFolder"] = DriverMemory.Folder,
                 ["recorder"] = LiveDiagnostics.Enabled,
                 ["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status,
                 ["keys"] = new JObject
@@ -273,6 +296,7 @@ namespace CrewChiefV4.AiTeam
                     ["callLimit"] = s.MaxCallsPerSession,
                     ["timeout"] = s.TimeoutSeconds,
                     ["driverName"] = s.DriverName,
+                    ["driverNickname"] = s.DriverNickname,
                 },
                 ["topics"] = new JArray(AiRadioPreferences.Options.Select(o => new JObject
                 {
@@ -293,19 +317,23 @@ namespace CrewChiefV4.AiTeam
             var gs = CrewChief.currentGameState;
             var tick = service.Memory.LastTickUtc;
             bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
-            var o = new JObject { ["type"] = "live", ["connected"] = connected };
+            string source = GameDataConnectionStatus.SourceAt(DateTime.UtcNow);
+            var o = new JObject { ["type"] = "live", ["connected"] = connected, ["audioLevels"] = AudioLevels(),
+                ["sourceStatus"] = !connected && source != null ? source + ": Datenquelle erreichbar" : null,
+                ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein." };
             if (MainWindow.instance != null)
             {
                 o["running"] = MainWindow.instance.IsAppRunning;
                 o["game"] = MainWindow.instance.gameDefinitionList.Text;
             }
+            o["memoryEnabled"]=DriverMemory.Enabled;o["memoryStatus"]=DriverMemory.Status;o["memoryFolder"]=DriverMemory.Folder;
             if (connected)
             {
                 var s = gs.SessionData;
                 o["game"] = CrewChief.gameDefinition != null ? CrewChief.gameDefinition.friendlyName : "";
                 o["track"] = s.TrackDefinition != null ? s.TrackDefinition.name : "";
                 o["session"] = SessionName(s.SessionType);
-                o["driver"] = service.Settings.DriverName;
+                o["driver"] = service.Settings.RadioName;
                 o["carClass"] = gs.carClass != null ? gs.carClass.getClassIdentifier() : "";
                 o["lastLap"] = s.LapTimePrevious > 0 ? LapTime(s.LapTimePrevious) : "";
                 o["position"] = s.ClassPosition;
@@ -427,6 +455,14 @@ namespace CrewChiefV4.AiTeam
                 Notice("Beide Modellnamen müssen ausgefüllt sein.");
                 return;
             }
+            string fullName = ((string)v["driverName"] ?? "").Trim();
+            string nickname = ((string)v["driverNickname"] ?? "").Trim();
+            if (fullName.Length == 0 || fullName.Length > 80 || nickname.Length > 40 ||
+                fullName.Any(char.IsControl) || nickname.Any(char.IsControl))
+            {
+                Notice("Bitte einen Fahrernamen (maximal 80 Zeichen) und optional einen Funknamen (maximal 40 Zeichen) eintragen.");
+                return;
+            }
             var prefs = new AiRadioPreferences();
             foreach (JObject t in topics)
             {
@@ -445,7 +481,8 @@ namespace CrewChiefV4.AiTeam
             u.setProperty("ai_team_max_calls_per_session", Math.Max(0, Int(v["callLimit"], 300)));
             u.setProperty("ai_team_timeout_seconds", Math.Max(3, Math.Min(60, Int(v["timeout"], 12))));
             if (Enum.TryParse((string)v["radioMode"], out mode)) u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
-            if (!string.IsNullOrWhiteSpace((string)v["driverName"])) u.setProperty("ai_team_driver_name", ((string)v["driverName"]).Trim());
+            u.setProperty("ai_team_driver_name", fullName);
+            u.setProperty("ai_team_driver_nickname", nickname);
             prefs.Save();
             service.ReloadSettings();
             Post(BuildInit());
@@ -513,6 +550,46 @@ namespace CrewChiefV4.AiTeam
             SaveProperty(member == TeamMember.Mik ? "ai_team_elevenlabs_voice_mik" : member == TeamMember.Sara ? "ai_team_elevenlabs_voice_sara" : "ai_team_elevenlabs_voice_ben", voiceId);
             saraPackCheckedUtc = DateTime.MinValue;
             Notice(TeamRouter.DisplayName(member) + ": Stimme gespeichert." + (member == TeamMember.Sara ? " Jetzt „Sara als Spotter erzeugen“ drücken." : ""));
+        }
+
+        private static JObject AudioLevels()
+        {
+            var user = UserSettings.GetUserSettings();
+            float messages = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume : user.getFloat("messages_volume");
+            return new JObject { ["messages"] = Percent(messages), ["background"] = Percent(user.getFloat("background_volume")) };
+        }
+
+        private static int Percent(float value)
+        { return float.IsNaN(value) || float.IsInfinity(value) ? 0 : (int)Math.Round(Math.Max(0, Math.Min(1, value)) * 100); }
+
+        private void SetAudioLevel(string channel, JToken value, bool persist)
+        {
+            int percent;
+            if ((channel != "messages" && channel != "background") || value == null ||
+                value.Type != JTokenType.Integer || !int.TryParse(value.ToString(), out percent) || percent < 0 || percent > 100)
+            { Notice("Lautstärke muss zwischen 0 und 100 Prozent liegen."); return; }
+            float volume = percent / 100f;
+            var main = MainWindow.instance;
+            var user = UserSettings.GetUserSettings();
+            if (channel == "messages")
+            {
+                if (main != null) main.updateMessagesVolume(volume, persist, true);
+                else { MainWindow.currentMessageVolume = volume; user.setProperty("messages_volume", volume); if (persist) user.saveUserSettings(); }
+                AiAudio.RefreshDirectVolume();
+            }
+            else if (main != null) main.updateBackgroundVolume(volume, persist, true);
+            else { user.setProperty("background_volume", volume); if (persist) user.saveUserSettings(); }
+            Post(new JObject { ["type"] = "audioLevels", ["audioLevels"] = AudioLevels() });
+        }
+
+        private void TestMikNumbers(bool spelled)
+        {
+            if (MainWindow.instance != null && MainWindow.instance.IsAppRunning)
+            { Notice("Für die Zahlenprobe Crew Chief zuerst stoppen."); return; }
+            string text = spelled
+                ? "Zahlenprobe. Rundenzeit: eine Minute zweiundfünfzig Komma drei zwei acht. Abstand: null Komma sieben Sekunden. Reifendruck: sechsundzwanzig Komma fünf PSI. Öltemperatur: einhundertzwei Grad."
+                : "Zahlenprobe. Rundenzeit: 1:52,328. Abstand: 0,7 Sekunden. Reifendruck: 26,5 PSI. Öltemperatur: 102 Grad.";
+            Run(service.SpeakAsync(TeamMember.Mik, text, true, CancellationToken.None).ContinueWith(t => t.Exception == null ? null : t.Exception.GetBaseException().Message));
         }
 
         private void TestVoice(TeamMember member)
@@ -599,8 +676,12 @@ namespace CrewChiefV4.AiTeam
             try
             {
                 string file = Path.Combine(Application.StartupPath, "VERSION.txt");
-                var commit = File.Exists(file) ? File.ReadAllLines(file).FirstOrDefault(l => l.StartsWith("Commit:")) : null;
-                if (commit != null) return "Vorschau · " + commit.Substring(7).Trim().Substring(0, 7);
+                var lines = File.Exists(file) ? File.ReadAllLines(file) : new string[0];
+                var commit = lines.FirstOrDefault(l => l.StartsWith("Commit:"));
+                var version = lines.FirstOrDefault(l => l.StartsWith("Version:"));
+                string label = version == null ? "Vorschau" : version.Substring(8).Trim();
+                if (commit != null) return label + " · " + commit.Substring(7).Trim().Substring(0, 7);
+                if (version != null) return label;
             }
             catch (Exception) { }
             return "Vorschau";

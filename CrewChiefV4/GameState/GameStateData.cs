@@ -3332,11 +3332,29 @@ namespace CrewChiefV4.GameState
     public class Conditions
     {
         // set by ACC, RF2 and LMU only:
+        public bool RainForecastAvailable;
+        public DateTime RainForecastReadUtc = DateTime.MinValue;
+        public string RainForecastSource;
+        public float RainChanceIn10Mins = -1, RainChanceIn30Mins = -1;
+        public float ForecastAirTempIn10Mins = float.NaN, ForecastAirTempIn30Mins = float.NaN;
         public ConditionsMonitor.RainLevel rainLevelNow = ConditionsMonitor.RainLevel.NONE;
         public ConditionsMonitor.RainLevel rainLevelIn10Mins = ConditionsMonitor.RainLevel.NONE;
         public ConditionsMonitor.RainLevel rainLevelIn30Mins = ConditionsMonitor.RainLevel.NONE;
 
         public ConditionsSample CurrentConditions;
+        public ConditionsSample LiveConditions;
+        public ConditionsSample LatestConditions
+        {
+            get { return LiveConditions != null && (CurrentConditions == null || LiveConditions.Time >= CurrentConditions.Time) ? LiveConditions : CurrentConditions; }
+        }
+
+        // Update the current observation without growing the historical conditions list every telemetry frame.
+        public void UpdateLiveSample(DateTime time, int lapCount, int sectorNumber, float ambient, float track, float rain,
+            float wind, float windX, float windY, float clouds, bool startLine, ConditionsMonitor.TrackStatus status,
+            ConditionsMonitor.TrackWetness wetness = ConditionsMonitor.TrackWetness.UNKNOWN)
+        {
+            LiveConditions = new ConditionsSample(time, lapCount, sectorNumber, ambient, track, rain, wind, windX, windY, clouds, startLine, status, wetness);
+        }
         private List<ConditionsSample> _samples;
         public List<ConditionsSample> samples
         {

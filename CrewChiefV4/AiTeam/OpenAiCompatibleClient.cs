@@ -101,6 +101,21 @@ namespace CrewChiefV4.AiTeam
             http.Timeout = timeout;
         }
 
+        public static string RadioReasoningEffort(string configured, bool stationaryAnalysis)
+        {
+            if (stationaryAnalysis || string.IsNullOrWhiteSpace(configured)) return configured;
+            string effort = configured.Trim().ToLowerInvariant();
+            return effort == "none" || effort == "minimal" || effort == "low" ? effort : "low";
+        }
+
+        public static int CompletionBudget(int visibleBudget, string effort)
+        {
+            // Completion limits include reasoning. Keep a bounded reserve rather than spending the entire budget before speech.
+            string value = (effort ?? "").Trim().ToLowerInvariant();
+            if (value == "none") return visibleBudget;
+            return Math.Max(visibleBudget, value == "high" || value == "xhigh" || value == "max" ? 4096 : 1536);
+        }
+
         public async Task<JObject> ChatAsync(string model, JArray messages, JArray tools, string reasoningEffort,
             int maxCompletionTokens, bool jsonMode, CancellationToken ct)
         {
@@ -112,7 +127,7 @@ namespace CrewChiefV4.AiTeam
             {
                 ["model"] = model,
                 ["messages"] = messages,
-                ["max_completion_tokens"] = maxCompletionTokens,
+                ["max_completion_tokens"] = CompletionBudget(maxCompletionTokens, reasoningEffort),
             };
             if (tools != null && tools.Count > 0)
             {
@@ -138,6 +153,13 @@ namespace CrewChiefV4.AiTeam
             var sw = Stopwatch.StartNew();
             JObject response = await PostJsonWithParameterFallbackAsync("/chat/completions", body, ct).ConfigureAwait(false);
             Stats.AddChat(sw.ElapsedMilliseconds, response["usage"] as JObject);
+            // Only counts/status, never headers, credentials or hidden reasoning text.
+            LiveDiagnostics.Emit("api.completion", LiveDiagnostics.Data("model", model,
+                "finish_reason", (string)response.SelectToken("choices[0].finish_reason"),
+                "completion_tokens", (long?)response.SelectToken("usage.completion_tokens"),
+                "reasoning_tokens", (long?)response.SelectToken("usage.completion_tokens_details.reasoning_tokens"),
+                "content_chars", (AiTeamService.ContentText(response.SelectToken("choices[0].message.content")) ?? "").Length,
+                "completion_limit", CompletionBudget(maxCompletionTokens, reasoningEffort)));
             return response;
 
                 }

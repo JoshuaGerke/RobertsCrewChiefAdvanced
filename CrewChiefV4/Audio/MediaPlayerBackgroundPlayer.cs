@@ -23,6 +23,15 @@ namespace CrewChiefV4.Audio
             this.defaultBackgroundSound = defaultBackgroundSound;
         }
 
+        public override void refreshVolume()
+        {
+            if (mainThreadContext == null) return;
+            mainThreadContext.Post(_ => {
+                if (backgroundPlayer != null && initialised)
+                    backgroundPlayer.Volume = muted ? 0 : getBackgroundVolume();
+            }, null);
+        }
+
         public override void setBackgroundSound(String backgroundSoundName)
         {
             if (!initialised)

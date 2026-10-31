@@ -64,8 +64,37 @@
     });
   }
 
+  function updateGreetingPreview() {
+    const name = $('[data-setting=driverNickname]').value.trim() || $('[data-setting=driverName]').value.trim();
+    $('#rrca-greeting-preview').textContent = name ? 'Beispiel: „Hallo ' + name + ', willkommen in …“ · Strecke und Session kommen aus der Simulation.' : 'Trage deinen Fahrernamen ein.';
+  }
+  ['driverName', 'driverNickname'].forEach(key => $('[data-setting=' + key + ']').addEventListener('input', updateGreetingPreview));
+
+  function syncAudioLevels(levels) {
+    if (!levels) return;
+    $$('[data-audio-level]').forEach(i => {
+      const channel = i.dataset.audioLevel;
+      if (document.activeElement !== i && !i.dataset.dragging) i.value = levels[channel];
+      $('#rrca-' + channel + '-value').textContent = i.value + ' %';
+      i.setAttribute('aria-valuetext', i.value + ' Prozent');
+    });
+  }
+  $$('[data-audio-level]').forEach(i => {
+    let timer;
+    const sendLevel = persist => send('setAudioLevel', { channel: i.dataset.audioLevel, percent: Number(i.value), persist });
+    i.addEventListener('input', () => {
+      i.dataset.dragging = 'true';
+      $('#rrca-' + i.dataset.audioLevel + '-value').textContent = i.value + ' %';
+      clearTimeout(timer); timer = setTimeout(() => sendLevel(false), 100);
+    });
+    i.addEventListener('change', () => { clearTimeout(timer); delete i.dataset.dragging; sendLevel(true); });
+  });
+  $('#rrca-mik-numbers').addEventListener('click', () => send('testMikNumbers', { spelled: false }));
+  $('#rrca-mik-numbers-spelled').addEventListener('click', () => send('testMikNumbers', { spelled: true }));
+
   function applyInit(d) {
     state = d;
+    syncAudioLevels(d.audioLevels);
     $('#rrca-version').textContent = d.version;
     fillSelect($('#rrca-game'), d.games.map(g => ({ id: g, name: g })), null);
     $('#rrca-auto').checked = d.autoDetect;
@@ -75,6 +104,9 @@
     $('#rrca-ptt').value = d.ptt;
     $('#rrca-radio-effect').checked = d.radioEffect;
     $('#rrca-recorder').checked = d.recorder;
+    $('#rrca-memory').checked = d.memoryEnabled;
+    $('#rrca-memory-status').textContent = d.memoryStatus || '';
+    $('#rrca-memory-folder').textContent = d.memoryFolder || '';
     $('#rrca-diag-status').textContent = d.recorderStatus;
     $('#key-openrouter').textContent = d.keys.openrouter || 'kein Schlüssel hinterlegt';
     $('#key-elevenlabs').textContent = d.keys.elevenlabs || 'kein Schlüssel hinterlegt';
@@ -86,24 +118,30 @@
       }
       i.value = v == null ? '' : v;
     });
+    updateGreetingPreview();
     buildSchedule(d.topics);
   }
 
   function applyLive(d) {
+    syncAudioLevels(d.audioLevels);
     state.voiceReadiness = d.voiceReadiness;
+    if (typeof d.memoryEnabled === 'boolean') $('#rrca-memory').checked = d.memoryEnabled;
+    if (d.memoryStatus != null) $('#rrca-memory-status').textContent = d.memoryStatus;
+    if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = d.recorderStatus;
-    $('#rrca-conn').textContent = d.connected ? d.game : 'Kein Spiel verbunden';
+    $('#rrca-conn').textContent = d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden');
     const run = $('#rrca-run'), game = $('#rrca-game');
     run.textContent = d.running ? 'Stopp' : 'Start';
     run.classList.toggle('primary', !d.running); run.classList.toggle('danger', !!d.running);
     game.disabled = !!d.running;
     if (d.game && document.activeElement !== game) game.value = d.game;
     $('#rrca-conn-dot').classList.toggle('off', !d.connected);
-    $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : 'Wartet auf das Spiel';
-    $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : 'Kein Spiel verbunden';
+    $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : (d.sourceStatus ? 'Quelle erreichbar · Fahrdaten fehlen' : 'Wartet auf das Spiel');
+    $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : (d.sourceStatus || 'Kein Spiel verbunden');
     $('#rrca-sub').textContent = d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
-      : 'Spiel starten und ins Auto setzen, die Crew legt von selbst los.';
+      : !d.running ? ($('#rrca-auto').checked ? 'Automatische Spielerkennung ist eingeschaltet. Spiel starten und ins Auto setzen; nach einer Änderung der Erkennung die App neu starten.' : 'Spiel auswählen und Start drücken. Die automatische Spielerkennung ist ausgeschaltet.')
+      : (d.sourceStatus ? d.sourceHint : 'Die Crew läuft. Spiel starten und ins Auto setzen, damit Fahrdaten ankommen.');
     $('#m-pos').textContent = d.position > 0 ? 'P' + d.position : '–';
     $('#m-pos-sub').textContent = d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ';
     $('#m-lap-label').textContent = d.timed ? 'Restzeit' : 'Runde';
@@ -159,6 +197,7 @@
   $('#rrca-auto').addEventListener('change', e => send('setAutoDetect', { on: e.target.checked }));
   $('#rrca-mic').addEventListener('change', e => send('setMicrophone', { name: e.target.value }));
   $('#rrca-radio-effect').addEventListener('change', e => send('setRadioEffect', { on: e.target.checked }));
+  $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
   $$('[data-key-save]').forEach(b => b.addEventListener('click', () => {
     const input = $('#key-' + b.dataset.keySave + '-input'); const key = input.value.trim();
@@ -167,6 +206,7 @@
   }));
   $$('[data-key-delete]').forEach(b => b.addEventListener('click', () => send('deleteKey', { provider: b.dataset.keyDelete })));
   $('#rrca-save').addEventListener('click', () => {
+    if (!$$('[data-setting]').every(i => i.reportValidity())) return;
     const settings = {}; $$('[data-setting]').forEach(i => { settings[i.dataset.setting] = i.value; });
     send('saveSettings', { settings, topics: readTopics() });
   });
@@ -179,6 +219,7 @@
       const d = e.data;
       if (d.type === 'init') applyInit(d);
       else if (d.type === 'live') applyLive(d);
+      else if (d.type === 'audioLevels') syncAudioLevels(d.audioLevels);
       else if (d.type === 'voices') fillVoices(d.list, d.current);
       else if (d.type === 'notice') notify(d.text);
     });

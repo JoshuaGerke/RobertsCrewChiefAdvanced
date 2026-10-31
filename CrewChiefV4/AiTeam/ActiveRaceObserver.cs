@@ -17,6 +17,9 @@ namespace CrewChiefV4.AiTeam
         public string AheadName, BehindName;
         public float AheadGap = -1, BehindGap = -1;
         public Func<GameStateData,bool> AdditionalValidity;
+        // Only a just-completed practice/qualifying lap can outlive the timed session phase.
+        public bool AllowLapFinish;
+        public bool AllowPitlane;
         public DateTime DetectedUtc, ExpiresUtc;
         private int deliveryState, attempts;
         private long playbackStartedTicks, retryNotBeforeTicks;
@@ -57,8 +60,19 @@ namespace CrewChiefV4.AiTeam
         {
             if (gs == null || DeliveryFailed || now < DetectedUtc || now > ExpiresUtc) return false;
             var s = gs.SessionData;
-            return s.SessionId == SessionId && s.SessionType == SessionType && s.SessionPhase == SessionPhase.Green &&
-                !gs.PitData.InPitlane && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) &&
+            bool weather = AllowPitlane && (Topic ?? "").StartsWith("weather-", StringComparison.Ordinal);
+            bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed");
+            bool greeting = AllowPitlane && Topic == "greeting" && SessionGreetingDirector.SafeToGreet(
+                s.SessionType, s.SessionPhase, gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed);
+            if (Topic == "greeting" && !greeting) return false;
+            // Formation support is only valid during a confirmed formation, never after green.
+            bool formation = Topic == "formation" && s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Formation;
+            if (Topic == "formation" && !formation) return false;
+            bool phaseValid = formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+                SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
+                (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
+            return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
+                (!gs.PitData.InPitlane || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, true, AheadName, AheadGap) && GapStillValid(gs, false, BehindName, BehindGap);
         }
@@ -98,6 +112,9 @@ namespace CrewChiefV4.AiTeam
         private bool candidatePass, candidatePit, previousInPits;
         private bool wasGreen;
         private int startPosition;
+        private int lastCutWarnings, lastCompletedLaps;
+        private bool lastLapValid;
+        private DateTime lastConductIssue = DateTime.MinValue;
         public int PendingCount { get { return pending.Count; } }
         public void Enqueue(ObservedRaceCall call)
         {
@@ -108,6 +125,7 @@ namespace CrewChiefV4.AiTeam
         public void Reset()
         {
             previousCars.Clear(); pending.Clear(); stablePosition = candidatePosition = candidateSamples = passCount = startPosition = 0;
+            lastCutWarnings = lastCompletedLaps = 0; lastLapValid = false; lastConductIssue = DateTime.MinValue;
             lastEndLap = -1; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false;
         }
 
@@ -120,12 +138,20 @@ namespace CrewChiefV4.AiTeam
                 Reset(); session = s.SessionId;
                 nextSummary = now.AddSeconds(Math.Max(1, intervalSeconds));
             }
+            bool hadSample = lastTick != DateTime.MinValue;
+            bool newInvalidation = hadSample && lastLapValid && !s.CurrentLapIsValid && s.CompletedLaps == lastCompletedLaps;
+            bool newCut = hadSample && gs.PenaltiesData.CutTrackWarnings > lastCutWarnings;
+            if (newInvalidation || newCut || gs.PenaltiesData.IsOffRacingSurface) lastConductIssue = now;
+            bool conductUncertain = now - lastConductIssue < TimeSpan.FromSeconds(2);
+            lastCutWarnings = gs.PenaltiesData.CutTrackWarnings; lastCompletedLaps = s.CompletedLaps; lastLapValid = s.CurrentLapIsValid;
             lastTick = now;
             bool green = s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Green;
             if (startPosition == 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
-                stablePosition = s.ClassPosition; candidatePosition = 0; pending.Clear();
+                stablePosition = s.ClassPosition; candidatePosition = 0;
+                // Keep a deferred formation call across formation samples so it can retry delivery.
+                pending.RemoveAll(c => c.Topic != "formation" || s.SessionPhase != SessionPhase.Formation || s.SessionType != SessionType.Race || gs.PitData.InPitlane);
             }
             else if (stablePosition <= 0) stablePosition = s.ClassPosition;
             else if (s.ClassPosition == stablePosition) candidatePosition = 0;
@@ -154,6 +180,7 @@ namespace CrewChiefV4.AiTeam
                     }
                 }
                 else candidateSamples++;
+                if (conductUncertain) candidatePass = false;
                 if (gs.OpponentData.Values.Any(o => o.ClassPosition == stablePosition && (o.InPits || !o.IsActive || o.Speed <= 10)))
                     candidatePass = false;
                 if (candidateSamples >= 3 && now - candidateSince >= TimeSpan.FromMilliseconds(250))
@@ -171,7 +198,16 @@ namespace CrewChiefV4.AiTeam
                         else text = (candidatePit ? "Durch den Boxenstopp vorgerückt. " : "In der Wertung vorgerückt. ") +
                             "Du liegst jetzt auf Position " + candidatePosition + ".";
                         Add("position", text, gs, now, 8, 3,
-                            candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : candidatePit ? "rival_pit" : "stable_rank_cause_unknown");
+                            candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : candidatePit ? "rival_pit" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
+                        if (candidatePass && !candidatePit)
+                        {
+                            int cuts = gs.PenaltiesData.CutTrackWarnings, lap = s.CompletedLaps;
+                            bool validLap = s.CurrentLapIsValid;
+                            // Delayed cut/invalidity flags can arrive after the rank changed, before speech starts.
+                            pending.Last().AdditionalValidity = live => !live.PenaltiesData.IsOffRacingSurface &&
+                                live.PenaltiesData.CutTrackWarnings <= cuts &&
+                                !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);
+                        }
                     }
                     else Add("position", "P" + candidatePosition + " jetzt. Kopf hoch, dranbleiben.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
                     stablePosition = candidatePosition; candidatePosition = 0;
