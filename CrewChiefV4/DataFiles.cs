@@ -101,7 +101,7 @@ namespace CrewChiefV4
             {
                 if (_SoundFilesFolder == null)
                 {
-                    _SoundFilesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrewChiefV4", "Sounds");
+                    _SoundFilesFolder = IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrewChiefV4", "Sounds") : Path.Combine(IsolatedRoot, "Sounds");
                 }
 
                 return _SoundFilesFolder;

@@ -119,6 +119,8 @@ namespace CrewChiefV4
         // Used for path check.
         public static String folderSpotterRadioCheckBSlash = null;
 
+        public static string LoadedCarLeftFolder { get { return folderCarLeft; } }
+
         private static String spotterFolderPrefix = "spotter_";
         public static String defaultSpotterId = "Jim (default)";
         public static List<String> availableSpotters = new List<String>();
@@ -204,6 +206,8 @@ namespace CrewChiefV4
                         folderSpotterRadioCheckBSlash = "radio_check\\test";
                     }
                 }
+                AiTeam.CrewVoiceReadiness.RecordLoadedSpotterPack(
+                    Path.Combine(AudioPlayer.soundFilesPathNoChiefOverride, "voice"), folderCarLeft);
                 // check the oval specific stuff exists before enabling it:
                 hasOvalSpecificSounds = Directory.Exists(AudioPlayer.soundFilesPathNoChiefOverride + "/voice/" + folderCarInside);                
                 if (hasOvalSpecificSounds)

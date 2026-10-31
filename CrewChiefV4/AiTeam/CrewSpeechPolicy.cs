@@ -6,16 +6,37 @@ namespace CrewChiefV4.AiTeam
     /// <summary>One voice identity throughout local and cloud radio; never silently substitute a provider.</summary>
     public static class CrewSpeechPolicy
     {
-        public static readonly string[] TrackLimitPhrases = {
-            "Pass auf die Streckenbegrenzung auf. Diese Runde ist ungültig.",
-            "Wieder außerhalb der Limits. Lass etwas mehr Platz zum Rand.",
-            "Noch eine ungültige Runde. Bleib sauber, wir brauchen eine gültige Zeit.",
-            "Achte auf die Limits. Nimm lieber etwas Tempo raus und bleib auf der Strecke."
+        public static readonly string[] FirstTrackLimitPhrases = {
+            "Pass auf die Streckenbegrenzung auf.",
+            "Die Simulation meldet Tracklimits. Lass etwas Platz zum Rand.",
+            "Achte auf die Limits. Bleib innerhalb der Begrenzung."
         };
+        public static readonly string[] RepeatedTrackLimitPhrases = {
+            "Wieder außerhalb der Limits. Lass etwas mehr Platz zum Rand.",
+            "Noch eine Tracklimit-Meldung. Nimm am Rand etwas mehr Reserve.",
+            "Schon wieder über den Limits. Bleib sauber auf der Strecke."
+        };
+        public static readonly string[] FirstInvalidLapPhrases = {
+            "Diese Runde ist ungültig. Konzentrier dich auf die nächste Runde.",
+            "Die Rundenzeit ist ungültig. Konzentrier dich auf die nächste gültige Zeit.",
+            "Runde ungültig. Ruhig bleiben und wieder eine gültige Zeit setzen."
+        };
+        public static readonly string[] RepeatedInvalidLapPhrases = {
+            "Noch eine ungültige Runde. Wir brauchen wieder eine gültige Zeit.",
+            "Wieder keine gültige Rundenzeit. Bleib konzentriert.",
+            "Die Runde ist erneut ungültig. Konzentrier dich auf die nächste."
+        };
+        // Both forms are prepared before driving; a track-limit warning alone does not prove lap invalidity.
+        public static readonly string[] TrackLimitPhrases = FirstTrackLimitPhrases.Concat(RepeatedTrackLimitPhrases)
+            .Concat(FirstTrackLimitPhrases.Concat(RepeatedTrackLimitPhrases).Select(p => p + " Diese Runde ist ungültig."))
+            .Concat(FirstInvalidLapPhrases).Concat(RepeatedInvalidLapPhrases).ToArray();
         public static readonly string[] FinishPhrases = {
             "Jaaa, gewonnen! Ganz stark, Glückwunsch!",
             "Das ist der Sieg! Klasse gemacht, wir haben es geschafft!",
-            "Im Ziel und ganz vorne! Stark gefahren, Glückwunsch zum Sieg!"
+            "Im Ziel und ganz vorne! Stark gefahren, Glückwunsch zum Sieg!",
+            "Ja, das ist Platz eins! Glückwunsch zum Sieg!",
+            "Gewonnen! Stark gemacht. Freu dich darüber!",
+            "Der Sieg ist deiner! Glückwunsch!"
         };
 
         public static string VoiceIdentity(AiTeamSettings s, TeamMember member)

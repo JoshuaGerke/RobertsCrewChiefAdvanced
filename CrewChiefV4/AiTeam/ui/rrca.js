@@ -25,7 +25,7 @@
     });
     $$('[data-status]').forEach(el => {
       const m = el.dataset.status, on = state.roles[m];
-      el.textContent = !on ? 'Ausgeschaltet' : speaking === m ? '● Funkt gerade' : idle[m];
+      el.textContent = !on ? 'Ausgeschaltet' : speaking === m ? '● Funkt gerade' : m === 'sara' && state.voiceReadiness ? state.voiceReadiness.message : idle[m];
       el.classList.toggle('lime', on && speaking === m);
     });
   }
@@ -88,6 +88,7 @@
   }
 
   function applyLive(d) {
+    state.voiceReadiness = d.voiceReadiness;
     $('#rrca-conn').textContent = d.connected ? d.game : 'Kein Spiel verbunden';
     $('#rrca-conn-dot').classList.toggle('off', !d.connected);
     $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : 'Wartet auf das Spiel';

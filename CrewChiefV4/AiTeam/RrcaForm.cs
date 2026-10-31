@@ -65,7 +65,7 @@ namespace CrewChiefV4.AiTeam
             try
             {
                 // Benutzerdaten nicht neben die exe legen, die kann schreibgeschützt liegen
-                string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RCCA", "WebView2");
+                string data = DataFiles.IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RCCA", "WebView2") : Path.Combine(DataFiles.IsolatedRoot, "WebView2");
                 var env = await CoreWebView2Environment.CreateAsync(null, data);
                 await web.EnsureCoreWebView2Async(env);
             }
@@ -275,16 +275,27 @@ namespace CrewChiefV4.AiTeam
                 }
                 var ahead = RaceDataTools.Neighbour(gs, true);
                 var behind = RaceDataTools.Neighbour(gs, false);
-                float gapAhead = RaceDataTools.GapSeconds(gs, ahead, true), gapBehind = RaceDataTools.GapSeconds(gs, behind, false);
-                if (gapBehind > 0)
+                var front = RaceDataTools.ReadGap(gs, ahead, true);
+                var rear = RaceDataTools.ReadGap(gs, behind, false);
+                if (s.SessionType != SessionType.Race)
                 {
-                    o["gapValue"] = "+" + gapBehind.ToString("0.0", De) + " s";
-                    o["gapSub"] = "auf " + Name(behind) + (gapAhead > 0 ? " · vorne " + Name(ahead) + " " + gapAhead.ToString("0.0", De) + " s" : "");
+                    var comparison = front.HasValue ? front : rear;
+                    if (comparison.Kind == RaceGapKind.BestLapDifference)
+                    {
+                        o["gapValue"] = comparison.Seconds.ToString("0.000", De) + " s";
+                        o["gapSub"] = "Bestzeitdifferenz zu " + Name(front.HasValue ? ahead : behind);
+                    }
                 }
-                else if (gapAhead > 0)
+                else if (rear.IsRaceGap && rear.Seconds > 0)
                 {
-                    o["gapValue"] = "−" + gapAhead.ToString("0.0", De) + " s";
-                    o["gapSub"] = "auf " + Name(ahead) + " vor dir";
+                    o["gapValue"] = (rear.IsEstimated ? "≈ " : "+") + rear.Seconds.ToString("0.0", De) + " s";
+                    o["gapSub"] = "auf " + Name(behind) + (rear.IsEstimated ? " · Näherung" : "") +
+                        (front.IsRaceGap && front.Seconds > 0 ? " · vorne " + Name(ahead) + (front.IsEstimated ? " ungefähr " : " ") + front.Seconds.ToString("0.0", De) + " s" : "");
+                }
+                else if (front.IsRaceGap && front.Seconds > 0)
+                {
+                    o["gapValue"] = (front.IsEstimated ? "≈ " : "−") + front.Seconds.ToString("0.0", De) + " s";
+                    o["gapSub"] = "auf " + Name(ahead) + " vor dir" + (front.IsEstimated ? " · Näherung" : "");
                 }
             }
 
@@ -308,30 +319,43 @@ namespace CrewChiefV4.AiTeam
                 int colon = last.Text.IndexOf(": ", StringComparison.Ordinal);
                 if (colon > 0) o["speaking"] = last.Text.Substring(0, colon).ToLowerInvariant();
             }
-            o["warning"] = Warning();
+            var readiness = VoiceReadiness();
+            o["voiceReadiness"] = new JObject { ["ready"] = readiness.Ready, ["reason"] = readiness.Reason, ["message"] = readiness.Message };
+            o["warning"] = Warning(readiness);
             Post(o);
         }
 
-        /// <summary>Wichtigster Hinweis vor der Fahrt, null wenn alles passt.</summary>
-        private JToken Warning()
+        private CrewVoiceReadiness.Result VoiceReadiness()
+        {
+            var s = service.Settings;
+            if (s.Enabled && s.SaraEnabled && (DateTime.UtcNow - saraPackCheckedUtc).TotalSeconds > 10)
+            {
+                saraPackCurrent = service.SaraSpotterPackCurrent;
+                saraPackCheckedUtc = DateTime.UtcNow;
+            }
+            var user = UserSettings.GetUserSettings();
+            return CrewVoiceReadiness.Evaluate(s, saraPackCurrent, user.getString("spotter_name"),
+                NoisyCartesianCoordinateSpotter.LoadedCarLeftFolder, CrewVoiceReadiness.LoadedSaraVoiceKey, user.getBoolean("enable_spotter"), Audio.AudioPlayer.playWithNAudio);
+        }
+
+        /// <summary>Readiness includes the actually loaded local Sara identity, independently of cloud availability.</summary>
+        private JToken Warning(CrewVoiceReadiness.Result readiness)
         {
             var s = service.Settings;
             if (!s.Enabled)
                 return new JObject { ["text"] = "Das KI-Team ist in den Crew-Chief-Eigenschaften ausgeschaltet (\"KI-Team aktivieren\")." };
-            if (!service.HasApiKey)
-                return new JObject { ["text"] = "Der OpenRouter-Schlüssel fehlt, ohne ihn können Ben und Mik nicht antworten.", ["cmd"] = "openKeys", ["button"] = "Schlüssel eintragen" };
-            if (!service.HasElevenLabsKey)
-                return new JObject { ["text"] = "Der ElevenLabs-Schlüssel fehlt, ohne ihn hat die Crew keine Stimmen.", ["cmd"] = "openKeys", ["button"] = "Schlüssel eintragen" };
-            if (s.SaraEnabled)
+            if (!readiness.Ready)
             {
-                if ((DateTime.UtcNow - saraPackCheckedUtc).TotalSeconds > 10)
-                {
-                    saraPackCurrent = service.SaraSpotterPackCurrent;
-                    saraPackCheckedUtc = DateTime.UtcNow;
-                }
-                if (!saraPackCurrent)
-                    return new JObject { ["text"] = "Saras Spotter-Ansagen fehlen oder passen nicht zur gewählten Stimme. Dann spricht der englische Crew-Chief-Spotter. Nach dem Erzeugen Crew Chief neu starten.", ["cmd"] = "saraPack", ["button"] = "Jetzt erzeugen" };
+                var warning = new JObject { ["text"] = readiness.Message };
+                if (readiness.Reason == "pack_missing_or_mismatched")
+                { warning["cmd"] = "saraPack"; warning["button"] = "Sara-Clips vorbereiten"; }
+                return warning;
             }
+            // Prepared local Sara clips continue to work without either cloud key.
+            if ((s.BenEnabled || s.MikEnabled) && !service.HasApiKey)
+                return new JObject { ["text"] = "Der OpenRouter-Schlüssel fehlt. Ben und Mik können keine KI-Fragen beantworten; vorbereitete lokale Ansagen bleiben verfügbar.", ["cmd"] = "openKeys", ["button"] = "Schlüssel eintragen" };
+            if ((s.BenEnabled || s.MikEnabled) && s.TtsProvider == AiTtsProvider.ELEVENLABS && !service.HasElevenLabsKey)
+                return new JObject { ["text"] = "Der ElevenLabs-Schlüssel fehlt. Neue Texte können nicht gesprochen werden; vorbereitete Originalclips bleiben verfügbar.", ["cmd"] = "openKeys", ["button"] = "Schlüssel eintragen" };
             return null;
         }
 
@@ -428,6 +452,9 @@ namespace CrewChiefV4.AiTeam
 
         private void SaveVoice(TeamMember member, string voiceId)
         {
+            var main = MainWindow.instance;
+            if (main != null && main.crewChief != null && main.crewChief.running)
+            { Notice("Crew Chief zuerst stoppen. Stimmen werden vor der nächsten Fahrt geändert."); return; }
             if (string.IsNullOrWhiteSpace(voiceId) || voiceId == service.Settings.ElevenLabsVoiceFor(member)) return;
             SaveProperty(member == TeamMember.Mik ? "ai_team_elevenlabs_voice_mik" : member == TeamMember.Sara ? "ai_team_elevenlabs_voice_sara" : "ai_team_elevenlabs_voice_ben", voiceId);
             saraPackCheckedUtc = DateTime.MinValue;
@@ -444,9 +471,13 @@ namespace CrewChiefV4.AiTeam
 
         private void SaveProperty(string name, object value)
         {
+            var main = MainWindow.instance;
+            if (main != null && main.crewChief != null && main.crewChief.running)
+            { Notice("Crew Chief zuerst stoppen. Audio- und Mikrofoneinstellungen gelten ab der nächsten Fahrt."); return; }
             UserSettings.GetUserSettings().setProperty(name, value);
             UserSettings.GetUserSettings().saveUserSettings();
             service.ReloadSettings();
+            saraPackCheckedUtc = DateTime.MinValue;
         }
 
         private void OnStatus(string text)

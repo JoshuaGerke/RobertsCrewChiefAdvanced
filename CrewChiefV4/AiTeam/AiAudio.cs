@@ -23,15 +23,24 @@ namespace CrewChiefV4.AiTeam
             public DateTime CreatedUtc;
             public Func<bool> IsValid;
             public Action Started;
+            public Action Discarded;
+            public int State; // 0 pending, 1 starting, 2 started, 3 discarded
         }
 
         private static readonly ConcurrentDictionary<string, Entry> clips = new ConcurrentDictionary<string, Entry>();
 
-        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null)
+        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null)
         {
+            if (wav == null || wav.Length == 0 || wav.Length > 16 * 1024 * 1024) throw new ArgumentException("Ungültiger Audioclip.");
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded };
+            // Bound unplayed audio even if a backend rejects its queue entry without requesting it.
+            foreach (var old in clips.OrderBy(kv => kv.Value.CreatedUtc).ToArray())
+            {
+                if (clips.Count <= 64 && clips.Values.Sum(e => (long)e.Wav.Length) <= 16L * 1024 * 1024) break;
+                Remove(old.Key);
+            }
             return id;
         }
 
@@ -57,23 +66,58 @@ namespace CrewChiefV4.AiTeam
             return false;
         }
 
-        public static void MarkStarted(string id)
+        /// <summary>Atomically owns the transition from queued to submitted. The backend action starts audio;
+        /// removing the queue entry concurrently cannot also mark this clip as discarded/retryable.</summary>
+        public static bool TryStart(string id, Action startPlayback)
         {
             Entry entry;
-            if (id != null && clips.TryGetValue(id, out entry))
+            if (id == null || !clips.TryGetValue(id, out entry) ||
+                System.Threading.Interlocked.CompareExchange(ref entry.State, 1, 0) != 0) return false;
+            try
             {
-                var callback = System.Threading.Interlocked.Exchange(ref entry.Started, null);
-                try { if (callback != null) callback(); } catch (Exception) { }
+                if (entry.IsValid != null && !entry.IsValid())
+                {
+                    System.Threading.Interlocked.Exchange(ref entry.State, 3);
+                    InvokeOnce(ref entry.Discarded);
+                    Remove(id);
+                    return false;
+                }
+                startPlayback();
+                System.Threading.Interlocked.Exchange(ref entry.State, 2);
+                InvokeOnce(ref entry.Started);
+                return true;
             }
+            catch
+            {
+                System.Threading.Interlocked.Exchange(ref entry.State, 3);
+                InvokeOnce(ref entry.Discarded);
+                Remove(id);
+                throw;
+            }
+        }
+
+        public static void MarkStarted(string id) { TryStart(id, () => { }); }
+
+        private static void InvokeOnce(ref Action callback)
+        {
+            var action = System.Threading.Interlocked.Exchange(ref callback, null);
+            try { if (action != null) action(); } catch (Exception) { }
         }
 
         public static void Remove(string id)
         {
-            Entry ignored;
-            if (id != null)
-            {
-                clips.TryRemove(id, out ignored);
-            }
+            Entry removed;
+            if (id != null && clips.TryRemove(id, out removed) &&
+                System.Threading.Interlocked.CompareExchange(ref removed.State, 3, 0) == 0)
+                InvokeOnce(ref removed.Discarded);
+        }
+
+        public static void DiscardMessage(string messageName)
+        {
+            if (messageName == null) return;
+            const string reply = "ai_team_reply_", info = "ai_team_info_";
+            if (messageName.StartsWith(reply, StringComparison.Ordinal)) Remove(messageName.Substring(reply.Length));
+            else if (messageName.StartsWith(info, StringComparison.Ordinal)) Remove(messageName.Substring(info.Length));
         }
 
         public static int Count { get { return clips.Count; } }

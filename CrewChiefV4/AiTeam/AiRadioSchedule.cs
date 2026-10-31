@@ -74,10 +74,11 @@ namespace CrewChiefV4.AiTeam
     {
         private readonly Dictionary<string, DateTime> due = new Dictionary<string, DateTime>();
         private DateTime lastReport = DateTime.MinValue;
+        private ObservedRaceCall outstanding;
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { due.Clear(); lastReport = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { due.Clear(); outstanding = null; lastReport = DateTime.MinValue; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -87,9 +88,27 @@ namespace CrewChiefV4.AiTeam
         public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null)
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
+            if (outstanding != null)
+            {
+                if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
+                {
+                    lastReport = outstanding.DeliveryStartedUtc;
+                    due[outstanding.Topic] = lastReport.AddSeconds(prefs.NextDelaySeconds(outstanding.Topic, random));
+                    outstanding = null;
+                }
+                else if (!outstanding.IsValid(gs, now) || prefs[outstanding.Topic] == 0 ||
+                    (memberEnabled != null && !memberEnabled(outstanding.Member)))
+                {
+                    LiveDiagnostics.Decision(outstanding.Topic,"suppressed","report_expired_or_disabled",outstanding.Evidence);
+                    // Retry with a fresh snapshot later, without a tight TTS-error loop.
+                    due[outstanding.Topic] = now.AddSeconds(30);
+                    outstanding = null;
+                }
+            }
             if (gs == null || busy || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(20)) return null;
+            if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now)
                 .OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
@@ -98,10 +117,11 @@ namespace CrewChiefV4.AiTeam
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
                 string text = Compose(topic, ctx);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
-                lastReport = now;
-                return new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1,
+                outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
-                    Position=gs.SessionData.ClassPosition, SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(6) };
+                    Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
+                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(6) };
+                return outstanding.TryReserve(now) ? outstanding : null;
             }
             return null;
         }
@@ -134,10 +154,12 @@ namespace CrewChiefV4.AiTeam
                     float difference = Math.Abs(op.CurrentBestLapTime-gs.SessionData.PlayerLapTimeSessionBest);
                     return "In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: " + LocalAnswers.LapTime(op.CurrentBestLapTime) + ". Differenz der Bestzeiten " + Number(difference) + " Sekunden.";
                 }
-                float gap = RaceDataTools.GapSeconds(gs, op, ahead);
-                if (op == null || !op.IsActive || !Good(gap, 0.05, 300)) return null;
+                var measurement = RaceDataTools.ReadGap(gs, op, ahead);
+                float gap = measurement.Seconds;
+                if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
                 string name = ctx.SendDriverNames ? new string((op.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(60).ToArray()) : "";
-                return (ahead ? "Vor dir " : "Hinter dir ") + (name.Length > 0 ? name + ", " : "") + Number(gap) + " Sekunden Abstand.";
+                return (ahead ? "Vor dir " : "Hinter dir ") + (name.Length > 0 ? name + ", " : "") +
+                    (measurement.IsEstimated ? "ungefähr " : "") + Number(gap) + " Sekunden Abstand.";
             }
             if (topic == "weather")
             {

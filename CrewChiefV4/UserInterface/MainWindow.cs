@@ -2252,6 +2252,7 @@ namespace CrewChiefV4
         {
             MainWindow.shouldSaveTrace = false;  // i.e. shouldSaveTrace if CC is NOT running (now)
             doStartAppStuff();
+            if (!IsAppRunning) return;
             ThreadManager.DoWatchStartup(crewChief);
             overlay?.OnStartApplication(this, new OverlayElementClicked(null));
         }
@@ -2378,6 +2379,19 @@ namespace CrewChiefV4
 
         private void doStartAppStuff()
         {
+            var ai = AiTeam.AiTeamService.Instance;
+            var aiSettings = ai.Settings;
+            var user = UserSettings.GetUserSettings();
+            var ready = AiTeam.CrewVoiceReadiness.Evaluate(aiSettings,
+                !aiSettings.SaraEnabled || !aiSettings.Enabled || ai.SaraSpotterPackCurrent,
+                user.getString("spotter_name"), NoisyCartesianCoordinateSpotter.LoadedCarLeftFolder,
+                AiTeam.CrewVoiceReadiness.LoadedSaraVoiceKey, user.getBoolean("enable_spotter"), AudioPlayer.playWithNAudio);
+            if (!ready.Ready)
+            {
+                Console.WriteLine("[KI-Team] Start angehalten: " + ready.Message);
+                MessageBox.Show(ready.Message, "KI-Team – Stimmen vorbereiten", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             IsAppRunning = true;
             startApplicationButton.Enabled = false;
 

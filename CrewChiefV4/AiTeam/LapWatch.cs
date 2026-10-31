@@ -12,39 +12,48 @@ namespace CrewChiefV4.AiTeam
         private int lastCalledLap = -1;
         private int pendingLap = -1;
         private float pendingSince;
-        private bool finishCalled;
-        private static int finishVariant;
+        private bool finishCalled, timedClockCalled;
+        private readonly RaceRadioLanguage language = new RaceRadioLanguage();
 
         public void Reset()
         {
             lastCalledLap = pendingLap = -1;
-            finishCalled = false;
+            finishCalled = timedClockCalled = false;
         }
 
         /// <summary>
-        /// Restrunden inklusive der aktuellen, -1 = unbekannt. Rundenrennen: vom Spiel. Zeitrennen: Crew Chiefs Schätzung
-        /// (berücksichtigt den Führenden), sonst nach Ablauf der Uhr 1.
+        /// Restrunden inklusive der aktuellen, -1 = unbekannt. Rundenrennen: vom Spiel. Zeitrennen: nur eine
+        /// positive Schätzung zur aktuellen Runde bei gültiger Restzeit oder ein explizites letztes-Runden-Signal.
+        /// Das Ablaufen der Uhr allein beweist bei möglichen Zusatzrunden keine letzte Runde.
         /// </summary>
         public static int LapsLeft(SessionData s)
         {
-            if (s.IsLastLap)
-            {
-                return 1;
-            }
+            if (s == null) return -1;
+            if (s.IsLastLap || (s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Checkered)) return 1;
             if (!s.SessionHasFixedTime)
-            {
                 return s.SessionLapsRemaining > 0 && s.SessionLapsRemaining < 10000 ? s.SessionLapsRemaining : -1;
-            }
-            if (CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap == s.CompletedLaps)
-            {
-                return Math.Max(1, CrewChiefV4.Events.Fuel.EstimatedLapsRemaining);
-            }
-            return s.SessionTimeRemaining <= 0 && s.SessionRunningTime > 60 ? 1 : -1;
+            return LapsAreEstimated(s) ? CrewChiefV4.Events.Fuel.EstimatedLapsRemaining : -1;
+        }
+
+        public static bool LapsAreEstimated(SessionData s)
+        {
+            int estimate = CrewChiefV4.Events.Fuel.EstimatedLapsRemaining;
+            return s != null && s.SessionHasFixedTime && !s.IsLastLap && s.SessionPhase != SessionPhase.Checkered &&
+                Finite(s.SessionTimeRemaining) && s.SessionTimeRemaining > 0 &&
+                CrewChiefV4.Events.Fuel.EstimatedLapsRemainingAtLap == s.CompletedLaps && estimate > 0 && estimate < 10000;
         }
 
         public static bool OnLastLap(SessionData s)
         {
-            return s.SessionType == SessionType.Race && (s.SessionPhase == SessionPhase.Checkered || LapsLeft(s) == 1);
+            return s != null && s.SessionType == SessionType.Race && (s.SessionPhase == SessionPhase.Checkered || (!LapsAreEstimated(s) && LapsLeft(s) == 1));
+        }
+
+        private static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }
+
+        private static bool TimedClockElapsed(SessionData s)
+        {
+            return s.SessionHasFixedTime && s.SessionTimeRemaining == 0 && Finite(s.SessionTotalRunTime) &&
+                s.SessionTotalRunTime > 0 && Finite(s.SessionRunningTime) && s.SessionRunningTime >= s.SessionTotalRunTime;
         }
 
         /// <summary>Ein Telemetrie-Tick. gapAhead/gapBehind in Sekunden, &lt;= 0 = unbekannt. Liefert den Funkspruch oder null.</summary>
@@ -59,17 +68,17 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionPhase == SessionPhase.Finished && ps.SessionPhase != SessionPhase.Finished && !finishCalled)
             {
                 finishCalled = true;
-                if(s.IsDNF)return "Die Session ist beendet. Du bist als ausgefallen geführt.";
-                if(s.IsDisqualified)return "Die Session ist beendet. Die Wertung meldet eine Disqualifikation.";
-                if (s.ClassPosition == 1) return CrewSpeechPolicy.FinishPhrases[(System.Threading.Interlocked.Increment(ref finishVariant)-1) % CrewSpeechPolicy.FinishPhrases.Length];
-                if (s.ClassPosition <= 0) return "Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.";
-                return "Im Ziel! Platz " + s.ClassPosition + "." + Gained(s) +
-                    (s.ClassPosition <= 3 ? " Podium, richtig stark!" : " Gut gekämpft, beim nächsten Mal holen wir mehr raus.");
+                return language.Finish(s);
             }
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {
                 lastCalledLap = s.CompletedLaps;
                 return "Zielflagge ist draußen, bring die Runde sauber zu Ende." + (s.ClassPosition == 1 ? " Du führst, jetzt konzentriert nach Hause bringen." : s.ClassPosition > 0 ? " Platz " + s.ClassPosition + "." : "") + Duel(gapAhead, gapBehind);
+            }
+            if (!timedClockCalled && s.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane && TimedClockElapsed(s))
+            {
+                timedClockCalled = true;
+                return "Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.";
             }
             if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)
             {
@@ -90,12 +99,15 @@ namespace CrewChiefV4.AiTeam
             if (left == 1)
             {
                 lastCalledLap = s.CompletedLaps;
-                return "Letzte Runde! " + (s.ClassPosition == 1 ? "Du führst. Bleib ruhig, bring es sauber nach Hause." : "Platz " + s.ClassPosition + ". Bleib konzentriert.") + Duel(gapAhead, gapBehind);
+                return (LapsAreEstimated(s) ? "Voraussichtlich letzte Runde! " : "Letzte Runde! ") +
+                    (s.ClassPosition == 1 ? "Du führst. Bleib ruhig, bring es sauber nach Hause." :
+                        s.ClassPosition > 0 ? "Platz " + s.ClassPosition + ". Bleib konzentriert." : "Bleib konzentriert.") + Duel(gapAhead, gapBehind);
             }
             if (!minimalMode && left == 2)
             {
                 lastCalledLap = s.CompletedLaps;
-                return "Noch zwei Runden, Platz " + s.ClassPosition + ".";
+                return (LapsAreEstimated(s) ? "Voraussichtlich noch zwei Runden" : "Noch zwei Runden") +
+                    (s.ClassPosition > 0 ? ", Platz " + s.ClassPosition + "." : ".");
             }
             return null;
         }

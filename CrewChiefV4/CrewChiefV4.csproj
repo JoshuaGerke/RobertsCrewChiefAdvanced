@@ -266,6 +266,10 @@
     <Compile Include="AiTeam\LocalAnswers.cs" />
     <Compile Include="AiTeam\OpenAiCompatibleClient.cs" />
     <Compile Include="AiTeam\RaceDataTools.cs" />
+    <Compile Include="AiTeam\RaceGapMeasurement.cs" />
+    <Compile Include="AiTeam\RaceSpeechEvidence.cs" />
+    <Compile Include="AiTeam\RaceRadioLanguage.cs" />
+    <Compile Include="AiTeam\CrewVoiceReadiness.cs" />
     <Compile Include="AiTeam\RaceFieldTools.cs" />
     <Compile Include="AiTeam\ActiveRaceObserver.cs" />
     <Compile Include="AiTeam\RaceSituationWatch.cs" />

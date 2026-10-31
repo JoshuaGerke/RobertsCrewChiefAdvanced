@@ -25,6 +25,7 @@ namespace CrewChiefV4.AiTeam
                 "- Zahlen und technische Zustände NUR aus den gelieferten Daten oder Werkzeugen. Niemals schätzen oder erfinden. " +
                 "Fehlt ein Wert (siehe \"nicht_verfuegbar\") oder sind die Daten \"veraltet\", sag das kurz und ehrlich.\n" +
                 "- Hole dir Details über die Werkzeuge, bevor du etwas Konkretes behauptest. Bei Prognosen die Unsicherheit nennen.\n" +
+                "- Beachte abstand_messung.typ: Bestzeitdifferenzen sind keine räumlichen Abstände. Abstand_ungefaehr_s ist nur eine Näherung; immer ungefähr sagen und daraus keine präzise Taktik oder sichere Angriffspunkte ableiten.\n" +
                 "- Schreibe Zahlen so, wie man sie spricht: Komma statt Punkt, Einheiten ausgeschrieben (Liter, Grad, Sekunden), Positionen als \"P6\".\n" +
                 "- Gib NIEMALS Spotter-Freigaben oder Seitenwarnungen (\"frei\", \"links\", \"rechts\", \"neben dir\"). Das macht ausschließlich Sara mit der lokalen Spotterlogik.\n" +
                 "- Du steuerst nichts am Auto oder im Spiel. Setupänderungen empfiehlst du nur, der Fahrer entscheidet.\n" +

@@ -47,10 +47,8 @@ namespace CrewChiefV4.AiTeam
                     {
                         string lead = first ? "Erste gültige Zeit steht: " : (++improvements % 2 == 1 ? "Sauber, neue persönliche Bestzeit: " : "Wieder verbessert, stark: ");
                         string text = lead + LocalAnswers.LapTime(time) + ".";
-                        if (s.ClassPosition > 0) text += " Aktuell Platz " + s.ClassPosition + ".";
-                        float best = s.PlayerClassSessionBestLapTime;
-                        if (Good(best) && time > best + .02f) text += " Zur Klassenbestzeit fehlen " + (time - best).ToString("0.00", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden.";
-                        else if (s.ClassPosition == 1 && Good(best) && Math.Abs(time - best) < .02f) text += " Damit liegst du vorne. Bleib in deinem Rhythmus.";
+                        // The recorded lap remains true when standings or another driver's best changes.
+                        // Fresh classification and gaps belong to the separate timing reports.
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", 4);
                         ownCall = true;
                     }
@@ -66,7 +64,6 @@ namespace CrewChiefV4.AiTeam
                 {
                     string name = names ? new string((rival.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()) : "";
                     string text = (name.Length > 0 ? name : "Ein Gegner") + " setzt die neue Klassenbestzeit: " + LocalAnswers.LapTime(nextBest) + ".";
-                    if (Good(personalBest) && personalBest > nextBest) text += " Uns fehlen " + (personalBest - nextBest).ToString("0.00", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden.";
                     Add(gs, now, "rival-best", text, "measured_class_best_and_identified_rival", 2);
                 }
             }
@@ -78,17 +75,25 @@ namespace CrewChiefV4.AiTeam
         {
             pending.RemoveAll(c => c.Topic == topic);
             pending.Add(new ObservedRaceCall { Topic=topic, Text=text, Evidence=evidence, Priority=priority, Member=TeamMember.Mik,
-                Position=gs.SessionData.ClassPosition, SessionId=session, SessionType=type, CompletedLaps=gs.SessionData.CompletedLaps,
+                Position=-1, SessionId=session, SessionType=type, CompletedLaps=gs.SessionData.CompletedLaps,
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(12) });
             LiveDiagnostics.Decision(topic,"detected",evidence,text);
         }
         public ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy)
         {
-            pending.RemoveAll(c => !c.IsValid(gs,now));
+            foreach (var delivered in pending.Where(c => c.DeliveryStartedUtc != DateTime.MinValue).ToArray())
+            {
+                if (delivered.DeliveryStartedUtc > lastRadio) lastRadio = delivered.DeliveryStartedUtc;
+                pending.Remove(delivered);
+            }
+            foreach (var expired in pending.Where(c => !c.IsValid(gs,now)).ToArray())
+            {
+                LiveDiagnostics.Decision(expired.Topic,"suppressed","expired_or_lap_changed",expired.Evidence);
+                pending.Remove(expired);
+            }
             if (busy || now-lastRadio < TimeSpan.FromSeconds(8)) return null;
-            var call = pending.OrderByDescending(c => c.Priority).FirstOrDefault();
-            if (call == null) return null;
-            pending.Remove(call); lastRadio=now; return call;
+            var call = pending.Where(c => c.CanReserve(now)).OrderByDescending(c => c.Priority).FirstOrDefault();
+            return call != null && call.TryReserve(now) ? call : null;
         }
     }
 }

@@ -1542,6 +1542,7 @@ namespace CrewChiefV4.Audio
                     {
                         if (queueToPlay.Contains(key))
                         {
+                            AiTeam.AiAudioStore.DiscardMessage(key);
                             queueToPlay.Remove(key);
                         }
                     }
@@ -2154,6 +2155,7 @@ namespace CrewChiefV4.Audio
             if (blockedByFilter(queuedMessage))
             {
                 AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata==null?0:queuedMessage.metadata.priority,0,"message_filter");
+                AiTeam.AiAudioStore.DiscardMessage(queuedMessage.messageName);
                 return;
             }
             if (CrewChief.Debug.RunningUnderDebugger && queuedMessage.messageName != null)
@@ -2212,6 +2214,13 @@ namespace CrewChiefV4.Audio
                     }
                 }
             }
+            ReleaseUnqueuedAiMessage(queuedMessage, immediateClips);
+        }
+
+        private void ReleaseUnqueuedAiMessage(QueuedMessage message, OrderedDictionary queue)
+        {
+            if (message.messageName == null || !message.messageName.StartsWith("ai_team_", StringComparison.Ordinal)) return;
+            lock (queue) { if (!queue.Contains(message.messageName)) AiTeam.AiAudioStore.DiscardMessage(message.messageName); }
         }
 
         public void playSpotterMessage(QueuedMessage queuedMessage, Boolean keepChannelOpen)
@@ -2277,6 +2286,7 @@ namespace CrewChiefV4.Audio
             if (blockedByFilter(queuedMessage))
             {
                 AiTeam.LiveDiagnostics.Queue("rejected",queuedMessage.messageName,queuedMessage.metadata==null?0:queuedMessage.metadata.priority,0,"message_filter");
+                AiTeam.AiAudioStore.DiscardMessage(queuedMessage.messageName);
                 return;
             }
             if (CrewChief.Debug.RunningUnderDebugger && queuedMessage.messageName != null)
@@ -2345,6 +2355,7 @@ namespace CrewChiefV4.Audio
                     }
                 }
             }
+            ReleaseUnqueuedAiMessage(queuedMessage, queuedClips);
         }
 
         public Boolean removeQueuedMessage(String eventName)
