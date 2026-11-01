@@ -243,7 +243,6 @@ namespace CrewChiefV4
         // Used to set the font size in the menu which otherwise varies with DPI
         public readonly Font exemplarFont;
 
-        private readonly Regex autoStartRegex = new Regex(@"\.exe$", RegexOptions.IgnoreCase);
 
         public void killChief()
         {
@@ -816,13 +815,16 @@ namespace CrewChiefV4
 
             StartButtonState initState()
             {
-                if (UserSettings.GetUserSettings().getBoolean("enable_auto_detect") ||
-                    UserSettings.GetUserSettings().getBoolean("enable_auto_detect_exit_cc"))
-                {
-                    instance.autoDetectTimer.Enabled = true;
-                    return StartButtonState.AUTO_START;
-                }
-                return StartButtonState.START;
+                bool enabled = UserSettings.GetUserSettings().getBoolean("enable_auto_detect");
+                instance.autoDetectTimer.Enabled = enabled || instance._autoStartedGame != null &&
+                    UserSettings.GetUserSettings().getBoolean("enable_auto_detect_exit_cc");
+                return enabled ? StartButtonState.AUTO_START : StartButtonState.START;
+            }
+
+            internal void RefreshAutoDetection()
+            {
+                if (!crewChiefIsRunning) startButtonState = initState();
+                update(crewChiefIsRunning);
             }
 
             internal void update(bool _crewChiefIsRunning)
@@ -2249,12 +2251,16 @@ namespace CrewChiefV4
 
         public void startApplicationButton_Click(object sender, EventArgs e)
         {
+            // A manual start/stop ends ownership of an earlier auto-started session.
+            _autoStartedGame = null;
             if (!IsAppRunning)
             {
+                autoDetectionPausedGame = null;
                 runCrewChief();
             }
-            else 
-            { 
+            else
+            {
+                autoDetectionPausedGame = GameDefinition.getGameDefinitionForFriendlyName(gameDefinitionList.Text);
                 stopCrewChief();
             }
 #if EXCEPTION_TEST
@@ -3383,142 +3389,109 @@ namespace CrewChiefV4
             this.buttonMyName.Text = $"{Configuration.getUIString("personalisation_label")} {MyName.myName}";
         }
 
-        private string _processName;
         private GameDefinition _autoStartedGame;
+        private bool autoDetectionBusy;
+        private GameDefinition autoDetectionPausedGame;
+
+        public void SetAutoDetectEnabled(bool enabled)
+        {
+            var user = UserSettings.GetUserSettings();
+            user.setProperty("enable_auto_detect", enabled);
+            user.saveUserSettings();
+            if (user.initFailed || user.getBoolean("enable_auto_detect") != enabled)
+                throw new InvalidOperationException("Die Spielerkennung konnte nicht gespeichert werden. Bitte das aktive Profil prüfen.");
+            // Switching this preference never stops or reloads a running crew/audio session.
+            if (!enabled) _autoStartedGame = null;
+            autoDetectionPausedGame = null;
+            autoDetectTimer.Enabled = enabled;
+            startButton?.RefreshAutoDetection();
+            Log.Commentary(enabled ? "Automatic game detection enabled immediately" : "Automatic game detection disabled");
+        }
         /// <summary>
         /// If "Enable game auto detect" is set this runs every 3 seconds to 
         /// automatically detect the active game process and start/stop CC accordingly.
         /// </summary>
-        /// <remarks>This monitors the foreground process to detect when a
-        /// game starts or exits. If a new game starts, CC starts.
+        /// <remarks>Checks running game processes and their configured aliases.
+        /// Foreground focus resolves ambiguity when several simulators are open.
         /// If the auto-detected game exits and 
         /// "Exit Crew Chief when auto-detected game exits" is set, CC also shuts
         /// down automatically.
         /// </remarks>
         private async void autoDetectTimer_Tick(object sender, EventArgs e)
         {
-            if (!await WaitAppReady())
-            {
-                return;
-            }
+            if (autoDetectionBusy) return;
+            autoDetectionBusy = true;
             try
             {
-                // 1) Check if auto-started game has shut down
-                if (IsAppRunning && _autoStartedGame != null && _processName != null)
+                if (!await WaitAppReady()) return;
+                var names = new List<string>();
+                foreach (var process in Process.GetProcesses())
+                    using (process)
+                        try { names.Add(process.ProcessName); }
+                        catch (InvalidOperationException) { }
+                        catch (Win32Exception) { }
+
+                if (IsAppRunning && _autoStartedGame != null &&
+                    !names.Any(name => AutoGameDetection.Matches(_autoStartedGame, name)))
                 {
-                    Process[] processes = Process.GetProcessesByName(_autoStartedGame.processName);
-                    if (!processes.Any(p => p.ProcessName == _autoStartedGame.processName))
+                    Log.Commentary($"Auto-started game {_autoStartedGame.friendlyName} has shut down");
+                    stopCrewChief();
+                    _autoStartedGame = null;
+                    if (UserSettings.GetUserSettings().getBoolean("enable_auto_detect_exit_cc"))
                     {
-                        Log.Commentary($"Auto-started game {_autoStartedGame.friendlyName} has shut down");
-                        stopCrewChief();
-                        _autoStartedGame = null;
-                        if (UserSettings.GetUserSettings().getBoolean("enable_auto_detect_exit_cc"))
-                        {
-                            Log.Commentary($"Auto detected game exited, shutting down Crew Chief");
-                            Application.DoEvents(); // Allow log to be written to
-                            CloseCC();
-                        }
+                        Log.Commentary("Auto detected game exited, shutting down Crew Chief");
+                        CloseCC();
+                        return;
                     }
                 }
-                // 2) Check if new game has started
-                var fWinPtr = NativeMethods.GetForegroundWindow();
-                if (fWinPtr != IntPtr.Zero)
+                // Disabling takes effect even if this tick was awaiting app readiness.
+                if (!UserSettings.GetUserSettings().getBoolean("enable_auto_detect")) return;
+                string foregroundName = null;
+                try
                 {
-                    NativeMethods.GetWindowThreadProcessId(fWinPtr, out var pid);
-                    var p = Process.GetProcessById((int)pid);
-                    if (p != null)
+                    var window = NativeMethods.GetForegroundWindow();
+                    if (window != IntPtr.Zero)
                     {
-                        string name;
-                        try
-                        {
-                            name = p.MainModule.ModuleName;
-                            // Ignore CC itself and Visual Studio (devenv)
-                            var CC = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name;
-                            if (name.Contains(CC) || name.Contains("devenv"))
-                                return;
-                        }
-                        catch (Win32Exception ex )
-                        {
-                            //  iRacing often throws an error so use ProcessName as a back up
-                            try
-                            {
-                                name = p.ProcessName;
-                            }
-                            catch (Exception exception)
-                            {
-                                //fail to get process , try next time
-                                return;
-                            }
-                        }
-                        if (name != _processName)
-                        {
-                            _processName = name;
-                            Log.Debug(() => $"Auto start foreground process changed to {name}");
-                        }
-                        var pName = autoStartRegex.Replace(name, string.Empty);
-                        var defs = GameDefinition.getAllAvailableGameDefinitions(false);
-                        var currentApplication = defs.Where(x => x.processName == pName).FirstOrDefault();
-                        if (currentApplication != null)
-                        { // A game is the foreground process
-                            var currentSelected = GameDefinition.getGameDefinitionForFriendlyName(gameDefinitionList.Text);
-                            if (currentSelected == null || currentSelected.processName != currentApplication.processName)
-                            { // 3) The game has just been detected that is not the one selected
-                                if (await WaitAppReady())
-                                {
-                                    if (IsAppRunning)
-                                    { // 3a) Stop running CC on the game
-                                        Log.Commentary($"Stop {currentSelected.friendlyName} and auto start {currentApplication.friendlyName}");
-                                        stopCrewChief();
-                                    }
-                                    if (await WaitAppReady())
-                                    {
-                                        try
-                                        {
-                                            gameDefinitionList.SelectedItem = currentApplication.friendlyName;
-                                        }
-                                        catch (Exception)
-                                        {
-                                            Log.Warning($"gameDefinitionList.SelectedItem {SourceInfoHelpers.SourceFile()}:{SourceInfoHelpers.SourceLineNumber() - 4}");
-                                        }
-                                        Log.Commentary($"Auto start {currentApplication.friendlyName}");
-                                        runCrewChief();  // 3b) Start running CC on the new game
-                                        _autoStartedGame = currentApplication;
-                                    }
-                                }
-                            }
-                            else if (!IsAppRunning && currentSelected?.processName == currentApplication.processName)
-                            { // 4) The selected game started
-                                if (await WaitAppReady())
-                                {
-                                    Log.Commentary($"Auto start {currentApplication.friendlyName}");
-                                    runCrewChief();
-                                    _autoStartedGame = currentApplication;
-                                }
-                            }
-                            // else 5) Focus returned to existing game 
-                        }
+                        NativeMethods.GetWindowThreadProcessId(window, out var pid);
+                        using (var foreground = Process.GetProcessById((int)pid)) foregroundName = foreground.ProcessName;
                     }
                 }
+                catch (ArgumentException) { } // foreground process exited between calls
+                catch (InvalidOperationException) { }
+                catch (Win32Exception) { } // foreground/module permissions cannot disable background detection
+
+                if (autoDetectionPausedGame != null && !names.Any(name => AutoGameDetection.Matches(autoDetectionPausedGame, name)))
+                    autoDetectionPausedGame = null;
+                var selected = GameDefinition.getGameDefinitionForFriendlyName(gameDefinitionList.Text);
+                var detected = AutoGameDetection.Select(GameDefinition.getAllAvailableGameDefinitions(false), names,
+                    foregroundName, selected, IsAppRunning, autoDetectionPausedGame);
+                if (detected == null) return;
+                if (IsAppRunning && ReferenceEquals(selected, detected)) return;
+                if (IsAppRunning)
+                {
+                    Log.Commentary($"Stop {selected?.friendlyName} and auto start {detected.friendlyName}");
+                    stopCrewChief();
+                }
+                if (!await WaitAppReady() || !UserSettings.GetUserSettings().getBoolean("enable_auto_detect") ||
+                    autoDetectionPausedGame != null && AutoGameDetection.Matches(autoDetectionPausedGame, detected.processName)) return;
+                // Only choose entries that are present in the actual configured UI list.
+                if (!gameDefinitionList.Items.Contains(detected.friendlyName)) return;
+                gameDefinitionList.SelectedItem = detected.friendlyName;
+                Log.Commentary($"Auto start {detected.friendlyName} (running process detected)");
+                runCrewChief();
+                _autoStartedGame = IsAppRunning ? detected : null;
             }
-            // catch anything here, log and shutdown the timer
             catch (Exception exception)
             {
-                Console.WriteLine("Unable to auto-detect running game: " + exception.Message + " " + exception.StackTrace);
-                ((System.Windows.Forms.Timer)sender).Stop();
+                // A transient process/permission failure must not kill detection until the next app restart.
+                Log.DontSpam("Unable to auto-detect running game; retrying: " + exception.Message, 30).Error();
             }
+            finally { autoDetectionBusy = false; }
 
-            /// <summary>
-            /// Wait for the app to be ready before trying to start/stop CC, 
-            /// otherwise we can end up with multiple auto-detect timers 
-            /// running at the same time and stepping on each other.
-            /// </summary>
             async Task<bool> WaitAppReady()
             {
                 var i = 0;
-                while (!startApplicationButton.Enabled && i++ < 5)
-                {
-                    await Task.Delay(500);
-                }
+                while (!startApplicationButton.Enabled && i++ < 5) await Task.Delay(500);
                 return startApplicationButton.Enabled;
             }
         }

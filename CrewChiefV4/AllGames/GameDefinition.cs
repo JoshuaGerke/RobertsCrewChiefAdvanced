@@ -267,4 +267,38 @@ namespace CrewChiefV4
                 || (alternativeProcessNames != null && alternativeProcessNames.Length > 0);
         }
     }
+
+    /// <summary>Read-only process matching; no game start, stop, file I/O or module access.</summary>
+    public static class AutoGameDetection
+    {
+        private static string Normalize(string name)
+        {
+            name=(name ?? "").Trim();
+            return name.EndsWith(".exe",StringComparison.OrdinalIgnoreCase) ? name.Substring(0,name.Length-4) : name;
+        }
+        public static bool Matches(GameDefinition definition, string processName)
+        {
+            string name=Normalize(processName);
+            return definition!=null && name.Length>0 &&
+                new[]{definition.processName}.Concat(definition.alternativeProcessNames ?? new string[0])
+                    .Any(p=>!string.IsNullOrWhiteSpace(p) && string.Equals(Normalize(p),name,StringComparison.OrdinalIgnoreCase));
+        }
+        public static GameDefinition Select(IEnumerable<GameDefinition> definitions, IEnumerable<string> runningProcesses,
+            string foregroundProcess, GameDefinition selected, bool crewRunning, GameDefinition pausedGame = null)
+        {
+            var available=definitions.Where(d=>d!=null && d.HasAnyProcessNameAssociated()).ToList();
+            var running=new HashSet<string>((runningProcesses ?? Enumerable.Empty<string>()).Select(Normalize),StringComparer.OrdinalIgnoreCase);
+            var matches=available.Where(d=>running.Any(p=>Matches(d,p))).ToList();
+            var foreground=matches.Where(d=>Matches(d,foregroundProcess)).ToList();
+            GameDefinition candidate=null;
+            if(foreground.Count>0) candidate=foreground.FirstOrDefault(d=>ReferenceEquals(d,selected)) ?? foreground[0];
+            // While driving, an unrelated foreground window must never switch simulators.
+            else if(crewRunning) return null;
+            else if(matches.Count==1) candidate=matches[0];
+            // Shared-process variants keep the user's explicit choice. Different sims require a choice.
+            else if(selected!=null && matches.Contains(selected) && matches.All(d=>
+                string.Equals(d.processName,selected.processName,StringComparison.OrdinalIgnoreCase))) candidate=selected;
+            return pausedGame!=null && candidate!=null && Matches(pausedGame,candidate.processName) ? null : candidate;
+        }
+    }
 }

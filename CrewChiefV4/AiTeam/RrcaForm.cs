@@ -193,8 +193,15 @@ namespace CrewChiefV4.AiTeam
                     if (MainWindow.instance != null && !MainWindow.instance.IsAppRunning) MainWindow.instance.gameDefinitionList.Text = (string)m["name"];
                     break;
                 case "setAutoDetect":
-                    SaveProperty("enable_auto_detect", (bool)m["on"]);
-                    Notice("Gespeichert. Die Spielerkennung ändert sich nach dem nächsten Start von Crew Chief.");
+                    bool autoDetect = (bool)m["on"];
+                    if (MainWindow.instance != null) MainWindow.instance.SetAutoDetectEnabled(autoDetect);
+                    else
+                    {
+                        UserSettings.GetUserSettings().setProperty("enable_auto_detect", autoDetect);
+                        UserSettings.GetUserSettings().saveUserSettings();
+                    }
+                    Notice(autoDetect ? "Spielerkennung ist sofort aktiv. Ein laufendes Spiel wird auch im Hintergrund erkannt." : "Spielerkennung ist ausgeschaltet. Die laufende Crew bleibt unverändert.");
+                    Post(BuildInit());
                     break;
                 case "fixVoices":
                     FixVoicesAndRestart();
