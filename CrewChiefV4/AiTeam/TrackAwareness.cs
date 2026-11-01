@@ -13,13 +13,14 @@ namespace CrewChiefV4.AiTeam
     {
         public readonly int Id, OverallPosition, ClassPosition;
         public readonly string Key, Name;
+        internal readonly string NativeName;
         public readonly bool InPits, SameClass, ClassComparisonKnown, SpatiallyConsistent, OnInLap, OnOutLap, LapContextKnown;
         public readonly double? X, Z, LapDistanceM, RouteGapM, WorldDistanceM, SpeedMps, ClosingMps;
         public readonly int? LapOffset;
         internal TrackCarPosition(int id, string key, OpponentData car, GameStateData own, double? x, double? z,
             double? distance, double? gap, double? worldDistance, double? closing, int? lapOffset, bool consistent)
         {
-            Id=id; Key=key; Name=car.CanUseName ? SafeName(car.DriverRawName) : null;
+            Id=id; Key=key; NativeName=car.DriverRawName; Name=car.CanUseName ? SafeName(car.DriverRawName) : null;
             OverallPosition=car.OverallPosition; ClassPosition=car.ClassPosition; InPits=car.InPits;
             LapContextKnown=car.getCurrentLapData()!=null; OnInLap=car.isEnteringPits(); OnOutLap=car.isOnOutLap();
             ClassComparisonKnown=own.carClass!=null && own.carClass.carClassEnum!=CarData.CarClassEnum.UNKNOWN_RACE &&
@@ -97,7 +98,8 @@ namespace CrewChiefV4.AiTeam
         private TrackPositionSnapshot latest;
         private int nextId;
         public TrackPositionSnapshot Snapshot { get { return Volatile.Read(ref latest); } }
-        public void Reset() { history.Clear(); nextId=0; Volatile.Write(ref latest,null); }
+        public RaceGapTracker Gaps { get; private set; } = new RaceGapTracker();
+        public void Reset() { history.Clear(); Gaps.Reset(); nextId=0; Volatile.Write(ref latest,null); }
 
         public bool Observe(GameStateData state, DateTime now)
         {
@@ -110,6 +112,7 @@ namespace CrewChiefV4.AiTeam
             prior=Snapshot;
             if(prior!=null && now-prior.Utc<TimeSpan.FromMilliseconds(50))return false;
             if(prior!=null && now-prior.Utc>TimeSpan.FromSeconds(1))history.Clear();
+            Gaps.Observe(state,now);
             var length=session.TrackDefinition==null ? null : InRange(session.TrackDefinition.trackLength,100,100000);
             var ownDistance=ValidDistance(state.PositionAndMotionData.DistanceRoundTrack,length);
             double? ownX,ownZ;Horizontal(state.PositionAndMotionData.WorldPosition,out ownX,out ownZ);

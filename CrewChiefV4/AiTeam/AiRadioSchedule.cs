@@ -73,6 +73,8 @@ namespace CrewChiefV4.AiTeam
     public sealed class AiRadioSchedule
     {
         private readonly Dictionary<string, DateTime> due = new Dictionary<string, DateTime>();
+        public const int RoutineSeparationSeconds = 20, QuietAfterRadioSeconds = 8;
+        private DateTime lastDeferral=DateTime.MinValue;
         private DateTime lastReport = DateTime.MinValue;
         private ObservedRaceCall outstanding;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
@@ -95,7 +97,7 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = null; lastReport = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = null; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -124,10 +126,21 @@ namespace CrewChiefV4.AiTeam
                     outstanding = null;
                 }
             }
-            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(30), now).Any(r => r.TimeUtc <= now);
+            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(QuietAfterRadioSeconds), now).Any(r => r.TimeUtc <= now);
             if (gs == null || busy || recentRadio || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
-                now - lastReport < TimeSpan.FromSeconds(30)) return null;
+                now - lastReport < TimeSpan.FromSeconds(RoutineSeparationSeconds))
+            {
+                if(due.Any(p=>prefs[p.Key]>0 && p.Value<=now) && now-lastDeferral>=TimeSpan.FromSeconds(15))
+                {
+                    string reason=busy?"channel_busy":recentRadio?"recent_radio":BusyForRoutine(gs)?"braking_or_qualifying_push":
+                        ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
+                    LiveDiagnostics.Decision("routine","deferred",reason);
+                    DriverMemory.RememberObservation("routine","deferred",reason,null,gs==null?int.MinValue:gs.SessionData.SessionId);
+                    lastDeferral=now;
+                }
+                return null;
+            }
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now)
                 .OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
@@ -143,6 +156,7 @@ namespace CrewChiefV4.AiTeam
                     AdditionalValidity=live=>!BusyForRoutine(live),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
                     SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(6) };
+                LiveDiagnostics.Decision(topic,"detected",outstanding.Evidence,text);
                 return outstanding.TryReserve(now) ? outstanding : null;
             }
             return null;
@@ -176,7 +190,7 @@ namespace CrewChiefV4.AiTeam
                     float difference = Math.Abs(op.CurrentBestLapTime-gs.SessionData.PlayerLapTimeSessionBest);
                     return "In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: " + LocalAnswers.LapTime(op.CurrentBestLapTime) + ". Differenz der Bestzeiten " + Number(difference) + " Sekunden.";
                 }
-                var measurement = RaceDataTools.ReadGap(gs, op, ahead);
+                var measurement = RaceDataTools.ReadGap(ctx, op, ahead);
                 float gap = measurement.Seconds;
                 if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
                 string name = ctx.SendDriverNames ? new string((op.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(60).ToArray()) : "";

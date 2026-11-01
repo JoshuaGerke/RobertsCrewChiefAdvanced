@@ -168,6 +168,7 @@ namespace CrewChiefV4.GameState
                                 useDerivedDeltas = false;
                             }
                         }
+                        currentGameState.SessionData.TimeDeltaFrontIsDerived = useDerivedDeltas;
                         if (useDerivedDeltas)
                         {
                             var timeDelta = opponent.DeltaTime.GetAbsoluteTimeDeltaAllowingForLapDifferences(currentGameState.SessionData.DeltaTime);
@@ -206,6 +207,7 @@ namespace CrewChiefV4.GameState
                                 useDerivedDeltas = false;
                             }
                         }
+                        currentGameState.SessionData.TimeDeltaBehindIsDerived = useDerivedDeltas;
                         if (useDerivedDeltas)
                         {
                             var timeDelta = opponent.DeltaTime.GetAbsoluteTimeDeltaAllowingForLapDifferences(currentGameState.SessionData.DeltaTime);

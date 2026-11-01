@@ -264,6 +264,9 @@ namespace CrewChiefV4.Events
                             previousCheckOtherClassWarningData = null;
                             // do the announcing - need to decide which to prefer - read multiple?
                             Console.WriteLine(otherClassWarningData.ToString());
+                            // Preserve the native detector evidence even when its legacy voice is suppressed.
+                            if(otherClassWarningData.numFasterCars>0)
+                                AiTeam.NativeTrafficBridge.Publish(currentGameState,otherClassWarningData.fasterCarDriverNames,true);
 
                             // when we're being caught by faster cars, if this is the first time in the session, and this guy is the leader
                             // (just in case this car has pitted and is a lap down or something) use a different message

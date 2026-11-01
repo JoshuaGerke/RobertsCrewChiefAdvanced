@@ -278,6 +278,9 @@
     <Compile Include="AiTeam\RaceFieldTools.cs" />
     <Compile Include="AiTeam\TrackAwareness.cs" />
     <Compile Include="AiTeam\TrackSituationWatch.cs" />
+    <Compile Include="AiTeam\RaceTrafficWatch.cs" />
+    <Compile Include="AiTeam\QualifyingResultWatch.cs" />
+    <Compile Include="AiTeam\RaceGapTracker.cs" />
     <Compile Include="AiTeam\ActiveRaceObserver.cs" />
     <Compile Include="AiTeam\RaceSituationWatch.cs" />
     <Compile Include="AiTeam\AiRadioSchedule.cs" />

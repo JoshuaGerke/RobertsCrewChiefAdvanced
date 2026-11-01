@@ -23,6 +23,7 @@ namespace CrewChiefV4.AiTeam
             public DateTime CreatedUtc;
             public Func<bool> IsValid;
             public Action Started;
+            public Action BeforeStart;
             public Action Discarded;
             public int State; // 0 pending, 1 starting, 2 started, 3 discarded
         }
@@ -82,6 +83,7 @@ namespace CrewChiefV4.AiTeam
                     Remove(id);
                     return false;
                 }
+                InvokeOnce(ref entry.BeforeStart);
                 startPlayback();
                 System.Threading.Interlocked.Exchange(ref entry.State, 2);
                 InvokeOnce(ref entry.Started);
@@ -116,6 +118,17 @@ namespace CrewChiefV4.AiTeam
         {
             string id;
             if (TryMessageId(messageName, false, out id)) Remove(id);
+        }
+
+        // The radio channel opens only after the AI clip passes its backend-start validity check.
+        // If a queued clip expires, no standalone beep/background is started for it.
+        public static bool PrepareRadio(string messageName, Action openRadio)
+        {
+            string id; byte[] wav; string text; Entry entry;
+            if(!TryMessageId(messageName,false,out id) || !TryGet(id,out wav,out text) || !clips.TryGetValue(id,out entry) ||
+                System.Threading.Volatile.Read(ref entry.State)!=0) return false;
+            System.Threading.Interlocked.Exchange(ref entry.BeforeStart,openRadio);
+            return true;
         }
 
         public static bool IsMessage(string messageName, bool replyOnly = false)
@@ -185,6 +198,15 @@ namespace CrewChiefV4.AiTeam
         /// Schneidet Stille am Anfang und Ende ab (Schwelle etwa -34 dBFS, 20 ms Rand bleiben stehen).
         /// Für Spotteransagen wichtig: Die Warnung soll ohne Vorlauf beginnen.
         /// </summary>
+        public static bool HasSpeechSignal(byte[] pcm16Mono)
+        {
+            if(pcm16Mono==null || pcm16Mono.Length<48 || pcm16Mono.Length%2!=0)return false;
+            int audible=0;
+            for(int i=0;i<pcm16Mono.Length;i+=2)
+                if(Math.Abs((int)BitConverter.ToInt16(pcm16Mono,i))>16 && ++audible>=24)return true;
+            return false;
+        }
+
         public static byte[] TrimSilence(byte[] pcm16Mono, int sampleRate, short threshold = 650)
         {
             int count = pcm16Mono.Length / 2;

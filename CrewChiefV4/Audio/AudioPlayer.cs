@@ -1532,7 +1532,8 @@ namespace CrewChiefV4.Audio
             {
                 PlaybackModerator.PreProcessAddedKeys(keysToPlay);
 
-                openRadioChannelInternal();
+                // Keep the existing native/Sara path. AI-only queues open at the actual backend start.
+                if (keysToPlay.Any(k => !AiTeam.AiAudioStore.IsMessage(k))) openRadioChannelInternal();
                 soundsProcessed.AddRange(playSounds(keysToPlay, isImmediateMessages, out wasInterrupted));
             }
             else
@@ -1621,6 +1622,13 @@ namespace CrewChiefV4.Audio
                     if (thisQueue.Contains(eventName))
                     {
                         QueuedMessage thisMessage = (QueuedMessage)thisQueue[eventName];
+                        if (AiTeam.AiAudioStore.IsMessage(eventName) &&
+                            !AiTeam.AiAudioStore.PrepareRadio(eventName, openRadioChannelInternal))
+                        {
+                            AiTeam.LiveDiagnostics.Queue("rejected",eventName,thisMessage.metadata.priority,0,"ai_clip_missing_or_invalid_before_radio");
+                            soundsProcessed.Add(eventName);
+                            continue;
+                        }
                         if (!isImmediateMessages && playedEventCount > 0 && pauseBetweenMessages > 0)
                         {
                             Log.SoundDebug(() => "Pausing before " + eventName);

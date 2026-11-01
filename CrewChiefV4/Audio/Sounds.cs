@@ -2237,7 +2237,7 @@ namespace CrewChiefV4.Audio
                         AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                         if (isAiAudio)
                         {
-                            if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => this.nAudioOut.Play()))
+                            if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => { SoundCache.currentlyPlayingSound=this; this.playbackStartTime=DateTime.UtcNow; this.nAudioOut.Play(); }))
                             { SoundCache.currentlyPlayingSound = null; return; }
                         }
                         else this.nAudioOut.Play();

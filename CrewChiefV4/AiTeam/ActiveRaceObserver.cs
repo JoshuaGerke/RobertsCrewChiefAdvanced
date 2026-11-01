@@ -16,6 +16,7 @@ namespace CrewChiefV4.AiTeam
         public int CompletedLaps = -1;
         public string AheadName, BehindName;
         public float AheadGap = -1, BehindGap = -1;
+        public Func<GameStateData,bool,float> CurrentGapReader;
         public Func<GameStateData,bool> AdditionalValidity;
         public Func<GameStateData,DateTime,bool> TimedValidity;
         // Only a just-completed practice/qualifying lap can outlive the timed session phase.
@@ -69,19 +70,21 @@ namespace CrewChiefV4.AiTeam
             // Formation support is only valid during a confirmed formation, never after green.
             bool formation = Topic == "formation" && s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Formation;
             if (Topic == "formation" && !formation) return false;
-            bool phaseValid = formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            bool qualifyingResult = Topic == "qualifying-result" && s.SessionType == SessionType.Qualify && AllowLapFinish &&
+                (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
+            bool phaseValid = qualifyingResult || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                (!gs.PitData.InPitlane || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
+                (!gs.PitData.InPitlane || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, true, AheadName, AheadGap) && GapStillValid(gs, false, BehindName, BehindGap);
         }
-        private static bool GapStillValid(GameStateData gs, bool ahead, string name, float oldGap)
+        private bool GapStillValid(GameStateData gs, bool ahead, string name, float oldGap)
         {
             if (oldGap < 0) return true;
             var opponent = RaceDataTools.Neighbour(gs, ahead);
-            float gap = RaceDataTools.GapSeconds(gs, opponent, ahead);
+            float gap = CurrentGapReader == null ? RaceDataTools.GapSeconds(gs, opponent, ahead) : CurrentGapReader(gs,ahead);
             return opponent != null && opponent.DriverRawName == name && gap > 0 && Math.Abs(gap - oldGap) <= .5f;
         }
         public void IncludeNeighbour(RaceDataContext ctx, bool ahead, bool appendText)
@@ -93,8 +96,11 @@ namespace CrewChiefV4.AiTeam
             var text = AiRadioSchedule.Compose(ahead ? "ahead" : "behind", ctx);
             if (op == null || text == null) return;
             if (appendText) Text += " " + text;
-            if (ahead) { AheadName = op.DriverRawName; AheadGap = RaceDataTools.GapSeconds(ctx.GameState, op, true); }
-            else { BehindName = op.DriverRawName; BehindGap = RaceDataTools.GapSeconds(ctx.GameState, op, false); }
+            CurrentGapReader=(live,direction)=>RaceDataTools.ReadGap(new RaceDataContext {
+                GameState=live, NowUtc=DateTime.UtcNow, Tracks=ctx.Tracks
+            },RaceDataTools.Neighbour(live,direction),direction).Seconds;
+            if (ahead) { AheadName = op.DriverRawName; AheadGap = RaceDataTools.ReadGap(ctx, op, true).Seconds; }
+            else { BehindName = op.DriverRawName; BehindGap = RaceDataTools.ReadGap(ctx, op, false).Seconds; }
         }
     }
 

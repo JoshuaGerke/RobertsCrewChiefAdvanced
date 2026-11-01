@@ -16,6 +16,7 @@ namespace CrewChiefV4.AiTeam
         public float[] TyreWear;             // FL, FR, RL, RR in %, null = vom Spiel nicht geliefert
         public float[] PeakTyreTemps;        // FL, FR, RL, RR in °C, null = nicht geliefert
         public float GapAhead = -1;
+        public RaceGapKind GapAheadKind = RaceGapKind.Unknown, GapBehindKind = RaceGapKind.Unknown;
         public float GapBehind = -1;
         public bool InPitLap;
         public DateTime RecordedUtc;
@@ -68,7 +69,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Ein Telemetrie-Tick. Liefert true, wenn gerade eine Runde abgeschlossen wurde.</summary>
-        public bool Update(GameStateData previous, GameStateData current, DateTime nowUtc)
+        public bool Update(GameStateData previous, GameStateData current, DateTime nowUtc, RaceGapMeasurement front = null, RaceGapMeasurement rear = null)
         {
             if (current == null)
             {
@@ -111,8 +112,10 @@ namespace CrewChiefV4.AiTeam
                         LapTime = current.SessionData.LapTimePrevious,
                         Valid = current.SessionData.PreviousLapWasValid && !invalidDuringLap,
                         Position = current.SessionData.ClassPosition,
-                        GapAhead = current.SessionData.TimeDeltaFront,
-                        GapBehind = current.SessionData.TimeDeltaBehind,
+                        GapAhead = front == null ? current.SessionData.TimeDeltaFront : front.IsRaceGap ? front.Seconds : -1,
+                        GapBehind = rear == null ? current.SessionData.TimeDeltaBehind : rear.IsRaceGap ? rear.Seconds : -1,
+                        GapAheadKind = front == null ? RaceGapKind.Unknown : front.Kind,
+                        GapBehindKind = rear == null ? RaceGapKind.Unknown : rear.Kind,
                         InPitLap = pitDuringLap,
                         RecordedUtc = nowUtc,
                     };

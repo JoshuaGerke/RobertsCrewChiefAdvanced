@@ -14,7 +14,7 @@ namespace CrewChiefV4.AiTeam
         private readonly int sessionId, completedLaps;
         private readonly JObject facts;
         private static readonly HashSet<string> metadata = new HashSet<string> {
-            "quelle", "datenalter_s", "veraltet", "snapshot_utc", "datenalter_hinweis", "snapshot_aktuell",
+            "quelle", "datenalter_s", "veraltet", "snapshot_utc", "datenalter_hinweis", "snapshot_aktuell", "messung_utc", "messalter_s",
             "nicht_verfuegbar", "verfuegbar", "streckenposition"
         };
 
@@ -39,7 +39,7 @@ namespace CrewChiefV4.AiTeam
         {
             // No locks on race memory, no I/O or cloud calls on the audio thread.
             var c=new RaceDataContext { GameState=context.GameState, NowUtc=context.NowUtc, LastTelemetryUtc=context.LastTelemetryUtc,
-                SendDriverNames=true, GameName=context.GameName };
+                SendDriverNames=true, GameName=context.GameName, Tracks=context.Tracks };
             return new JObject {
                 ["race"]=RaceDataTools.Execute("get_race_state",c),
                 ["tyres"]=RaceDataTools.Execute("get_tyre_status",c),

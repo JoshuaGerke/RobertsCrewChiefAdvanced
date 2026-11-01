@@ -138,11 +138,11 @@ namespace CrewChiefV4.AiTeam
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
                 member == TeamMember.Mik && (TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
-                member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text));
+                member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) || RaceTrafficWatch.PreparedPhrases.Contains(text));
         }
 
         public static bool CacheOnly(bool automatic, int priority, TeamMember member)
-        { return automatic && priority >= 8 && member == TeamMember.Sara; }
+        { return automatic && (priority >= 8 && member == TeamMember.Sara || priority >= 7 && member == TeamMember.Ben); }
 
         // End-to-end lifetime includes synthesis and the audio queue, not only time after enqueue.
         public static int LifetimeSeconds(bool automatic, int priority)

@@ -362,8 +362,9 @@ namespace CrewChiefV4.AiTeam
                 }
                 var ahead = RaceDataTools.Neighbour(gs, true);
                 var behind = RaceDataTools.Neighbour(gs, false);
-                var front = RaceDataTools.ReadGap(gs, ahead, true);
-                var rear = RaceDataTools.ReadGap(gs, behind, false);
+                var gapContext = new RaceDataContext {GameState=gs,Tracks=service.Tracks,NowUtc=DateTime.UtcNow,LastTelemetryUtc=tick};
+                var front = RaceDataTools.ReadGap(gapContext, ahead, true);
+                var rear = RaceDataTools.ReadGap(gapContext, behind, false);
                 if (s.SessionType != SessionType.Race)
                 {
                     var comparison = front.HasValue ? front : rear;

@@ -1032,6 +1032,8 @@ namespace CrewChiefV4.GameState
 
         // Absolute time delta within a lap.
         public Single TimeDeltaFront = -1;
+        public bool TimeDeltaFrontIsDerived;
+        public bool TimeDeltaBehindIsDerived;
         // 0 means vehicles are on the same lap. >= 1 means user is lapped.
         public int LapsDeltaFront = -1;
 

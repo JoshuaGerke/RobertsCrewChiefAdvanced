@@ -397,7 +397,7 @@ namespace CrewChiefV4.AiTeam
 
         private static void AddGap(JObject target, RaceDataContext ctx, OpponentData opponent, bool ahead, List<string> missing)
         {
-            var gap = ReadGap(ctx.GameState, opponent, ahead);
+            var gap = ReadGap(ctx, opponent, ahead);
             target["abstand_messung"] = gap.Describe(ctx);
             // Only an adapter timing value occupies the precise racing-gap field.
             target["abstand_s"] = gap.Kind == RaceGapKind.SimulatorTiming ? (JToken)Math.Round(gap.Seconds, 3) : null;
@@ -628,8 +628,8 @@ namespace CrewChiefV4.AiTeam
                 if (l.FuelUsed > 0) lo["sprit_l"] = Math.Round(l.FuelUsed, 2);
                 if (l.TyreWear != null) lo["verschleiss_prozent"] = Round4(l.TyreWear, 1);
                 if (l.PeakTyreTemps != null) lo["reifen_spitze_c"] = Round4(l.PeakTyreTemps, 0);
-                if (l.GapAhead > 0) lo["abstand_vorne_s"] = Math.Round(l.GapAhead, 2);
-                if (l.GapBehind > 0) lo["abstand_hinten_s"] = Math.Round(l.GapBehind, 2);
+                if (l.GapAhead > 0) lo[l.GapAheadKind == RaceGapKind.SimulatorTiming ? "abstand_vorne_s" : "abstand_vorne_ungefaehr_s"] = Math.Round(l.GapAhead, 2);
+                if (l.GapBehind > 0) lo[l.GapBehindKind == RaceGapKind.SimulatorTiming ? "abstand_hinten_s" : "abstand_hinten_ungefaehr_s"] = Math.Round(l.GapBehind, 2);
                 arr.Add(lo);
             }
             o["runden"] = arr;
@@ -669,10 +669,14 @@ namespace CrewChiefV4.AiTeam
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
             o["streckenlage"] = TrackAwareness.Read(ctx);
             var s = ctx.GameState.SessionData;
-            var gapAhead = ReadGap(ctx.GameState, Neighbour(ctx.GameState, true), true);
-            var gapBehind = ReadGap(ctx.GameState, Neighbour(ctx.GameState, false), false);
+            var gapAhead = ReadGap(ctx, Neighbour(ctx.GameState, true), true);
+            var gapBehind = ReadGap(ctx, Neighbour(ctx.GameState, false), false);
             if (gapAhead.Kind == RaceGapKind.SimulatorTiming) o["abstand_vorne_s"] = Math.Round(gapAhead.Seconds, 3);
+            else if (gapAhead.IsEstimated) o["abstand_vorne_ungefaehr_s"] = Math.Round(gapAhead.Seconds, 1);
+            o["abstand_vorne_messung"] = gapAhead.Describe(ctx);
             if (gapBehind.Kind == RaceGapKind.SimulatorTiming) o["abstand_hinten_s"] = Math.Round(gapBehind.Seconds, 3);
+            else if (gapBehind.IsEstimated) o["abstand_hinten_ungefaehr_s"] = Math.Round(gapBehind.Seconds, 1);
+            o["abstand_hinten_messung"] = gapBehind.Describe(ctx);
             if (s.SessionStartClassPosition > 0 && s.ClassPosition > 0)
             {
                 o["startplatz"] = s.SessionStartClassPosition;
@@ -729,6 +733,16 @@ namespace CrewChiefV4.AiTeam
             return ReadGap(gs, op, ahead).Seconds;
         }
 
+        public static RaceGapMeasurement ReadGap(RaceDataContext context, OpponentData op, bool ahead)
+        {
+            if(context == null) return new RaceGapMeasurement();
+            var value=ReadGap(context.GameState,op,ahead);
+            if(context.Tracks != null && context.GameState != null && context.GameState.SessionData.SessionType == SessionType.Race &&
+                (ahead ? context.GameState.SessionData.TimeDeltaFrontIsDerived : context.GameState.SessionData.TimeDeltaBehindIsDerived))
+                return context.Tracks.Gaps.Read(context.GameState,op,ahead,context.NowUtc);
+            return value;
+        }
+
         public static RaceGapMeasurement ReadGap(GameStateData gs, OpponentData op, bool ahead)
         {
             if (gs == null || op == null || !ReferenceEquals(op, Neighbour(gs, ahead))) return new RaceGapMeasurement();
@@ -743,7 +757,7 @@ namespace CrewChiefV4.AiTeam
             if ((ahead ? s.LapsDeltaFront : s.LapsDeltaBehind) != 0) return new RaceGapMeasurement();
             float mapped = ahead ? s.TimeDeltaFront : s.TimeDeltaBehind;
             if (Finite(mapped) && mapped >= 0 && mapped <= 3600)
-                return new RaceGapMeasurement(mapped, RaceGapKind.SimulatorTiming);
+                return new RaceGapMeasurement(mapped, (ahead ? s.TimeDeltaFrontIsDerived : s.TimeDeltaBehindIsDerived) ? RaceGapKind.DerivedTiming : RaceGapKind.SimulatorTiming);
             float len = s.TrackDefinition != null ? s.TrackDefinition.trackLength : 0;
             if (!Finite(len) || len <= 0 || !Finite(gs.PositionAndMotionData.DistanceRoundTrack) || !Finite(op.DistanceRoundTrack) ||
                 gs.PositionAndMotionData.DistanceRoundTrack < 0 || op.DistanceRoundTrack < 0 ||
