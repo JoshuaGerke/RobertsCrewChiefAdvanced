@@ -170,6 +170,8 @@ namespace CrewChiefV4.AiTeam
             user.saveUserSettings();
             // Keep voice caches and live telemetry intact; only change role selection.
             settings = AiTeamSettings.Load();
+            NativeTrafficBridge.Enabled = settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
+            NativeTrafficBridge.Clear();
             AudioPlayer.aiTeamSpotterMuted = settings.Enabled && !settings.SaraEnabled;
             Status(TeamRouter.DisplayName(member)+(enabled?" aktiviert.":" deaktiviert; wartende Meldungen werden verworfen."));
         }

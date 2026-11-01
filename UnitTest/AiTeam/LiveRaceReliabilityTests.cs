@@ -51,6 +51,35 @@ namespace UnitTest.AiTeamTests
         [SetUp] public void Setup() {NativeTrafficBridge.Enabled=false;NativeTrafficBridge.Clear();}
         [TearDown] public void Cleanup() {NativeTrafficBridge.Enabled=false;NativeTrafficBridge.Clear();}
 
+        [Test]
+        public void Reenabling_Ben_restores_native_traffic_handoff_without_restarting_or_changing_Sara()
+        {
+            var user=UserSettings.GetUserSettings();
+            string[] keys={"enable_ai_team","enable_ai_team_replaces_crew_chief_voice","enable_ai_team_ben"};
+            bool[] saved=keys.Select(k=>user.getBoolean(k)).ToArray();
+            var filter=CrewChiefV4.Audio.AudioPlayer.messageFilter;
+            bool mute=CrewChiefV4.Audio.AudioPlayer.aiTeamSpotterMuted;
+            var service=AiTeamService.Instance;bool sara=service.Settings.SaraEnabled;
+            try
+            {
+                user.setProperty(keys[0],true);user.setProperty(keys[1],true);
+                service.SetMemberEnabled(TeamMember.Ben,false);
+                NativeTrafficBridge.Publish(State(),new[]{"Traffic"},true);
+                NativeTrafficBridge.Detection detection;Assert.IsFalse(NativeTrafficBridge.TryTake(out detection));
+                service.SetMemberEnabled(TeamMember.Ben,true);
+                NativeTrafficBridge.Publish(State(),new[]{"Traffic"},true);
+                Assert.IsTrue(NativeTrafficBridge.TryTake(out detection));
+                CollectionAssert.AreEqual(new[]{"Traffic"},detection.Names);
+                Assert.AreEqual(sara,service.Settings.SaraEnabled);
+            }
+            finally
+            {
+                for(int i=0;i<keys.Length;i++)user.setProperty(keys[i],saved[i]);
+                user.saveUserSettings();service.ReloadSettings();
+                CrewChiefV4.Audio.AudioPlayer.messageFilter=filter;
+                CrewChiefV4.Audio.AudioPlayer.aiTeamSpotterMuted=mute;
+            }
+        }
         [TestCase(0)] [TestCase(3)] [TestCase(5)]
         public void Race_warns_of_stopped_or_crawling_vehicle_without_outlap_requirement(float speed)
         {
