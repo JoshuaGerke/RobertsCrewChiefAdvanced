@@ -391,7 +391,9 @@ namespace UnitTest.AiTeamTests
             var memory = new AiRaceMemory(); memory.AddRadio(TeamMember.Mik,"Bestzeit!",T.AddSeconds(29));
             var ctx = new RaceDataContext { GameState=gs,Memory=memory,NowUtc=T.AddSeconds(31),LastTelemetryUtc=T.AddSeconds(31) };
             Assert.IsNull(schedule.Take(ctx,prefs,false));
-            ctx.NowUtc=ctx.LastTelemetryUtc=T.AddSeconds(51);
+            ctx.NowUtc=ctx.LastTelemetryUtc=T.AddSeconds(58);
+            Assert.IsNull(schedule.Take(ctx,prefs,false),"Routine radio leaves thirty seconds after another call.");
+            ctx.NowUtc=ctx.LastTelemetryUtc=T.AddSeconds(61);
             Assert.IsNotNull(schedule.Take(ctx,prefs,false));
         }
 

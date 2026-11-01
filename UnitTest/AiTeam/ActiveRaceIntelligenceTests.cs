@@ -205,7 +205,7 @@ namespace UnitTest.AiTeamTests
         {
             var p = new AiRadioPreferences();
             Assert.AreEqual(10, AiRadioPreferences.Options.Length);
-            Assert.AreEqual(120, p["status"]); Assert.AreEqual(200, p["weather"]);
+            Assert.AreEqual(120, p["status"]); Assert.AreEqual(300, p["weather"]);
             p.Set("weather", 0); Assert.AreEqual(0, p["weather"]);
             p.Set("status", -20); Assert.AreEqual(30, p["status"]);
             p.Set("fuel", 999999); Assert.AreEqual(3600, p["fuel"]);

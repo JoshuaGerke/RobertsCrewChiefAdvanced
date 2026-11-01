@@ -486,9 +486,14 @@ namespace CrewChiefV4.AiTeam
                 o["boxenfenster_ende"] = p.PitWindowEnd;
                 o["boxenfenster_hinweis"] = "Runden oder Minuten, je nach Rennformat";
             }
-            if (p.PitSpeedLimit > 0)
+            o["boxenlimit_verfuegbar"]=PitLaneWatch.Known(p.PitSpeedLimit);
+            o["boxenanfahrt_bestaetigt"]=PitLaneWatch.Approaching(ctx.GameState);
+            o["boxenstopp_angemeldet"]=p.HasRequestedPitStop;
+            if (PitLaneWatch.Known(p.PitSpeedLimit))
             {
                 o["boxenlimit_ms"] = Math.Round(p.PitSpeedLimit, 1);
+                o["boxenlimit_kmh"] = Math.Round(p.PitSpeedLimit*3.6f);
+                o["boxenlimit_quelle"] = "aktueller Simulatoradapter, keine Annahme einer bestimmten Markierung";
             }
             if (p.MandatoryPitMinDurationTotal > 0)
             {

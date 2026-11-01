@@ -37,7 +37,7 @@ namespace UnitTest.AiTeamTests
         [TestCase(SessionType.Practice)] [TestCase(SessionType.Qualify)] [TestCase(SessionType.HotLap)]
         public void Optional_reports_work_in_nonrace_sessions_before_first_lap(SessionType type)
         {
-            var gs=State(type); gs.FuelData.FuelUseActive=true; gs.FuelData.FuelLeft=40;
+            var gs=State(type); gs.FuelData.FuelUseActive=true; gs.FuelData.FuelLeft=40; gs.PitData.OnOutLap=true;
             var p=new AiRadioPreferences(); foreach(var o in AiRadioPreferences.Options) p.Set(o.Id,0); p.Set("fuel",30);
             var schedule=new AiRadioSchedule(1); schedule.Observe(gs,T,p);
             var call=schedule.Take(Context(gs,T.AddSeconds(60)),p,false);

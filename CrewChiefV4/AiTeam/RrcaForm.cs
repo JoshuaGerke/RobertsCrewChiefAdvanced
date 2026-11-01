@@ -313,6 +313,7 @@ namespace CrewChiefV4.AiTeam
                     ["label"] = o.Label,
                     ["hint"] = o.Hint,
                     ["minimum"] = o.Minimum,
+                    ["recommendedSeconds"] = o.DefaultSeconds,
                     ["on"] = s.RadioPreferences[o.Id] > 0,
                     ["seconds"] = s.RadioPreferences[o.Id] > 0 ? s.RadioPreferences[o.Id] : o.DefaultSeconds,
                     ["minus"] = s.RadioPreferences.Minus(o.Id),

@@ -180,10 +180,11 @@ namespace UnitTest.AiTeamTests
             var gs=State();gs.PitData.InPitlane=true;gs.PitData.PitSpeedLimit=80f/3.6f;
             gs.PositionAndMotionData.CarSpeed=gs.PitData.PitSpeedLimit+2;
             var watch=new PitLaneWatch();watch.Observe(gs,T);
-            Assert.IsNull(watch.Take(gs,T,false,7));
+            var reminder=watch.Take(gs,T,false,7);Assert.IsNotNull(reminder);Assert.AreEqual("pit-limit",reminder.Topic);
+            reminder.MarkPlaybackStarted(T);
             watch.Observe(gs,T.AddMilliseconds(100));Assert.IsNull(watch.Take(gs,T.AddMilliseconds(100),false,7));
             watch.Observe(gs,T.AddMilliseconds(210));var call=watch.Take(gs,T.AddMilliseconds(210),false,7);
-            Assert.IsNotNull(call);Assert.AreEqual(7,call.Priority);CollectionAssert.Contains(CrewSpeechPolicy.PitSpeedPhrases,call.Text);
+            Assert.IsNotNull(call);Assert.AreEqual(7,call.Priority);CollectionAssert.Contains(PitLaneWatch.SpeedPhrases(gs.PitData.PitSpeedLimit),call.Text);
             Assert.IsTrue(call.IsValid(gs,T.AddMilliseconds(220)));
             gs.PositionAndMotionData.CarSpeed=gs.PitData.PitSpeedLimit;Assert.IsFalse(call.IsValid(gs,T.AddMilliseconds(230)));
         }
@@ -192,7 +193,8 @@ namespace UnitTest.AiTeamTests
         public void Unknown_pit_limit_cannot_generate_a_numeric_limit_or_speeding_claim()
         {
             var gs=State();gs.PitData.InPitlane=true;gs.PitData.PitSpeedLimit=-1;gs.PositionAndMotionData.CarSpeed=40;
-            var watch=new PitLaneWatch();watch.Observe(gs,T);watch.Observe(gs,T.AddSeconds(1));Assert.IsNull(watch.Take(gs,T.AddSeconds(1),false));
+            var watch=new PitLaneWatch();watch.Observe(gs,T);watch.Observe(gs,T.AddSeconds(1));var unknown=watch.Take(gs,T.AddSeconds(1),false);
+            Assert.IsNotNull(unknown);CollectionAssert.Contains(PitLaneWatch.UnknownLimitPhrases,unknown.Text);Assert.IsNull(watch.Take(gs,T.AddSeconds(1),false,7));
             gs.PitData.PitSpeedLimit=60f/3.6f;gs.PositionAndMotionData.CarSpeed=0;watch.Observe(gs,T.AddSeconds(1.1));
             var call=watch.Take(gs,T.AddSeconds(1.1),false);Assert.IsNotNull(call);StringAssert.Contains("60",call.Text);
         }

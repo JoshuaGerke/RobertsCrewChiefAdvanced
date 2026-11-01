@@ -17,6 +17,7 @@ namespace CrewChiefV4.AiTeam
         public string AheadName, BehindName;
         public float AheadGap = -1, BehindGap = -1;
         public Func<GameStateData,bool> AdditionalValidity;
+        public Func<GameStateData,DateTime,bool> TimedValidity;
         // Only a just-completed practice/qualifying lap can outlive the timed session phase.
         public bool AllowLapFinish;
         public bool AllowPitlane;
@@ -72,7 +73,7 @@ namespace CrewChiefV4.AiTeam
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                (!gs.PitData.InPitlane || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) &&
+                (!gs.PitData.InPitlane || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, true, AheadName, AheadGap) && GapStillValid(gs, false, BehindName, BehindGap);
         }

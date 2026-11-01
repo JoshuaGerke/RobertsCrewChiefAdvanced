@@ -1,8 +1,29 @@
 using System;
 using System.Linq;
+using System.Threading;
 
 namespace CrewChiefV4.AiTeam
 {
+    /// <summary>At most one regular and one urgent render. Urgent rendering never waits for a normal cloud request.
+    /// This is preparation only; the existing audio queue still gives Sara exclusive safety priority.</summary>
+    public sealed class RadioRenderGate
+    {
+        private int regular,urgent;
+        public bool Busy {get{return Volatile.Read(ref regular)!=0 || Volatile.Read(ref urgent)!=0;}}
+        public bool UrgentBusy {get{return Volatile.Read(ref urgent)!=0;}}
+        public bool TryEnter(bool urgentCall)
+        {
+            if(urgentCall) return Interlocked.CompareExchange(ref urgent,1,0)==0;
+            if(UrgentBusy || Interlocked.CompareExchange(ref regular,1,0)!=0) return false;
+            if(UrgentBusy) {Interlocked.Exchange(ref regular,0);return false;}
+            return true;
+        }
+        public void Exit(bool urgentCall)
+        {if(urgentCall)Interlocked.Exchange(ref urgent,0);else Interlocked.Exchange(ref regular,0);}
+        public static bool IsUrgentPit(ObservedRaceCall call)
+        {return call!=null && call.Priority>=7 && (call.Topic=="pit-limit" || call.Topic=="pit-speed");}
+    }
+
     /// <summary>One voice identity throughout local and cloud radio; never silently substitute a provider.</summary>
     public static class CrewSpeechPolicy
     {
@@ -116,8 +137,8 @@ namespace CrewChiefV4.AiTeam
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
-                member == TeamMember.Mik && (TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
-                member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text));
+                member == TeamMember.Mik && (TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
+                member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text));
         }
 
         public static bool CacheOnly(bool automatic, int priority, TeamMember member)

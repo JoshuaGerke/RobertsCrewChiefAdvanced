@@ -1803,28 +1803,28 @@
       <Value Profile="(Default)">120</Value>
     </Setting>
     <Setting Name="ai_team_radio_weather_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">200</Value>
+      <Value Profile="(Default)">300</Value>
     </Setting>
     <Setting Name="ai_team_radio_fuel_seconds" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">120</Value>
     </Setting>
     <Setting Name="ai_team_radio_tyres_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">180</Value>
+      <Value Profile="(Default)">240</Value>
     </Setting>
     <Setting Name="ai_team_radio_pace_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">120</Value>
+      <Value Profile="(Default)">180</Value>
     </Setting>
     <Setting Name="ai_team_radio_ahead_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">90</Value>
+      <Value Profile="(Default)">120</Value>
     </Setting>
     <Setting Name="ai_team_radio_behind_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">90</Value>
+      <Value Profile="(Default)">120</Value>
     </Setting>
     <Setting Name="ai_team_radio_stint_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">180</Value>
+      <Value Profile="(Default)">300</Value>
     </Setting>
     <Setting Name="ai_team_radio_vehicle_seconds" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">180</Value>
+      <Value Profile="(Default)">300</Value>
     </Setting>
     <Setting Name="ai_team_radio_progress_seconds" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">180</Value>

@@ -102,6 +102,15 @@ namespace UnitTest.AiTeamTests
                         StringAssert.Contains("Start drücken", hint, "Disabled auto detection must not claim that the crew starts by itself.");
                         // Restore the default switch value for the existing fresh-profile assertions.
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-auto').checked=true");
+                        string preset=await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-page=settings]').click(); " +
+                            "document.querySelector('[data-topic=weather] [data-part=seconds]').value=45; " +
+                            "document.querySelector('[data-topic=weather] [data-part=on]').checked=false; " +
+                            "document.querySelector('#rrca-radio-preset').click(); " +
+                            "JSON.stringify({weather:document.querySelector('[data-topic=weather] [data-part=seconds]').value," +
+                            "vehicle:document.querySelector('[data-topic=vehicle] [data-part=seconds]').value," +
+                            "on:document.querySelector('[data-topic=weather] [data-part=on]').checked})");
+                        StringAssert.Contains("300",preset);StringAssert.Contains("false",preset);
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-save').click()");
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-page=cockpit]').click(); " +
                             "document.querySelector('#rrca-messages-volume').value=37; document.querySelector('#rrca-messages-volume').dispatchEvent(new Event('change')); " +
                             "document.querySelector('#rrca-background-volume').value=0; document.querySelector('#rrca-background-volume').dispatchEvent(new Event('change'))");
@@ -109,6 +118,8 @@ namespace UnitTest.AiTeamTests
                     }
                     if (profileStage == 4)
                     {
+                        Assert.AreEqual(0,AiTeamSettings.Load().RadioPreferences["weather"],"The preset preserves a disabled topic.");
+                        Assert.AreEqual(300,AiTeamSettings.Load().RadioPreferences["vehicle"],"The preset is saved through the real WebView bridge.");
                         var levels = (Newtonsoft.Json.Linq.JObject)typeof(RrcaForm).GetMethod("AudioLevels", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null);
                         Assert.AreEqual(37, (int)levels["messages"]); Assert.AreEqual(0, (int)levels["background"]);
                         Assert.AreEqual(.37f, CrewChiefV4.MainWindow.currentMessageVolume, .001);

@@ -19,14 +19,14 @@ namespace CrewChiefV4.AiTeam
     {
         public static readonly RadioOption[] Options = {
             new RadioOption { Id="status", Label="Rennstatus: Position und Abstände", DefaultSeconds=120, Minimum=30, Hint="Aktueller Überblick; nur belegte Fortschritte und Pace." },
-            new RadioOption { Id="weather", Label="Wetter, Luft- und Streckentemperatur", DefaultSeconds=200, Minimum=30, Hint="Nur verfügbare Messwerte; keine Wettervorhersage." },
+            new RadioOption { Id="weather", Label="Wetter, Luft- und Streckentemperatur", DefaultSeconds=300, Minimum=30, Hint="Nur verfügbare Messwerte; keine Wettervorhersage." },
             new RadioOption { Id="fuel", Label="Sprit und gemessene Reichweite", DefaultSeconds=120, Minimum=30, Hint="Reichweite erst mit sauber gemessenem Verbrauch." },
-            new RadioOption { Id="tyres", Label="Reifenverschleiß", DefaultSeconds=180, Minimum=30, Hint="Eigene Reifen; keine erfundenen Gegnerwerte." },
-            new RadioOption { Id="pace", Label="Eigene Rundenzeiten und Konstanz", DefaultSeconds=120, Minimum=30, Hint="Drei zusammenhängende gültige Runden ohne Box." },
-            new RadioOption { Id="ahead", Label="Vordermann: Name und Abstand", DefaultSeconds=90, Minimum=30, Hint="Gegner der eigenen Klasse; Abstand muss bekannt sein." },
-            new RadioOption { Id="behind", Label="Hintermann: Name und Abstand", DefaultSeconds=90, Minimum=30, Hint="Kein Ersatz für Saras unmittelbare Seitenwarnungen." },
-            new RadioOption { Id="stint", Label="Stintentwicklung: Verbrauch und Reifen", DefaultSeconds=180, Minimum=30, Hint="Gemessene Entwicklung ohne erfundene Strategie." },
-            new RadioOption { Id="vehicle", Label="Fahrzeugzustand: Schäden und Technik", DefaultSeconds=180, Minimum=30, Hint="Motor, Bremsen, Aufhängung, Getriebe, Aero und Reifen, soweit verfügbar." },
+            new RadioOption { Id="tyres", Label="Reifenverschleiß", DefaultSeconds=240, Minimum=30, Hint="Eigene Reifen; keine erfundenen Gegnerwerte." },
+            new RadioOption { Id="pace", Label="Eigene Rundenzeiten und Konstanz", DefaultSeconds=180, Minimum=30, Hint="Drei zusammenhängende gültige Runden ohne Box." },
+            new RadioOption { Id="ahead", Label="Vordermann: Name und Abstand", DefaultSeconds=120, Minimum=30, Hint="Gegner der eigenen Klasse; Abstand muss bekannt sein." },
+            new RadioOption { Id="behind", Label="Hintermann: Name und Abstand", DefaultSeconds=120, Minimum=30, Hint="Kein Ersatz für Saras unmittelbare Seitenwarnungen." },
+            new RadioOption { Id="stint", Label="Stintentwicklung: Verbrauch und Reifen", DefaultSeconds=300, Minimum=30, Hint="Gemessene Entwicklung ohne erfundene Strategie." },
+            new RadioOption { Id="vehicle", Label="Fahrzeugzustand: Schäden und Technik", DefaultSeconds=300, Minimum=30, Hint="Motor, Bremsen, Aufhängung, Getriebe, Aero und Reifen, soweit verfügbar." },
             new RadioOption { Id="progress", Label="Rennfortschritt und Restdistanz", DefaultSeconds=180, Minimum=30, Hint="Restzeit oder bestätigte Rundenzahl, passend zum Rennformat." },
         };
         private readonly Dictionary<string, int> seconds = new Dictionary<string, int>();
@@ -75,17 +75,34 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, DateTime> due = new Dictionary<string, DateTime>();
         private DateTime lastReport = DateTime.MinValue;
         private ObservedRaceCall outstanding;
+        private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
+        private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
+        public static bool OnConfirmedQualifyingPushLap(GameStateData gs)
+        {
+            return gs!=null && gs.SessionData.SessionType==SessionType.Qualify && gs.SessionData.CompletedLaps>0 &&
+                !gs.PitData.OnOutLap && !gs.PitData.OnInLap && !gs.PitData.InPitlane &&
+                !TrackAwareness.InRange(gs.PositionAndMotionData.CarSpeed,0,4.99).HasValue;
+        }
+        public static bool BusyForRoutine(GameStateData gs)
+        {return OnConfirmedQualifyingPushLap(gs) || gs!=null && TrackAwareness.InRange(gs.ControlData.BrakePedal,.2,1).HasValue;}
+        private bool UnchangedRoutine(string topic,string text,DateTime now)
+        {
+            if(topic=="status" || topic=="fuel" || topic=="progress") return false;
+            string old;DateTime when;
+            return lastDeliveredText.TryGetValue(topic,out old) && old==text && lastDeliveredUtc.TryGetValue(topic,out when) &&
+                now>=when && now-when<TimeSpan.FromMinutes(10);
+        }
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { due.Clear(); outstanding = null; lastReport = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = null; lastReport = DateTime.MinValue; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
             foreach (var option in AiRadioPreferences.Options)
                 if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(prefs.NextDelaySeconds(option.Id, random));
         }
-        public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null)
+        public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true)
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
             if (outstanding != null)
@@ -93,6 +110,8 @@ namespace CrewChiefV4.AiTeam
                 if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
                 {
                     lastReport = outstanding.DeliveryStartedUtc;
+                    lastDeliveredText[outstanding.Topic]=outstanding.Text;
+                    lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
                     due[outstanding.Topic] = lastReport.AddSeconds(prefs.NextDelaySeconds(outstanding.Topic, random));
                     outstanding = null;
                 }
@@ -105,10 +124,10 @@ namespace CrewChiefV4.AiTeam
                     outstanding = null;
                 }
             }
-            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(20), now).Any(r => r.TimeUtc <= now);
-            if (gs == null || busy || recentRadio || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(30), now).Any(r => r.TimeUtc <= now);
+            if (gs == null || busy || recentRadio || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
-                now - lastReport < TimeSpan.FromSeconds(20)) return null;
+                now - lastReport < TimeSpan.FromSeconds(30)) return null;
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now)
                 .OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
@@ -118,8 +137,10 @@ namespace CrewChiefV4.AiTeam
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
                 string text = Compose(topic, ctx);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
+                if(filterUnchanged && UnchangedRoutine(topic,text,now)) { LiveDiagnostics.Decision(topic,"suppressed","unchanged_routine_since_last_delivery"); continue; }
                 outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
+                    AdditionalValidity=live=>!BusyForRoutine(live),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
                     SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(6) };
                 return outstanding.TryReserve(now) ? outstanding : null;

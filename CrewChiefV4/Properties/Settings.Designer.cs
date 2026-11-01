@@ -36,7 +36,7 @@ namespace CrewChiefV4.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("200")]
+        [global::System.Configuration.DefaultSettingValueAttribute("300")]
         public int ai_team_radio_weather_seconds { get { return ((int)this["ai_team_radio_weather_seconds"]); } set { this["ai_team_radio_weather_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
@@ -46,32 +46,32 @@ namespace CrewChiefV4.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("180")]
+        [global::System.Configuration.DefaultSettingValueAttribute("240")]
         public int ai_team_radio_tyres_seconds { get { return ((int)this["ai_team_radio_tyres_seconds"]); } set { this["ai_team_radio_tyres_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("120")]
+        [global::System.Configuration.DefaultSettingValueAttribute("180")]
         public int ai_team_radio_pace_seconds { get { return ((int)this["ai_team_radio_pace_seconds"]); } set { this["ai_team_radio_pace_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("90")]
+        [global::System.Configuration.DefaultSettingValueAttribute("120")]
         public int ai_team_radio_ahead_seconds { get { return ((int)this["ai_team_radio_ahead_seconds"]); } set { this["ai_team_radio_ahead_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("90")]
+        [global::System.Configuration.DefaultSettingValueAttribute("120")]
         public int ai_team_radio_behind_seconds { get { return ((int)this["ai_team_radio_behind_seconds"]); } set { this["ai_team_radio_behind_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("180")]
+        [global::System.Configuration.DefaultSettingValueAttribute("300")]
         public int ai_team_radio_stint_seconds { get { return ((int)this["ai_team_radio_stint_seconds"]); } set { this["ai_team_radio_stint_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("180")]
+        [global::System.Configuration.DefaultSettingValueAttribute("300")]
         public int ai_team_radio_vehicle_seconds { get { return ((int)this["ai_team_radio_vehicle_seconds"]); } set { this["ai_team_radio_vehicle_seconds"] = value; } }
 
         [global::System.Configuration.UserScopedSettingAttribute()]

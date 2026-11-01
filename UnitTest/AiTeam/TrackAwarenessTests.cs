@@ -181,15 +181,15 @@ namespace UnitTest.AiTeamTests
         {
             var s=State(SessionType.Practice);var car=Add(s);var a=new TrackAwareness();var watch=new TrackSituationWatch();
             var calls=new List<ObservedRaceCall>();
-            for(int i=0;i<=40;i++){var now=T.AddSeconds(i/10d);Move(s,car,i/10d);a.Observe(s,now);var call=watch.Evaluate(a,s,now);if(call!=null)calls.Add(call);}
+            for(int i=0;i<=40;i++){var now=T.AddSeconds(i/10d);Move(s,car,i/10d,240,0);a.Observe(s,now);var call=watch.Evaluate(a,s,now);if(call!=null){calls.Add(call);call.TryReserve(now);call.MarkPlaybackStarted(now);}}
             Assert.AreEqual(1,calls.Count);Assert.AreEqual("traffic-catching",calls[0].Topic);Assert.AreEqual(TeamMember.Ben,calls[0].Member);
             Assert.Less(calls[0].Priority,6);StringAssert.DoesNotContain("frei",calls[0].Text.ToLowerInvariant());
         }
         [Test]
         public void Spatial_call_is_withdrawn_when_the_identified_car_pits_or_disappears()
         {
-            var s=State();var car=Add(s);var a=new TrackAwareness();
-            for(int i=0;i<=20;i++){Move(s,car,i/10d);a.Observe(s,T.AddSeconds(i/10d));}
+            var s=State(SessionType.Practice);var car=Add(s);var a=new TrackAwareness();
+            for(int i=0;i<=20;i++){Move(s,car,i/10d,240,0);a.Observe(s,T.AddSeconds(i/10d));}
             var id=a.Snapshot.Cars[0].Id;
             Assert.IsTrue(TrackSituationWatch.StillRelevant(a,s,"Bob",id,"traffic-catching",T.AddSeconds(2)));
             car.InPits=true;Assert.IsFalse(TrackSituationWatch.StillRelevant(a,s,"Bob",id,"traffic-catching",T.AddSeconds(2)));
@@ -264,7 +264,8 @@ namespace UnitTest.AiTeamTests
             var s=State(practice ? SessionType.Practice : SessionType.Race);var car=Add(s);
             if(!practice)car.CarClass=new CarData.CarClass {carClassEnum=CarData.CarClassEnum.ALPINE};
             var a=new TrackAwareness();var watch=new TrackSituationWatch();ObservedRaceCall found=null;
-            for(int i=0;i<=20;i++){var now=T.AddSeconds(i/10d);Move(s,car,i/10d,-150,50);a.Observe(s,now);found=watch.Evaluate(a,s,now)??found;}
+            for(int i=0;i<=120;i++){var now=T.AddSeconds(i/10d);Move(s,car,i/10d,-150,50);a.Observe(s,now);found=watch.Evaluate(a,s,now)??found;}
+            if(!practice) {Assert.IsNull(found,"Non-safety traffic coaching is disabled in races.");return;}
             Assert.IsNotNull(found);Assert.AreEqual("traffic-approaching",found.Topic);Assert.AreEqual(TeamMember.Ben,found.Member);
         }
         [Test]

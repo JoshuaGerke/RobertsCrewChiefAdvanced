@@ -13,7 +13,7 @@ namespace CrewChiefV4.AiTeam
     {
         public readonly int Id, OverallPosition, ClassPosition;
         public readonly string Key, Name;
-        public readonly bool InPits, SameClass, ClassComparisonKnown, SpatiallyConsistent;
+        public readonly bool InPits, SameClass, ClassComparisonKnown, SpatiallyConsistent, OnInLap, OnOutLap, LapContextKnown;
         public readonly double? X, Z, LapDistanceM, RouteGapM, WorldDistanceM, SpeedMps, ClosingMps;
         public readonly int? LapOffset;
         internal TrackCarPosition(int id, string key, OpponentData car, GameStateData own, double? x, double? z,
@@ -21,6 +21,7 @@ namespace CrewChiefV4.AiTeam
         {
             Id=id; Key=key; Name=car.CanUseName ? SafeName(car.DriverRawName) : null;
             OverallPosition=car.OverallPosition; ClassPosition=car.ClassPosition; InPits=car.InPits;
+            LapContextKnown=car.getCurrentLapData()!=null; OnInLap=car.isEnteringPits(); OnOutLap=car.isOnOutLap();
             ClassComparisonKnown=own.carClass!=null && own.carClass.carClassEnum!=CarData.CarClassEnum.UNKNOWN_RACE &&
                 own.carClass.carClassEnum!=CarData.CarClassEnum.USER_CREATED && car.CarClass.carClassEnum!=CarData.CarClassEnum.UNKNOWN_RACE &&
                 car.CarClass.carClassEnum!=CarData.CarClassEnum.USER_CREATED;
@@ -169,6 +170,14 @@ namespace CrewChiefV4.AiTeam
             return true;
         }
 
+        private static double? VerifiedSpeed(TrackCarPosition car,double? ownSpeed)
+        {
+            bool checkedMotion=car.ClosingMps.HasValue && ownSpeed.HasValue;
+            if(checkedMotion && !TrackSituationWatch.MotionPlausible(car,ownSpeed.Value,car.RouteGapM>0)) return null;
+            // Zero may be an adapter default. Claim a stopped car only with corroborating route motion.
+            return car.SpeedMps==0 && !checkedMotion?null:car.SpeedMps;
+        }
+
         internal static double? InRange(double n,double min,double max)
         { return double.IsNaN(n)||double.IsInfinity(n)||n<min||n>max ? null : (double?)n; }
         internal static double? ValidDistance(double distance,double? length)
@@ -222,15 +231,22 @@ namespace CrewChiefV4.AiTeam
                 ["verfuegbar"]=true,["snapshot_utc"]=s.Utc.ToString("o"),["datenalter_s"]=Math.Round((context.NowUtc-s.Utc).TotalSeconds,3),
                 ["quelle"]="Crew-Chief-GameState / "+context.GameName,["eigene_position"]=Player(s,context.GameState.PitData.OnOutLap),
                 ["erfasste_gegner"]=s.MappedCars,["beobachtete_gegner"]=s.Cars.Count,["ausgabe_begrenzt_auf"]=12,
-                ["hinweis"]="Physische Streckenlage enthält auch andere Klassen und Überrundungen. Positiver Streckenversatz bedeutet voraus, negativer dahinter (kürzester Rundenteil). Meterabstand entlang der Runde ist kein Zeitabstand, kein Beweis für ein Überholmanöver und keine Freigabe. Weltpositionen belegen weder Grip noch Gegnerreifen oder Kurvenvorteile.",
+                ["hinweis"]="Physische Streckenlage enthält auch andere Klassen und Überrundungen. Positiver Streckenversatz bedeutet voraus, negativer dahinter (kürzester Rundenteil). Meterabstand entlang der Runde ist kein Zeitabstand, kein Beweis für ein Überholmanöver und keine Freigabe. Roh-Nullwerte ohne Bewegungsabgleich belegen keinen stehenden Wagen; widersprüchliches Tempo bleibt ungeklärt. Die ausdrücklich geschätzte Auflaufzeit entsteht aus Meterabstand und gemessener Annäherung; sie ist keine offizielle Zeitlücke. Weltpositionen belegen weder Grip noch Gegnerreifen oder Kurvenvorteile.",
                 ["fahrzeuge"]=new JArray(ordered.Select(c=>new JObject {
                     ["id"]=c.Id,["name"]=context.SendDriverNames ? c.Name : null,["position_gesamt"]=c.OverallPosition>0 ? (JToken)c.OverallPosition : null,
                     ["position_klasse"]=c.ClassPosition>0 ? (JToken)c.ClassPosition : null,
                     ["gleiche_klasse"]=c.ClassComparisonKnown ? (JToken)c.SameClass : null,["in_boxengasse"]=c.InPits,
                     ["welt_x_m"]=Number(c.X),["welt_z_m"]=Number(c.Z),["meter_ab_start_ziel"]=Number(c.LapDistanceM),
                     ["versatz_entlang_strecke_m"]=Number(c.SpatiallyConsistent ? c.RouteGapM : null),["luftlinie_horizontal_m"]=Number(c.WorldDistanceM),
-                    ["rundenversatz"]=c.LapOffset.HasValue ? (JToken)c.LapOffset.Value : null,["tempo_m_s"]=Number(c.SpeedMps),
-                    ["annaeherung_m_s"]=Number(c.ClosingMps),["positionsdaten_konsistent"]=c.SpatiallyConsistent
+                    ["rundenversatz"]=c.LapOffset.HasValue ? (JToken)c.LapOffset.Value : null,
+                    ["tempo_roh_m_s"]=Number(c.SpeedMps),
+                    ["tempo_m_s"]=Number(VerifiedSpeed(c,s.PlayerSpeedMps)),
+                    ["tempo_zu_positionen_plausibel"]=c.ClosingMps.HasValue && s.PlayerSpeedMps.HasValue
+                        ? (JToken)TrackSituationWatch.MotionPlausible(c,s.PlayerSpeedMps.Value,c.RouteGapM>0):null,
+                    ["annaeherung_m_s"]=Number(c.ClosingMps),["positionsdaten_konsistent"]=c.SpatiallyConsistent,
+                    ["auf_einlaufrunde"]=c.LapContextKnown?(JToken)c.OnInLap:null,["auf_auslaufrunde"]=c.LapContextKnown?(JToken)c.OnOutLap:null,
+                    ["geschaetzte_auflaufzeit_s"]=c.SpatiallyConsistent && c.RouteGapM.HasValue && c.ClosingMps>0
+                        ? Number(Math.Abs(c.RouteGapM.Value)/c.ClosingMps.Value):null
                 }))
             };
         }
