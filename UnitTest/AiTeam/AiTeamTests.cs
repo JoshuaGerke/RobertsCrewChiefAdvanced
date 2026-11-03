@@ -789,7 +789,7 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(0, watch.Evaluate(hit, hit, now.AddSeconds(1), false).Count);
             Assert.IsNull(watch.TakeDamageAssessment());
             watch.Evaluate(hit, hit, now.AddSeconds(4.5), false);
-            Assert.AreEqual("Aero leicht beschädigt. Sollte fahrbar sein.", watch.TakeDamageAssessment().LocalReport);
+            Assert.AreEqual("Aero leicht beschädigt.", watch.TakeDamageAssessment().LocalReport);
             Assert.IsNull(watch.TakeDamageAssessment(), "nur einmal");
         }
 
@@ -820,7 +820,7 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(8, a.PositionBefore);
             Assert.AreEqual(13, a.PositionNow);
             Assert.IsFalse(a.Serious);
-            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero leicht beschädigt (3 Prozent). Sollte fahrbar sein.", a.LocalReport);
+            Assert.AreEqual("Du bist von Platz 8 auf 13 zurückgefallen. Aero-Schadenswert 3,0 Prozent, Aero leicht beschädigt (3 Prozent).", a.LocalReport);
         }
 
         [Test]
@@ -1054,7 +1054,7 @@ namespace UnitTest.AiTeamTests
         public void Rennbilanz_zaehlt_ungueltige_Runden_auch_im_Funkmodus_Minimal()
         {
             var watch = new IncidentWatch();
-            StringAssert.Contains("Keine Strafen, ungültigen Runden oder starken Verzögerungen erfasst", watch.FinishSummary());
+            Assert.AreEqual(string.Empty, watch.FinishSummary());
             for (int lap = 1; lap <= 2; lap++)
             {
                 var valid = Racing(150);

@@ -24,18 +24,19 @@ namespace CrewChiefV4.AiTeam
             public Func<bool> IsValid;
             public Action Started;
             public Action BeforeStart;
+            public Action<bool> Finished;
             public Action Discarded;
             public int State; // 0 pending, 1 starting, 2 started, 3 discarded
         }
 
         private static readonly ConcurrentDictionary<string, Entry> clips = new ConcurrentDictionary<string, Entry>();
 
-        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null)
+        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null)
         {
             if (wav == null || wav.Length == 0 || wav.Length > 16 * 1024 * 1024) throw new ArgumentException("Ungültiger Audioclip.");
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
             // Bound unplayed audio even if a backend rejects its queue entry without requesting it.
             foreach (var old in clips.OrderBy(kv => kv.Value.CreatedUtc).ToArray())
             {
@@ -99,6 +100,13 @@ namespace CrewChiefV4.AiTeam
         }
 
         public static void MarkStarted(string id) { TryStart(id, () => { }); }
+        public static void MarkFinished(string id,bool interrupted)
+        {
+            Entry e;
+            if(id==null || !clips.TryGetValue(id,out e) || (System.Threading.Volatile.Read(ref e.State)==0 || System.Threading.Volatile.Read(ref e.State)==3))return;
+            var done=System.Threading.Interlocked.Exchange(ref e.Finished,null);
+            try{if(done!=null)done(interrupted);}catch(Exception){}
+        }
 
         private static void InvokeOnce(ref Action callback)
         {

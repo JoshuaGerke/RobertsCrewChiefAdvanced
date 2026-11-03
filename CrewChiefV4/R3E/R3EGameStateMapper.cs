@@ -1147,6 +1147,8 @@ namespace CrewChiefV4.RaceRoom
             }
 
             //------------------------ Car damage data -----------------------
+            TelemetryMeasurements.HealthDamage(currentGameState,shared.CarDamage.Aerodynamics,shared.CarDamage.Engine,
+                shared.CarDamage.Transmission,"RaceRoom.API",DateTime.SpecifyKind(currentGameState.Now,DateTimeKind.Utc));
             currentGameState.CarDamageData.DamageEnabled = shared.CarDamage.Aerodynamics != -1 &&
                 shared.CarDamage.Transmission != -1 && shared.CarDamage.Engine != -1;
             if (currentGameState.CarDamageData.DamageEnabled)

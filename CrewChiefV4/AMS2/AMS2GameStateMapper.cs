@@ -166,6 +166,38 @@ namespace CrewChiefV4.AMS2
             return lastGuessAtPlayerIndex;
         }
 
+        /// <summary>MMF publishes the live lap timer directly. UDP has only per-sector timers;
+        /// -1 means an unstarted/unavailable sector, not negative elapsed time.</summary>
+        public static float CurrentLapSeconds(ams2APIStruct shared,int player,bool hasNativeClock)
+        {
+            if(hasNativeClock) return FiniteLapSeconds(shared.mmfOnly_mCurrentTime)?shared.mmfOnly_mCurrentTime:-1;
+            if(player<0 || player>=64 || shared.mCurrentSector1Times==null || shared.mCurrentSector2Times==null || shared.mCurrentSector3Times==null)return -1;
+            float[] sectors={shared.mCurrentSector1Times[player],shared.mCurrentSector2Times[player],shared.mCurrentSector3Times[player]};
+            float sum=0;bool known=false;
+            foreach(float sector in sectors)
+            {
+                if(sector==-1)continue;
+                if(!FiniteLapSeconds(sector))return -1;
+                known=true;sum+=sector;
+            }
+            return known && FiniteLapSeconds(sum)?sum:-1;
+        }
+        public static bool ConfirmedUncountedStartLineCrossing(GameStateData before,GameStateData now)
+        {
+            if(before==null || now==null || !CrewChiefV4.AiTeam.SessionLapObserver.Supported(now.SessionData.SessionType) ||
+                before.SessionData.SessionId!=now.SessionData.SessionId || before.SessionData.SessionType!=now.SessionData.SessionType ||
+                before.SessionData.CompletedLaps!=now.SessionData.CompletedLaps || before.SessionData.SectorNumber!=3 || now.SessionData.SectorNumber!=1 ||
+                before.PitData.InPitlane || now.PitData.InPitlane || before.PitData.JumpedToPits || now.PitData.JumpedToPits ||
+                now.SessionData.TrackDefinition==null)return false;
+            float length=now.SessionData.TrackDefinition.trackLength;
+            float previous=before.PositionAndMotionData.DistanceRoundTrack,current=now.PositionAndMotionData.DistanceRoundTrack;
+            float step=now.SessionData.SessionRunningTime-before.SessionData.SessionRunningTime;
+            return length>100 && previous>length*.8f && previous<length && current>=0 && current<length*.2f &&
+                step>0 && step<=1.5f && length-previous+current<=180*step+15;
+        }
+        private static bool FiniteLapSeconds(float seconds)
+        {return !float.IsNaN(seconds) && !float.IsInfinity(seconds) && seconds>=0 && seconds<=86400;}
+
         public override GameStateData mapToGameStateData(Object memoryMappedFileStruct, GameStateData previousGameState)
         {
             CrewChiefV4.AMS2.AMS2SharedMemoryReader.AMS2StructWrapper wrapper = (CrewChiefV4.AMS2.AMS2SharedMemoryReader.AMS2StructWrapper)memoryMappedFileStruct;
@@ -210,6 +242,7 @@ namespace CrewChiefV4.AMS2
 
             GameStateData currentGameState = new GameStateData(ticks);
             currentGameState.rawGameData = wrapper;
+            currentGameState.SourceTelemetryUtc=wrapper.sourceSampleTicks>0?new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc):DateTime.SpecifyKind(currentGameState.Now,DateTimeKind.Utc);
 
             /*Console.WriteLine("SessionState: " + (eSessionState)shared.mSessionState + " RaceState: " + (eRaceState)shared.mRaceState + 
                 " GameState: " + (eGameState) shared.mGameState + " PitMode: " + (ePitMode) shared.mPitMode +
@@ -661,8 +694,7 @@ namespace CrewChiefV4.AMS2
             currentGameState.SessionData.NumCarsOverall = shared.mNumParticipants;
             currentGameState.SessionData.IsNewLap = previousGameState != null &&
                 (currentGameState.SessionData.CompletedLaps == previousGameState.SessionData.CompletedLaps + 1 ||
-                  (currentGameState.SessionData.SessionType == SessionType.Practice &&
-                      currentGameState.SessionData.SectorNumber == 1 && previousGameState.SessionData.SectorNumber == 3));
+                  ConfirmedUncountedStartLineCrossing(previousGameState,currentGameState));
 
             if (currentGameState.SessionData.IsNewLap)
             {
@@ -707,8 +739,7 @@ namespace CrewChiefV4.AMS2
                 }
             }
 
-            currentGameState.SessionData.LapTimeCurrent = shared.mCurrentSector1Times[playerIndex] +
-                shared.mCurrentSector3Times[playerIndex] + shared.mCurrentSector3Times[playerIndex];
+            currentGameState.SessionData.LapTimeCurrent = CurrentLapSeconds(shared,playerIndex,wrapper.sdk14LayoutSelected);
 
             currentGameState.SessionData.TimeDeltaBehind = shared.mSplitTimeBehind;
             currentGameState.SessionData.TimeDeltaFront = shared.mSplitTimeAhead;
@@ -1028,9 +1059,12 @@ namespace CrewChiefV4.AMS2
             }
 
             currentGameState.CarDamageData.DamageEnabled = true;    // no way to tell if it's disabled from the shared memory
+            TelemetryMeasurements.DamageFractions(currentGameState,shared.mAeroDamage,shared.mEngineDamage,
+                shared.mBrakeDamage,shared.mSuspensionDamage,"AMS2.API",currentGameState.SourceTelemetryUtc);
             currentGameState.CarDamageData.OverallAeroDamage = mapToAeroDamageLevel(shared.mAeroDamage);
             currentGameState.CarDamageData.OverallEngineDamage = mapToEngineDamageLevel(shared.mEngineDamage);
-            currentGameState.CarDamageData.OverallTransmissionDamage = mapToTransmissionDamageLevel(shared.mClutchOverheated);
+            // A degraded clutch is not a measured gearbox-damage percentage.
+            currentGameState.CarDamageData.OverallTransmissionDamage = DamageLevel.UNKNOWN;
             currentGameState.CarDamageData.SuspensionDamageStatus = CornerData.getCornerData(suspensionDamageThresholds,
                 shared.mSuspensionDamage[0], shared.mSuspensionDamage[1], shared.mSuspensionDamage[2], shared.mSuspensionDamage[3]);
             currentGameState.CarDamageData.BrakeDamageStatus = CornerData.getCornerData(brakeDamageThresholds,
@@ -1045,6 +1079,10 @@ namespace CrewChiefV4.AMS2
             currentGameState.FuelData.FuelCapacity = shared.mFuelCapacity;
             currentGameState.FuelData.FuelLeft = currentGameState.FuelData.FuelCapacity * shared.mFuelLevel;
             currentGameState.FuelData.FuelPressure = shared.mFuelPressureKPa;
+            DateTime sensorUtc=currentGameState.SourceTelemetryUtc;
+            TelemetryMeasurements.Put(currentGameState,"engine.oil_pressure",shared.mOilPressureKPa,"AMS2.API","mOilPressureKPa","motor","kPa",sensorUtc,0,100000,shared.mOilPressureKPa>0);
+            TelemetryMeasurements.Put(currentGameState,"engine.fuel_pressure",shared.mFuelPressureKPa,"AMS2.API","mFuelPressureKPa","motor","kPa",sensorUtc,0,100000,shared.mFuelPressureKPa>0);
+            TelemetryMeasurements.Put(currentGameState,"engine.water_pressure",shared.mWaterPressureKPa,"AMS2.API","mWaterPressureKPa","motor","kPa",sensorUtc,0,100000,shared.mWaterPressureKPa>0);
             currentGameState.FuelData.FuelUseActive = true;         // no way to tell if it's disabled
 
             currentGameState.PenaltiesData.HasDriveThrough = pitShedule == ePitSchedule.PIT_SCHEDULE_DRIVE_THROUGH;

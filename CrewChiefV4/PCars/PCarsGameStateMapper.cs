@@ -1041,6 +1041,8 @@ namespace CrewChiefV4.PCars
                 }
             }
             currentGameState.CarDamageData.DamageEnabled = true;    // no way to tell if it's disabled from the shared memory
+            TelemetryMeasurements.DamageFractions(currentGameState,shared.mAeroDamage,shared.mEngineDamage,
+                shared.mBrakeDamage,shared.mSuspensionDamage,"PCars.API",DateTime.SpecifyKind(currentGameState.Now,DateTimeKind.Utc));
             currentGameState.CarDamageData.OverallAeroDamage = mapToAeroDamageLevel(shared.mAeroDamage);
             currentGameState.CarDamageData.OverallEngineDamage = mapToEngineDamageLevel(shared.mEngineDamage);
             currentGameState.CarDamageData.OverallTransmissionDamage = DamageLevel.NONE;
@@ -1059,6 +1061,10 @@ namespace CrewChiefV4.PCars
             currentGameState.FuelData.FuelCapacity = shared.mFuelCapacity;
             currentGameState.FuelData.FuelLeft = currentGameState.FuelData.FuelCapacity * shared.mFuelLevel;
             currentGameState.FuelData.FuelPressure = shared.mFuelPressureKPa;
+            DateTime sensorUtc=DateTime.SpecifyKind(currentGameState.Now,DateTimeKind.Utc);
+            TelemetryMeasurements.Put(currentGameState,"engine.oil_pressure",shared.mOilPressureKPa,"PCars.API","mOilPressureKPa","motor","kPa",sensorUtc,0,100000,shared.mOilPressureKPa>0);
+            TelemetryMeasurements.Put(currentGameState,"engine.fuel_pressure",shared.mFuelPressureKPa,"PCars.API","mFuelPressureKPa","motor","kPa",sensorUtc,0,100000,shared.mFuelPressureKPa>0);
+            TelemetryMeasurements.Put(currentGameState,"engine.water_pressure",shared.mWaterPressureKPa,"PCars.API","mWaterPressureKPa","motor","kPa",sensorUtc,0,100000,shared.mWaterPressureKPa>0);
             currentGameState.FuelData.FuelUseActive = true;         // no way to tell if it's disabled
 
             if (!Game.PCARS_NETWORK)

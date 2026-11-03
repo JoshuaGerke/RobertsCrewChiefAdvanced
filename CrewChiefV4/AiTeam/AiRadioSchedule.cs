@@ -76,7 +76,8 @@ namespace CrewChiefV4.AiTeam
         public const int RoutineSeparationSeconds = 20, QuietAfterRadioSeconds = 8;
         private DateTime lastDeferral=DateTime.MinValue;
         private DateTime lastReport = DateTime.MinValue;
-        private ObservedRaceCall outstanding;
+        private ObservedRaceCall outstanding,lastRoutine;
+        private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
         public static bool OnConfirmedQualifyingPushLap(GameStateData gs)
@@ -86,7 +87,8 @@ namespace CrewChiefV4.AiTeam
                 !TrackAwareness.InRange(gs.PositionAndMotionData.CarSpeed,0,4.99).HasValue;
         }
         public static bool BusyForRoutine(GameStateData gs)
-        {return OnConfirmedQualifyingPushLap(gs) || gs!=null && TrackAwareness.InRange(gs.ControlData.BrakePedal,.2,1).HasValue;}
+        {return OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
+            gs.SessionData.CurrentLapIsValid && !gs.PitData.OnOutLap && !gs.PitData.InPitlane || gs!=null && TrackAwareness.InRange(gs.ControlData.BrakePedal,.2,1).HasValue;}
         private bool UnchangedRoutine(string topic,string text,DateTime now)
         {
             if(topic=="status" || topic=="fuel" || topic=="progress") return false;
@@ -97,20 +99,28 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = null; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; interruptionHandled=false; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
             foreach (var option in AiRadioPreferences.Options)
                 if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(prefs.NextDelaySeconds(option.Id, random));
         }
-        public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true)
+        public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true,string busyReason = null)
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
+            if(lastRoutine!=null && lastRoutine.PlaybackInterrupted && !interruptionHandled)
+            {
+                due[lastRoutine.Topic]=now.AddSeconds(30);
+                lastDeliveredText.Remove(lastRoutine.Topic);lastDeliveredUtc.Remove(lastRoutine.Topic);
+                interruptionHandled=true;
+                LiveDiagnostics.Decision(lastRoutine.Topic,"deferred","routine_interrupted_recompose_after_30s");
+            }
             if (outstanding != null)
             {
                 if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
                 {
+                    lastRoutine=outstanding;interruptionHandled=false;
                     lastReport = outstanding.DeliveryStartedUtc;
                     lastDeliveredText[outstanding.Topic]=outstanding.Text;
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
@@ -133,8 +143,11 @@ namespace CrewChiefV4.AiTeam
             {
                 if(due.Any(p=>prefs[p.Key]>0 && p.Value<=now) && now-lastDeferral>=TimeSpan.FromSeconds(15))
                 {
-                    string reason=busy?"channel_busy":recentRadio?"recent_radio":BusyForRoutine(gs)?"braking_or_qualifying_push":
+                    string reason=busy?(busyReason??"channel_busy"):recentRadio?"recent_radio":BusyForRoutine(gs)?"braking_or_qualifying_push":
                         ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
+                    foreach(var item in due.Where(p=>prefs[p.Key]>0 && p.Value<=now))
+                        LiveDiagnostics.Emit("routine.state",LiveDiagnostics.Data("topic",item.Key,"reason",reason,"due_utc",item.Value.ToString("o"),
+                            "late_s",Math.Round((now-item.Value).TotalSeconds,3),"interval_s",prefs[item.Key]));
                     LiveDiagnostics.Decision("routine","deferred",reason);
                     DriverMemory.RememberObservation("routine","deferred",reason,null,gs==null?int.MinValue:gs.SessionData.SessionId);
                     lastDeferral=now;
@@ -167,7 +180,7 @@ namespace CrewChiefV4.AiTeam
         public static string VehicleReport(GameStateData gs)
         {
             var parts=new List<string>();var d=gs.CarDamageData;
-            if(d.DamageEnabled) { string damage=IncidentWatch.DamageReport(d);if(!string.IsNullOrWhiteSpace(damage))parts.Add(damage); }
+            string damage=IncidentWatch.DamageReport(d);if(!string.IsNullOrWhiteSpace(damage))parts.Add(damage);
             var e=gs.EngineData;
             if(Good(e.EngineWaterTemp,1,200))parts.Add("Wasser "+Number(e.EngineWaterTemp)+" Grad.");
             if(Good(e.EngineOilTemp,1,250))parts.Add("Öl "+Number(e.EngineOilTemp)+" Grad.");

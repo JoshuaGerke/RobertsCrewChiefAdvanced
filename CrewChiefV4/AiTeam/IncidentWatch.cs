@@ -235,17 +235,19 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Kurze Bilanz erfasster Ungültigkeiten, Cut-Warnungen, Verzögerungen und Strafen. Startet mit Leerzeichen.</summary>
-        public string FinishSummary()
+        public string FinishSummary(int recordedInvalidLaps = -1)
         {
             var parts = new List<string>();
-            if (InvalidLaps > 0) parts.Add(InvalidLaps == 1 ? "eine ungültige Runde" : InvalidLaps + " ungültige Runden");
+            int invalid = recordedInvalidLaps >= 0 ? recordedInvalidLaps : InvalidLaps;
+            if (invalid > 0) parts.Add(invalid == 1 ? "eine ungültige Runde" : invalid + " ungültige Runden");
             if (TrackLimitWarnings > 0) parts.Add(TrackLimitWarnings == 1 ? "eine Tracklimit-Meldung" : TrackLimitWarnings + " Tracklimit-Meldungen");
             if (OffTracks > 0) parts.Add(OffTracks == 1 ? "ein Ausritt" : OffTracks + " Ausritte");
             if (Spins > 0) parts.Add(Spins == 1 ? "eine starke Verzögerung" : Spins + " starke Verzögerungen");
             if (Penalties > 0) parts.Add(Penalties == 1 ? "eine Strafe" : Penalties + " Strafen");
             if (parts.Count == 0)
             {
-                return " Keine Strafen, ungültigen Runden oder starken Verzögerungen erfasst.";
+                // Absence of an observed warning does not prove a penalty/incident-free race.
+                return string.Empty;
             }
             string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " und " + parts[parts.Count - 1];
             return " Bilanz: " + list + "." + (InvalidLaps + OffTracks + Spins + Penalties >= 4 ? " Da ist beim nächsten Mal noch einiges drin." : "");
@@ -254,11 +256,10 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
         public static string DamageReport(CarDamageData d)
         {
-            if (!d.DamageEnabled)
-            {
-                return null;
-            }
+            var numeric = NumericDamageWatch.Report(d);
+            if (!d.DamageEnabled) return numeric;
             var parts = new List<string>();
+            if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
             Add(parts, "Aero", d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
             Add(parts, "Motor", d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
@@ -288,7 +289,7 @@ namespace CrewChiefV4.AiTeam
                 return "Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.";
             }
             string text = string.Join(", ", parts) + ".";
-            return serious ? text + " Wenn sich das Auto komisch anfühlt, komm an die Box." : text + " Sollte fahrbar sein.";
+            return serious ? text + " Wenn sich das Auto komisch anfühlt, komm an die Box." : text;
         }
 
         public static bool DamageIncreased(CarDamageData before, CarDamageData now)

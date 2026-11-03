@@ -753,8 +753,8 @@ namespace CrewChiefV4.AMS2
         public float[] mRideHeight;      // [ UNITS = cm ]
 
         // Input
-        public byte mJoyPad0;            // button mask
-        public byte mDPad;               // button mask
+        public uint mJoyPad0;            // button mask
+        public uint mDPad;               // button mask
 
         // added for version 13:
 
@@ -763,15 +763,20 @@ namespace CrewChiefV4.AMS2
 
         // ERS
         public int mErsDeploymentMode;           // [ enum (Type#15)  ErsDeploymentMode ]
+        [MarshalAs(UnmanagedType.I1)]
         public bool mErsAutoModeEnabled;         // true if the deployment mode was selected by auto system. Valid only when mErsDeploymentMode > ERS_DEPLOYMENT_MODE_NONE
 
-        // Clutch State & Damage
-        // note temp and wear appear to be the wrong way around in the API
-        public float mClutchWear;                // [ RANGE = 0.0f->1.0f... ] - this is always 0
-        public float mClutchTemp;                // [ UNITS = Kelvin ] [ UNSET = -273.16 ] - this appears to have no bearing on the overheated value below
-        public bool mClutchOverheated;          // true if clutch performance is degraded due to overheating
-        public bool mClutchSlipping;            // true if clutch is slipping (can be induced by overheating or wear)
+        // SDK API14 order: temperature, wear, then two ONE-byte C++ booleans.
+        public float mClutchTemp;
+        public float mClutchWear;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool mClutchOverheated;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool mClutchSlipping;
 
         public int mYellowFlagState;             // [ enum (Type#16) YellowFlagState ]
+        [MarshalAs(UnmanagedType.I1)]
+        public bool mSessionIsPrivate;
+        public int mLaunchStage;
     }
 }

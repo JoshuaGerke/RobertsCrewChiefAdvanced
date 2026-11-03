@@ -40,7 +40,7 @@ namespace CrewChiefV4.AiTeam
 
         public static readonly string[] AllToolNames =
         {
-            "get_data_capabilities", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
+            "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
@@ -48,6 +48,7 @@ namespace CrewChiefV4.AiTeam
         {
             var tools = new JArray();
             tools.Add(Tool("get_data_capabilities", "Nachweis der im aktuellen Adapter angekommenen Daten: Gegner/Zeiten/Sektoren, räumliche Beobachtung, Fahrzeug, Wetter und bestätigte Spiel-/Servervorhersage. Vor Behauptungen über fehlende Daten verwenden."));
+            tools.Add(Tool("get_telemetry_values", "Alle aktuell als Messwerte erfassten Details mit exaktem Rohwert, Wert, Einheit, Quelle, Feld, Komponente, UTC, Messalter und Status. Fehlend/veraltet/ungültig nie als Null interpretieren. Schaden ist API-Zustand, kein bewiesener Prozentverlust an Leistung."));
             tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge und eigene Streckenposition/Start-Ziel-Distanz."));
             tools.Add(Tool("get_track_situation", "Räumliche Verkehrslage: nächste Fahrzeuge auf der Strecke, Weltkoordinaten, Abstand in Metern entlang der Runde, Überrundungsbezug und über mehrere Samples gemessene Annäherung. Keine Seitenfreigabe oder Überholgarantie."));
             tools.Add(Tool("get_tyre_status", "Reifentemperaturen (innen/mitte/außen), Drücke, Verschleiß, Reifentyp, Bremsentemperaturen, blockierende/durchdrehende Räder."));
@@ -127,6 +128,8 @@ namespace CrewChiefV4.AiTeam
                 {
                     case "get_data_capabilities": data = TelemetryCapabilities.Describe(ctx); break;
                     case "get_race_state": data = RaceState(ctx, missing); break;
+                    case "get_telemetry_values": data = new JObject { ["messwerte"]=TelemetryMeasurementTools.Read(ctx),
+                        ["vollstaendig_fuer_alle_simulatorfelder"]=false }; break;
                     case "get_track_situation": data = TrackAwareness.Read(ctx); break;
                     case "get_tyre_status": data = Tyres(ctx, missing); break;
                     case "get_fuel_status": data = Fuel(ctx, missing); break;
@@ -518,26 +521,27 @@ namespace CrewChiefV4.AiTeam
                     ["aufhaengung"] = CornerDamage(d.SuspensionDamageStatus),
                     ["bremsen"] = CornerDamage(d.BrakeDamageStatus),
                 };
-                if (d.AeroDamagePercent >= 0)
-                {
-                    o["schaden_prozent"] = new JObject
-                    {
-                        ["aero"] = Num(d.AeroDamagePercent, 0, 0, 100, "aeroschaden_prozent", missing),
-                        ["motor"] = Num(d.EngineDamagePercent, 0, 0, 100, "motorschaden_prozent", missing),
-                        ["getriebe"] = Num(d.TransmissionDamagePercent, 0, 0, 100, "getriebeschaden_prozent", missing),
-                    };
-                }
-                else
-                {
-                    missing.Add("schaden_prozent");
-                }
                 o["skala"] = "UNKNOWN, NONE, TRIVIAL, MINOR, MAJOR, DESTROYED";
-                o["hinweis"] = "Aero ist ein Gesamtwert, welches Teil (Front- oder Heckflügel) betroffen ist, liefert das Spiel nicht. Aufhängung/Bremsen leer = heil oder vom Spiel nicht gemeldet.";
+                o["hinweis"] = "Aero ist ein Gesamtwert. Bremsen-/Aufhängungszahlen sind gemeldete API-Zustände und kein bewiesener Prozentverlust an Bremskraft oder Funktion. Fehlend ist kein gesunder Nullwert.";
             }
             else
             {
                 missing.Add("schadensmodell");
             }
+            var brakePercent=new JArray();var suspensionPercent=new JArray();
+            for(int i=0;i<4;i++)
+            {
+                brakePercent.Add(TelemetryMeasurementTools.Number(ctx,"damage.brake."+TelemetryMeasurements.Corners[i],d.BrakeDamagePercent[i]));
+                suspensionPercent.Add(TelemetryMeasurementTools.Number(ctx,"damage.suspension."+TelemetryMeasurements.Corners[i],d.SuspensionDamagePercent[i]));
+            }
+            o["schaden_prozent"]=new JObject {
+                ["aero"]=TelemetryMeasurementTools.Number(ctx,"damage.aero",d.AeroDamagePercent),
+                ["motor"]=TelemetryMeasurementTools.Number(ctx,"damage.engine",d.EngineDamagePercent),
+                ["getriebe"]=TelemetryMeasurementTools.Number(ctx,"damage.transmission",d.TransmissionDamagePercent),
+                ["bremsen"]=brakePercent,["aufhaengung"]=suspensionPercent,["reihenfolge"]="VL, VR, HL, HR"
+            };
+            o["messwerte"]=TelemetryMeasurementTools.Read(ctx);
+            if(!d.DamageEnabled && !ctx.GameState.Measurements.Keys.Any(k=>k.StartsWith("damage.",StringComparison.Ordinal)))missing.Add("schaden_prozent");
             if (e.EngineWaterTemp > 1)
             {
                 o["wassertemperatur_c"] = Num(e.EngineWaterTemp, 0, 1, 250, "wassertemperatur", missing);

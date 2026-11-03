@@ -40,6 +40,10 @@ namespace CrewChiefV4.AiTeam
             if (!green && s.SessionPhase != SessionPhase.Checkered && s.SessionPhase != SessionPhase.Finished)
             { pending.Clear(); return; }
             bool ownCall = false;
+            // Some servers publish historical timing a few frames after joining. Seed it quietly
+            // until the first locally completed lap; never seed from that lap's newly updated best.
+            if(completed==null && lastLap<0 && Good(s.PlayerLapTimeSessionBest))
+                personalBest=Good(personalBest)?Math.Min(personalBest,s.PlayerLapTimeSessionBest):s.PlayerLapTimeSessionBest;
             var length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float step = previous == null ? float.NaN : s.SessionRunningTime - previous.SessionData.SessionRunningTime;
             bool continuous = !float.IsNaN(step) && !float.IsInfinity(step) && step > 0 && step <= 1.5f && previous != null &&

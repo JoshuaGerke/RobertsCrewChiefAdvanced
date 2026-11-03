@@ -24,7 +24,12 @@ namespace CrewChiefV4.AiTeam
         public bool AllowPitlane;
         public DateTime DetectedUtc, ExpiresUtc;
         private int deliveryState, attempts;
-        private long playbackStartedTicks, retryNotBeforeTicks;
+        private long playbackStartedTicks, retryNotBeforeTicks,playbackEndedTicks;
+        private int playbackInterrupted;
+        public bool PlaybackInterrupted {get{return Volatile.Read(ref playbackInterrupted)!=0;}}
+        public DateTime PlaybackEndedUtc {get{long t=Interlocked.Read(ref playbackEndedTicks);return t>0?new DateTime(t,DateTimeKind.Utc):DateTime.MinValue;}}
+        public void MarkPlaybackFinished(DateTime now,bool interrupted)
+        {if(interrupted)Interlocked.Exchange(ref playbackInterrupted,1);Interlocked.Exchange(ref playbackEndedTicks,now.Ticks);}
         public const int MaximumDeliveryAttempts = 2;
         public DateTime DeliveryStartedUtc
         {
@@ -72,7 +77,9 @@ namespace CrewChiefV4.AiTeam
             if (Topic == "formation" && !formation) return false;
             bool qualifyingResult = Topic == "qualifying-result" && s.SessionType == SessionType.Qualify && AllowLapFinish &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
-            bool phaseValid = qualifyingResult || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            bool liveWarning=(Topic??"").StartsWith("warning-",StringComparison.Ordinal) &&
+                (s.SessionPhase==SessionPhase.Green || s.SessionPhase==SessionPhase.FullCourseYellow);
+            bool phaseValid = liveWarning || qualifyingResult || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&

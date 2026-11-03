@@ -51,6 +51,7 @@ namespace CrewChiefV4.AiTeam
 
         public DateTime LastTickUtc { get; private set; } = DateTime.MinValue;
         public int SessionId { get; private set; } = int.MinValue;
+        public int RecordedInvalidLaps { get; private set; }
 
         public void Clear()
         {
@@ -62,6 +63,7 @@ namespace CrewChiefV4.AiTeam
                 SessionId = int.MinValue;
                 LastTickUtc = DateTime.MinValue;
                 lastRecordedLap = -1;
+                RecordedInvalidLaps = 0;
                 fuelAtLapStart = -1;
                 pitDuringLap = false;
                 invalidDuringLap = false;
@@ -75,7 +77,7 @@ namespace CrewChiefV4.AiTeam
             {
                 return false;
             }
-            LastTickUtc = nowUtc;
+            LastTickUtc = current.SourceTelemetryUtc==DateTime.MinValue?nowUtc:current.SourceTelemetryUtc;
             bool lapCompleted = false;
             lock (sync)
             {
@@ -89,6 +91,7 @@ namespace CrewChiefV4.AiTeam
                     events.Clear();
                     radio.Clear();
                     lastRecordedLap = -1;
+                    RecordedInvalidLaps = 0;
                     // erst ab der ersten Überfahrt messen, sonst zählen Einführungsrunde und Startaufstellung mit
                     fuelAtLapStart = -1;
                     pitDuringLap = false;
@@ -138,6 +141,7 @@ namespace CrewChiefV4.AiTeam
                     {
                         record.PeakTyreTemps = peaks;
                     }
+                    if (!record.Valid && record.LapTime > 0) RecordedInvalidLaps++;
                     laps.Add(record);
                     if (laps.Count > MaxLaps)
                     {
@@ -145,6 +149,16 @@ namespace CrewChiefV4.AiTeam
                     }
                     pitDuringLap = current.PitData.InPitlane;
                     invalidDuringLap = false;
+                }
+                // A start-line crossing may START the first timed lap without completing
+                // a counted lap. End the outlap/garage accumulation at that boundary too.
+                if (current.SessionData.IsNewLap && (previous == null || !previous.SessionData.IsNewLap ||
+                    current.SessionData.CompletedLaps != previous.SessionData.CompletedLaps))
+                {
+                    pitDuringLap = current.PitData.InPitlane;
+                    invalidDuringLap = false;
+                    fuelAtLapStart = current.FuelData.FuelUseActive && current.FuelData.FuelLeft > 0
+                        ? current.FuelData.FuelLeft : -1;
                 }
                 if (!current.SessionData.CurrentLapIsValid) invalidDuringLap = true;
             }
@@ -256,9 +270,14 @@ namespace CrewChiefV4.AiTeam
                 int n = 0;
                 for (int i = 1; i < window.Count; i++)
                 {
-                    if (window[i].InPitLap)
+                    var before=window[i-1];var after=window[i];
+                    if(before.InPitLap || after.InPitLap || !before.Valid || !after.Valid || after.LapNumber!=before.LapNumber+1 ||
+                        before.TyreWear.Length!=4 || after.TyreWear.Length!=4 ||
+                        Enumerable.Range(0,4).Any(w=>float.IsNaN(before.TyreWear[w]) || float.IsInfinity(before.TyreWear[w]) ||
+                            float.IsNaN(after.TyreWear[w]) || float.IsInfinity(after.TyreWear[w]) || before.TyreWear[w]<0 ||
+                            after.TyreWear[w]>100 || after.TyreWear[w]<before.TyreWear[w]))
                     {
-                        continue; // Reifenwechsel verfälscht den Wert
+                        continue; // Missing laps, pit work and fresh tyres cannot establish a comparable wear rate.
                     }
                     for (int w = 0; w < 4; w++)
                     {

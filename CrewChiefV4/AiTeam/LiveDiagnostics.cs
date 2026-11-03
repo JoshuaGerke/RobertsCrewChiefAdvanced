@@ -64,7 +64,8 @@ namespace CrewChiefV4.AiTeam
             "lap_time_s fuel_used_l fuel_per_lap_l laps_remaining time_remaining_s laps_comparable lap_times_s fuel_used_window_l " +
             "overlap_left overlap_right telemetry_age_s api_calls budget radio_mode deadline_s correlation_parent utterance_sequence " +
             "prompt_tokens completion_tokens finish_reason reasoning_tokens content_chars completion_limit sample_count input_ticks duplicate late silence_s source trigger result " +
-            "position_matrix matrix_columns row_offset total_cars track_length_m source_utc").Split(' '));
+            "position_matrix matrix_columns row_offset total_cars track_length_m source_utc due_utc late_s interval_s " +
+            "damage_aero_pct damage_engine_pct damage_brake_pct damage_suspension_pct damage_source_utc tyre_temp_lap_peak_c engine_oil_temp_c engine_water_temp_c").Split(' '));
         private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk[-_][a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
 
         public DiagnosticRecorder(string folder, DiagnosticLimits options = null, string[] secrets = null)
@@ -323,7 +324,23 @@ namespace CrewChiefV4.AiTeam
                 "throttle",current.ControlData.ThrottlePedal,"brake",current.ControlData.BrakePedal,"gear",current.TransmissionData.Gear,"fuel_l",current.FuelData.FuelLeft,"fuel_active",current.FuelData.FuelUseActive,"refuel_allowed",current.PitData.IsRefuellingAllowed,
                 "gap_front_s",s.TimeDeltaFront,"gap_behind_s",s.TimeDeltaBehind,"opponent_front",s.OpponentKeyInFront,"opponent_behind",s.OpponentKeyBehind,"position",s.ClassPosition,"flag",s.Flag.ToString(),"lap_time_s",s.LapTimePrevious,"laps_remaining",s.SessionLapsRemaining,"time_remaining_s",s.SessionTimeRemaining,
                 "tyre_wear_active",t.TyreWearActive,"tyre_wear_pct",t.TyreWearActive?new[]{t.FrontLeftPercentWear,t.FrontRightPercentWear,t.RearLeftPercentWear,t.RearRightPercentWear}:null,
-                "tyre_temp_c",new[]{t.PeakFrontLeftTemperatureForLap,t.PeakFrontRightTemperatureForLap,t.PeakRearLeftTemperatureForLap,t.PeakRearRightTemperatureForLap}));
+                "tyre_temp_lap_peak_c",new[]{t.PeakFrontLeftTemperatureForLap,t.PeakFrontRightTemperatureForLap,t.PeakRearLeftTemperatureForLap,t.PeakRearRightTemperatureForLap},
+                "tyre_temp_c",new[]{MeanTemperature(t.FrontLeft_LeftTemp,t.FrontLeft_CenterTemp,t.FrontLeft_RightTemp),
+                    MeanTemperature(t.FrontRight_LeftTemp,t.FrontRight_CenterTemp,t.FrontRight_RightTemp),
+                    MeanTemperature(t.RearLeft_LeftTemp,t.RearLeft_CenterTemp,t.RearLeft_RightTemp),
+                    MeanTemperature(t.RearRight_LeftTemp,t.RearRight_CenterTemp,t.RearRight_RightTemp)},
+                "engine_oil_temp_c",FiniteReading(current.EngineData.EngineOilTemp,1,300),"engine_water_temp_c",FiniteReading(current.EngineData.EngineWaterTemp,1,250),
+                "damage_aero_pct",FiniteReading(current.CarDamageData.AeroDamagePercent,0,100),"damage_engine_pct",FiniteReading(current.CarDamageData.EngineDamagePercent,0,100),
+                "damage_brake_pct",current.CarDamageData.BrakeDamagePercent.Select(v=>FiniteReading(v,0,100)).ToArray(),
+                "damage_suspension_pct",current.CarDamageData.SuspensionDamagePercent.Select(v=>FiniteReading(v,0,100)).ToArray(),
+                "damage_source_utc",current.SourceTelemetryUtc==DateTime.MinValue?null:current.SourceTelemetryUtc.ToString("o")));
+        }
+        private static double? FiniteReading(float value,float min,float max)
+        {return !float.IsNaN(value) && !float.IsInfinity(value) && value>=min && value<=max?(double?)value:null;}
+        internal static double? MeanTemperature(float left,float center,float right)
+        {
+            return FiniteReading(left,1,500).HasValue && FiniteReading(center,1,500).HasValue && FiniteReading(right,1,500).HasValue?
+                (double?)((left+center+right)/3):null;
         }
         /// <summary>Full bounded mapped field at 2 Hz, batches of 16 cars. The observer itself runs up to 20 Hz.
         /// Numeric snapshots only; no driver names, request data or audio. Disk work remains on the recorder thread.</summary>

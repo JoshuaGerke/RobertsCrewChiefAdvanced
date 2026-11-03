@@ -119,7 +119,7 @@ namespace UnitTest.AiTeamTests
         public void Empty_incident_record_does_not_claim_an_observed_clean_race()
         {
             string text = new IncidentWatch().FinishSummary();
-            StringAssert.Contains("erfasst", text);
+            Assert.AreEqual(string.Empty, text);
             StringAssert.DoesNotContain("ohne einen einzigen Ausritt", text);
             StringAssert.DoesNotContain("fehlerfrei", text);
         }

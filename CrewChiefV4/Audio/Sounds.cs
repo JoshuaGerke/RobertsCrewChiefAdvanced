@@ -565,6 +565,12 @@ namespace CrewChiefV4.Audio
             return (ttsVoice != null);
         }
 
+        internal static void CompletePlayback(SingleSound finished)
+        {
+            // A late callback from the preceding beep/clip must not erase its successor.
+            System.Threading.Interlocked.CompareExchange(ref currentlyPlayingSound, null, finished);
+        }
+
         public static void InterruptForAiHazard(int priority)
         {
             // Inspect and stop the same sound instance. A concurrent Sara clip must never be stopped instead.
@@ -2155,13 +2161,21 @@ namespace CrewChiefV4.Audio
                 lock (this)
                 {
                     LoadAndCacheSound();
-                    AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                     if (isAiAudio)
                     {
                         // Legacy synchronous backend: acknowledgment is completion, never a false start on failure.
-                        if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => this.soundPlayer.PlaySync())) return;
+                        if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => {
+                            AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+                            this.soundPlayer.PlaySync();
+                        })) return;
+                        AiTeam.AiAudioStore.MarkFinished(aiAudioId,false);
+                        AiTeam.LiveDiagnostics.Audio("ended",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                     }
-                    else this.soundPlayer.PlaySync();
+                    else
+                    {
+                        AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+                        this.soundPlayer.PlaySync();
+                    }
                 }
                 if (!cacheSoundPlayer)
                 {
@@ -2183,7 +2197,7 @@ namespace CrewChiefV4.Audio
             float volume = getVolume(isSpotter ? SoundCache.spotterVolumeBoost : 1f);
             if (volume == 0)
             {
-                SoundCache.currentlyPlayingSound = null;
+                SoundCache.CompletePlayback(this);
                 return;
             }
             if (!cacheFileData)
@@ -2204,7 +2218,7 @@ namespace CrewChiefV4.Audio
                     if (!this.playWaitHandle.WaitOne(this.allowedPlayTimeForNAudio))
                     {
                         Log.Warning("Gave up waiting for nAudio playbackStopped callback");
-                        SoundCache.currentlyPlayingSound = null;
+                        SoundCache.CompletePlayback(this);
                     }
                     uncachedNAudioOut.UnsubscribePlaybackStopped(this.playbackStopped);
                 }
@@ -2234,20 +2248,27 @@ namespace CrewChiefV4.Audio
                         this.reader.CurrentTime = TimeSpan.Zero;
                         SoundCache.currentlyPlayingSound = this;
                         this.playbackStartTime = DateTime.UtcNow;
-                        AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
                         if (isAiAudio)
                         {
-                            if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => { SoundCache.currentlyPlayingSound=this; this.playbackStartTime=DateTime.UtcNow; this.nAudioOut.Play(); }))
-                            { SoundCache.currentlyPlayingSound = null; return; }
+                            if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => {
+                                SoundCache.currentlyPlayingSound=this; this.playbackStartTime=DateTime.UtcNow;
+                                AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+                                this.nAudioOut.Play();
+                            }))
+                            { SoundCache.CompletePlayback(this); return; }
                         }
-                        else this.nAudioOut.Play();
+                        else
+                        {
+                            AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+                            this.nAudioOut.Play();
+                        }
                         // Special case for the listen start beep - don't wait for it to finish playing before returning
                         if (!isListenStartBeep)
                         {
                             if (!this.playWaitHandle.WaitOne(allowedPlayTimeForNAudio))
                             {
                                 Log.Warning("Gave up waiting for nAudio playbackStopped callback");
-                                SoundCache.currentlyPlayingSound = null;
+                                SoundCache.CompletePlayback(this);
                             }
                         }
                     }
@@ -2312,9 +2333,13 @@ namespace CrewChiefV4.Audio
 
         private void playbackStopped(object sender, NAudio.Wave.StoppedEventArgs e)
         {
-            this.playWaitHandle.Set();
-            SoundCache.currentlyPlayingSound = null;
-            AiTeam.LiveDiagnostics.Audio(diagnosticInterrupted?"interrupted":"ended",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+            SoundCache.CompletePlayback(this);
+            try
+            {
+                if(isAiAudio)AiTeam.AiAudioStore.MarkFinished(aiAudioId,diagnosticInterrupted);
+                AiTeam.LiveDiagnostics.Audio(diagnosticInterrupted?"interrupted":"ended",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+            }
+            finally { this.playWaitHandle.Set(); }
         }
 
         private float getVolume(float boost)

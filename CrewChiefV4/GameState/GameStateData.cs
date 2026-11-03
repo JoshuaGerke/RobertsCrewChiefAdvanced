@@ -256,6 +256,8 @@ namespace CrewChiefV4.GameState
         public float AeroDamagePercent = -1;
         public float EngineDamagePercent = -1;
         public float TransmissionDamagePercent = -1;
+        public float[] BrakeDamagePercent = {-1,-1,-1,-1};
+        public float[] SuspensionDamagePercent = {-1,-1,-1,-1};
 
         private CornerData _SuspensionDamageStatus;
         public CornerData SuspensionDamageStatus
@@ -4166,6 +4168,8 @@ namespace CrewChiefV4.GameState
         public long Ticks;
 
         public DateTime Now;
+        public DateTime SourceTelemetryUtc=DateTime.MinValue;
+        public readonly Dictionary<string,TelemetryMeasurement> Measurements = new Dictionary<string,TelemetryMeasurement>();
 
         // ACC has a Clock field which is the time of day in the game world, in milliseconds
         public float AccGameClock;

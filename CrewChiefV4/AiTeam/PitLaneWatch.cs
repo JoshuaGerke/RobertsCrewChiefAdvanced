@@ -81,6 +81,11 @@ namespace CrewChiefV4.AiTeam
             if(now-lastProgress>TimeSpan.FromSeconds(1.5)) {speedingSince=DateTime.MinValue;limitCall=speedCall=null;return;}
             bool inPits=gs.PitData.InPitlane,approach=Approaching(gs);
             float limit=gs.PitData.PitSpeedLimit,speed=gs.PositionAndMotionData.CarSpeed;
+            if(gs.PitData.JumpedToPits)
+            {
+                limitCall=speedCall=null;speedingSince=DateTime.MinValue;
+                wasInPits=inPits;lastSpeed=speed;initialized=true;return;
+            }
             if(!inPits && !approach)
             {
                 approachHandled=false;departureHandled=false;

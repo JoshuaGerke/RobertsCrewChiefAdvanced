@@ -14,7 +14,7 @@ namespace CrewChiefV4.AiTeam
         private readonly int sessionId, completedLaps;
         private readonly JObject facts;
         private static readonly HashSet<string> metadata = new HashSet<string> {
-            "quelle", "datenalter_s", "veraltet", "snapshot_utc", "datenalter_hinweis", "snapshot_aktuell", "messung_utc", "messalter_s",
+            "quelle", "datenalter_s", "veraltet", "snapshot_utc", "datenalter_hinweis", "snapshot_aktuell", "messung_utc", "messalter_s", "rohwert",
             "nicht_verfuegbar", "verfuegbar", "streckenposition"
         };
 
@@ -71,8 +71,9 @@ namespace CrewChiefV4.AiTeam
                 double a=(double)before,b=(double)after;
                 if(double.IsNaN(a)||double.IsInfinity(a)||double.IsNaN(b)||double.IsInfinity(b))return false;
                 double tolerance=path.Contains("abstand")?.5:path.Contains("tankinhalt")?.3:
+                    path.Contains("schaden_prozent") || path.Contains("/messwerte/damage.")?.05:
                     path.Contains("temperatur")?2:path.Contains("verschleiss")?.25:
-                    path.Contains("druck_kpa")?1:path.Contains("druck_psi")?.15:path.EndsWith("/restzeit_s")?12:0;
+                    path.Contains("druck_kpa") || path.Contains("_pressure/")?1:path.Contains("druck_psi")?.15:path.EndsWith("/restzeit_s")?12:0;
                 return Math.Abs(a-b)<=tolerance;
             }
             return JToken.DeepEquals(before,after);
