@@ -506,5 +506,23 @@ namespace UnitTest.AiTeamTests
             TelemetryMeasurements.Put(gs,"engine.oil_pressure",460,"AMS2.API","mOilPressureKPa","motor","kPa",T.AddSeconds(.2),0,100000);
             Assert.IsFalse(evidence.IsCurrent(FreshContext(gs,T.AddSeconds(.2))));
         }
+
+        [Test]
+        public void T31_Audio_driver_failure_reports_interruption_and_releases_the_waiter()
+        {
+            bool? interrupted=null;string id=AiAudioStore.Put(new byte[44],"Test",finished:failure=>interrupted=failure);AiAudioStore.MarkStarted(id);
+            var type=typeof(CrewChiefV4.Audio.SoundCache).Assembly.GetType("CrewChiefV4.Audio.SingleSound");
+            object clip=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
+            var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic;
+            using(var waiter=new System.Threading.AutoResetEvent(false))
+            {
+                type.GetField("isAiAudio",flags).SetValue(clip,true);type.GetField("aiAudioId",flags).SetValue(clip,id);
+                type.GetField("playWaitHandle",flags).SetValue(clip,waiter);var method=type.GetMethod("playbackStopped",flags);
+                object stopped=Activator.CreateInstance(method.GetParameters()[1].ParameterType,new object[]{new InvalidOperationException("synthetic driver failure")});
+                method.Invoke(clip,new object[]{null,stopped});Assert.AreEqual(true,interrupted);
+                Assert.IsTrue(waiter.WaitOne(0));
+            }
+            AiAudioStore.Remove(id);
+        }
     }
 }

@@ -2336,8 +2336,11 @@ namespace CrewChiefV4.Audio
             SoundCache.CompletePlayback(this);
             try
             {
-                if(isAiAudio)AiTeam.AiAudioStore.MarkFinished(aiAudioId,diagnosticInterrupted);
-                AiTeam.LiveDiagnostics.Audio(diagnosticInterrupted?"interrupted":"ended",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
+                bool driverError=e!=null && e.Exception!=null;
+                bool interrupted=diagnosticInterrupted || driverError;
+                if(driverError)AiTeam.LiveDiagnostics.Emit("audio.error",AiTeam.LiveDiagnostics.Data("clip_id",diagnosticClip,"error_type",e.Exception.GetType().Name,"reason","audio_driver_failure"));
+                if(isAiAudio)AiTeam.AiAudioStore.MarkFinished(aiAudioId,interrupted);
+                AiTeam.LiveDiagnostics.Audio(interrupted?"interrupted":"ended",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
             }
             finally { this.playWaitHandle.Set(); }
         }
