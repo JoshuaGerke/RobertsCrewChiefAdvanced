@@ -223,6 +223,7 @@ namespace CrewChiefV4
         // an alternative way to invalidate a delayed message is to return empty lists from a DelayedMessageEvent
         // reflective call or DelayedMessage method call.
         public Dictionary<String, Object> validationData = null;
+        public readonly AiTeam.NativeFieldFact NativeFieldEvent;
 
         public long expiryTime = 0;
 
@@ -276,6 +277,10 @@ namespace CrewChiefV4
             this.delayedMessage = delayedMessage;
             Debug.Assert(!(delayedMessageEvent != null && delayedMessage != null), "delayedMessageEvent and delayedMessage are mutually exclusive but were both set");
             this.delayMessageResolution = delayedMessageEvent != null || delayedMessage != null;
+
+            if(!delayMessageResolution && AudioPlayer.messageFilter!=null)
+                try { NativeFieldEvent=AiTeam.NativeFieldFact.Capture(messageName,messageFragments,CrewChief.currentGameState); }
+                catch(Exception) { /* Optional semantic capture must never break native audio/spotting. */ }
 
             // for delayed message events, we collect up the message folder when the message when the message is about to be played, not here
             if (delayMessageResolution)

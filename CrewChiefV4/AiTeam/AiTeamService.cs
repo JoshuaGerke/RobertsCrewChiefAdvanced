@@ -33,6 +33,7 @@ namespace CrewChiefV4.AiTeam
         private readonly RaceTrafficWatch raceTraffic = new RaceTrafficWatch();
         private readonly QualifyingResultWatch qualifyingResults = new QualifyingResultWatch();
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
+        private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
         private readonly ThermalWatch thermalWatch = new ThermalWatch();
         private readonly NumericDamageWatch numericDamageWatch = new NumericDamageWatch();
         private readonly FuelWatch fuelWatch = new FuelWatch();
@@ -139,7 +140,7 @@ namespace CrewChiefV4.AiTeam
             AudioPlayer.messageFilter = settings.Enabled && settings.ReplaceCrewChiefVoice
                 ? new Func<QueuedMessage, bool>(m => {
                     bool allowed=CrewChiefVoiceFilter.Allow(m.messageName,m.messageFolders,settings.SaraEnabled);
-                    if(!allowed)liveWarnings.Capture(m,CrewChief.currentGameState,DateTime.UtcNow);
+                    if(!allowed){liveWarnings.Capture(m,CrewChief.currentGameState,DateTime.UtcNow);fieldEvents.Capture(m.NativeFieldEvent);}
                     return allowed;
                 })
                 : null;
@@ -218,6 +219,7 @@ namespace CrewChiefV4.AiTeam
                 raceTraffic.Reset();
                 qualifyingResults.Reset();
                 liveWarnings.Reset();
+                fieldEvents.Reset();
                 thermalWatch.Reset();
                 numericDamageWatch.Reset();
                 NativeTrafficBridge.Clear();
@@ -340,6 +342,8 @@ namespace CrewChiefV4.AiTeam
                 thermalWatch.Observe(current,now,liveWarnings);
                 numericDamageWatch.Observe(current,now,liveWarnings);
             }
+            fieldEvents.CaptureMappedPits(previous,current);
+            fieldEvents.Observe(current,now,Memory,settings.SendDriverNames);
             liveWarnings.Observe(current,now);
             var raceCall = liveWarnings.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled);
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,pitBusy,7);
@@ -351,6 +355,8 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = qualifyingResults.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null) raceCall = sessionLaps.Take(current, now, settings.RadioMode == AiRadioMode.MINIMAL ||
                 Spotter().HasOverlap || radioDirector.TrafficQuiet(now) || radioRenderGate.Busy || currentRequest != null);
+            if (raceCall == null) raceCall = fieldEvents.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest!=null,
+                settings.IsMemberEnabled(TeamMember.Ben),settings.RadioMode==AiRadioMode.MINIMAL);
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,weatherBusy);
             if (raceCall == null) raceCall = weatherWatch.Take(current,now,weatherBusy || radioDirector.TrafficQuiet(now));
             if (raceCall == null)
@@ -373,19 +379,7 @@ namespace CrewChiefV4.AiTeam
 
             string trigger = null;
             string topic = null;
-            if (previous != null)
-            {
-                if (!previous.PitData.CarInFrontIsPitting && current.PitData.CarInFrontIsPitting)
-                {
-                    trigger = "Bestätigtes Ereignis: direktes Fahrzeug vor uns fährt an die Box. Ben soll nur dann funken, wenn ein taktischer Nutzen anhand der verfügbaren Daten belegbar ist.";
-                    topic = "opponent-pit-ahead";
-                }
-                else if (!previous.PitData.CarBehindIsPitting && current.PitData.CarBehindIsPitting)
-                {
-                    trigger = "Bestätigtes Ereignis: direktes Fahrzeug hinter uns fährt an die Box. Ben soll nur bei konkretem strategischem Nutzen funken.";
-                    topic = "opponent-pit-behind";
-                }
-            }
+            // Pit facts are spoken once by the native-field director; no second cloud narration.
             if (trigger == null && lapCompleted)
             {
                 string closing = current.SessionData.SessionType == SessionType.Race &&

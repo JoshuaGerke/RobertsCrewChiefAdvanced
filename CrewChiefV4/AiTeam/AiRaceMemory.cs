@@ -24,6 +24,7 @@ namespace CrewChiefV4.AiTeam
 
     public class RaceEventRecord
     {
+        public string Topic,SubjectKey,Source;
         public DateTime TimeUtc;
         public string Text;
     }
@@ -207,6 +208,12 @@ namespace CrewChiefV4.AiTeam
             {
                 events.RemoveAt(0);
             }
+        }
+
+        public void AddObservation(string text,DateTime nowUtc,string topic=null,string subjectKey=null,string source=null)
+        {
+            if(string.IsNullOrWhiteSpace(text))return;
+            lock(sync){AddEventLocked(nowUtc,text);var item=events[events.Count-1];item.Topic=topic;item.SubjectKey=subjectKey;item.Source=source;}
         }
 
         public void AddRadio(TeamMember member, string text, DateTime nowUtc)

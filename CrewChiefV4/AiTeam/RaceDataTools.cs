@@ -651,6 +651,8 @@ namespace CrewChiefV4.AiTeam
             }
             var events = ctx.Memory.GetEvents(TimeSpan.FromMinutes(5), ctx.NowUtc);
             o["ereignisse"] = new JArray(events.Select(e => "vor " + (int)(ctx.NowUtc - e.TimeUtc).TotalSeconds + " s: " + e.Text));
+            o["strukturierte_ereignisse"]=new JArray(events.Where(e=>e.Topic!=null).Select(e=>new JObject {
+                ["typ"]=e.Topic,["gegner_id"]=e.SubjectKey,["quelle"]=e.Source,["erkannt_utc"]=e.TimeUtc.ToString("o"),["text"]=e.Text }));
             var radio = ctx.Memory.GetRadio(TimeSpan.FromMinutes(5), ctx.NowUtc);
             o["letzte_funksprueche"] = new JArray(radio.Select(e => "vor " + (int)(ctx.NowUtc - e.TimeUtc).TotalSeconds + " s: " + e.Text));
             return o;

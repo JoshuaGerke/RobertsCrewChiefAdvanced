@@ -70,7 +70,8 @@ namespace CrewChiefV4.AiTeam
                 Add(calls,"engine-oil","Öldruckwarnung. Motor schonen und die Anzeige prüfen.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineOilPressureWarning);
             if(e.EngineFuelPressureWarning && !p.EngineFuelPressureWarning)
                 Add(calls,"engine-fuel-pressure","Die Simulation meldet ein Problem mit dem Kraftstoffdruck.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineFuelPressureWarning);
-            if(!before.PitData.CarInFrontIsPitting && gs.PitData.CarInFrontIsPitting)
+            if(!before.PitData.CarInFrontIsPitting && gs.PitData.CarInFrontIsPitting &&
+                NativeFieldFact.Capture("car_in_front_is_pitting",null,gs)==null)
                 Add(calls,"opponent-pit","Dein bisheriger Vordermann fährt an die Box. Ich beobachte die Reihenfolge.",gs,now,TeamMember.Ben,3,null);
             return calls;
         }
