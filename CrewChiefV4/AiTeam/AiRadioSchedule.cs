@@ -175,6 +175,16 @@ namespace CrewChiefV4.AiTeam
             return null;
         }
         public void NoteRadio(DateTime now) { lastReport = now; }
+        // Telemetry thread only, after a native report actually starts. Detection alone never postpones a routine.
+        public void NoteRelatedReport(string topic,DateTime delivered,AiRadioPreferences prefs)
+        {
+            if(topic!="ahead" && topic!="behind" || prefs==null)return;
+            due[topic]=delivered.AddSeconds(prefs.NextDelaySeconds(topic,random));
+            lastReport=delivered;
+            if(outstanding!=null && outstanding.Topic==topic && outstanding.DeliveryStartedUtc==DateTime.MinValue) {
+                outstanding.ExpiresUtc=delivered.AddTicks(-1);outstanding=null;
+            }
+        }
         private static string Number(double n) { return n.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")); }
         private static bool Good(double n, double min, double max) { return !double.IsNaN(n) && !double.IsInfinity(n) && n >= min && n <= max; }
         public static string VehicleReport(GameStateData gs)

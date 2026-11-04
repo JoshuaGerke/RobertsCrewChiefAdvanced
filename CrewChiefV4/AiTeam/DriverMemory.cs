@@ -40,6 +40,11 @@ namespace CrewChiefV4.AiTeam
         }
         private string[] secrets;
         private readonly DiagnosticRecorder journal;
+        public readonly RaceFactStore Facts;
+        private readonly object factSync=new object();
+        private string factSessionUid,factSessionType;
+        private int factSimulatorSession;
+        private RaceFactContext factContext;
         private int sessionEpoch;
         public readonly string Folder;
         public string NotesPath { get { return Path.Combine(Folder,"notizen.txt"); } }
@@ -54,6 +59,7 @@ namespace CrewChiefV4.AiTeam
             Directory.CreateDirectory(Folder);
             ImportLegacy(legacyNotes);
             RecoverFeedback();
+            Facts=new RaceFactStore(Folder);
             try {
                 journal=new DiagnosticRecorder(Path.Combine(Folder,"Gespraeche"), limits ?? new DiagnosticLimits {
                     QueueCapacity=128, SegmentBytes=1024*1024, CaptureBytes=8*1024*1024, FolderBytes=128*1024*1024, RecordResources=false
@@ -206,7 +212,23 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        public void Dispose() { if(journal!=null)journal.Dispose(); }
+        public void BeginMeasuredSession(RaceFactContext context,string type,int session)
+        {
+            lock(factSync) {
+                factContext=context;factSessionType=type;factSimulatorSession=session;
+                factSessionUid=Facts.BeginSession(context,type,session);
+            }
+        }
+        public void RecordMeasuredLap(RaceFactContext context,LapRecord lap,string type,int session)
+        {
+            lock(factSync) {
+                // Initialization runs asynchronously and may complete after the first session tick.
+                if(factSessionUid==null || factSessionType!=type || factSimulatorSession!=session ||
+                    factContext==null || !factContext.SameVehicleTrack(context))BeginMeasuredSession(context,type,session);
+                Facts.ObserveCompletedLap(context,lap,factSessionUid,type,session);
+            }
+        }
+        public void Dispose() { if(journal!=null)journal.Dispose(); if(Facts!=null)Facts.Dispose(); }
     }
 
     public static class DriverMemory
@@ -262,6 +284,36 @@ namespace CrewChiefV4.AiTeam
             if(task!=null && !task.IsCompleted)task.Wait(250); // model worker only, never the telemetry or spotter thread
             try { var current=Volatile.Read(ref store);return current==null?"":current.PromptBlock(question,game,track); }
             catch(Exception e) when(e is IOException || e is UnauthorizedAccessException) { return ""; }
+        }
+
+        public static void BeginMeasuredSession(RaceFactContext context,string type,int session)
+        {var current=Volatile.Read(ref store);if(enabled && current!=null)current.BeginMeasuredSession(context,type,session);}
+
+        public static void RememberMeasuredLap(RaceFactContext context,LapRecord lap,string type,int session)
+        {var current=Volatile.Read(ref store);if(enabled && current!=null)current.RecordMeasuredLap(context,lap,type,session);}
+
+        public static string FactPromptBlock(RaceDataContext context)
+        {
+            var current=Volatile.Read(ref store);
+            return !enabled || current==null || context==null ? "" : current.Facts.PromptBlock(
+                RaceFactContext.FromGameState(context.GameName,context.GameState,context.NowUtc),context.NowUtc);
+        }
+        public static JObject HistoricalFacts(RaceDataContext context)
+        {
+            var current=Volatile.Read(ref store);
+            if(!enabled || current==null || context==null)return new JObject { ["verfuegbar"]=false,["grund"]="Faktengedächtnis ausgeschaltet oder noch nicht bereit." };
+            var summary=current.Facts.Query(RaceFactContext.FromGameState(context.GameName,context.GameState,context.NowUtc),context.NowUtc);
+            return new JObject {
+                ["historisch"]=true,["aktuelle_renndaten"]=false,["gespeicherte_gueltige_runden"]=summary.Laps.Count,
+                ["speicherstatus"]=current.Facts.Status,["schema_version"]=RaceFactStore.SchemaVersion,
+                ["verbrauchsvergleich_verfuegbar"]=summary.FuelComparisonAvailable,
+                ["kontext"]=Newtonsoft.Json.Linq.JObject.FromObject(RaceFactContext.FromGameState(context.GameName,context.GameState,context.NowUtc)),
+                ["beste_gespeicherte_runde_s"]=summary.BestObservedLapSeconds,["historischer_verbrauch_mittel_l"]=summary.AverageCleanFuelLitres,
+                ["quelle"]=RaceFactContext.TelemetrySource,["hinweis"]="Nur identischer Spiel-/Fahrzeug-/Strecken-/Reifen-/Bedingungskontext. Keine vollständige Rekordliste, keine garantierte Vergleichbarkeit von Setup oder Verbrauchsmultiplikator, keine aktuelle Reichweite.",
+                ["letzte_runden"]=new Newtonsoft.Json.Linq.JArray(summary.Laps.OrderByDescending(f=>f.ObservedUtc).Take(5).Select(f=>new JObject {
+                    ["beobachtet_utc"]=f.ObservedUtc,["session_uid"]=f.SessionUid,["session_typ"]=f.SessionType,
+                    ["runde"]=f.LapNumber,["zeit_s"]=f.LapSeconds,["verbrauch_l"]=summary.FuelComparisonAvailable?f.CleanFuelUsedLitres:null }))
+            };
         }
 
         public static bool TryAddNote(string note)

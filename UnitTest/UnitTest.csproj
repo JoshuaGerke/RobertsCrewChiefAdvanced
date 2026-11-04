@@ -82,6 +82,9 @@
     <Compile Include="AiTeam\WorkmapRegressionTests.cs" />
     <Compile Include="AiTeam\NativeFieldEventsTests.cs" />
     <Compile Include="AiTeam\NativeIncidentTests.cs" />
+    <Compile Include="AiTeam\NativeTimingEventsTests.cs" />
+    <Compile Include="AiTeam\RaceFactStoreTests.cs" />
+    <Compile Include="AiTeam\EvidenceAccuracyTests.cs" />
     <Compile Include="AiTeam\RadioDisciplineTests.cs" />
     <Compile Include="AiTeam\RaceSpeechEvidenceTests.cs" />
     <Compile Include="AiTeam\AudioDeliveryAccuracyTests.cs" />

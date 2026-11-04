@@ -17,6 +17,7 @@ namespace UnitTest.AiTeamTests
             var s=new GameStateData(T.Ticks);
             s.SessionData.SessionId=44;s.SessionData.SessionType=SessionType.Race;s.SessionData.SessionPhase=SessionPhase.Green;
             s.SessionData.ClassPosition=2;s.SessionData.NumCarsOverall=s.SessionData.NumCarsInPlayerClass=3;
+            s.SessionData.LapsDeltaFront=s.SessionData.LapsDeltaBehind=0; // Fixture explicitly models same-lap intervals.
             s.SessionData.TrackDefinition=new TrackDefinition("Test",0,5000,new float[]{0,0},new float[]{0,0});
             s.carClass=new CarData.CarClass {carClassEnum=CarData.CarClassEnum.AUDI_TT_CUP};
             s.FuelData.FuelUseActive=true;s.FuelData.FuelLeft=50;s.EngineData.EngineWaterTemp=90;

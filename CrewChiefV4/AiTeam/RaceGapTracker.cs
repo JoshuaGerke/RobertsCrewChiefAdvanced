@@ -52,7 +52,8 @@ namespace CrewChiefV4.AiTeam
                 for(long key=first;key<=last;key++)
                 {
                     double fraction=(key*Spacing-h.Progress)/advance;
-                    h.Points[key]=h.Utc.Ticks+(long)((now.Ticks-h.Utc.Ticks)*fraction); h.Order.Enqueue(key);
+                    if(!h.Points.ContainsKey(key))h.Order.Enqueue(key);
+                    h.Points[key]=h.Utc.Ticks+(long)((now.Ticks-h.Utc.Ticks)*fraction);
                 }
             }
             h.Progress=progress; h.Utc=now;
@@ -121,7 +122,10 @@ namespace CrewChiefV4.AiTeam
                 now<s.Utc || now-s.Utc>TimeSpan.FromSeconds(1) || !ReferenceEquals(car,RaceDataTools.Neighbour(gs,ahead)))return new RaceGapMeasurement();
             string key=ahead?s.AheadKey:s.BehindKey; OpponentData live; RaceGapMeasurement measurement;
             if ((ahead?s.AheadIdentity:s.BehindIdentity)!=((car.DriverRawName??"")+"|"+(car.CarNumber??"")))return new RaceGapMeasurement();
-            if(key==null || !gs.OpponentData.TryGetValue(key,out live) || !ReferenceEquals(car,live) || !s.Values.TryGetValue(key,out measurement))return new RaceGapMeasurement();
+            string mappedKey=ahead?gs.SessionData.OpponentKeyInFront:gs.SessionData.OpponentKeyBehind;
+            if((ahead?gs.SessionData.LapsDeltaFront:gs.SessionData.LapsDeltaBehind)!=0 || car.InPits || !car.IsActive ||
+                gs.SessionData.TrackDefinition.trackLength!=length || mappedKey!=null && mappedKey!=key ||
+                key==null || !gs.OpponentData.TryGetValue(key,out live) || !ReferenceEquals(car,live) || !s.Values.TryGetValue(key,out measurement))return new RaceGapMeasurement();
             return now>=measurement.MeasuredUtc && now-measurement.MeasuredUtc<=TimeSpan.FromSeconds(1)?measurement:new RaceGapMeasurement();
         }
     }

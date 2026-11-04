@@ -15,6 +15,10 @@ namespace CrewChiefV4.AiTeam
         public TeamMember Member = TeamMember.Ben;
         public int CompletedLaps = -1;
         public string AheadName, BehindName;
+        private string aheadKey,behindKey,aheadNumber,behindNumber;
+        private bool aheadIdentityBound,behindIdentityBound;
+        private RaceGapKind aheadKind,behindKind;
+        private Func<GameStateData,bool,DateTime,RaceGapMeasurement> timedGapReader;
         public float AheadGap = -1, BehindGap = -1;
         public Func<GameStateData,bool,float> CurrentGapReader;
         public Func<GameStateData,bool> AdditionalValidity;
@@ -85,14 +89,21 @@ namespace CrewChiefV4.AiTeam
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
                 (!gs.PitData.InPitlane || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
-                (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, true, AheadName, AheadGap) && GapStillValid(gs, false, BehindName, BehindGap);
+                (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, now, true, AheadName, AheadGap) && GapStillValid(gs, now, false, BehindName, BehindGap);
         }
-        private bool GapStillValid(GameStateData gs, bool ahead, string name, float oldGap)
+        private bool GapStillValid(GameStateData gs, DateTime now, bool ahead, string name, float oldGap)
         {
             if (oldGap < 0) return true;
             var opponent = RaceDataTools.Neighbour(gs, ahead);
-            float gap = CurrentGapReader == null ? RaceDataTools.GapSeconds(gs, opponent, ahead) : CurrentGapReader(gs,ahead);
-            return opponent != null && opponent.DriverRawName == name && gap > 0 && Math.Abs(gap - oldGap) <= .5f;
+            var measurement=timedGapReader==null?null:timedGapReader(gs,ahead,now);
+            if(measurement!=null && measurement.Kind!=(ahead?aheadKind:behindKind))return false;
+            float gap = measurement!=null?measurement.Seconds:CurrentGapReader == null ? RaceDataTools.GapSeconds(gs, opponent, ahead) : CurrentGapReader(gs,ahead);
+            string key=ahead?aheadKey:behindKey; OpponentData original;
+            bool bound=ahead?aheadIdentityBound:behindIdentityBound;
+            return opponent != null && opponent.DriverRawName == name &&
+                (!bound || key!=null && gs.OpponentData.TryGetValue(key,out original) && ReferenceEquals(original,opponent) &&
+                    opponent.CarNumber==(ahead?aheadNumber:behindNumber)) &&
+                gap > 0 && Math.Abs(gap - oldGap) <= .5f;
         }
         public void IncludeNeighbour(RaceDataContext ctx, bool ahead, bool appendText)
         {
@@ -103,11 +114,15 @@ namespace CrewChiefV4.AiTeam
             var text = AiRadioSchedule.Compose(ahead ? "ahead" : "behind", ctx);
             if (op == null || text == null) return;
             if (appendText) Text += " " + text;
-            CurrentGapReader=(live,direction)=>RaceDataTools.ReadGap(new RaceDataContext {
-                GameState=live, NowUtc=DateTime.UtcNow, Tracks=ctx.Tracks
-            },RaceDataTools.Neighbour(live,direction),direction).Seconds;
-            if (ahead) { AheadName = op.DriverRawName; AheadGap = RaceDataTools.ReadGap(ctx, op, true).Seconds; }
-            else { BehindName = op.DriverRawName; BehindGap = RaceDataTools.ReadGap(ctx, op, false).Seconds; }
+            timedGapReader=(live,direction,at)=>RaceDataTools.ReadGap(new RaceDataContext {
+                GameState=live, NowUtc=at, Tracks=ctx.Tracks,
+                LastTelemetryUtc=live.SourceTelemetryUtc==DateTime.MinValue?live.Now:live.SourceTelemetryUtc
+            },RaceDataTools.Neighbour(live,direction),direction);
+            string key=ctx.GameState.OpponentData.FirstOrDefault(p=>ReferenceEquals(p.Value,op)).Key;
+            if (ahead) { AheadName = op.DriverRawName; AheadGap = RaceDataTools.ReadGap(ctx, op, true).Seconds;
+                aheadKey=key;aheadNumber=op.CarNumber;aheadKind=RaceDataTools.ReadGap(ctx,op,true).Kind;aheadIdentityBound=true; }
+            else { BehindName = op.DriverRawName; BehindGap = RaceDataTools.ReadGap(ctx, op, false).Seconds;
+                behindKey=key;behindNumber=op.CarNumber;behindKind=RaceDataTools.ReadGap(ctx,op,false).Kind;behindIdentityBound=true; }
         }
     }
 

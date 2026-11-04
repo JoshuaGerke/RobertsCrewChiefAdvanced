@@ -7,11 +7,16 @@ using CrewChiefV4.NumberProcessing;
 using CrewChiefV4.R3E;
 using System.IO;
 using Newtonsoft.Json;
+using CrewChiefV4.AiTeam;
 
 namespace CrewChiefV4.Events
 {
     class Timings : AbstractEvent
     {
+        // A synchronous semantic owner can claim a selected native decision before the audio filter.
+        // Null/false preserves the original DELAYED path; never invoke those callbacks on another thread.
+        internal static Func<NativeTimingFact, bool> NativeTimingHandoff;
+
         // R3E reputation thresholds, to be refined
 
         // we will never report a gap (unless requested) that is smaller than
@@ -610,12 +615,12 @@ namespace CrewChiefV4.Events
                 // AMS / RF1 hack - sometimes the gap data is stale, so don't put the exact same gap in the list
                 gaps.behind.gap = _behind.gap;
                 gaps.behind.opponent = _behind.opponent;
-                gaps.behind.status = getGapStatus(gapsBehind, gapBehindAtLastReport);
-                Log.Debug(() => $"Gap behind: opponent '{gaps.behind.opponent} {gaps.behind.gap.signedTimeDelta}S ahead, status {gaps.behind.status}");
                 if (_behind.opponent != null && (gapsBehind.Count == 0 || gapsBehind[0].timeDelta != _behind.gap.timeDelta))
                 {
                     gapsBehind.Insert(0, gaps.behind.gap);
                 }
+                gaps.behind.status = getGapStatus(gapsBehind, gapBehindAtLastReport);
+                Log.Debug(() => $"Gap behind: opponent '{gaps.behind.opponent} {gaps.behind.gap.signedTimeDelta}S ahead, status {gaps.behind.status}");
             }
 
             gaps.behindOnTrack = mkGapBehindOnTrack(currentGameState);
@@ -673,19 +678,61 @@ namespace CrewChiefV4.Events
             // should exclude cars that we are lapping, but let through cars that are fast enough to unlap themselves.
             if (lappingCarNear && sectorsSinceLastGapBehindOnTrackReport >= sectorsUntilNextGapBehindOnTrackReport)
             {
+                if (TryNativeTimingHandoff(currentGameState, gaps.behindOnTrack, NativeTimingRelation.BehindOnTrack)) return;
                 DelayedMessage callback = delegate (GameStateData futureGameState, List<MessageFragment> primary, List<MessageFragment> alt) { _lappingCarNear(gaps, futureGameState, primary); };
                 audioPlayer.playMessage(new QueuedMessage("Timings/gap_behind_on_track", 5, delayedMessage: callback, priority: 5));
             }
             else if (canPlayGapInFront && (closerInFront || gapBehindReportFrequency <= 0) && sectorsSinceLastGapAheadReport >= sectorsUntilNextGapAheadReport)
             {
+                if (TryNativeTimingHandoff(currentGameState, gaps.inFront, NativeTimingRelation.ClassAhead)) return;
                 DelayedMessage callback = delegate (GameStateData futureGameState, List<MessageFragment> msg, List<MessageFragment> alt_) { _gapInFront(gaps, futureGameState, msg); };
                 audioPlayer.playMessage(new QueuedMessage("Timings/gap_in_front", 5, delayedMessage: callback, priority: 5));
             }
             else if (canPlayGapBehind && (!closerInFront || gapAheadReportFrequency <= 0) && sectorsSinceLastGapBehindReport >= sectorsUntilNextGapBehindReport)
             {
+                if (TryNativeTimingHandoff(currentGameState, gaps.behind, NativeTimingRelation.ClassBehind)) return;
                 DelayedMessage callback = delegate (GameStateData futureGameState, List<MessageFragment> msg, List<MessageFragment> alt_) { _gapBehind(gaps, futureGameState, msg); };
                 audioPlayer.playMessage(new QueuedMessage("Timings/gap_behind", 5, delayedMessage: callback, priority: 5));
             }
+        }
+
+        private bool TryNativeTimingHandoff(GameStateData state, gapToOpponent decision, NativeTimingRelation relation)
+        {
+            var owner = NativeTimingHandoff;
+            if (owner == null || decision == null || decision.gap == null || !decision.status.HasValue || decision.status == GapStatus.NONE) return false;
+            NativeTimingTrend trend = decision.status == GapStatus.CLOSE ? NativeTimingTrend.Close :
+                decision.status == GapStatus.INCREASING ? NativeTimingTrend.Increasing :
+                decision.status == GapStatus.DECREASING ? NativeTimingTrend.Decreasing : NativeTimingTrend.Steady;
+            var fact = NativeTimingFact.Capture(state, decision.gap.opponentKey, relation, trend,
+                decision.gap.timeDelta, decision.gap.signedLapDelta);
+            if (fact == null) return false;
+            try { if (!owner(fact)) return false; }
+            catch (Exception ex)
+            {
+                Log.Debug("Native timing handoff failed: " + ex.GetType().Name);
+                return false;
+            }
+            // Preserve the existing native report cadence when the original audio callback is not queued.
+            // The receiving director may discard an optional fact; this is not proof of audible delivery.
+            if (relation == NativeTimingRelation.ClassAhead)
+            {
+                gapInFrontAtLastReport = decision.gap.timeDelta;
+                sectorsSinceLastGapAheadReport = 0;
+                sectorsUntilNextGapAheadReport = nextReport(state, gapAheadMinSectorWait, gapAheadMaxSectorWait);
+            }
+            else if (relation == NativeTimingRelation.ClassBehind)
+            {
+                gapBehindAtLastReport = decision.gap.timeDelta;
+                sectorsSinceLastGapBehindReport = 0;
+                sectorsUntilNextGapBehindReport = nextReport(state, gapBehindMinSectorWait, gapBehindMaxSectorWait);
+            }
+            else
+            {
+                gapBehindOnTrackAtLastReport = decision.gap.timeDelta;
+                sectorsSinceLastGapBehindOnTrackReport = 0;
+                sectorsUntilNextGapBehindOnTrackReport = nextReport(state, gapBehindOnTrackMinSectorWait, gapBehindOnTrackMaxSectorWait);
+            }
+            return true;
         }
 
         private void _lappingCarNear(Gaps gaps, GameStateData futureGameState, List<MessageFragment> primary)
@@ -1065,7 +1112,7 @@ namespace CrewChiefV4.Events
             String mostRecentOpponentKey = null;
             for (int i = 0; i < gapsToCheck; i++)
             {
-                String thisOpponentKey = gaps[0].opponentKey;
+                String thisOpponentKey = gaps[i].opponentKey;
                 if (thisOpponentKey == null)
                 {
                     return false;

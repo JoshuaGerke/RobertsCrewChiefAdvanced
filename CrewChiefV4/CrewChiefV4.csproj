@@ -270,6 +270,9 @@
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />
     <Compile Include="AiTeam\NativeIncidentWatch.cs" />
+    <Compile Include="AiTeam\NativeTimingEvents.cs" />
+    <Compile Include="AiTeam\RaceFactStore.cs" />
+    <Compile Include="AiTeam\GermanRadioText.cs" />
     <Compile Include="AiTeam\FuelWatch.cs" />
     <Compile Include="AiTeam\IncidentWatch.cs" />
     <Compile Include="AiTeam\LapWatch.cs" />

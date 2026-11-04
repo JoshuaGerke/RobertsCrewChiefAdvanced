@@ -40,13 +40,14 @@ namespace CrewChiefV4.AiTeam
 
         public static readonly string[] AllToolNames =
         {
-            "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
+            "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
         public static JArray BuildToolDefinitions()
         {
             var tools = new JArray();
+            tools.Add(Tool("get_driver_history", "Belegte historische eigene Runden aus dauerhaftem lokalem Faktengedächtnis. Nur passender Spiel-/Fahrzeug-/Strecken-/Reifen-/Bedingungskontext, Quelle und UTC. Kein aktueller Fahrzeugzustand, keine vollständige persönliche Rekordliste, unbekannte Verbrauchseinstellung; niemals aktuelle Reichweite daraus ableiten."));
             tools.Add(Tool("get_data_capabilities", "Nachweis der im aktuellen Adapter angekommenen Daten: Gegner/Zeiten/Sektoren, räumliche Beobachtung, Fahrzeug, Wetter und bestätigte Spiel-/Servervorhersage. Vor Behauptungen über fehlende Daten verwenden."));
             tools.Add(Tool("get_telemetry_values", "Alle aktuell als Messwerte erfassten Details mit exaktem Rohwert, Wert, Einheit, Quelle, Feld, Komponente, UTC, Messalter und Status. Fehlend/veraltet/ungültig nie als Null interpretieren. Schaden ist API-Zustand, kein bewiesener Prozentverlust an Leistung."));
             tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge und eigene Streckenposition/Start-Ziel-Distanz."));
@@ -126,6 +127,7 @@ namespace CrewChiefV4.AiTeam
             {
                 switch (toolName)
                 {
+                    case "get_driver_history": data = DriverMemory.HistoricalFacts(ctx); break;
                     case "get_data_capabilities": data = TelemetryCapabilities.Describe(ctx); break;
                     case "get_race_state": data = RaceState(ctx, missing); break;
                     case "get_telemetry_values": data = new JObject { ["messwerte"]=TelemetryMeasurementTools.Read(ctx),
@@ -741,7 +743,10 @@ namespace CrewChiefV4.AiTeam
 
         public static RaceGapMeasurement ReadGap(RaceDataContext context, OpponentData op, bool ahead)
         {
-            if(context == null) return new RaceGapMeasurement();
+            if(context == null || context.GameState == null) return new RaceGapMeasurement();
+            DateTime source=context.GameState.SourceTelemetryUtc==DateTime.MinValue ? context.LastTelemetryUtc : context.GameState.SourceTelemetryUtc;
+            if(source==DateTime.MinValue || context.NowUtc<source || context.NowUtc-source>TimeSpan.FromSeconds(1))
+                return new RaceGapMeasurement();
             var value=ReadGap(context.GameState,op,ahead);
             if(context.Tracks != null && context.GameState != null && context.GameState.SessionData.SessionType == SessionType.Race &&
                 (ahead ? context.GameState.SessionData.TimeDeltaFrontIsDerived : context.GameState.SessionData.TimeDeltaBehindIsDerived))
@@ -759,11 +764,15 @@ namespace CrewChiefV4.AiTeam
                     return new RaceGapMeasurement();
                 return new RaceGapMeasurement(Math.Abs(s.PlayerLapTimeSessionBest - op.CurrentBestLapTime), RaceGapKind.BestLapDifference);
             }
+            // A mapper may retain the former neighbour during its overtake debounce.
+            // Never attach that car's interval/lap difference to a classification fallback.
+            string mappedKey=ahead?s.OpponentKeyInFront:s.OpponentKeyBehind;
+            if(mappedKey!=null && !ReferenceEquals(op,Lookup(gs,mappedKey))) return new RaceGapMeasurement();
             // A lapped car's distance must not become a same-lap seconds gap.
             if ((ahead ? s.LapsDeltaFront : s.LapsDeltaBehind) != 0) return new RaceGapMeasurement();
             float mapped = ahead ? s.TimeDeltaFront : s.TimeDeltaBehind;
             if (Finite(mapped) && mapped >= 0 && mapped <= 3600)
-                return new RaceGapMeasurement(mapped, (ahead ? s.TimeDeltaFrontIsDerived : s.TimeDeltaBehindIsDerived) ? RaceGapKind.DerivedTiming : RaceGapKind.SimulatorTiming);
+                return new RaceGapMeasurement(mapped, (ahead ? s.TimeDeltaFrontIsDerived : s.TimeDeltaBehindIsDerived) ? RaceGapKind.DerivedTiming : RaceGapKind.SimulatorTiming,gs.SourceTelemetryUtc);
             float len = s.TrackDefinition != null ? s.TrackDefinition.trackLength : 0;
             if (!Finite(len) || len <= 0 || !Finite(gs.PositionAndMotionData.DistanceRoundTrack) || !Finite(op.DistanceRoundTrack) ||
                 gs.PositionAndMotionData.DistanceRoundTrack < 0 || op.DistanceRoundTrack < 0 ||
@@ -866,7 +875,7 @@ namespace CrewChiefV4.AiTeam
         {
             var state=context==null?null:context.GameState;
             string track=state==null?null:state.SessionData.TrackDefinition==null?state.trackName:state.SessionData.TrackDefinition.name;
-            return DriverMemory.PromptBlock(question,context==null?null:context.GameName,track);
+            return DriverMemory.PromptBlock(question,context==null?null:context.GameName,track)+DriverMemory.FactPromptBlock(context);
         }
     }
 }

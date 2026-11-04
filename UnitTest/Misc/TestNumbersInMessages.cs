@@ -7,9 +7,22 @@ using NUnit.Framework;
 
 namespace UnitTest.Misc
 {
-    [TestFixture]
+    [TestFixture, NonParallelizable]
     public class TestNumbersInMessages
     {
+        // Utilities may have been initialized by NUnit before MSTest's assembly initializer.
+        // These tests explicitly require min/max choices, not a random hundred-and variant.
+        private System.Random originalRandom;
+        private bool originalMax;
+        private sealed class NumberChoice : System.Random
+        { public override double NextDouble() { return Utilities.DebugUseMaxRandomValue ? .999 : 0; } }
+        [SetUp]
+        public void UseDeterministicNumberChoices()
+        { originalRandom=Utilities.random;originalMax=Utilities.DebugUseMaxRandomValue;Utilities.random=new NumberChoice(); }
+        [TearDown]
+        public void RestoreNumberChoices()
+        { Utilities.random=originalRandom;Utilities.DebugUseMaxRandomValue=originalMax; }
+
         [Test]
         public void TestPortugueseTwocmd()
         {

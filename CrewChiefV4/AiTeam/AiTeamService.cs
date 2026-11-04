@@ -34,6 +34,8 @@ namespace CrewChiefV4.AiTeam
         private readonly QualifyingResultWatch qualifyingResults = new QualifyingResultWatch();
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
+        private readonly NativeTimingEvents timingEvents = new NativeTimingEvents();
+        private ObservedRaceCall pendingTimingDelivery;
         private readonly NativeIncidentWatch nativeIncidents = new NativeIncidentWatch();
         private readonly ThermalWatch thermalWatch = new ThermalWatch();
         private readonly NumericDamageWatch numericDamageWatch = new NumericDamageWatch();
@@ -136,6 +138,9 @@ namespace CrewChiefV4.AiTeam
             NativeTrafficBridge.Clear();
             NativeIncidentWatch.Enabled=settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
             nativeIncidents.Reset();
+            timingEvents.Reset();pendingTimingDelivery=null;
+            CrewChiefV4.Events.Timings.NativeTimingHandoff=settings.Enabled && settings.ReplaceCrewChiefVoice
+                ? new Func<NativeTimingFact,bool>(fact=> { if(settings.BenEnabled)timingEvents.Capture(fact);return true; }) : null;
             raceTraffic.CoveredAhead=nativeIncidents.CoversAhead;
             trackWatch.CoveredAhead=nativeIncidents.CoversAhead;
             DriverMemory.Configure(settings.Enabled && settings.PersistentMemory);
@@ -185,6 +190,7 @@ namespace CrewChiefV4.AiTeam
             settings = AiTeamSettings.Load();
             NativeTrafficBridge.Enabled = settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
             NativeTrafficBridge.Clear();
+            NativeIncidentWatch.Enabled=settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
             AudioPlayer.aiTeamSpotterMuted = settings.Enabled && !settings.SaraEnabled;
             Status(TeamRouter.DisplayName(member)+(enabled?" aktiviert.":" deaktiviert; wartende Meldungen werden verworfen."));
         }
@@ -225,6 +231,7 @@ namespace CrewChiefV4.AiTeam
                 qualifyingResults.Reset();
                 liveWarnings.Reset();
                 fieldEvents.Reset();
+                timingEvents.Reset();pendingTimingDelivery=null;
                 nativeIncidents.Reset();
                 thermalWatch.Reset();
                 numericDamageWatch.Reset();
@@ -236,12 +243,15 @@ namespace CrewChiefV4.AiTeam
                 DriverMemory.BeginSession(CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName,
                     current.SessionData.TrackDefinition==null?null:current.SessionData.TrackDefinition.name,
                     current.carName,current.SessionData.SessionType.ToString(),current.SessionData.SessionId);
+                DriverMemory.BeginMeasuredSession(RaceFactContext.FromGameState(CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName,current,now),
+                    current.SessionData.SessionType.ToString(),current.SessionData.SessionId);
             }
             // Leichtgewichtige lokale Auswertung; max. 20 Hz, keine Cloud-Anfrage.
             bool sampleDue = radioDirector.Observe(now, current);
             UpdateCornerTrack(current);
             if (sampleDue && Tracks.Observe(current, now)) LiveDiagnostics.TrackPositions(Tracks.Snapshot);
-            var gapContext=new RaceDataContext {GameState=current,Tracks=Tracks,NowUtc=now,LastTelemetryUtc=now};
+            var gapContext=new RaceDataContext {GameState=current,Tracks=Tracks,NowUtc=now,
+                LastTelemetryUtc=current.SourceTelemetryUtc==DateTime.MinValue?current.Now:current.SourceTelemetryUtc};
             var measuredFront=RaceDataTools.ReadGap(gapContext,RaceDataTools.Neighbour(current,true),true);
             var measuredRear=RaceDataTools.ReadGap(gapContext,RaceDataTools.Neighbour(current,false),false);
             bool lapCompleted = Memory.Update(previous, current, now, measuredFront, measuredRear);
@@ -252,6 +262,12 @@ namespace CrewChiefV4.AiTeam
                     current.SessionData.TrackDefinition == null ? null : current.SessionData.TrackDefinition.name,
                     current.carName,Memory.GetLaps(1).LastOrDefault(),current.SessionData.SessionId);
                 var lap = Memory.GetLaps(1).LastOrDefault();
+                string game=CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName;
+                var measuredContext=RaceFactContext.FromGameState(game,current,now);
+                DateTime source=current.SourceTelemetryUtc==DateTime.MinValue?current.Now:current.SourceTelemetryUtc;
+                if(!newSession && previous!=null && measuredContext.SameVehicleTrack(RaceFactContext.FromGameState(game,previous,now)) &&
+                    now>=source && now-source<=TimeSpan.FromSeconds(1))
+                    DriverMemory.RememberMeasuredLap(measuredContext,lap,current.SessionData.SessionType.ToString(),current.SessionData.SessionId);
                 bool cleanLap = lap != null && lap.Valid && !lap.InPitLap;
                 Corners.CompleteLap(current.SessionData.CompletedLaps, current.SessionData.LapTimePrevious,
                     current.SessionData.PreviousLapWasValid && cleanLap);
@@ -351,6 +367,12 @@ namespace CrewChiefV4.AiTeam
             nativeIncidents.Observe(current,now,liveWarnings,Memory,settings.SendDriverNames);
             fieldEvents.CaptureMappedPits(previous,current);
             fieldEvents.Observe(current,now,Memory,settings.SendDriverNames);
+            timingEvents.Observe(current,now,Memory,settings.SendDriverNames);
+            if(pendingTimingDelivery!=null && pendingTimingDelivery.DeliveryStartedUtc!=DateTime.MinValue) {
+                radioSchedule.NoteRelatedReport(pendingTimingDelivery.Topic=="native-gap-front"?"ahead":"behind",pendingTimingDelivery.DeliveryStartedUtc,radioPrefs);
+                pendingTimingDelivery=null;
+            }
+            else if(pendingTimingDelivery!=null && !pendingTimingDelivery.IsValid(current,now))pendingTimingDelivery=null;
             liveWarnings.Observe(current,now);
             var raceCall = liveWarnings.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled);
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,pitBusy,7);
@@ -364,6 +386,11 @@ namespace CrewChiefV4.AiTeam
                 Spotter().HasOverlap || radioDirector.TrafficQuiet(now) || radioRenderGate.Busy || currentRequest != null);
             if (raceCall == null) raceCall = fieldEvents.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest!=null,
                 settings.IsMemberEnabled(TeamMember.Ben),settings.RadioMode==AiRadioMode.MINIMAL);
+            if (raceCall == null) {
+                raceCall=timingEvents.Take(BuildContext(current),Spotter().HasOverlap || radioRenderGate.Busy || currentRequest!=null,
+                    settings.IsMemberEnabled(TeamMember.Ben),settings.RadioMode==AiRadioMode.MINIMAL);
+                if(raceCall!=null)pendingTimingDelivery=raceCall;
+            }
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,weatherBusy);
             if (raceCall == null) raceCall = weatherWatch.Take(current,now,weatherBusy || radioDirector.TrafficQuiet(now));
             if (raceCall == null)
@@ -399,12 +426,12 @@ namespace CrewChiefV4.AiTeam
                     ? radioDirector.MeasuredOpponentApproaching(current.SessionData.OpponentKeyBehind,
                         current.SessionData.CompletedLaps, measuredRear.IsRaceGap ? measuredRear.Seconds : -1) : null;
                 string cornerLoss = Corners.FindConsistentLoss(); // Autonomous; independent of optional timers.
-                if (closing != null)
+                if (closing != null && CrewChiefV4.Events.Timings.NativeTimingHandoff==null)
                 {
                     trigger = "Gemessener Gegnertrend: " + closing + " Ben soll sachlich berichten, ohne Überholversprechen.";
                     topic = "opponent-gap-trend";
                 }
-                else if (approaching != null)
+                else if (approaching != null && CrewChiefV4.Events.Timings.NativeTimingHandoff==null)
                 {
                     trigger = "Gemessener Gegnertrend hinten: " + approaching + " Ben berichtet nur den Messbefund, keine riskante Verteidigungsanweisung.";
                     topic = "opponent-behind-trend";
@@ -1380,7 +1407,10 @@ namespace CrewChiefV4.AiTeam
             {
                 try
                 {
-                    Func<string, bool> valid = _ => settings.Enabled && generation == Volatile.Read(ref sessionGeneration) &&
+                    Func<string, bool> valid = _ => settings.Enabled && settings.IsMemberEnabled(call.Member) &&
+                        (!(call.Topic??"").StartsWith("native-gap-",StringComparison.Ordinal) ||
+                            settings.ReplaceCrewChiefVoice && settings.RadioMode!=AiRadioMode.MINIMAL) &&
+                        generation == Volatile.Read(ref sessionGeneration) &&
                         TelemetryFresh() && !Spotter().HasOverlap &&
                         call.IsValid(CrewChief.currentGameState, DateTime.UtcNow);
                     if (!valid(call.Text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid"); return; }
@@ -1580,14 +1610,16 @@ namespace CrewChiefV4.AiTeam
                 }
                 catch (Exception) { }
             }
+            // Pronunciation only: validation, diagnostics and cache identity keep the exact factual text.
+            string spokenText=GermanRadioText.Prepare(text);
             // Respect the selected source. A failed provider must not change the crew's identity.
             byte[] pcm = null;
             if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey && !ElevenLabsPaused)
-                pcm = await TryTtsAsync("ElevenLabs", t => elevenLabs.SpeechPcmAsync(settings.ElevenLabsVoiceFor(member), settings.ElevenLabsModel, text, member, t), ct).ConfigureAwait(false);
+                pcm = await TryTtsAsync("ElevenLabs", t => elevenLabs.SpeechPcmAsync(settings.ElevenLabsVoiceFor(member), settings.ElevenLabsModel, spokenText, member, t), ct).ConfigureAwait(false);
             else if (settings.TtsProvider == AiTtsProvider.WINDOWS)
-                pcm = WindowsTts.Render(text, settings.WindowsVoiceFor(member), member);
+                pcm = WindowsTts.Render(spokenText, settings.WindowsVoiceFor(member), member);
             else if (settings.TtsProvider != AiTtsProvider.ELEVENLABS && HasApiKey)
-                pcm = await TryTtsAsync("Cloud-Stimme", t => client.SpeechPcmAsync(settings.TtsModel, settings.VoiceFor(member), text, AiPersonas.VoiceInstructions(member), t), ct).ConfigureAwait(false);
+                pcm = await TryTtsAsync("Cloud-Stimme", t => client.SpeechPcmAsync(settings.TtsModel, settings.VoiceFor(member), spokenText, AiPersonas.VoiceInstructions(member), t), ct).ConfigureAwait(false);
             if (pcm == null || pcm.Length == 0) throw new InvalidOperationException("Gewählte Stimme nicht verfügbar. Schlüssel/Kontingent prüfen. Keine Ersatzstimme verwendet.");
             if (settings.RadioEffect)
             {
