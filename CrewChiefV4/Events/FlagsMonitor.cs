@@ -1382,6 +1382,8 @@ namespace CrewChiefV4.Events
                             }
                         }
                     }
+                    if(CrewChief.yellowFlagMessagesEnabled)
+                        CrewChiefV4.AiTeam.NativeIncidentWatch.Publish(currentGameState,waitingForCrashedDriverInCorner,crashedOpponents);
                     incidentWarnings[waitingForCrashedDriverInCorner] = currentGameState.Now;
                     if (crashedOpponents.Count >= pileupDriverCount)
                     {

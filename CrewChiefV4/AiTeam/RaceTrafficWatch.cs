@@ -128,11 +128,13 @@ namespace CrewChiefV4.AiTeam
             return (nativeRear.TryGetValue(car.Key,out utc) || car.NativeName!=null && nativeRear.TryGetValue(car.NativeName,out utc)) &&
                 now>=utc && now-utc<TimeSpan.FromSeconds(3);
         }
+        public Func<string,bool> CoveredAhead;
         private bool Relevant(TrackCarPosition c,GameStateData gs,TrackPositionSnapshot s,DateTime now)
         {
             if (c.InPits || !c.SpatiallyConsistent || !c.RouteGapM.HasValue || !c.SpeedMps.HasValue ||
                 !s.PlayerSpeedMps.HasValue || s.PlayerSpeedMps<5 || Math.Abs(c.RouteGapM.Value)<15) return false;
             bool rear=c.RouteGapM<0;
+            if(!rear && CoveredAhead!=null && CoveredAhead(c.Key))return false;
             if (rear && NativeConfirmed(c,now) && c.SpeedMps>=s.PlayerSpeedMps+3 && Math.Abs(c.RouteGapM.Value)<=500) return true;
             if (!c.ClosingMps.HasValue || !TrackSituationWatch.MotionPlausible(c,s.PlayerSpeedMps.Value,!rear)) return false;
             double closing=c.ClosingMps.Value;

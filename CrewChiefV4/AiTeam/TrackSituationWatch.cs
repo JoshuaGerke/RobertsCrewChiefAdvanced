@@ -42,6 +42,7 @@ namespace CrewChiefV4.AiTeam
             double expected=ahead?ownSpeed-car.SpeedMps.Value:car.SpeedMps.Value-ownSpeed;
             return Math.Abs(car.ClosingMps.Value-expected)<=Math.Max(5,ownSpeed*.15);
         }
+        public Func<string,bool> CoveredAhead;
         private static bool Relevant(TrackCarPosition car,double ownSpeed,bool ahead,double upperSeconds)
         {
             if(!Usable(car) || ownSpeed<5 || car.ClosingMps<(ahead?8:3) || !MotionPlausible(car,ownSpeed,ahead) || Math.Abs(car.RouteGapM.Value)<15) return false;
@@ -72,7 +73,7 @@ namespace CrewChiefV4.AiTeam
                 state.SessionData.SessionId!=s.SessionId || state.SessionData.SessionType!=s.SessionType ||
                 state.SessionData.SessionPhase!=SessionPhase.Green || state.PitData.InPitlane || !s.PlayerSpeedMps.HasValue ||
                 pending!=null || now<lastAny || now-lastAny<TimeSpan.FromSeconds(4)) return null;
-            var candidates=s.Cars.Where(c=>Relevant(c,s.PlayerSpeedMps.Value,c.RouteGapM>0,AlertSeconds))
+            var candidates=s.Cars.Where(c=>(c.RouteGapM<=0 || CoveredAhead==null || !CoveredAhead(c.Key)) && Relevant(c,s.PlayerSpeedMps.Value,c.RouteGapM>0,AlertSeconds))
                 .OrderBy(c=>Math.Abs(c.RouteGapM.Value)/c.ClosingMps.Value);
             foreach(var car in candidates)
             {
@@ -85,14 +86,14 @@ namespace CrewChiefV4.AiTeam
                     Topic=topic,Text=text,Evidence="practice_quali;continuous_route_positions_1.5s;speed_vs_route_consistent;intercept_within_6s;"+(topic=="traffic-catching"?"slow_ahead_closing_at_least_8mps":"faster_rear_closing_at_least_3mps"),
                     Member=TeamMember.Ben,Priority=4,Position=-1,SessionId=s.SessionId,SessionType=s.SessionType,
                     DetectedUtc=now,ExpiresUtc=now.AddSeconds(3),
-                    TimedValidity=(gs,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && StillRelevant(observer,gs,opponentKey,id,topic,utc) &&
+                    TimedValidity=(gs,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && StillRelevant(observer,gs,opponentKey,id,topic,utc,CoveredAhead) &&
                         (!stopped || gs.OpponentData.ContainsKey(opponentKey) && gs.OpponentData[opponentKey].Speed<=1)
                 };
                 pendingKey=key;LiveDiagnostics.Decision(topic,"detected",pending.Evidence,text);return pending;
             }
             return null;
         }
-        public static bool StillRelevant(TrackAwareness observer,GameStateData gs,string key,int id,string topic,DateTime now)
+        public static bool StillRelevant(TrackAwareness observer,GameStateData gs,string key,int id,string topic,DateTime now,Func<string,bool> covered=null)
         {
             var s=observer==null?null:observer.Snapshot;
             if(s==null || gs==null || !Supported(s.SessionType) || now<s.Utc || now-s.Utc>TimeSpan.FromSeconds(1) ||
@@ -100,6 +101,7 @@ namespace CrewChiefV4.AiTeam
                 gs.SessionData.SessionPhase!=SessionPhase.Green || gs.PitData.InPitlane || !s.PlayerSpeedMps.HasValue) return false;
             var car=s.Cars.FirstOrDefault(c=>c.Id==id && c.Key==key);OpponentData live;
             if(car==null || !gs.OpponentData.TryGetValue(key,out live) || !live.IsActive || live.InPits) return false;
+            if(topic=="traffic-catching" && covered!=null && covered(key))return false;
             return Relevant(car,s.PlayerSpeedMps.Value,topic=="traffic-catching",AlertSeconds);
         }
     }

@@ -34,6 +34,7 @@ namespace CrewChiefV4.AiTeam
         private readonly QualifyingResultWatch qualifyingResults = new QualifyingResultWatch();
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
+        private readonly NativeIncidentWatch nativeIncidents = new NativeIncidentWatch();
         private readonly ThermalWatch thermalWatch = new ThermalWatch();
         private readonly NumericDamageWatch numericDamageWatch = new NumericDamageWatch();
         private readonly FuelWatch fuelWatch = new FuelWatch();
@@ -133,6 +134,10 @@ namespace CrewChiefV4.AiTeam
             settings = newSettings;
             NativeTrafficBridge.Enabled = settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
             NativeTrafficBridge.Clear();
+            NativeIncidentWatch.Enabled=settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
+            nativeIncidents.Reset();
+            raceTraffic.CoveredAhead=nativeIncidents.CoversAhead;
+            trackWatch.CoveredAhead=nativeIncidents.CoversAhead;
             DriverMemory.Configure(settings.Enabled && settings.PersistentMemory);
             ConfigureCrewLog(newSettings.WriteLog);
             AudioPlayer.aiTeamSpotterMuted = settings.Enabled && !settings.SaraEnabled;
@@ -220,6 +225,7 @@ namespace CrewChiefV4.AiTeam
                 qualifyingResults.Reset();
                 liveWarnings.Reset();
                 fieldEvents.Reset();
+                nativeIncidents.Reset();
                 thermalWatch.Reset();
                 numericDamageWatch.Reset();
                 NativeTrafficBridge.Clear();
@@ -342,6 +348,7 @@ namespace CrewChiefV4.AiTeam
                 thermalWatch.Observe(current,now,liveWarnings);
                 numericDamageWatch.Observe(current,now,liveWarnings);
             }
+            nativeIncidents.Observe(current,now,liveWarnings,Memory,settings.SendDriverNames);
             fieldEvents.CaptureMappedPits(previous,current);
             fieldEvents.Observe(current,now,Memory,settings.SendDriverNames);
             liveWarnings.Observe(current,now);
@@ -1834,7 +1841,7 @@ namespace CrewChiefV4.AiTeam
                     "Frei, keiner neben dir.", "Noch einer links, rechts frei.", "Noch einer rechts, links frei.", SaraLocal.NoDataAnswer }.Concat(FlagWatch.Phrases);
                 var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
                     .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(LiveWarningDispatcher.MikPhrases).Concat(ThermalWatch.PreparedPhrases).Concat(CrewSpeechPolicy.FinishPhrases).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(CrewSpeechPolicy.WeatherPhrases).Concat(PitLaneWatch.UnknownLimitPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
-                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.StoppedPhrases).Concat(TrackSituationWatch.ApproachingPhrases).Concat(RaceTrafficWatch.PreparedPhrases).Concat(RaceSituationWatch.PreparedPhrases(settings.RadioName)).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
+                    .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.StoppedPhrases).Concat(TrackSituationWatch.ApproachingPhrases).Concat(RaceTrafficWatch.PreparedPhrases).Concat(NativeIncidentWatch.Phrases).Concat(RaceSituationWatch.PreparedPhrases(settings.RadioName)).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
                     .Where(p=>settings.IsMemberEnabled(p.Key)).ToArray();
                 foreach (var phrase in phrases)
                 {

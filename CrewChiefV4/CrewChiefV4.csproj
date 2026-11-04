@@ -269,6 +269,7 @@
     <Compile Include="AiTeam\ThermalWatch.cs" />
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />
+    <Compile Include="AiTeam\NativeIncidentWatch.cs" />
     <Compile Include="AiTeam\FuelWatch.cs" />
     <Compile Include="AiTeam\IncidentWatch.cs" />
     <Compile Include="AiTeam\LapWatch.cs" />
