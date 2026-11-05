@@ -279,7 +279,7 @@ namespace UnitTest.AiTeamTests
             gs.SessionData.NumCarsInPlayerClass = 20;
             gs.SessionData.LapTimePrevious = 92.456f;
             gs.SessionData.PreviousLapWasValid = true;
-            Assert.AreEqual("P6 von 20.", LocalAnswers.TryAnswer("auf welchem Platz bin ich?", gs, null));
+            Assert.AreEqual("Platz 6 von 20.", LocalAnswers.TryAnswer("auf welchem Platz bin ich?", gs, null));
             Assert.AreEqual("Letzte Runde 1:32,456.", LocalAnswers.TryAnswer("wie war die letzte Runde?", gs, null));
         }
 
@@ -697,7 +697,7 @@ namespace UnitTest.AiTeamTests
         {
             var watch = new FuelWatch();
             string text = watch.Evaluate(5, 10f, 2.5f, 10, true, true);
-            StringAssert.Contains("nach aktueller Pace", text);
+            StringAssert.Contains("Restdistanz ist geschätzt", text);
             StringAssert.Contains("Tankstopp", text);
             Assert.IsNull(new FuelWatch().Evaluate(5, 40f, 2.5f, 10, true, false), "reicht – keine Meldung");
         }

@@ -115,5 +115,33 @@ namespace UnitTest.AiTeamTests
         [TestCase("Porsche 992 GT3, Robert 17, P12.","Porsche 992 GT3, Robert 17, P12.")]
         public void German_numbers_keep_precision_without_rewriting_car_or_driver_identifiers(string input,string output)
         {Assert.AreEqual(output,GermanRadioText.Prepare(input));}
+
+        [Test]
+        public void Local_template_reference_uses_all_three_coaches_without_sending_source_text()
+        {
+            string json = @"{""de"":[
+                {""Coach"":""Fred"",""Trigger"":""position_gained"",""Text"":""{0} eins zwei drei vier fünf sechs.""},
+                {""Coach"":""Jack"",""Trigger"":""rc_best_lap"",""Text"":""eins zwei drei vier fünf sechs sieben acht neun.""},
+                {""Coach"":""Carlo"",""Trigger"":""talk_fuel"",""Text"":""UNTRUSTED_MARKER eins zwei drei vier fünf sechs sieben acht neun zehn.""},
+                {""Coach"":""Other"",""Trigger"":""talk_fuel"",""Text"":""Unbekannte Rolle.""}],
+                ""en"":[{""Coach"":""Fred"",""Trigger"":""race_start"",""Text"":""Green flag.""}]}";
+            var reference = LocalTemplateReference.Parse(new StringReader(json));
+            Assert.AreEqual(3, reference.GermanRows);
+            Assert.AreEqual(1, reference.EnglishRows);
+            StringAssert.Contains("etwa 7 Wörter", reference.Guidance(TeamMember.Ben, "Welcher Platz?"));
+            StringAssert.Contains("etwa 9 Wörter", reference.Guidance(TeamMember.Mik, "Beste Runde?"));
+            string fuel = reference.Guidance(TeamMember.Ben, "Wie viel Sprit?");
+            StringAssert.Contains("etwa 11 Wörter", fuel);
+            StringAssert.DoesNotContain("UNTRUSTED_MARKER", fuel);
+            Assert.IsEmpty(reference.Guidance(TeamMember.Sara, "Welcher Platz?"));
+        }
+
+        [TestCase("Platz 7. Noch 0,8 Sekunden auf Müller.", "Platz sieben. Noch acht Zehntel auf Müller.")]
+        [TestCase("Ungefähr 0,1 Sekunden. Porsche 992 GT3.", "Ungefähr ein Zehntel. Porsche 992 GT3.")]
+        [TestCase("Noch 0,05 Sekunden.", "Noch null Komma null fünf Sekunden.")]
+        public void Pit_wall_pronunciation_keeps_the_same_number_in_speakable_german(string input, string expected)
+        {
+            Assert.AreEqual(expected, GermanRadioText.Prepare(input, pitWall: true));
+        }
     }
 }

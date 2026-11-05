@@ -211,7 +211,8 @@ namespace CrewChiefV4.AiTeam
                 {
                     if (op == null || !op.IsActive || !Good(op.CurrentBestLapTime,10,3600) || !Good(gs.SessionData.PlayerLapTimeSessionBest,10,3600)) return null;
                     float difference = Math.Abs(op.CurrentBestLapTime-gs.SessionData.PlayerLapTimeSessionBest);
-                    return "In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: " + LocalAnswers.LapTime(op.CurrentBestLapTime) + ". Differenz der Bestzeiten " + Number(difference) + " Sekunden.";
+                    return "In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: " + LocalAnswers.LapTime(op.CurrentBestLapTime) +
+                        ". Die Bestzeiten liegen " + Number(difference) + " Sekunden auseinander.";
                 }
                 var measurement = RaceDataTools.ReadGap(ctx, op, ahead);
                 float gap = measurement.Seconds;
@@ -234,7 +235,7 @@ namespace CrewChiefV4.AiTeam
                 if (!gs.FuelData.FuelUseActive || !Good(gs.FuelData.FuelLeft, .1, 1000)) return null;
                 float perLap = ctx.Memory == null ? -1 : ctx.Memory.AverageFuelPerLap();
                 string text = "Noch " + Number(gs.FuelData.FuelLeft) + " Liter im Tank.";
-                if (Good(perLap, .1, 100)) text += " Bei unserem gemessenen Verbrauch etwa " + Number(gs.FuelData.FuelLeft / perLap) + " Runden Reichweite.";
+                if (Good(perLap, .1, 100)) text += " Das reicht bei dem Verbrauch für etwa " + Number(gs.FuelData.FuelLeft / perLap) + " Runden Reichweite.";
                 return text;
             }
             if (topic == "tyres")
@@ -244,7 +245,7 @@ namespace CrewChiefV4.AiTeam
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 int worst = Array.IndexOf(wear, wear.Max());
                 return "Am stärksten abgenutzt ist der Reifen " + new[] { "vorne links", "vorne rechts", "hinten links", "hinten rechts" }[worst] +
-                    ": " + Number(wear[worst]) + " Prozent Verschleiß, null bedeutet neu.";
+                    ": " + Number(wear[worst]) + " Prozent Verschleiß.";
             }
             if (topic == "pace")
             {
@@ -252,7 +253,7 @@ namespace CrewChiefV4.AiTeam
                 if (laps.Length < 3 || !laps.All(l => l.Valid && !l.InPitLap && Good(l.LapTime, 20, 1200)) ||
                     laps[1].LapNumber != laps[0].LapNumber + 1 || laps[2].LapNumber != laps[1].LapNumber + 1) return null;
                 return "Die letzten drei sauberen Runden im Mittel " + LocalAnswers.LapTime(laps.Average(l => l.LapTime)) +
-                    ". Streuung " + Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime)) + " Sekunden.";
+                    ". Die Runden liegen innerhalb von " + Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime)) + " Sekunden.";
             }
             if (topic == "status") {
                 if (gs.SessionData.SessionType == SessionType.Race) return ActiveRaceObserver.Summary(gs,ctx.Memory==null?null:ctx.Memory.GetLaps(3),gs.SessionData.SessionStartClassPosition,ctx.DriverName);
@@ -262,7 +263,7 @@ namespace CrewChiefV4.AiTeam
             if (topic == "vehicle") return VehicleReport(gs);
             if (topic == "progress") {
                 var s=gs.SessionData;
-                if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) return "Noch etwa "+Math.Ceiling(s.SessionTimeRemaining/60)+(Math.Ceiling(s.SessionTimeRemaining/60)==1?" Minute":" Minuten")+" auf der Sessionuhr.";
+                if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) return "Noch etwa "+Math.Ceiling(s.SessionTimeRemaining/60)+(Math.Ceiling(s.SessionTimeRemaining/60)==1?" Minute":" Minuten")+" auf der Uhr.";
                 if(!s.SessionHasFixedTime && s.SessionNumberOfLaps>0 && s.SessionLapsRemaining>0 && s.SessionLapsRemaining<10000)
                     return "Noch "+s.SessionLapsRemaining+(s.SessionLapsRemaining==1?" Runde.":" Runden.");
                 return null;

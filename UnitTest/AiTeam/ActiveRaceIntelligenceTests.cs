@@ -33,6 +33,46 @@ namespace UnitTest.AiTeamTests
         private static ObservedRaceCall Take(ActiveRaceObserver d, GameStateData gs, double seconds = .35, bool overlap = false)
         { return d.Take(gs, Now.AddSeconds(seconds), overlap, false, false, 120, null, "Rob"); }
 
+        [TestCase("fresh", true)]
+        [TestCase("names_off", false)]
+        [TestCase("stale", false)]
+        [TestCase("lapped", false)]
+        [TestCase("pit", false)]
+        [TestCase("different_key", false)]
+        [TestCase("too_far", false)]
+        public void Confirmed_pass_names_only_a_current_close_class_rival(string scenario, bool named)
+        {
+            var gs = Race();
+            var observer = new ActiveRaceObserver();
+            observer.Observe(gs, Now, "Rob", 120);
+            Change(gs);
+            Confirm(observer, gs);
+            var call = Take(observer, gs);
+            Assert.IsNotNull(call);
+            var at = Now.AddMilliseconds(350);
+            gs.SourceTelemetryUtc = scenario == "stale" ? at.AddSeconds(-2) : at;
+            gs.SessionData.OpponentKeyInFront = scenario == "different_key" ? "timo" : "nick";
+            gs.SessionData.LapsDeltaFront = scenario == "lapped" ? 1 : 0;
+            gs.SessionData.TimeDeltaFront = scenario == "too_far" ? 2.7f : 0.7f;
+            gs.OpponentData["nick"] = new OpponentData { DriverRawName = "Nick Heidfeld", CarNumber = "23",
+                ClassPosition = 8, CarClass = gs.carClass, IsActive = true, InPits = scenario == "pit" };
+            var context = new RaceDataContext { GameState = gs, NowUtc = at, LastTelemetryUtc = at,
+                SendDriverNames = scenario != "names_off" };
+
+            var text = call.ComposeForDelivery(context, out var check);
+            Assert.AreEqual(named, text.Contains("knapp hinter Nick Heidfeld"));
+            Assert.AreEqual(named, check != null);
+            if (!named) return;
+
+            Assert.IsTrue(check(gs, at));
+            gs.OpponentData["nick"].CarNumber = "46";
+            Assert.IsFalse(check(gs, at));
+            call.ReleaseForRetry(at, "opponent_changed_during_render");
+            Assert.IsTrue(call.TryReserve(at.AddSeconds(1)));
+            Assert.AreEqual(call.Text, call.ComposeForDelivery(context, out var retryCheck));
+            Assert.IsNull(retryCheck);
+        }
+
         [Test]
         public void Named_opponent_fuel_never_returns_own_fuel()
         {

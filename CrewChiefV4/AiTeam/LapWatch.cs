@@ -120,7 +120,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (gapAhead > 0 && gapAhead < 1.5f)
             {
-                return " Vorne " + SaraLocal.Seconds(gapAhead) + ", da geht noch was.";
+                return " Nach vorn " + SaraLocal.Seconds(gapAhead) + ".";
             }
             return "";
         }

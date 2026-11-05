@@ -63,7 +63,7 @@ namespace CrewChiefV4.AiTeam
         private readonly List<ObservedRaceCall> pending=new List<ObservedRaceCall>();
         private readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
         private DateTime lastRadio=DateTime.MinValue;
-        private int variant;
+        private int pitVariant;
         public void Capture(NativeFieldFact fact)
         {if(fact==null)return;incoming.Enqueue(fact);NativeFieldFact unused;while(incoming.Count>32)incoming.TryDequeue(out unused);}
         public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();seen.Clear();lastRadio=DateTime.MinValue;}
@@ -88,7 +88,8 @@ namespace CrewChiefV4.AiTeam
                 if(seen.ContainsKey(id))continue;
                 if(seen.Count>=128)seen.Remove(seen.OrderBy(p=>p.Value).First().Key);
                 seen[id]=now;
-                string text=Text(f,names,variant++);
+                string text = Text(f, names, pitVariant);
+                if (f.Kind == "pit") pitVariant = (pitVariant + 1) % 5;
                 if(text==null)continue;
                 if(memory!=null)memory.AddObservation(text,now,"field-"+f.Kind,f.Key,f.Source);
                 // Existing SessionLapObserver already owns non-race class records.
@@ -128,8 +129,18 @@ namespace CrewChiefV4.AiTeam
         }
         private static string Text(NativeFieldFact f,bool names,int variant)
         {
-            string who=names?Name(f.Name):"Ein relevanter Gegner";if(who.Length==0)return null;
-            if(f.Kind=="pit")return variant%3==0?who+" fährt an die Box.":variant%3==1?who+" steuert die Box an.":"Boxenfahrt bei "+who+".";
+            string who=names?Name(f.Name):"Ein Gegner";if(who.Length==0)return null;
+            if (f.Kind == "pit")
+            {
+                switch (variant)
+                {
+                    case 0: return who + " fährt an die Box.";
+                    case 1: return who + " nimmt die Boxeneinfahrt.";
+                    case 2: return who + " biegt in die Boxengasse ab.";
+                    case 3: return who + " ist auf dem Weg in die Box.";
+                    default: return who + " kommt rein.";
+                }
+            }
             if(f.Kind=="leader")return who+" führt jetzt unsere Klasse an.";
             if(f.Kind=="retired")return who+" ist ausgefallen.";
             if(f.Kind=="dq")return who+" wurde disqualifiziert.";

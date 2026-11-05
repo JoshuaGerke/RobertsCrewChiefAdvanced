@@ -96,18 +96,20 @@ namespace CrewChiefV4.AiTeam
             if (confirmedPassCount <= 0 || position <= 0) return null;
             string name = new string((driverName ?? "Rob").Where(c => char.IsLetter(c) || c == ' ' || c == '-').Take(30).ToArray()).Trim();
             if (name.Length == 0) name = "Rob";
-            string prefix = confirmedPassCount == 1 ? "Sauber vorbeigekommen, " + name + ". " :
+            string prefix = confirmedPassCount == 1 ? "Sauber, " + name + ". Einen Platz gutgemacht. " :
                 repeatedPass[(confirmedPassCount - 2) % repeatedPass.Length];
-            return prefix + "Du liegst jetzt auf Position " + position + ".";
+            return prefix + "Jetzt auf Position " + position + ".";
         }
 
         private static readonly string[] repeatedPass = {
             "Und den nächsten geschnappt. Stark gemacht. ",
             "Wieder einen Platz erkämpft. Sauber. ",
-            "Noch einer geschafft. Bleib in deinem Rhythmus. ",
-            "Der nächste Positionsgewinn. Gut gemacht. ",
-            "Wieder vorbeigekommen. Weiter konzentriert. ",
-            "Und noch ein Platz gewonnen. Stark. "
+            "Gut, den hast du. ",
+            "Sauber vorbei, nächster Platz. ",
+            "Der nächste ist hinter dir. ",
+            "Und noch ein Platz gewonnen. Stark. ",
+            "Den nächsten hast du auch. ",
+            "Gut durchgezogen, einen Platz weiter vorn. "
         };
     }
 }

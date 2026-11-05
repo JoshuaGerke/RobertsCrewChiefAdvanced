@@ -14,6 +14,9 @@ namespace CrewChiefV4.AiTeam
         private static readonly Regex clock=new Regex(@"(?<![\p{L}\p{N}:])(?<m>[0-5]?\d):(?<s>[0-5]\d)[,.](?<f>\d{1,3})(?![\p{L}\p{N}:,])",RegexOptions.CultureInvariant);
         private static readonly Regex measured=new Regex(@"(?<![\p{L}\p{N}.,])(?<n>-?\d{1,4})(?:,(?<f>\d{1,3}))?\s+(?<u>Sekunden?|Liter|Grad|Prozent|PSI|bar|km/h)\b",RegexOptions.CultureInvariant|RegexOptions.IgnoreCase);
 
+        private static readonly Regex rank = new Regex(@"\b(?<word>Platz|Position) (?<n>[0-9]{1,3})\b", RegexOptions.CultureInvariant);
+        private static readonly Regex tenths = new Regex(@"(?<![\p{L}\p{N}.,-])0,(?<n>[1-9]) Sekunden\b", RegexOptions.CultureInvariant);
+
         private static string Integer(int n)
         {
             if(n<0)return "minus "+Integer(-n);
@@ -26,9 +29,17 @@ namespace CrewChiefV4.AiTeam
         private static string Fraction(string value)
         { return " Komma "+string.Join(" ",Array.ConvertAll(value.ToCharArray(),c=>digits[c-'0'])); }
 
-        public static string Prepare(string text)
+        public static string Prepare(string text, bool pitWall = false)
         {
             if(string.IsNullOrEmpty(text) || text.Length>8192)return text;
+            if (pitWall)
+            {
+                text = rank.Replace(text, m => m.Groups["word"].Value + " " + Integer(int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)));
+                text = tenths.Replace(text, m => {
+                    int value = m.Groups["n"].Value[0] - '0';
+                    return (value == 1 ? "ein" : Integer(value)) + " Zehntel";
+                });
+            }
             string result=clock.Replace(text,m=> {
                 int minutes=int.Parse(m.Groups["m"].Value,CultureInfo.InvariantCulture);
                 int seconds=int.Parse(m.Groups["s"].Value,CultureInfo.InvariantCulture);

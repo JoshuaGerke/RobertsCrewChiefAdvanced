@@ -56,7 +56,7 @@ namespace CrewChiefV4.AiTeam
                 if (q.Contains(" hat ") || q.Contains(" haben die ") || q.Contains("gegner") || q.Contains("vordermann") || q.Contains("hintermann")) return null;
                 if (!gs.FuelData.FuelUseActive || float.IsNaN(gs.FuelData.FuelLeft) || float.IsInfinity(gs.FuelData.FuelLeft) || gs.FuelData.FuelLeft < 0)
                 {
-                    return "Den Tankinhalt liefert die Simulation gerade nicht.";
+                    return "Gerade kein verlässlicher Tankstand.";
                 }
                 string litres = gs.FuelData.FuelLeft.ToString("0", de);
                 float perLap = memory != null ? memory.AverageFuelPerLap() : -1;
@@ -78,10 +78,10 @@ namespace CrewChiefV4.AiTeam
                 int pos = gs.SessionData.ClassPosition > 0 ? gs.SessionData.ClassPosition : gs.SessionData.OverallPosition;
                 if (pos <= 0)
                 {
-                    return "Die Position liefert die Simulation gerade nicht.";
+                    return "Deinen Platz hab ich gerade nicht sicher.";
                 }
                 int cars = gs.SessionData.NumCarsInPlayerClass;
-                return cars > 0 ? "P" + pos + " von " + cars + "." : "P" + pos + ".";
+                return cars > 0 ? "Platz " + pos + " von " + cars + "." : "Platz " + pos + ".";
             }
 
             if (q.Contains("letzte runde") || q.Contains("rundenzeit"))

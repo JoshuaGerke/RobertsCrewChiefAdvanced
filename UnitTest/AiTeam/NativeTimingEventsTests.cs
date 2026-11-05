@@ -88,6 +88,27 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(1, memory.GetEvents(TimeSpan.FromMinutes(1), T).Count);
         }
         [Test]
+        public void Gap_phrases_rotate_per_direction_even_when_front_and_rear_reports_alternate()
+        {
+            var q = new NativeTimingEvents();
+            var s = State();
+            var fronts = new System.Collections.Generic.HashSet<string>();
+            var rears = new System.Collections.Generic.HashSet<string>();
+            for (int i = 0; i < 8; i++)
+            {
+                bool ahead = i % 2 == 0;
+                Advance(s, i * 31);
+                q.Capture(Fact(s, ahead));
+                q.Observe(s, s.Now, null, true);
+                var call = q.Take(s, s.Now, false, true, false);
+                Assert.IsNotNull(call);
+                Assert.IsTrue((ahead ? fronts : rears).Add(call.Text));
+                StringAssert.Contains(ahead ? "4,2 Sekunden" : "5,2 Sekunden", call.Text);
+                call.MarkPlaybackStarted(s.Now);
+            }
+        }
+
+        [Test]
         public void Freshness_is_checked_at_capture_take_and_playback_without_expiring_during_normal_tts_rendering()
         {
             var s = State(); var q = Observe(s); var call = q.Take(s, T, false, true, false);

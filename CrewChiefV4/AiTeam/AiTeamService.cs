@@ -35,6 +35,13 @@ namespace CrewChiefV4.AiTeam
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
         private readonly NativeTimingEvents timingEvents = new NativeTimingEvents();
+        private readonly Task<LocalTemplateReference> localTemplateReference = Task.Run<LocalTemplateReference>(() => LocalTemplateReference.LoadInstalled());
+
+        private string ReferenceStyle(TeamMember member, string cue)
+        {
+            return localTemplateReference.Status == TaskStatus.RanToCompletion
+                ? localTemplateReference.Result.Guidance(member, cue) : "";
+        }
         private ObservedRaceCall pendingTimingDelivery;
         private readonly NativeIncidentWatch nativeIncidents = new NativeIncidentWatch();
         private readonly ThermalWatch thermalWatch = new ThermalWatch();
@@ -893,7 +900,8 @@ namespace CrewChiefV4.AiTeam
                 new JObject
                 {
                     ["role"] = "system",
-                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.RadioName, longAllowed) + DriverNotes.PromptBlock(routed.Question, ctx) +
+                    ["content"] = AiPersonas.SystemPrompt(routed.Member, settings.RadioName, longAllowed) + ReferenceStyle(routed.Member, routed.Question) +
+                        DriverNotes.PromptBlock(routed.Question, ctx) +
                         "\n\nAktuelle Lage (Live-Daten mit Reifen, Sprit, direkten Gegnern und Box). Reicht sie für die Antwort, antworte direkt " +
                         "ohne Werkzeug. Werkzeuge nur für Details, die hier fehlen (Stintverlauf, Rundenzeiten, Schäden/Motor, Wetter, Ereignisse):\n" +
                         RaceDataTools.BuildBriefing(ctx).ToString(Newtonsoft.Json.Formatting.None) +
@@ -1146,7 +1154,7 @@ namespace CrewChiefV4.AiTeam
             var evidence = new RaceSpeechEvidence(ctx);
             var messages = new JArray
             {
-                new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.ProactivePrompt, settings.RadioName) + DriverNotes.PromptBlock(trigger, ctx) },
+                new JObject { ["role"] = "system", ["content"] = string.Format(AiPersonas.ProactivePrompt, settings.RadioName) + ReferenceStyle(owner, trigger) + DriverNotes.PromptBlock(trigger, ctx) },
                 new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
             };
             Interlocked.Increment(ref callsThisSession);
@@ -1262,7 +1270,7 @@ namespace CrewChiefV4.AiTeam
                     if (briefingCue != null) data["begruessungsregie"] = briefingCue;
                     var messages = new JArray
                     {
-                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.RadioName) + DriverNotes.PromptBlock(label, ctx) },
+                        new JObject { ["role"] = "system", ["content"] = string.Format(prompt, settings.RadioName) + ReferenceStyle(TeamMember.Mik, label) + DriverNotes.PromptBlock(label, ctx) },
                         new JObject { ["role"] = "user", ["content"] = data.ToString(Newtonsoft.Json.Formatting.None) },
                     };
                     Interlocked.Increment(ref callsThisSession);
@@ -1407,14 +1415,20 @@ namespace CrewChiefV4.AiTeam
             {
                 try
                 {
-                    Func<string, bool> valid = _ => settings.Enabled && settings.IsMemberEnabled(call.Member) &&
-                        (!(call.Topic??"").StartsWith("native-gap-",StringComparison.Ordinal) ||
-                            settings.ReplaceCrewChiefVoice && settings.RadioMode!=AiRadioMode.MINIMAL) &&
-                        generation == Volatile.Read(ref sessionGeneration) &&
-                        TelemetryFresh() && !Spotter().HasOverlap &&
-                        call.IsValid(CrewChief.currentGameState, DateTime.UtcNow);
-                    if (!valid(call.Text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid"); return; }
-                    bool queued = await SpeakAsync(call.Member, call.Text, true, CancellationToken.None, valid, true, Math.Min(10, call.Priority),
+                    var initialState = CrewChief.currentGameState;
+                    string text = call.ComposeForDelivery(call.ConfirmedPass ? BuildContext(initialState) : null, out var detailIsCurrent);
+                    Func<string, bool> valid = _ => {
+                        var live = CrewChief.currentGameState;
+                        var now = DateTime.UtcNow;
+                        return settings.Enabled && settings.IsMemberEnabled(call.Member) &&
+                            (!(call.Topic??"").StartsWith("native-gap-",StringComparison.Ordinal) ||
+                                settings.ReplaceCrewChiefVoice && settings.RadioMode!=AiRadioMode.MINIMAL) &&
+                            generation == Volatile.Read(ref sessionGeneration) &&
+                            TelemetryFresh() && !Spotter().HasOverlap && call.IsValid(live, now) &&
+                            (detailIsCurrent == null || settings.SendDriverNames && detailIsCurrent(live, now));
+                    };
+                    if (!valid(text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid"); return; }
+                    bool queued = await SpeakAsync(call.Member, text, true, CancellationToken.None, valid, true, Math.Min(10, call.Priority),
                         () => { call.MarkPlaybackStarted(DateTime.UtcNow); },
                         () => call.ReleaseForRetry(DateTime.UtcNow, "audio_discarded_before_playback"),
                         interrupted=>call.MarkPlaybackFinished(DateTime.UtcNow,interrupted),call.Topic).ConfigureAwait(false);
@@ -1611,7 +1625,7 @@ namespace CrewChiefV4.AiTeam
                 catch (Exception) { }
             }
             // Pronunciation only: validation, diagnostics and cache identity keep the exact factual text.
-            string spokenText=GermanRadioText.Prepare(text);
+            string spokenText = GermanRadioText.Prepare(text, pitWall: member != TeamMember.Sara);
             // Respect the selected source. A failed provider must not change the crew's identity.
             byte[] pcm = null;
             if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey && !ElevenLabsPaused)

@@ -65,14 +65,14 @@ namespace CrewChiefV4.AiTeam
                 Add(calls,"race-start",RadioName(driverName)+", "+StartPhrases[random.Next(StartPhrases.Length)],gs,now,TeamMember.Ben,6,null);
             var e=gs.EngineData;var p=before.EngineData;
             if(e.EngineWaterTempWarning && !p.EngineWaterTempWarning)
-                Add(calls,"engine-water","Warnung für die Motortemperatur. Behalte die Anzeige im Blick.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineWaterTempWarning);
+                Add(calls,"engine-water","Wassertemperatur zu hoch. Behalt die Anzeige im Blick.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineWaterTempWarning);
             if(e.EngineOilPressureWarning && !p.EngineOilPressureWarning)
                 Add(calls,"engine-oil","Öldruckwarnung. Motor schonen und die Anzeige prüfen.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineOilPressureWarning);
             if(e.EngineFuelPressureWarning && !p.EngineFuelPressureWarning)
-                Add(calls,"engine-fuel-pressure","Die Simulation meldet ein Problem mit dem Kraftstoffdruck.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineFuelPressureWarning);
+                Add(calls,"engine-fuel-pressure","Warnung beim Spritdruck. Schau auf die Anzeige.",gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineFuelPressureWarning);
             if(!before.PitData.CarInFrontIsPitting && gs.PitData.CarInFrontIsPitting &&
                 NativeFieldFact.Capture("car_in_front_is_pitting",null,gs)==null)
-                Add(calls,"opponent-pit","Dein bisheriger Vordermann fährt an die Box. Ich beobachte die Reihenfolge.",gs,now,TeamMember.Ben,3,null);
+                Add(calls,"opponent-pit","Dein bisheriger Vordermann ist auf dem Weg in die Box.",gs,now,TeamMember.Ben,3,null);
             return calls;
         }
         private void Add(List<ObservedRaceCall> calls,string topic,string text,GameStateData gs,DateTime now,TeamMember member,int priority,Func<GameStateData,bool> valid)

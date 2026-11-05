@@ -70,9 +70,9 @@ namespace CrewChiefV4.AiTeam
             string session = type == SessionType.Race ? "Rennen" :
                 type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Qualifying" : "Training";
             string weather = GreetingWeather(context);
-            string encouragement = type == SessionType.Race ? "Bleib ruhig am Start, wir sind bei dir." :
+            string encouragement = type == SessionType.Race ? "Ruhig bleiben, sauber durch die erste Kurve." :
                 type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Finde deinen Rhythmus, dann setzen wir eine saubere Zeit." :
-                "Komm in Ruhe auf Tempo, wir begleiten deine Runden.";
+                "Komm in Ruhe auf Tempo.";
             return new ObservedRaceCall {
                 Topic = "greeting", Text = opening + " Wir sind in " + track + " zum " + session + ". " + weather + encouragement,
                 Evidence = "confirmed_track_and_session; weather_only_when_fresh", Member = speaker, Priority = 2,

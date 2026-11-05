@@ -10,6 +10,46 @@ namespace CrewChiefV4.AiTeam
     public sealed class ObservedRaceCall
     {
         public string Topic, Text, Evidence;
+        internal bool ConfirmedPass;
+
+        public string ComposeForDelivery(RaceDataContext context, out Func<GameStateData, DateTime, bool> detailIsCurrent)
+        {
+            detailIsCurrent = null;
+            // If the optional detail expires during rendering, the ordinary retry can still report the pass.
+            if (!ConfirmedPass || Volatile.Read(ref attempts) != 1 || context == null || !context.SendDriverNames)
+                return Text;
+
+            var state = context.GameState;
+            var rival = RaceDataTools.Neighbour(state, true);
+            if (!CloseRaceRival(context, rival)) return Text;
+
+            string key = state.SessionData.OpponentKeyInFront;
+            string name = rival.DriverRawName;
+            string number = rival.CarNumber;
+            string spokenName = new string((name ?? "").Where(c => char.IsLetter(c) || c == ' ' || c == '-' || c == '\'').Take(60).ToArray()).Trim();
+            if (spokenName.Length == 0) return Text;
+
+            var tracks = context.Tracks;
+            detailIsCurrent = (live, now) => {
+                if (live == null || live.SessionData.OpponentKeyInFront != key) return false;
+                var front = RaceDataTools.Neighbour(live, true);
+                return front != null && front.DriverRawName == name && front.CarNumber == number &&
+                    CloseRaceRival(new RaceDataContext { GameState = live, NowUtc = now,
+                        LastTelemetryUtc = live.Now, Tracks = tracks }, front);
+            };
+            return Text + " Du bist knapp hinter " + spokenName + ". Weiter so.";
+        }
+
+        private static bool CloseRaceRival(RaceDataContext context, OpponentData rival)
+        {
+            if (rival == null || !rival.IsActive || rival.InPits || rival.isEnteringPits()) return false;
+            string key = context.GameState.SessionData.OpponentKeyInFront;
+            if (key == null || !context.GameState.OpponentData.TryGetValue(key, out var mapped) || !ReferenceEquals(mapped, rival))
+                return false;
+            var gap = RaceDataTools.ReadGap(context, rival, true);
+            return (gap.Kind == RaceGapKind.SimulatorTiming || gap.Kind == RaceGapKind.InterpolatedTiming) &&
+                gap.Seconds > 0.05f && gap.Seconds <= 1.2f;
+        }
         public int Position, SessionId, Priority, LapsRemaining = -1;
         public SessionType SessionType = SessionType.Race;
         public TeamMember Member = TeamMember.Ben;
@@ -224,7 +264,7 @@ namespace CrewChiefV4.AiTeam
                             passCount++;
                             text = RaceRadioLanguage.Overtake(passCount, candidatePosition, driverName);
                         }
-                        else text = (candidatePit ? "Durch den Boxenstopp vorgerückt. " : "In der Wertung vorgerückt. ") +
+                        else text = (candidatePit ? "Durch den Boxenstopp vorgerückt. " : "Wir sind vorgerückt. ") +
                             "Du liegst jetzt auf Position " + candidatePosition + ".";
                         Add("position", text, gs, now, 8, 3,
                             candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : candidatePit ? "rival_pit" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
@@ -233,12 +273,14 @@ namespace CrewChiefV4.AiTeam
                             int cuts = gs.PenaltiesData.CutTrackWarnings, lap = s.CompletedLaps;
                             bool validLap = s.CurrentLapIsValid;
                             // Delayed cut/invalidity flags can arrive after the rank changed, before speech starts.
-                            pending.Last().AdditionalValidity = live => !live.PenaltiesData.IsOffRacingSurface &&
+                            var passCall = pending.Last();
+                            passCall.ConfirmedPass = true;
+                            passCall.AdditionalValidity = live => !live.PenaltiesData.IsOffRacingSurface &&
                                 live.PenaltiesData.CutTrackWarnings <= cuts &&
                                 !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);
                         }
                     }
-                    else Add("position", "P" + candidatePosition + " jetzt. Kopf hoch, dranbleiben.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    else Add("position", "Jetzt auf Platz " + candidatePosition + ". Bleib dran.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
                     stablePosition = candidatePosition; candidatePosition = 0;
                 }
             }
@@ -310,7 +352,7 @@ namespace CrewChiefV4.AiTeam
                 float spread = recent.Max(l => l.LapTime) - recent.Min(l => l.LapTime);
                 if (spread <= Math.Max(0.6f, recent.Average(l => l.LapTime) * 0.01f))
                     text += "Die letzten drei sauberen Runden liegen innerhalb von " + spread.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden. Weiter so.";
-                else text += "Zuletzt schwankende Rundenzeiten. Ich behalte den Verlauf im Blick.";
+                else text += "Die letzten Rundenzeiten schwanken noch.";
             }
             // No claim about a plan, tyre advantage, race finish or corner attack without supporting measurements.
             return text.Trim();

@@ -42,12 +42,12 @@ namespace CrewChiefV4.AiTeam
         {
             string name=AiPersonas.CleanForRadio(driver??"Rob",40,false);
             string prefix=name+", "+(final?"die Qualifikation ist beendet. ":"die Quali-Zeit ist vorbei. ");
-            if(position<=0 || position>TrackAwareness.MaxCars)return prefix+"Die Platzierung ist noch nicht bestätigt. Wir warten auf das Ergebnis.";
+            if(position<=0 || position>TrackAwareness.MaxCars)return prefix+"Dein Platz ist noch nicht bestätigt.";
             if(!final)return prefix+"Aktuell Platz "+position+". Das Ergebnis ist noch vorläufig.";
             string encouragement=position==1?(variant%2==0?"Ganz vorne! Stark gemacht.":"Die Bestzeit steht. Sehr gut gemacht."):
                 position<=3?(variant%2==0?"Unter den ersten drei, stark gemacht.":"Top drei. Das ist eine gute Ausgangslage."):
                 position<=10?(variant%2==0?"Unter den ersten zehn. Jetzt konzentrieren wir uns aufs Rennen.":"Jetzt richten wir den Fokus aufs Rennen."):
-                variant%2==0?"Da ist noch Luft nach oben. Jetzt konzentrieren wir uns aufs Rennen.":"Wir machen das Beste daraus. Der Fokus liegt jetzt auf dem Rennen.";
+                variant%2==0?"Jetzt richten wir uns fürs Rennen ein.":"Jetzt ruhig bleiben und aufs Rennen konzentrieren.";
             return prefix+"Platz "+position+". "+encouragement;
         }
     }

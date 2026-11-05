@@ -73,7 +73,7 @@ namespace CrewChiefV4.AiTeam
         private readonly List<Entry> pending = new List<Entry>();
         private readonly Dictionary<string, DateTime> seen = new Dictionary<string, DateTime>();
         private DateTime lastRadio = DateTime.MinValue;
-        private int variant;
+        private readonly int[,] nextVariant = new int[3, 4];
         public int IncomingCount { get { return incoming.Count; } }
         public int PendingCount { get { return pending.Count; } }
 
@@ -88,7 +88,7 @@ namespace CrewChiefV4.AiTeam
         {
             NativeTimingFact unused;
             while (incoming.TryDequeue(out unused)) { }
-            pending.Clear(); seen.Clear(); lastRadio = DateTime.MinValue; variant = 0;
+            pending.Clear(); seen.Clear(); lastRadio = DateTime.MinValue;
         }
         private static string SafeName(string name)
         { return new string((name ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-' || c == '\'').Take(60).ToArray()).Trim(); }
@@ -148,7 +148,7 @@ namespace CrewChiefV4.AiTeam
                 if (seen.ContainsKey(id)) continue;
                 if (seen.Count >= MaximumSeen) seen.Remove(seen.OrderBy(p => p.Value).First().Key);
                 seen[id] = now;
-                string observation = Text(fact, names, variant, new RaceGapMeasurement());
+                string observation = Text(fact, names, 0, new RaceGapMeasurement());
                 if (memory != null && observation != null)
                     memory.AddObservation(observation, now, fact.Topic, fact.Key, NativeTimingFact.Source);
                 // GetRelativeDelta has no exported passage timestamps/quality. Store its native observation,
@@ -189,7 +189,10 @@ namespace CrewChiefV4.AiTeam
                     NativeTimingFact fact = entry.Fact;
                     RaceGapMeasurement measurement = ReadMeasurement(context, fact);
                     if (fact.Trend == NativeTimingTrend.Steady && !measurement.HasValue) { pending.Remove(entry); continue; }
-                    string text = Text(fact, entry.Names, variant++, measurement);
+                    int relation = (int)fact.Relation, trend = (int)fact.Trend;
+                    int variant = nextVariant[relation, trend];
+                    nextVariant[relation, trend] = (variant + 1) % 4;
+                    string text = Text(fact, entry.Names, variant, measurement);
                     if (text == null) { pending.Remove(entry); continue; }
                     TrackAwareness tracks = context.Tracks;
                     entry.Call = new ObservedRaceCall {
@@ -232,21 +235,40 @@ namespace CrewChiefV4.AiTeam
                 return "Nativ erkannter Abstand zum Wagen hinter uns auf der Strecke " +
                     (fact.Trend == NativeTimingTrend.Decreasing ? "wird kleiner" : fact.Trend == NativeTimingTrend.Increasing ? "wächst" :
                     fact.Trend == NativeTimingTrend.Close ? "bleibt klein" : "bleibt ähnlich") + ". Kein bestätigter Klassenabstand.";
-            if (fact.Trend == NativeTimingTrend.Decreasing)
-                text = fact.Relation == NativeTimingRelation.ClassAhead ?
-                    (variant % 2 == 0 ? "Wir holen auf " + (name.Length > 0 ? name : "den Vordermann") + " auf." : "Der Abstand " + to + " wird kleiner.") :
-                    (variant % 2 == 0 ? who + " kommt näher." : "Der Abstand " + to + " schrumpft.");
-            else if (fact.Trend == NativeTimingTrend.Increasing)
-                text = fact.Relation == NativeTimingRelation.ClassAhead ?
-                    (variant % 2 == 0 ? who + " setzt sich ab." : "Der Abstand " + to + " wächst.") :
-                    (variant % 2 == 0 ? "Wir setzen uns " + (name.Length > 0 ? "von " + name : "vom Hintermann") + " ab." : "Der Abstand " + to + " wächst.");
-            else if (fact.Trend == NativeTimingTrend.Close)
-                text = (name.Length > 0 ? name : ahead ? "Der Vordermann" : "Der Hintermann") + (ahead ? " bleibt dicht vor uns." : " bleibt dicht hinter uns.");
-            else
-                text = "Der Abstand " + to + " bleibt ähnlich.";
+            string[] options;
+            switch (fact.Trend)
+            {
+                case NativeTimingTrend.Decreasing:
+                    options = ahead
+                        ? new[] { name.Length > 0 ? "Du kommst näher an " + name + " ran." : "Du kommst dem Vordermann näher.",
+                            "Der Abstand nach vorn wird kleiner.", name.Length > 0 ? "Auf " + name + " machst du Zeit gut." : "Du machst nach vorn Zeit gut.",
+                            "Die Lücke nach vorn geht zu." }
+                        : new[] { who + " kommt näher.", "Der Abstand " + to + " wird kleiner.",
+                            "Von hinten kommt Druck, der Abstand schrumpft.", "Die Lücke nach hinten wird kleiner." };
+                    break;
+                case NativeTimingTrend.Increasing:
+                    options = ahead
+                        ? new[] { who + " setzt sich ab.", "Der Abstand " + to + " wächst.",
+                            "Die Lücke nach vorn geht auf.", "Vorne zieht " + (name.Length > 0 ? name : "der Vordermann") + " weg." }
+                        : new[] { "Wir setzen uns " + (name.Length > 0 ? "von " + name : "vom Hintermann") + " ab.",
+                            "Der Abstand " + to + " wächst.", "Nach hinten haben wir mehr Luft.", who + " fällt etwas zurück." };
+                    break;
+                case NativeTimingTrend.Close:
+                    options = ahead
+                        ? new[] { who + " bleibt dicht vor uns.", "Du bist dicht dran " + (name.Length > 0 ? "an " + name : "am Vordermann") + ".",
+                            "Der Abstand nach vorn bleibt klein.", "Die Lücke zum Vordermann ist weiter klein." }
+                        : new[] { who + " bleibt dicht dran.", "Der Abstand nach hinten bleibt klein.",
+                            "Der Hintermann ist weiter nah dran.", "Nach hinten bleibt die Lücke klein." };
+                    break;
+                default:
+                    options = new[] { "Der Abstand " + to + " bleibt ähnlich.", "Die Lücke " + (ahead ? "nach vorn" : "nach hinten") + " hält sich.",
+                        "Der Abstand bleibt in etwa gleich.", "Die Lücke " + to + " verändert sich kaum." };
+                    break;
+            }
+            text = options[variant];
             if (text.Length > 0) text = char.ToUpper(text[0], CultureInfo.GetCultureInfo("de-DE")) + text.Substring(1);
             if (measurement.HasValue)
-                text += " Abstand " + (measurement.Kind == RaceGapKind.InterpolatedTiming ? "ungefähr " : "") +
+                text += (ahead ? " Nach vorn " : " Nach hinten ") + (measurement.Kind == RaceGapKind.InterpolatedTiming ? "ungefähr " : "") +
                     measurement.Seconds.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden.";
             return text;
         }

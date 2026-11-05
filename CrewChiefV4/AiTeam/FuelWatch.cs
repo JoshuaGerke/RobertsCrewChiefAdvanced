@@ -89,11 +89,11 @@ namespace CrewChiefV4.AiTeam
             lastWarnedLap = completedLaps;
 
             if (bareDeficit <= 0)
-                return "Der Sprit reicht rechnerisch, aber die Reserve ist knapp. Zur geplanten Reserve fehlen " + Litres(deficit) + ". Kein bestätigter Spritmangel.";
+                return "Sprit reicht rechnerisch bis ins Ziel. Für unsere Reserve fehlen " + Litres(deficit) + ".";
 
             float savePerLap = deficit / Math.Max(1f, lapsRemaining);
             string distance = estimatedFromTime ? "nach aktueller Pace" : "bis ins Ziel";
-            string text = (estimatedFromTime ? "Die Spritschätzung nach aktueller Pace ist knapp: " : "So kommen wir " + distance + " nicht durch: ") +
+            string text = (estimatedFromTime ? "Nach aktueller Rechnung wird der Sprit knapp. " : "So kommen wir " + distance + " nicht durch: ") +
                 "Ohne Reserve fehlen etwa " + Litres(bareDeficit) + ". ";
             // mehr als ~8 % sparen ist kaum realistisch, dann lieber stoppen
             if (savePerLap <= perLap * 0.08f)
@@ -102,7 +102,7 @@ namespace CrewChiefV4.AiTeam
             }
             else if (refuellingAllowed)
             {
-                text += estimatedFromTime ? "Bereite einen möglichen Tankstopp vor; die Restdistanz ist geschätzt." : "Mit Sparen allein ist das nicht realistisch, wir brauchen einen Tankstopp.";
+                text += estimatedFromTime ? "Stell dich auf einen Tankstopp ein. Die Restdistanz ist geschätzt." : "Mit Sparen allein ist das nicht realistisch, wir brauchen einen Tankstopp.";
             }
             else
             {
