@@ -69,13 +69,22 @@ namespace CrewChiefV4.AiTeam
             }
 
             // Only explicitly self-referential short questions qualify for the own-car shortcut.
-            bool ownQuestion = q.Contains("meine") || q.Contains("unsere") || q.Contains("bin ich") || q.Contains("sind wir") ||
+            bool ownQuestion = q.Contains("mein ") || q.Contains("meine") || q.Contains("unsere") || q.Contains("bin ich") || q.Contains("sind wir") ||
                 q.Trim(' ', '?', '.', '!') == "letzte runde" || q.Trim(' ', '?', '.', '!') == "wie war die letzte runde" || q.Trim(' ', '?', '.', '!') == "rundenzeit";
             if (!ownQuestion) return null;
 
-            if (q.Contains("position") || q.Contains("welcher platz") || q.Contains("welchem platz") || q.Contains("wievielter") || q.Contains("wie vielter"))
+            if (q.Contains("gesamtplatz") || q.Contains("klassenplatz") || q.Contains("position") || q.Contains("welcher platz") || q.Contains("welchem platz") || q.Contains("wievielter") || q.Contains("wie vielter"))
             {
-                int pos = gs.SessionData.ClassPosition > 0 ? gs.SessionData.ClassPosition : gs.SessionData.OverallPosition;
+                var session = gs.SessionData;
+                if (session.SessionType == SessionType.Race)
+                {
+                    if (q.Contains("gesamt"))
+                        return session.OverallPosition > 0 ? "Gesamtplatz " + session.OverallPosition + "." : "Deinen Gesamtplatz habe ich gerade nicht sicher.";
+                    if (q.Contains("klasse"))
+                        return session.ClassPosition > 0 ? "Klassenplatz " + session.ClassPosition + "." : "Deinen Klassenplatz habe ich gerade nicht sicher.";
+                    if (RaceRadioLanguage.SeparateClass(session)) return RaceRadioLanguage.RaceRanks(session) + ".";
+                }
+                int pos = session.ClassPosition > 0 ? session.ClassPosition : session.OverallPosition;
                 if (pos <= 0)
                 {
                     return "Deinen Platz hab ich gerade nicht sicher.";

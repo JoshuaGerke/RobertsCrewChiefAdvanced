@@ -78,6 +78,8 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastReport = DateTime.MinValue;
         private ObservedRaceCall outstanding,lastRoutine;
         private readonly RadioVariantCursor fuelVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor aheadVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor behindVariants = new RadioVariantCursor();
         private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
@@ -88,7 +90,7 @@ namespace CrewChiefV4.AiTeam
                 !TrackAwareness.InRange(gs.PositionAndMotionData.CarSpeed,0,4.99).HasValue;
         }
         public static bool BusyForRoutine(GameStateData gs)
-        {return OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
+        {return gs != null && gs.FlagData.isLocalYellow || OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
             gs.SessionData.CurrentLapIsValid && !gs.PitData.OnOutLap && !gs.PitData.InPitlane || gs!=null && TrackAwareness.InRange(gs.ControlData.BrakePedal,.2,1).HasValue;}
         private bool UnchangedRoutine(string topic,string text,DateTime now)
         {
@@ -144,7 +146,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if(due.Any(p=>prefs[p.Key]>0 && p.Value<=now) && now-lastDeferral>=TimeSpan.FromSeconds(15))
                 {
-                    string reason=busy?(busyReason??"channel_busy"):recentRadio?"recent_radio":BusyForRoutine(gs)?"braking_or_qualifying_push":
+                    string reason=busy?(busyReason??"channel_busy"):recentRadio?"recent_radio":gs!=null && gs.FlagData.isLocalYellow?"local_yellow":BusyForRoutine(gs)?"braking_or_qualifying_push":
                         ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
                     foreach(var item in due.Where(p=>prefs[p.Key]>0 && p.Value<=now))
                         LiveDiagnostics.Emit("routine.state",LiveDiagnostics.Data("topic",item.Key,"reason",reason,"due_utc",item.Value.ToString("o"),
@@ -162,15 +164,21 @@ namespace CrewChiefV4.AiTeam
                 due[topic] = now.AddSeconds(prefs.NextDelaySeconds(topic, random));
                 TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
-                var cursor = topic == "fuel" ? fuelVariants : null;
-                string text = Compose(topic, ctx, cursor?.Heard ?? 0);
+                var cursor = topic == "fuel" ? fuelVariants : topic == "ahead" ? aheadVariants : topic == "behind" ? behindVariants : null;
+                string text = Compose(topic, ctx, cursor?.Heard ?? 0, out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
                 if(filterUnchanged && UnchangedRoutine(topic,text,now)) { LiveDiagnostics.Decision(topic,"suppressed","unchanged_routine_since_last_delivery"); continue; }
+                int overall = gs.SessionData.OverallPosition;
+                bool overallSpoken = topic == "status" && gs.SessionData.SessionType == SessionType.Race &&
+                    RaceRadioLanguage.SeparateClass(gs.SessionData) && overall > 0;
                 outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1, VariantCursor=cursor,
+                    ReferenceTemplate=template,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
-                    AdditionalValidity=live=>!BusyForRoutine(live),
+                    AdditionalValidity=live=>!BusyForRoutine(live) && (!overallSpoken || live.SessionData.OverallPosition == overall),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
                     SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(6) };
+                if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))
+                    outstanding.IncludeNeighbour(ctx, topic == "ahead", false);
                 LiveDiagnostics.Decision(topic,"detected",outstanding.Evidence,text);
                 return outstanding.TryReserve(now) ? outstanding : null;
             }
@@ -189,22 +197,31 @@ namespace CrewChiefV4.AiTeam
         }
         private static string Number(double n) { return n.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")); }
         private static bool Good(double n, double min, double max) { return !double.IsNaN(n) && !double.IsInfinity(n) && n >= min && n <= max; }
-        public static string VehicleReport(GameStateData gs)
+        public static string VehicleReport(GameStateData gs, bool brief = false)
         {
             var parts=new List<string>();var d=gs.CarDamageData;
-            string damage=IncidentWatch.DamageReport(d);if(!string.IsNullOrWhiteSpace(damage))parts.Add(damage);
+            string damage=IncidentWatch.DamageReport(d, brief);if(!string.IsNullOrWhiteSpace(damage))parts.Add(damage);
             var e=gs.EngineData;
-            if(Good(e.EngineWaterTemp,1,200))parts.Add("Wasser "+Number(e.EngineWaterTemp)+" Grad.");
-            if(Good(e.EngineOilTemp,1,250))parts.Add("Öl "+Number(e.EngineOilTemp)+" Grad.");
+            bool water = Good(e.EngineWaterTemp,1,200), oil = Good(e.EngineOilTemp,1,250);
+            if (brief && water && oil)
+                parts.Add("Wasser " + Math.Round(e.EngineWaterTemp) + ", Öl " + Math.Round(e.EngineOilTemp) + " Grad.");
+            else
+            {
+                if(water)parts.Add("Wasser "+Number(e.EngineWaterTemp)+" Grad.");
+                if(oil)parts.Add("Öl "+Number(e.EngineOilTemp)+" Grad.");
+            }
             var t=gs.TyreData;float[] brakes={t.LeftFrontBrakeTemp,t.RightFrontBrakeTemp,t.LeftRearBrakeTemp,t.RightRearBrakeTemp};
-            if(brakes.All(b=>Good(b,1,1500)))parts.Add("Höchste Bremstemperatur "+Number(brakes.Max())+" Grad.");
-            if(t.TyreWearActive) { float[] wear={t.FrontLeftPercentWear,t.FrontRightPercentWear,t.RearLeftPercentWear,t.RearRightPercentWear};
+            if(brakes.All(b=>Good(b,1,1500)))parts.Add(brief ? "Bremsen bis " + Math.Round(brakes.Max()) + " Grad." : "Höchste Bremstemperatur "+Number(brakes.Max())+" Grad.");
+            if(t.TyreWearActive && (!brief || parts.Count == 0)) { float[] wear={t.FrontLeftPercentWear,t.FrontRightPercentWear,t.RearLeftPercentWear,t.RearRightPercentWear};
                 if(wear.All(w=>Good(w,0,100)))parts.Add("Höchster Reifenverschleiß "+Number(wear.Max())+" Prozent."); }
             return parts.Count>0?string.Join(" ",parts):null;
         }
 
-        public static string Compose(string topic, RaceDataContext ctx, int variant = 0)
+        public static string Compose(string topic, RaceDataContext ctx, int variant = 0) => Compose(topic, ctx, variant, out _);
+
+        private static string Compose(string topic, RaceDataContext ctx, int variant, out string template)
         {
+            template = null;
             var gs = ctx.GameState;
             if (topic == "ahead" || topic == "behind")
             {
@@ -221,9 +238,12 @@ namespace CrewChiefV4.AiTeam
                 if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
                 string name = ctx.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
                 string duration = (measurement.IsEstimated ? "ungefähr " : "") + Number(gap) + " Sekunden";
-                string local = measurement.Kind == RaceGapKind.SimulatorTiming || measurement.Kind == RaceGapKind.InterpolatedTiming
-                    ? ctx.RadioReference?.AuditedGap(ahead, name, duration) : null;
-                return local ?? (ahead ? "Vor dir " : "Hinter dir ") + (name.Length > 0 ? name + ", " : "") + duration + " Abstand.";
+                bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
+                bool confirmed = measurement.Kind == RaceGapKind.SimulatorTiming || measurement.Kind == RaceGapKind.InterpolatedTiming;
+                string local = confirmed && (variant & 1) == 1 ? ctx.RadioReference?.AuditedGap(ahead, name, duration, variant / 2) : null;
+                if (local != null) template = ahead ? "Carlo/talk_gap_ahead" : "Carlo/talk_gap_behind";
+                return local == null ? RaceRadioLanguage.MeasuredGap(ahead, name, duration, separate, variant / 2) :
+                    separate ? local.TrimEnd('.') + " in deiner Klasse." : local;
             }
             if (topic == "weather")
             {
@@ -240,8 +260,11 @@ namespace CrewChiefV4.AiTeam
                 float perLap = ctx.Memory == null ? -1 : ctx.Memory.AverageFuelPerLap();
                 string litres = Number(gs.FuelData.FuelLeft);
                 var catalog = RadioPhraseCatalog.Current;
-                return Good(perLap, .1, 100) ? catalog.Format("fuel-range", variant, litres, Number(gs.FuelData.FuelLeft / perLap)) :
-                    catalog.Format("fuel-tank", variant, litres);
+                if (!Good(perLap, .1, 100)) return catalog.Format("fuel-tank", variant, litres);
+                string laps = Number(gs.FuelData.FuelLeft / perLap);
+                string local = (variant & 1) == 1 ? ctx.RadioReference?.AuditedFuel(litres + " Liter", "etwa " + laps + " Runden", variant / 2) : null;
+                if (local != null) template = "Carlo/talk_fuel";
+                return local ?? catalog.Format("fuel-range", variant, litres, laps);
             }
             if (topic == "tyres")
             {
@@ -265,7 +288,7 @@ namespace CrewChiefV4.AiTeam
                 var s=gs.SessionData;
                 return Good(s.PlayerLapTimeSessionBest,10,3600) ? "Deine bisherige Bestzeit: " + LocalAnswers.LapTime(s.PlayerLapTimeSessionBest) + "." + (s.ClassPosition>0 ? " Aktuell Platz "+s.ClassPosition+" in der Zeitenliste." : "") : null;
             }
-            if (topic == "vehicle") return VehicleReport(gs);
+            if (topic == "vehicle") return VehicleReport(gs, brief: true);
             if (topic == "progress") {
                 var s=gs.SessionData;
                 if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) return "Noch etwa "+Math.Ceiling(s.SessionTimeRemaining/60)+(Math.Ceiling(s.SessionTimeRemaining/60)==1?" Minute":" Minuten")+" auf der Uhr.";
@@ -277,7 +300,7 @@ namespace CrewChiefV4.AiTeam
                 if(ctx.Memory==null)return null;
                 float fuel=ctx.Memory.AverageFuelPerLap();var wear=ctx.Memory.AverageWearPerLap();var parts=new List<string>();
                 if(Good(fuel,.1,100))parts.Add("Gemessener Verbrauch "+Number(fuel)+" Liter pro Runde");
-                if(wear!=null && wear.Length==4 && wear.All(w=>Good(w,0,100)))parts.Add("höchster gemessener Reifenabbau "+Number(wear.Max())+" Prozentpunkte pro Runde");
+                if(wear!=null && wear.Length==4 && wear.All(w=>Good(w,0,100)))parts.Add("Der Reifen mit dem höchsten Verschleiß verliert " + Number(wear.Max()) + " Prozentpunkte pro Runde");
                 return parts.Count>0?string.Join(". ",parts)+".":null;
             }
             return null;

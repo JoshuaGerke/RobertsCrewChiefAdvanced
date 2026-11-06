@@ -74,6 +74,65 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Multiclass_status_and_finish_name_both_positions_and_their_scope()
+        {
+            var gs = Race(4);
+            gs.SessionData.OverallPosition = 6;
+            gs.SessionData.NumCarsInPlayerClass = 12;
+            gs.SessionData.NumCarsOverall = 19;
+            string status = ActiveRaceObserver.Summary(gs, null, 5, "Rob");
+            StringAssert.Contains("Klassenplatz 4, gesamt Platz 6", status);
+            StringAssert.Contains("in deiner Klasse gewonnen", status);
+            Assert.AreEqual("Gesamtplatz 6.", LocalAnswers.TryAnswer("Was ist mein Gesamtplatz?", gs, null));
+            Assert.AreEqual("Klassenplatz 4.", LocalAnswers.TryAnswer("Was ist mein Klassenplatz?", gs, null));
+
+            gs.SessionData.SessionPhase = SessionPhase.Finished;
+            var language = new RaceRadioLanguage(1);
+            StringAssert.Contains("Klassenplatz 4, gesamt Platz 6", language.Finish(gs.SessionData));
+            gs.SessionData.ClassPosition = 1;
+            StringAssert.Contains("Klassensieg", language.Finish(gs.SessionData));
+            StringAssert.Contains("gesamt Platz 6", language.Finish(gs.SessionData));
+        }
+
+        [Test]
+        public void Race_personal_best_is_spoken_only_after_a_valid_faster_lap()
+        {
+            var gs = Race(4);
+            gs.SessionData.PlayerLapTimeSessionBest = 126.79642f;
+            var observer = new SessionLapObserver();
+            observer.Observe(gs, null, Now, true);
+            gs.SessionData.CompletedLaps = 3;
+            observer.Observe(gs, new LapRecord { LapNumber = 3, LapTime = 126.33136f, Valid = false }, Now.AddSeconds(1), true);
+            Assert.IsNull(observer.Take(gs, Now.AddSeconds(1), false));
+
+            gs.SessionData.CompletedLaps = 4;
+            gs.SessionData.PlayerLapTimeSessionBest = 126.65012f;
+            observer.Observe(gs, new LapRecord { LapNumber = 4, LapTime = 126.65012f, Valid = true }, Now.AddSeconds(2), true);
+            Assert.IsNull(observer.Take(gs, Now.AddSeconds(2), true));
+            var call = observer.Take(gs, Now.AddSeconds(3), false);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("own-lap", call.Topic);
+            StringAssert.Contains("2:06,650", call.Text);
+            Assert.AreEqual(TeamMember.Mik, call.Member);
+            Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(11)));
+        }
+
+        [Test]
+        public void Old_flag_clear_does_not_survive_waiting_behind_spotter()
+        {
+            var gs = Race();
+            var dispatcher = new LiveWarningDispatcher();
+            string phrase = FlagWatch.Phrases[1];
+            dispatcher.Offer("warning-flag-1", phrase, TeamMember.Sara, 10, gs, Now,
+                live => FlagWatch.StillRelevant(phrase, live), "mapped_flag_transition",
+                timed: (live, when) => FlagWatch.FreshClear(phrase, Now, when));
+            Assert.IsNull(dispatcher.Take(gs, Now.AddSeconds(1), true, _ => true));
+            dispatcher.Observe(gs, Now.AddSeconds(16));
+            Assert.IsNull(dispatcher.Take(gs, Now.AddSeconds(16), false, _ => true));
+            Assert.IsTrue(FlagWatch.FreshClear(FlagWatch.Phrases[0], Now, Now.AddSeconds(16)));
+        }
+
+        [Test]
         public void Named_opponent_fuel_never_returns_own_fuel()
         {
             var gs=Race();gs.FuelData.FuelUseActive=true;gs.FuelData.FuelLeft=42;

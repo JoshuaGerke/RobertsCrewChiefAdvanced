@@ -59,34 +59,66 @@ namespace CrewChiefV4.AiTeam
         public string OffTrack(bool wet)
         { return Select("off-track", CrewSpeechPolicy.OffTrackPhrases) + (wet ? CrewSpeechPolicy.WetTrackHint : ""); }
 
+        internal static bool SeparateClass(SessionData s) => s.ClassPosition > 0 &&
+            (s.OverallPosition > 0 && s.OverallPosition != s.ClassPosition ||
+             s.NumCarsInPlayerClass > 0 && s.NumCarsOverall > s.NumCarsInPlayerClass);
+
+        internal static string Rank(SessionData s, int position) =>
+            (SeparateClass(s) ? "Klassenplatz " : "Platz ") + position;
+
+        internal static string RaceRanks(SessionData s) => s.ClassPosition <= 0 ?
+            (s.OverallPosition > 0 ? "Gesamtplatz " + s.OverallPosition : null) :
+            Rank(s, s.ClassPosition) + (SeparateClass(s) && s.OverallPosition > 0 ? ", gesamt Platz " + s.OverallPosition : "");
+
+        internal static string MeasuredGap(bool ahead, string name, string interval, bool separateClass, int variant = 0)
+        {
+            bool named = !string.IsNullOrWhiteSpace(name);
+            if (separateClass)
+            {
+                if ((variant & 1) == 0)
+                    return "In deiner Klasse " + (ahead ? "liegen " : "hast du ") + interval +
+                        (ahead ? " zwischen dir und " : " Vorsprung auf ") +
+                        (named ? name : ahead ? "dem Vordermann" : "den Hintermann") + ".";
+                return "Klassenabstand " + (ahead ? "nach vorn " : "nach hinten ") + interval +
+                    (named ? " zu " + name : "") + ".";
+            }
+            if ((variant & 1) == 1)
+                return (ahead ? "Nach vorn " : "Nach hinten ") + interval + (named ? " zu " + name : "") + ".";
+            string opponent = named ? name : ahead ? "Der Wagen vor dir" : "Der Wagen hinter dir";
+            return opponent + " liegt " + interval + (ahead ? " vor dir." : " hinter dir.");
+        }
+
         public string Finish(SessionData s)
         {
             if (s == null || s.SessionPhase != SessionPhase.Finished) return null;
             // These flags take precedence over a numeric rank left over in the game state.
             if (s.IsDNF) return "Die Session ist beendet. Du bist als ausgefallen geführt.";
             if (s.IsDisqualified) return "Die Session ist beendet. Die Wertung meldet eine Disqualifikation.";
-            if (s.ClassPosition == 1) return Select("victory", CrewSpeechPolicy.FinishPhrases);
-            if (s.ClassPosition <= 0) return "Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.";
-            string text = "Im Ziel! Platz " + s.ClassPosition + ".";
-            if (s.SessionStartClassPosition > s.ClassPosition)
+            if (s.ClassPosition == 1 && !SeparateClass(s)) return Select("victory", CrewSpeechPolicy.FinishPhrases);
+            string ranks = RaceRanks(s);
+            if (ranks == null) return "Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.";
+            string text = "Im Ziel! " + ranks + ".";
+            if (s.ClassPosition == 1) return text + " Klassensieg. Stark gefahren!";
+            if (s.ClassPosition > 0 && s.SessionStartClassPosition > s.ClassPosition)
             {
                 int gain = s.SessionStartClassPosition - s.ClassPosition;
-                text += " " + gain + (gain == 1 ? " Platz" : " Plätze") + " gutgemacht.";
+                text += " " + gain + (gain == 1 ? " Platz" : " Plätze") + (SeparateClass(s) ? " in deiner Klasse gutgemacht." : " gutgemacht.");
             }
-            string group = s.ClassPosition <= 3 ? "finish-podium" : "finish-other";
+            string group = s.ClassPosition > 0 && s.ClassPosition <= 3 ? "finish-podium" : "finish-other";
             var catalog = RadioPhraseCatalog.Current;
             return text + " " + Select(group, Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i)).ToArray());
         }
 
         /// <summary>Use only after a same-rival on-track pass has been confirmed.</summary>
-        public static string Overtake(int confirmedPassCount, int position, string driverName)
+        public static string Overtake(int confirmedPassCount, int position, string driverName, bool classRank = false)
         {
             if (confirmedPassCount <= 0 || position <= 0) return null;
             string name = new string((driverName ?? "Rob").Where(c => char.IsLetter(c) || c == ' ' || c == '-').Take(30).ToArray()).Trim();
             if (name.Length == 0) name = "Rob";
             var catalog = RadioPhraseCatalog.Current;
-            return confirmedPassCount == 1 ? catalog.Format("pass-first", 0, position.ToString(), name) :
-                catalog.Format("pass-repeat", confirmedPassCount - 2, position.ToString());
+            string rank = position + (classRank ? " in deiner Klasse" : "");
+            return confirmedPassCount == 1 ? catalog.Format("pass-first", 0, rank, name) :
+                catalog.Format("pass-repeat", confirmedPassCount - 2, rank);
         }
 
     }

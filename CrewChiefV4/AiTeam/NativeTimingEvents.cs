@@ -198,7 +198,7 @@ namespace CrewChiefV4.AiTeam
                     RaceGapMeasurement measurement = ReadMeasurement(context, fact);
                     if (fact.Trend == NativeTimingTrend.Steady && !measurement.HasValue) { pending.Remove(entry); continue; }
                     var cursor = variants[(int)fact.Relation, (int)fact.Trend];
-                    string text = Text(fact, entry.Names, cursor.Heard, measurement);
+                    string text = Text(fact, entry.Names, cursor.Heard, measurement, RaceRadioLanguage.SeparateClass(gs.SessionData));
                     if (text == null) { pending.Remove(entry); continue; }
                     TrackAwareness tracks = context.Tracks;
                     entry.Call = new ObservedRaceCall {
@@ -230,7 +230,7 @@ namespace CrewChiefV4.AiTeam
             var live = ReadMeasurement(new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = gs.Now, Tracks = tracks }, fact);
             return live.HasValue && live.Kind == original.Kind && Math.Abs(live.Seconds - original.Seconds) <= .5f;
         }
-        private static string Text(NativeTimingFact fact, bool names, int variant, RaceGapMeasurement measurement)
+        private static string Text(NativeTimingFact fact, bool names, int variant, RaceGapMeasurement measurement, bool separateClass = false)
         {
             string name = names ? SafeName(fact.Name) : "";
             bool ahead = fact.Relation == NativeTimingRelation.ClassAhead;
@@ -239,15 +239,22 @@ namespace CrewChiefV4.AiTeam
                 return "Nativ erkannter Abstand zum Wagen hinter uns auf der Strecke " +
                     (fact.Trend == NativeTimingTrend.Decreasing ? "wird kleiner" : fact.Trend == NativeTimingTrend.Increasing ? "wächst" :
                     fact.Trend == NativeTimingTrend.Close ? "bleibt klein" : "bleibt ähnlich") + ". Kein bestätigter Klassenabstand.";
+            string interval = measurement.HasValue ? (measurement.IsEstimated ? "ungefähr " : "") +
+                measurement.Seconds.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden" : null;
+            bool gapDiffers = measurement.HasValue && fact.NativeSeconds > .05f &&
+                Math.Abs(measurement.Seconds - fact.NativeSeconds) > Math.Max(.25f, measurement.Seconds * .20f);
+            // The native trend may describe a different timing source. Never combine it with
+            // a conflicting passage interval or call a distant class car "dicht dran".
+            if (separateClass || gapDiffers || fact.Trend == NativeTimingTrend.Close && measurement.HasValue && measurement.Seconds > 2)
+                return interval == null ? null : RaceRadioLanguage.MeasuredGap(ahead, name, interval, separateClass, variant);
             string group = (ahead ? "gap-front-" : "gap-rear-") + fact.Trend.ToString().ToLowerInvariant();
             string subject = name.Length > 0 ? name : ahead ? "Der Vordermann" : "Der Hintermann";
             string dative = name.Length > 0 ? name : ahead ? "dem Vordermann" : "dem Hintermann";
             string target = name.Length > 0 ? name : ahead ? "den Vordermann" : "den Hintermann";
             text = RadioPhraseCatalog.Current.Format(group, variant, subject, dative, target);
             if (text.Length > 0) text = char.ToUpper(text[0], CultureInfo.GetCultureInfo("de-DE")) + text.Substring(1);
-            if (measurement.HasValue)
-                text += (ahead ? " Nach vorn " : " Nach hinten ") + (measurement.Kind == RaceGapKind.InterpolatedTiming ? "ungefähr " : "") +
-                    measurement.Seconds.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden.";
+            if (interval != null)
+                text += (ahead ? " Nach vorn " : " Nach hinten ") + interval + ".";
             return text;
         }
     }

@@ -10,6 +10,19 @@ namespace UnitTest.AiTeamTests
     public class AudioDeliveryAccuracyTests
     {
         [Test]
+        public void Changed_rank_during_the_channel_open_tone_cannot_reach_the_driver()
+        {
+            bool valid = true;
+            int started = 0, discarded = 0, backend = 0;
+            string id = AiAudioStore.Put(new byte[44], "P3", () => valid, () => started++, () => discarded++);
+            Assert.IsTrue(AiAudioStore.PrepareRadio("COMPOUND_ai_team_reply_" + id, () => valid = false));
+            Assert.IsFalse(AiAudioStore.TryStart(id, () => backend++));
+            Assert.AreEqual(0, started);
+            Assert.AreEqual(0, backend);
+            Assert.AreEqual(1, discarded);
+        }
+
+        [Test]
         public void Removing_before_playback_calls_only_discard_once()
         {
             int started=0, discarded=0, backend=0;

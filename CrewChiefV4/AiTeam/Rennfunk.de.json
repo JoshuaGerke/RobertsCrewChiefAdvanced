@@ -16,6 +16,7 @@
     "pit-gain": ["{opponent} ist in der Box. Jetzt Platz {position}.", "{opponent} ist in die Box gefahren. Du bist jetzt auf Platz {position}.", "{opponent} kommt rein. Du rückst auf Platz {position} vor."],
     "fuel-tank": ["Noch {litres} Liter im Tank.", "Im Tank sind noch {litres} Liter.", "Spritstand {litres} Liter."],
     "fuel-range": ["Noch {litres} Liter im Tank. Das reicht für etwa {laps} Runden.", "Spritstand {litres} Liter. Bei dem Verbrauch sind das rund {laps} Runden.", "{litres} Liter. Damit kommen wir noch ungefähr {laps} Runden weit."],
+    "lap-best": ["Sauber, neue Bestzeit. {time}.", "{time}. Das war deine schnellste Runde.", "Stark, nochmal verbessert. {time}.", "Ja, die war schneller. {time}.", "Gut getroffen. Persönliche Bestzeit mit {time}."],
     "finish-podium": ["Podium, richtig stark!", "Das ist ein Podestplatz. Glückwunsch!", "Auf dem Podium. Stark gemacht!", "Podestplatz im Ziel. Freu dich darüber!"],
     "finish-other": ["Gut gekämpft. Wir schauen uns das Rennen gemeinsam an.", "Danke für deinen Einsatz. Jetzt schauen wir, was wir daraus mitnehmen.", "Geschafft. Wir gehen das Rennen in Ruhe durch.", "Das Rennen ist durch. Gleich besprechen wir die wichtigsten Punkte."],
     "gap-front-close": ["Du bist dicht an {rival} dran.", "Der Abstand nach vorn bleibt klein.", "Die Lücke nach vorn ist weiter klein.", "{opponent} bleibt direkt vor dir."],

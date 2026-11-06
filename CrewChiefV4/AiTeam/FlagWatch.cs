@@ -24,6 +24,12 @@ namespace CrewChiefV4.AiTeam
             lastIncidentCallUtc = lastBlueUtc = DateTime.MinValue;
         }
 
+        internal static bool FreshClear(string phrase, DateTime detected, DateTime now)
+        {
+            return (phrase != Phrases[1] && phrase != Phrases[7]) ||
+                (now >= detected && now - detected <= TimeSpan.FromSeconds(3));
+        }
+
         public static bool StillRelevant(string phrase, GameStateData gs)
         {
             if (gs == null || gs.PitData.InPitlane || (gs.SessionData.SessionPhase != SessionPhase.Green && gs.SessionData.SessionPhase != SessionPhase.FullCourseYellow)) return false;

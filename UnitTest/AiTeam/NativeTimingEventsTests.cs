@@ -109,6 +109,22 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Distant_multiclass_rival_is_never_called_close_or_immediate_traffic()
+        {
+            var s = State();
+            s.SessionData.OverallPosition = 6;
+            s.SessionData.NumCarsOverall = 19;
+            s.SessionData.NumCarsInPlayerClass = 12;
+            s.SessionData.TimeDeltaBehind = 12.5f;
+            var q = Observe(s, Fact(s, false, NativeTimingTrend.Close));
+            var call = q.Take(s, T, false, true, false);
+            Assert.IsNotNull(call);
+            StringAssert.Contains("deiner Klasse", call.Text);
+            StringAssert.Contains("12,5 Sekunden", call.Text);
+            StringAssert.DoesNotContain("dicht", call.Text);
+        }
+
+        [Test]
         public void Gap_variant_advances_only_after_playback_starts()
         {
             var q = new NativeTimingEvents();

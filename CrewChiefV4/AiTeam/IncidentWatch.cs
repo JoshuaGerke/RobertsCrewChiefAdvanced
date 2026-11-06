@@ -254,7 +254,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
-        public static string DamageReport(CarDamageData d)
+        public static string DamageReport(CarDamageData d, bool brief = false)
         {
             var numeric = NumericDamageWatch.Report(d);
             if (!d.DamageEnabled) return numeric;
@@ -286,7 +286,8 @@ namespace CrewChiefV4.AiTeam
             {
                 if(d.OverallAeroDamage==DamageLevel.UNKNOWN || d.OverallEngineDamage==DamageLevel.UNKNOWN || d.OverallTransmissionDamage==DamageLevel.UNKNOWN)
                     return "Für eine vollständige Schadensbewertung fehlen Messwerte.";
-                return "Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.";
+                return brief ? "Aero, Motor und Getriebe laut Meldung unauffällig." :
+                    "Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.";
             }
             string text = string.Join(", ", parts) + ".";
             return serious ? text + " Wenn sich das Auto komisch anfühlt, komm an die Box." : text;

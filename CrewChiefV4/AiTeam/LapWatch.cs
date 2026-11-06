@@ -57,14 +57,20 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Ein Telemetrie-Tick. gapAhead/gapBehind in Sekunden, &lt;= 0 = unbekannt. Liefert den Funkspruch oder null.</summary>
+        internal string ReferenceTemplate { get; private set; }
+
         public string Evaluate(GameStateData previous, GameStateData current, float gapAhead, float gapBehind, bool minimalMode, LocalTemplateReference reference = null)
         {
+            ReferenceTemplate = null;
             if (previous == null || current == null || current.SessionData.SessionType != SessionType.Race)
             {
                 return null;
             }
             var s = current.SessionData;
             var ps = previous.SessionData;
+            bool separate = RaceRadioLanguage.SeparateClass(s);
+            string rank = s.ClassPosition > 0 ? RaceRadioLanguage.Rank(s, s.ClassPosition) + "." : "";
+            string duel = separate ? "" : Duel(gapAhead, gapBehind);
             if (s.SessionPhase == SessionPhase.Finished && ps.SessionPhase != SessionPhase.Finished && !finishCalled)
             {
                 finishCalled = true;
@@ -73,7 +79,8 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {
                 lastCalledLap = s.CompletedLaps;
-                return "Zielflagge ist draußen, bring die Runde sauber zu Ende." + (s.ClassPosition == 1 ? " Du führst, jetzt konzentriert nach Hause bringen." : s.ClassPosition > 0 ? " Platz " + s.ClassPosition + "." : "") + Duel(gapAhead, gapBehind);
+                return "Zielflagge ist draußen, bring die Runde sauber zu Ende." + (s.ClassPosition == 1 ? (separate ? " Du führst deine Klasse." : " Du führst, jetzt konzentriert nach Hause bringen.") :
+                    rank.Length > 0 ? " " + rank : "") + duel;
             }
             if (!timedClockCalled && s.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane && TimedClockElapsed(s))
             {
@@ -100,16 +107,21 @@ namespace CrewChiefV4.AiTeam
             {
                 lastCalledLap = s.CompletedLaps;
                 string local = !LapsAreEstimated(s) && s.ClassPosition != 1 ? reference?.AuditedLastLap() : null;
-                if (local != null) return local + (s.ClassPosition > 0 ? " Platz " + s.ClassPosition + "." : "") + Duel(gapAhead, gapBehind);
+                if (local != null)
+                {
+                    ReferenceTemplate = "Jack/rc_last_lap";
+                    return local + (rank.Length > 0 ? " " + rank : "") + duel;
+                }
                 return (LapsAreEstimated(s) ? "Voraussichtlich letzte Runde! " : "Letzte Runde! ") +
-                    (s.ClassPosition == 1 ? "Du führst. Bleib ruhig, bring es sauber nach Hause." :
-                        s.ClassPosition > 0 ? "Platz " + s.ClassPosition + ". Bleib konzentriert." : "Bleib konzentriert.") + Duel(gapAhead, gapBehind);
+                    (s.ClassPosition == 1 ? (separate ? "Du führst deine Klasse. Bring es sauber nach Hause." :
+                        "Du führst. Bleib ruhig, bring es sauber nach Hause.") :
+                        rank.Length > 0 ? rank + " Bleib konzentriert." : "Bleib konzentriert.") + duel;
             }
             if (!minimalMode && left == 2)
             {
                 lastCalledLap = s.CompletedLaps;
                 return (LapsAreEstimated(s) ? "Voraussichtlich noch zwei Runden" : "Noch zwei Runden") +
-                    (s.ClassPosition > 0 ? ", Platz " + s.ClassPosition + "." : ".");
+                    (rank.Length > 0 ? ", " + rank : ".");
             }
             return null;
         }

@@ -305,7 +305,8 @@ namespace CrewChiefV4.AiTeam
                     string call = flagCall;
                     Log("Flagge Sara: " + call);
                     liveWarnings.Offer("warning-flag-"+Array.IndexOf(FlagWatch.Phrases,call),call,TeamMember.Sara,10,current,now,
-                        live=>FlagWatch.StillRelevant(call,live),"mapped_flag_transition");
+                        live=>FlagWatch.StillRelevant(call,live),"mapped_flag_transition",
+                        timed: (live, when) => FlagWatch.FreshClear(call, now, when));
                 }
             }
             foreach (var incident in incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL))
@@ -340,9 +341,12 @@ namespace CrewChiefV4.AiTeam
                     lapCall += incidentWatch.FinishSummary(Memory.RecordedInvalidLaps);
                 }
                 Log("Rundenansage Mik: " + lapCall);
-                var valid = TimelyValidity(current, now, 12, live => live.SessionData.SessionPhase == current.SessionData.SessionPhase && live.SessionData.ClassPosition == current.SessionData.ClassPosition);
+                var valid = TimelyValidity(current, now, 12, live => live.SessionData.SessionPhase == current.SessionData.SessionPhase && live.SessionData.ClassPosition == current.SessionData.ClassPosition && live.SessionData.OverallPosition == current.SessionData.OverallPosition);
                 radioSchedule.NoteRadio(now);
-                Task.Run(() => SpeakAsync(TeamMember.Mik, lapCall, true, CancellationToken.None, valid, true, 4));
+                string referenceTemplate = lapWatch.ReferenceTemplate;
+                Action onPlayed = referenceTemplate == null ? (Action)null :
+                    () => LiveDiagnostics.Decision("last-lap", "template_played", referenceTemplate);
+                Task.Run(() => SpeakAsync(TeamMember.Mik, lapCall, true, CancellationToken.None, valid, true, 4, onPlayed));
             }
             var damage = incidentWatch.TakeDamageAssessment();
             if (damage != null)
@@ -351,7 +355,7 @@ namespace CrewChiefV4.AiTeam
                 Task.Run(() => ReportDamageAsync(damage, damageGeneration));
             }
             MaybeSessionBriefing(previous, current, now);
-            sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous);
+            sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous, TemplateReference);
             var radioPrefs = settings.RadioPreferences;
             activeRace.Observe(current, now, settings.RadioName, 0);
             radioSchedule.Observe(current, now, radioPrefs);

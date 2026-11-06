@@ -32,6 +32,7 @@ namespace CrewChiefV4.AiTeam
         public string Topic, Text, Evidence;
         internal bool ConfirmedPass;
         internal RadioVariantCursor VariantCursor;
+        internal string ReferenceTemplate;
         internal PitGainEvidence PitGain;
         internal bool FieldNamesAllowed;
         internal bool IsReserved => Volatile.Read(ref deliveryState) == 1;
@@ -43,12 +44,14 @@ namespace CrewChiefV4.AiTeam
             bool standalonePitClaimed = false, LocalTemplateReference reference = null)
         {
             detailIsCurrent = null;
+            if (PitGain != null) ReferenceTemplate = null;
             if (MaySpeakPitGain && !standalonePitClaimed && context != null && PitGain.StillInPits(context.GameState))
             {
                 string pitRivalName = context.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(PitGain.Name) : "";
-                string position = Position.ToString(CultureInfo.InvariantCulture);
+                string position = Position.ToString(CultureInfo.InvariantCulture) + (RaceRadioLanguage.SeparateClass(context.GameState.SessionData) ? " in deiner Klasse" : "");
                 detailIsCurrent = (live, now) => PitGain.StillInPits(live);
                 string local = reference?.AuditedPitGain(pitRivalName, position, VariantCursor.Heard);
+                if (local != null) ReferenceTemplate = "Fred/position_gained_pit";
                 return local ?? RadioPhraseCatalog.Current.Format("pit-gain", VariantCursor.Heard,
                     pitRivalName.Length == 0 ? "Der Vordermann" : pitRivalName, position);
             }
@@ -74,7 +77,8 @@ namespace CrewChiefV4.AiTeam
                     CloseRaceRival(new RaceDataContext { GameState = live, NowUtc = now,
                         LastTelemetryUtc = live.Now, Tracks = tracks }, front);
             };
-            return Text + " Du bist knapp hinter " + spokenName + ". Weiter so.";
+            return Text + (RaceRadioLanguage.SeparateClass(state.SessionData) ? " Du bist in deiner Klasse knapp hinter " : " Du bist knapp hinter ") +
+                spokenName + ". Weiter so.";
         }
 
         private static bool CloseRaceRival(RaceDataContext context, OpponentData rival)
@@ -139,6 +143,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if (PitGain == null || spokePitGain) VariantCursor?.OnPlaybackStarted();
                 LiveDiagnostics.Decision(Topic, "delivered", "playback_started", Evidence);
+                if (ReferenceTemplate != null) LiveDiagnostics.Decision(Topic, "template_played", ReferenceTemplate);
             }
         }
         public void ReleaseForRetry(DateTime now, string reason = "delivery_failed")
@@ -344,9 +349,10 @@ namespace CrewChiefV4.AiTeam
                         string text;
                         if (candidatePass && !candidatePit)
                         {
-                            text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName);
+                            text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName, RaceRadioLanguage.SeparateClass(s));
                         }
-                        else text = "Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".";
+                        else text = RaceRadioLanguage.SeparateClass(s) ? "Wir sind vorgerückt. Jetzt " + RaceRadioLanguage.Rank(s, candidatePosition) + "." :
+                            "Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".";
                         var pitGain = gain == 1 && !conductUncertain && recentFrontPit != null && recentFrontPit.FormerRank == candidatePosition &&
                             now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
                             gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;
@@ -372,7 +378,7 @@ namespace CrewChiefV4.AiTeam
                                 !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);
                         }
                     }
-                    else Add("position", "Jetzt auf Platz " + candidatePosition + ". Bleib dran.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    else Add("position", "Jetzt " + RaceRadioLanguage.Rank(s, candidatePosition) + ". Bleib dran.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
                     stablePosition = candidatePosition; candidatePosition = 0;
                 }
             }
@@ -437,8 +443,11 @@ namespace CrewChiefV4.AiTeam
         public static string Summary(GameStateData gs, IReadOnlyList<LapRecord> laps, int start, string name)
         {
             int pos = gs.SessionData.ClassPosition;
-            string text = SafeName(name) + ", wir liegen auf Position " + pos + ". ";
-            if (start > pos) text += "Seit dem Start " + (start - pos) + ((start - pos) == 1 ? " Platz" : " Plätze") + " gewonnen. ";
+            if (pos <= 0) return null;
+            bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
+            string text = separate ? SafeName(name) + ", " + RaceRadioLanguage.RaceRanks(gs.SessionData) + ". " :
+                SafeName(name) + ", wir liegen auf Position " + pos + ". ";
+            if (start > pos) text += "Seit dem Start " + (start - pos) + ((start - pos) == 1 ? " Platz" : " Plätze") + (separate ? " in deiner Klasse gewonnen. " : " gewonnen. ");
             else if (start > 0 && start < pos) text += (pos - start) + " Plätze hinter unserer Startposition. ";
             var recent = (laps ?? new LapRecord[0]).Reverse().Take(3).Reverse().ToArray();
             if (recent.Length == 3 && recent.All(l => l.Valid && !l.InPitLap && l.LapTime > 20 && l.LapTime < 1200) &&

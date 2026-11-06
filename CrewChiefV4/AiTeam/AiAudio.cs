@@ -84,7 +84,17 @@ namespace CrewChiefV4.AiTeam
                     Remove(id);
                     return false;
                 }
+                bool opensRadio = entry.BeforeStart != null;
                 InvokeOnce(ref entry.BeforeStart);
+                // Opening the channel can play a blocking start tone. Recheck after it,
+                // immediately before submitting mutable racing facts to the audio driver.
+                if (opensRadio && entry.IsValid != null && !entry.IsValid())
+                {
+                    System.Threading.Interlocked.Exchange(ref entry.State, 3);
+                    InvokeOnce(ref entry.Discarded);
+                    Remove(id);
+                    return false;
+                }
                 startPlayback();
                 System.Threading.Interlocked.Exchange(ref entry.State, 2);
                 InvokeOnce(ref entry.Started);
