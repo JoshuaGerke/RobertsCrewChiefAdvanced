@@ -7,14 +7,51 @@ using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
 {
+    internal sealed class PitGainEvidence
+    {
+        public readonly string Key, Name, Number;
+        public readonly int CarId, FormerRank;
+        public readonly DateTime EnteredUtc;
+
+        public PitGainEvidence(string key, OpponentData rival, int formerRank, DateTime entered)
+        {
+            Key = key; Name = rival.DriverRawName; Number = rival.CarNumber; CarId = rival.CostId;
+            FormerRank = formerRank; EnteredUtc = entered;
+        }
+
+        public bool Matches(NativeFieldFact fact) => fact != null && fact.Kind == "pit" && fact.Key == Key &&
+            fact.Name == Name && fact.CarNumber == Number && fact.CarId == CarId && Math.Abs((fact.Utc - EnteredUtc).TotalSeconds) <= 3;
+
+        public bool StillInPits(GameStateData gs) => gs != null && gs.OpponentData.TryGetValue(Key, out var rival) &&
+            rival != null && rival.IsActive && rival.InPits && rival.DriverRawName == Name && rival.CarNumber == Number && rival.CostId == CarId &&
+            gs.carClass != null && rival.CarClass != null && CarData.IsCarClassEqual(gs.carClass, rival.CarClass, false);
+    }
+
     public sealed class ObservedRaceCall
     {
         public string Topic, Text, Evidence;
         internal bool ConfirmedPass;
+        internal RadioVariantCursor VariantCursor;
+        internal PitGainEvidence PitGain;
+        internal bool FieldNamesAllowed;
+        internal bool IsReserved => Volatile.Read(ref deliveryState) == 1;
+        internal bool MaySpeakPitGain => PitGain != null && Volatile.Read(ref attempts) < 2;
+        internal bool PitGainWasSpoken => DeliveryStartedUtc != DateTime.MinValue && Volatile.Read(ref pitGainSpoken) != 0;
+        private int pitGainSpoken;
 
-        public string ComposeForDelivery(RaceDataContext context, out Func<GameStateData, DateTime, bool> detailIsCurrent)
+        public string ComposeForDelivery(RaceDataContext context, out Func<GameStateData, DateTime, bool> detailIsCurrent,
+            bool standalonePitClaimed = false, LocalTemplateReference reference = null)
         {
             detailIsCurrent = null;
+            if (MaySpeakPitGain && !standalonePitClaimed && context != null && PitGain.StillInPits(context.GameState))
+            {
+                string pitRivalName = context.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(PitGain.Name) : "";
+                string position = Position.ToString(CultureInfo.InvariantCulture);
+                detailIsCurrent = (live, now) => PitGain.StillInPits(live);
+                string local = reference?.AuditedPitGain(pitRivalName, position, VariantCursor.Heard);
+                return local ?? RadioPhraseCatalog.Current.Format("pit-gain", VariantCursor.Heard,
+                    pitRivalName.Length == 0 ? "Der Vordermann" : pitRivalName, position);
+            }
             // If the optional detail expires during rendering, the ordinary retry can still report the pass.
             if (!ConfirmedPass || Volatile.Read(ref attempts) != 1 || context == null || !context.SendDriverNames)
                 return Text;
@@ -93,12 +130,16 @@ namespace CrewChiefV4.AiTeam
             return true;
         }
         // Called from the audio callback. Observers consume this state on their own telemetry thread.
-        public void MarkPlaybackStarted(DateTime now)
+        public void MarkPlaybackStarted(DateTime now, bool spokePitGain = false)
         {
             if (now < DetectedUtc || now > ExpiresUtc || Volatile.Read(ref deliveryState) != 1) return;
             Interlocked.Exchange(ref playbackStartedTicks, now.Ticks);
+            Volatile.Write(ref pitGainSpoken, spokePitGain ? 1 : 0);
             if (Interlocked.CompareExchange(ref deliveryState, 2, 1) == 1)
+            {
+                if (PitGain == null || spokePitGain) VariantCursor?.OnPlaybackStarted();
                 LiveDiagnostics.Decision(Topic, "delivered", "playback_started", Evidence);
+            }
         }
         public void ReleaseForRetry(DateTime now, string reason = "delivery_failed")
         {
@@ -173,12 +214,42 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     public sealed class ActiveRaceObserver
     {
-        private sealed class Car { public int Position, Laps; public bool Pit, Active; public float Distance, Speed; }
+        private sealed class Car
+        {
+            public int Position, Laps, CarId;
+            public bool Pit, Active;
+            public string Name, Number;
+            public float Distance, Speed;
+        }
         private readonly Dictionary<string, Car> previousCars = new Dictionary<string, Car>();
         private readonly List<ObservedRaceCall> pending = new List<ObservedRaceCall>();
-        private int stablePosition, candidatePosition, candidateSamples, session = int.MinValue, passCount, lastEndLap = -1;
+        private int stablePosition, candidatePosition, candidateSamples, session = int.MinValue, lastEndLap = -1;
         private DateTime candidateSince, lastTick, lastCall = DateTime.MinValue, nextSummary;
         private bool candidatePass, candidatePit, previousInPits;
+        private RadioVariantCursor passVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor pitGainVariants = new RadioVariantCursor();
+        private string previousFrontKey;
+        private PitGainEvidence recentFrontPit, spokenPitGain;
+        private DateTime spokenPitGainUtc;
+
+        public bool CoversPit(NativeFieldFact fact, GameStateData live, DateTime now)
+        {
+            if (spokenPitGain != null && now >= spokenPitGainUtc && now - spokenPitGainUtc <= TimeSpan.FromSeconds(12) && spokenPitGain.Matches(fact))
+                return true;
+            return pending.Any(call => call.PitGain != null && call.PitGain.Matches(fact) &&
+                (call.PitGainWasSpoken || call.MaySpeakPitGain && call.DeliveryStartedUtc == DateTime.MinValue &&
+                    call.IsValid(live, now) && call.PitGain.StillInPits(live)));
+        }
+
+        private void RememberSpokenPitGain()
+        {
+            foreach (var call in pending)
+            {
+                if (!call.PitGainWasSpoken || call.DeliveryStartedUtc <= spokenPitGainUtc) continue;
+                spokenPitGain = call.PitGain;
+                spokenPitGainUtc = call.DeliveryStartedUtc;
+            }
+        }
         private bool wasGreen;
         private int startPosition;
         private int lastCutWarnings, lastCompletedLaps;
@@ -193,7 +264,11 @@ namespace CrewChiefV4.AiTeam
 
         public void Reset()
         {
-            previousCars.Clear(); pending.Clear(); stablePosition = candidatePosition = candidateSamples = passCount = startPosition = 0;
+            previousCars.Clear(); pending.Clear(); stablePosition = candidatePosition = candidateSamples = startPosition = 0;
+            passVariants = new RadioVariantCursor();
+            previousFrontKey = null;
+            recentFrontPit = spokenPitGain = null;
+            spokenPitGainUtc = DateTime.MinValue;
             lastCutWarnings = lastCompletedLaps = 0; lastLapValid = false; lastConductIssue = DateTime.MinValue;
             lastEndLap = -1; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false;
         }
@@ -215,6 +290,14 @@ namespace CrewChiefV4.AiTeam
             lastCutWarnings = gs.PenaltiesData.CutTrackWarnings; lastCompletedLaps = s.CompletedLaps; lastLapValid = s.CurrentLapIsValid;
             lastTick = now;
             bool green = s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Green;
+            RememberSpokenPitGain();
+            if (green && wasGreen && !previousInPits && !gs.PitData.InPitlane && stablePosition > 1 && previousFrontKey != null &&
+                previousCars.TryGetValue(previousFrontKey, out var oldFront) && oldFront.Position == stablePosition - 1 && oldFront.Active && !oldFront.Pit &&
+                gs.OpponentData.TryGetValue(previousFrontKey, out var entering) && entering != null && entering.IsActive && entering.InPits &&
+                entering.DriverRawName == oldFront.Name && entering.CarNumber == oldFront.Number && entering.CostId == oldFront.CarId &&
+                gs.carClass != null && entering.CarClass != null && CarData.IsCarClassEqual(gs.carClass, entering.CarClass, false))
+                recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
+            if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
             if (startPosition == 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
@@ -261,20 +344,29 @@ namespace CrewChiefV4.AiTeam
                         string text;
                         if (candidatePass && !candidatePit)
                         {
-                            passCount++;
-                            text = RaceRadioLanguage.Overtake(passCount, candidatePosition, driverName);
+                            text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName);
                         }
-                        else text = (candidatePit ? "Durch den Boxenstopp vorgerückt. " : "Wir sind vorgerückt. ") +
-                            "Du liegst jetzt auf Position " + candidatePosition + ".";
+                        else text = "Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".";
+                        var pitGain = gain == 1 && !conductUncertain && recentFrontPit != null && recentFrontPit.FormerRank == candidatePosition &&
+                            now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
+                            gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;
                         Add("position", text, gs, now, 8, 3,
-                            candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : candidatePit ? "rival_pit" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
-                        if (candidatePass && !candidatePit)
+                            pitGain != null ? "same_class_front_rival_entered_pit_before_rank_gain" :
+                            candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
+                        if (pitGain != null)
+                        {
+                            pending.Last().PitGain = pitGain;
+                            pending.Last().VariantCursor = pitGainVariants;
+                            recentFrontPit = null;
+                        }
+                        if (candidatePass && !candidatePit && pitGain == null)
                         {
                             int cuts = gs.PenaltiesData.CutTrackWarnings, lap = s.CompletedLaps;
                             bool validLap = s.CurrentLapIsValid;
                             // Delayed cut/invalidity flags can arrive after the rank changed, before speech starts.
                             var passCall = pending.Last();
                             passCall.ConfirmedPass = true;
+                            passCall.VariantCursor = passVariants;
                             passCall.AdditionalValidity = live => !live.PenaltiesData.IsOffRacingSurface &&
                                 live.PenaltiesData.CutTrackWarnings <= cuts &&
                                 !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);
@@ -297,13 +389,16 @@ namespace CrewChiefV4.AiTeam
             previousCars.Clear();
             foreach (var pair in gs.OpponentData)
                 previousCars[pair.Key] = new Car { Position = pair.Value.ClassPosition, Laps = pair.Value.CompletedLaps,
-                    Pit = pair.Value.InPits, Active = pair.Value.IsActive, Distance = pair.Value.DistanceRoundTrack, Speed = pair.Value.Speed };
+                    Pit = pair.Value.InPits, Active = pair.Value.IsActive, Distance = pair.Value.DistanceRoundTrack, Speed = pair.Value.Speed,
+                    Name = pair.Value.DriverRawName, Number = pair.Value.CarNumber, CarId = pair.Value.CostId };
+            previousFrontKey = s.OpponentKeyInFront;
             previousInPits = gs.PitData.InPitlane; wasGreen = green;
         }
 
         public ObservedRaceCall Take(GameStateData gs, DateTime now, bool overlap, bool busy, bool minimal,
             int summarySeconds, IReadOnlyList<LapRecord> laps, string driverName, int positionCooldownSeconds = 3, int quietSeconds = 12)
         {
+            RememberSpokenPitGain();
             foreach (var delivered in pending.Where(c => c.DeliveryStartedUtc != DateTime.MinValue).ToArray())
             {
                 if (delivered.DeliveryStartedUtc > lastCall) lastCall = delivered.DeliveryStartedUtc;

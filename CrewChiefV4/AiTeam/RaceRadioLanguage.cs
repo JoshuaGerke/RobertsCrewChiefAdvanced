@@ -73,22 +73,10 @@ namespace CrewChiefV4.AiTeam
                 int gain = s.SessionStartClassPosition - s.ClassPosition;
                 text += " " + gain + (gain == 1 ? " Platz" : " Plätze") + " gutgemacht.";
             }
-            return text + " " + Select(s.ClassPosition <= 3 ? "podium" : "finish",
-                s.ClassPosition <= 3 ? podium : finish);
+            string group = s.ClassPosition <= 3 ? "finish-podium" : "finish-other";
+            var catalog = RadioPhraseCatalog.Current;
+            return text + " " + Select(group, Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i)).ToArray());
         }
-
-        private static readonly string[] podium = {
-            "Podium, richtig stark!",
-            "Das ist ein Podestplatz. Glückwunsch!",
-            "Auf dem Podium. Stark gemacht!",
-            "Podestplatz im Ziel. Freu dich darüber!"
-        };
-        private static readonly string[] finish = {
-            "Gut gekämpft. Wir schauen uns das Rennen gemeinsam an.",
-            "Danke für deinen Einsatz. Jetzt schauen wir, was wir daraus mitnehmen.",
-            "Geschafft. Wir gehen das Rennen in Ruhe durch.",
-            "Das Rennen ist durch. Gleich besprechen wir die wichtigsten Punkte."
-        };
 
         /// <summary>Use only after a same-rival on-track pass has been confirmed.</summary>
         public static string Overtake(int confirmedPassCount, int position, string driverName)
@@ -96,20 +84,10 @@ namespace CrewChiefV4.AiTeam
             if (confirmedPassCount <= 0 || position <= 0) return null;
             string name = new string((driverName ?? "Rob").Where(c => char.IsLetter(c) || c == ' ' || c == '-').Take(30).ToArray()).Trim();
             if (name.Length == 0) name = "Rob";
-            string prefix = confirmedPassCount == 1 ? "Sauber, " + name + ". Einen Platz gutgemacht. " :
-                repeatedPass[(confirmedPassCount - 2) % repeatedPass.Length];
-            return prefix + "Jetzt auf Position " + position + ".";
+            var catalog = RadioPhraseCatalog.Current;
+            return confirmedPassCount == 1 ? catalog.Format("pass-first", 0, position.ToString(), name) :
+                catalog.Format("pass-repeat", confirmedPassCount - 2, position.ToString());
         }
 
-        private static readonly string[] repeatedPass = {
-            "Und den nächsten geschnappt. Stark gemacht. ",
-            "Wieder einen Platz erkämpft. Sauber. ",
-            "Gut, den hast du. ",
-            "Sauber vorbei, nächster Platz. ",
-            "Der nächste ist hinter dir. ",
-            "Und noch ein Platz gewonnen. Stark. ",
-            "Den nächsten hast du auch. ",
-            "Gut durchgezogen, einen Platz weiter vorn. "
-        };
     }
 }

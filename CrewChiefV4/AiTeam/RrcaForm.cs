@@ -139,6 +139,9 @@ namespace CrewChiefV4.AiTeam
                 case "testVoice":
                     TestVoice(Member((string)m["member"]));
                     break;
+                case "testRacePhrase":
+                    TestRacePhrase((string)m["situation"], (string)m["member"], (int?)m["variant"] ?? 0);
+                    break;
                 case "prepareVoices":
                     Notice("Bereite die Funkclips vor …");
                     Run(service.PrepareRadioVoicesAsync());
@@ -601,6 +604,21 @@ namespace CrewChiefV4.AiTeam
                 ? "Zahlenprobe. Rundenzeit: eine Minute zweiundfünfzig Komma drei zwei acht. Abstand: null Komma sieben Sekunden. Reifendruck: sechsundzwanzig Komma fünf PSI. Öltemperatur: einhundertzwei Grad."
                 : "Zahlenprobe. Rundenzeit: 1:52,328. Abstand: 0,7 Sekunden. Reifendruck: 26,5 PSI. Öltemperatur: 102 Grad.";
             Run(service.SpeakAsync(TeamMember.Mik, text, true, CancellationToken.None).ContinueWith(t => t.Exception == null ? null : t.Exception.GetBaseException().Message));
+        }
+
+        private void TestRacePhrase(string situation, string speaker, int variant)
+        {
+            if (MainWindow.instance != null && MainWindow.instance.IsAppRunning)
+            { Notice("Für die Rennfunkprobe Crew Chief zuerst stoppen."); return; }
+            if ((speaker != "ben" && speaker != "mik") || variant < 0 || variant > 15) return;
+            var member = Member(speaker);
+            if (!service.Settings.IsMemberEnabled(member))
+            { Notice("Aktiviere zuerst die gewählte Stimme in Team & Audio."); return; }
+            string sample = RadioPhraseCatalog.Current.Preview(situation, variant, service.Settings.RadioName);
+            if (string.IsNullOrEmpty(sample)) return;
+            string fileStatus = RadioPhraseCatalog.CustomFileInvalid ? " Die Vorlagendatei ist ungültig, es gelten die Standards." : "";
+            Run(service.SpeakAsync(member, sample, true, CancellationToken.None).ContinueWith(t =>
+                t.Exception == null ? "Rennfunkprobe: " + sample + fileStatus : "Sprachprobe fehlgeschlagen."));
         }
 
         private void TestVoice(TeamMember member)

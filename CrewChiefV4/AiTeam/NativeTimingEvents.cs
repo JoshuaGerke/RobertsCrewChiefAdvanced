@@ -73,7 +73,15 @@ namespace CrewChiefV4.AiTeam
         private readonly List<Entry> pending = new List<Entry>();
         private readonly Dictionary<string, DateTime> seen = new Dictionary<string, DateTime>();
         private DateTime lastRadio = DateTime.MinValue;
-        private readonly int[,] nextVariant = new int[3, 4];
+        private readonly RadioVariantCursor[,] variants = CreateVariants();
+
+        private static RadioVariantCursor[,] CreateVariants()
+        {
+            var cursors = new RadioVariantCursor[3, 4];
+            for (int relation = 0; relation < 3; relation++)
+                for (int trend = 0; trend < 4; trend++) cursors[relation, trend] = new RadioVariantCursor();
+            return cursors;
+        }
         public int IncomingCount { get { return incoming.Count; } }
         public int PendingCount { get { return pending.Count; } }
 
@@ -189,16 +197,14 @@ namespace CrewChiefV4.AiTeam
                     NativeTimingFact fact = entry.Fact;
                     RaceGapMeasurement measurement = ReadMeasurement(context, fact);
                     if (fact.Trend == NativeTimingTrend.Steady && !measurement.HasValue) { pending.Remove(entry); continue; }
-                    int relation = (int)fact.Relation, trend = (int)fact.Trend;
-                    int variant = nextVariant[relation, trend];
-                    nextVariant[relation, trend] = (variant + 1) % 4;
-                    string text = Text(fact, entry.Names, variant, measurement);
+                    var cursor = variants[(int)fact.Relation, (int)fact.Trend];
+                    string text = Text(fact, entry.Names, cursor.Heard, measurement);
                     if (text == null) { pending.Remove(entry); continue; }
                     TrackAwareness tracks = context.Tracks;
                     entry.Call = new ObservedRaceCall {
                         Topic = fact.Topic, Text = text, Evidence = NativeTimingFact.Source + ";opponent=" + fact.Key + ";relation=" + fact.Relation + ";trend=" + fact.Trend,
                         SessionId = fact.Session, SessionType = fact.Type, CompletedLaps = fact.PlayerLap,
-                        Position = fact.PlayerPosition, Member = TeamMember.Ben, Priority = 3,
+                        Position = fact.PlayerPosition, Member = TeamMember.Ben, Priority = 3, VariantCursor = cursor,
                         DetectedUtc = fact.Utc, ExpiresUtc = fact.Utc.Add(DecisionLifetime),
                         TimedValidity = (live, when) => StillCurrent(fact, live, when) && !AiRadioSchedule.BusyForRoutine(live) &&
                             MeasurementStillCurrent(fact, measurement, live, when, tracks)
@@ -228,44 +234,16 @@ namespace CrewChiefV4.AiTeam
         {
             string name = names ? SafeName(fact.Name) : "";
             bool ahead = fact.Relation == NativeTimingRelation.ClassAhead;
-            string who = name.Length > 0 ? name + (ahead ? " vor uns" : " hinter uns") : ahead ? "der Vordermann" : "der Hintermann";
-            string to = name.Length > 0 ? "zu " + name + (ahead ? " vor uns" : " hinter uns") : ahead ? "zum Vordermann" : "zum Hintermann";
             string text;
             if (fact.Relation == NativeTimingRelation.BehindOnTrack)
                 return "Nativ erkannter Abstand zum Wagen hinter uns auf der Strecke " +
                     (fact.Trend == NativeTimingTrend.Decreasing ? "wird kleiner" : fact.Trend == NativeTimingTrend.Increasing ? "wächst" :
                     fact.Trend == NativeTimingTrend.Close ? "bleibt klein" : "bleibt ähnlich") + ". Kein bestätigter Klassenabstand.";
-            string[] options;
-            switch (fact.Trend)
-            {
-                case NativeTimingTrend.Decreasing:
-                    options = ahead
-                        ? new[] { name.Length > 0 ? "Du kommst näher an " + name + " ran." : "Du kommst dem Vordermann näher.",
-                            "Der Abstand nach vorn wird kleiner.", name.Length > 0 ? "Auf " + name + " machst du Zeit gut." : "Du machst nach vorn Zeit gut.",
-                            "Die Lücke nach vorn geht zu." }
-                        : new[] { who + " kommt näher.", "Der Abstand " + to + " wird kleiner.",
-                            "Von hinten kommt Druck, der Abstand schrumpft.", "Die Lücke nach hinten wird kleiner." };
-                    break;
-                case NativeTimingTrend.Increasing:
-                    options = ahead
-                        ? new[] { who + " setzt sich ab.", "Der Abstand " + to + " wächst.",
-                            "Die Lücke nach vorn geht auf.", "Vorne zieht " + (name.Length > 0 ? name : "der Vordermann") + " weg." }
-                        : new[] { "Wir setzen uns " + (name.Length > 0 ? "von " + name : "vom Hintermann") + " ab.",
-                            "Der Abstand " + to + " wächst.", "Nach hinten haben wir mehr Luft.", who + " fällt etwas zurück." };
-                    break;
-                case NativeTimingTrend.Close:
-                    options = ahead
-                        ? new[] { who + " bleibt dicht vor uns.", "Du bist dicht dran " + (name.Length > 0 ? "an " + name : "am Vordermann") + ".",
-                            "Der Abstand nach vorn bleibt klein.", "Die Lücke zum Vordermann ist weiter klein." }
-                        : new[] { who + " bleibt dicht dran.", "Der Abstand nach hinten bleibt klein.",
-                            "Der Hintermann ist weiter nah dran.", "Nach hinten bleibt die Lücke klein." };
-                    break;
-                default:
-                    options = new[] { "Der Abstand " + to + " bleibt ähnlich.", "Die Lücke " + (ahead ? "nach vorn" : "nach hinten") + " hält sich.",
-                        "Der Abstand bleibt in etwa gleich.", "Die Lücke " + to + " verändert sich kaum." };
-                    break;
-            }
-            text = options[variant];
+            string group = (ahead ? "gap-front-" : "gap-rear-") + fact.Trend.ToString().ToLowerInvariant();
+            string subject = name.Length > 0 ? name : ahead ? "Der Vordermann" : "Der Hintermann";
+            string dative = name.Length > 0 ? name : ahead ? "dem Vordermann" : "dem Hintermann";
+            string target = name.Length > 0 ? name : ahead ? "den Vordermann" : "den Hintermann";
+            text = RadioPhraseCatalog.Current.Format(group, variant, subject, dative, target);
             if (text.Length > 0) text = char.ToUpper(text[0], CultureInfo.GetCultureInfo("de-DE")) + text.Substring(1);
             if (measurement.HasValue)
                 text += (ahead ? " Nach vorn " : " Nach hinten ") + (measurement.Kind == RaceGapKind.InterpolatedTiming ? "ungefähr " : "") +

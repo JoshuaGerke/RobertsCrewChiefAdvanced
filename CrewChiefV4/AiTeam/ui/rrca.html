@@ -46,6 +46,15 @@
           <div class="member-row"><span class="avatar">M</span><div><div class="crew-name">MIK</div><small>Renningenieur</small></div><label class="voice-choice"><span class="voice-label">ElevenLabs-Stimme</span><select data-voice-select="mik" aria-label="Miks Stimme"></select></label><button type="button" class="button" data-voice="mik">Probe</button><label class="switch"><input type="checkbox" data-member="mik" aria-label="Mik aktivieren"></label></div>
           <div class="member-row"><span class="avatar sara-avatar">S</span><div><div class="crew-name">SARA</div><small>Spotterin</small></div><label class="voice-choice"><span class="voice-label">ElevenLabs-Stimme</span><select data-voice-select="sara" aria-label="Saras Stimme"></select></label><button type="button" class="button" data-voice="sara">Probe</button><label class="switch"><input type="checkbox" data-member="sara" aria-label="Sara aktivieren"></label></div>
         </div>
+        <details><summary>Rennfunk im Stand anhören</summary>
+          <div class="form-grid">
+            <label class="field">Rennsituation<select id="rrca-phrase-situation"><option value="pass-first">Erstes Überholen</option><option value="pass">Weiteres Überholen</option><option value="gap">Abstand nach vorn</option><option value="pit">Gegner fährt an die Box</option><option value="pit-gain">Platzgewinn an der Box</option><option value="fuel">Sprit und Reichweite</option><option value="finish">Podium im Ziel</option></select></label>
+            <label class="field">Stimme<select id="rrca-phrase-speaker"><option value="ben">Ben</option><option value="mik">Mik</option></select></label>
+            <label class="field">Variante<input id="rrca-phrase-variant" type="number" min="1" max="16" value="1"></label>
+          </div>
+          <button type="button" class="button" id="rrca-phrase-play">Funkspruch anhören</button>
+          <p class="note">Beispieldaten. Die Probe nutzt deinen Sprachanbieter. Vorlagen liegen in Rennfunk.de.json neben der EXE. Änderungen gelten ab dem nächsten Start.</p>
+        </details>
         <details><summary>Miks deutsche Zahlenaussprache vergleichen</summary><div class="row" style="margin-top:12px">
           <button type="button" class="button" id="rrca-mik-numbers">Ziffern vorlesen</button><button type="button" class="button" id="rrca-mik-numbers-spelled">Ausgeschriebene Zahlen vorlesen</button>
         </div><p class="note">Vergleicht dieselben Werte mit Miks gewählter Stimme und dem aktuellen Stimmmodell. Für die Probe Crew Chief stoppen. Bei einer anderen Stimme oben „Mik“ ändern und erneut vergleichen. Eine Probe nutzt deinen Sprachanbieter.</p></details>

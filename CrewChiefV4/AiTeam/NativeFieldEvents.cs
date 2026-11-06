@@ -10,14 +10,15 @@ namespace CrewChiefV4.AiTeam
     /// No sound-name parsing, retained OpponentData, network calls or native validator side effects.</summary>
     public sealed class NativeFieldFact
     {
-        public readonly string Kind,Key,Name,Detail,Source;
+        public readonly string Kind,Key,Name,Detail,Source,CarNumber;
+        public readonly int CarId;
         public readonly int Session,Lap,Position;
         public readonly SessionType Type;
         public readonly DateTime Utc;
         public readonly double Seconds;
         private NativeFieldFact(string kind,string key,string name,string detail,string source,GameStateData gs,OpponentData op,double seconds)
         {Kind=kind;Key=key;Name=name;Detail=detail;Source=source;Session=gs.SessionData.SessionId;Type=gs.SessionData.SessionType;
-            Lap=op==null?-1:op.CompletedLaps;Position=op==null?-1:op.ClassPosition;Utc=gs.Now;Seconds=seconds;}
+            Lap=op==null?-1:op.CompletedLaps;Position=op==null?-1:op.ClassPosition;Utc=gs.Now;Seconds=seconds;CarNumber=op?.CarNumber;CarId=op?.CostId??-1;}
         public static string Classify(string source)
         {
             if(source=="leader_is_pitting" || source=="car_in_front_is_pitting" || source=="car_behind_is_pitting" || source=="car_is_pitting")return "pit";
@@ -63,10 +64,19 @@ namespace CrewChiefV4.AiTeam
         private readonly List<ObservedRaceCall> pending=new List<ObservedRaceCall>();
         private readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
         private DateTime lastRadio=DateTime.MinValue;
-        private int pitVariant;
+        private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
+        private readonly Dictionary<ObservedRaceCall, NativeFieldFact> pitFacts = new Dictionary<ObservedRaceCall, NativeFieldFact>();
+        private NativeFieldFact spokenPit;
+        private DateTime spokenPitUtc;
+
+        internal bool HasClaimedPit(PitGainEvidence gain, DateTime now)
+        {
+            return gain != null && ((now >= spokenPitUtc && now - spokenPitUtc <= TimeSpan.FromSeconds(12) && gain.Matches(spokenPit)) ||
+                pitFacts.Any(pair => gain.Matches(pair.Value) && (pair.Key.IsReserved || pair.Key.DeliveryStartedUtc != DateTime.MinValue)));
+        }
         public void Capture(NativeFieldFact fact)
         {if(fact==null)return;incoming.Enqueue(fact);NativeFieldFact unused;while(incoming.Count>32)incoming.TryDequeue(out unused);}
-        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();seen.Clear();lastRadio=DateTime.MinValue;}
+        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();seen.Clear();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
         public void CaptureMappedPits(GameStateData before,GameStateData gs)
         {
             if(before==null || gs==null || before.SessionData.SessionId!=gs.SessionData.SessionId || before.SessionData.SessionType!=gs.SessionData.SessionType || gs.SessionData.IsNewSession)return;
@@ -88,8 +98,7 @@ namespace CrewChiefV4.AiTeam
                 if(seen.ContainsKey(id))continue;
                 if(seen.Count>=128)seen.Remove(seen.OrderBy(p=>p.Value).First().Key);
                 seen[id]=now;
-                string text = Text(f, names, pitVariant);
-                if (f.Kind == "pit") pitVariant = (pitVariant + 1) % 5;
+                string text = Text(f, names, 0);
                 if(text==null)continue;
                 if(memory!=null)memory.AddObservation(text,now,"field-"+f.Kind,f.Key,f.Source);
                 // Existing SessionLapObserver already owns non-race class records.
@@ -98,10 +107,17 @@ namespace CrewChiefV4.AiTeam
                 if((f.Kind=="retired" || f.Kind=="dq" || f.Kind=="tyres") && (f.Position<1 || Math.Abs(f.Position-gs.SessionData.ClassPosition)>2 && f.Position!=1))relevant=false;
                 if(!relevant){LiveDiagnostics.Decision("field-"+f.Kind,"stored","session_or_rival_not_relevant",text);continue;}
                 var fact=f;
-                if(pending.Count>=16)pending.RemoveAt(0);
-                pending.Add(new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,
+                if (pending.Count >= 16) Remove(pending[0]);
+                var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,
                     SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=3,
-                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(10),AdditionalValidity=live=>StillCurrent(fact,live)});
+                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(10),AdditionalValidity=live=>StillCurrent(fact,live)};
+                pending.Add(call);
+                if (f.Kind == "pit")
+                {
+                    pitFacts.Add(call, f);
+                    call.VariantCursor = pitVariants;
+                    call.FieldNamesAllowed = names;
+                }
                 LiveDiagnostics.Decision("field-"+f.Kind,"detected","native_semantic_handoff",text);
             }
         }
@@ -111,36 +127,51 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="retired")return gs.retriedDriverNames.ContainsKey(f.Name);
             if(f.Kind=="dq")return gs.disqualifiedDriverNames.ContainsKey(f.Name);
             OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op.DriverRawName!=f.Name)return false;
-            if(f.Kind=="pit")return op.InPits || op.isEnteringPits();
+            if(f.Kind=="pit")return op.CarNumber==f.CarNumber && op.CostId==f.CarId && (op.InPits || op.isEnteringPits());
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;
             return f.Kind=="fastest" && f.Seconds>10 && op.CurrentBestLapTime>0 && op.CurrentBestLapTime<=f.Seconds+.01;
         }
-        public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,bool enabled,bool minimal)
+        private void Remove(ObservedRaceCall call)
+        {
+            if (pitFacts.TryGetValue(call, out var fact) && call.DeliveryStartedUtc > spokenPitUtc)
+            {
+                spokenPit = fact;
+                spokenPitUtc = call.DeliveryStartedUtc;
+            }
+            pitFacts.Remove(call);
+            pending.Remove(call);
+        }
+
+        public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,bool enabled,bool minimal,
+            Func<NativeFieldFact, bool> combinedOwnsPit = null)
         {
             foreach(var call in pending.ToArray())
             {
-                if(call.DeliveryStartedUtc!=DateTime.MinValue){lastRadio=call.DeliveryStartedUtc;pending.Remove(call);}
-                else if(!call.IsValid(gs,now))pending.Remove(call);
+                if(call.DeliveryStartedUtc!=DateTime.MinValue){lastRadio=call.DeliveryStartedUtc;Remove(call);}
+                else if(!call.IsValid(gs,now))Remove(call);
             }
-            if(!enabled || minimal){pending.Clear();return null;}
+            if(!enabled || minimal){pending.Clear();pitFacts.Clear();return null;}
             if(busy || AiRadioSchedule.BusyForRoutine(gs) || now-lastRadio<TimeSpan.FromSeconds(8))return null;
-            var next=pending.FirstOrDefault(p=>p.CanReserve(now));return next!=null && next.TryReserve(now)?next:null;
+            foreach (var call in pending)
+            {
+                if (!call.CanReserve(now)) continue;
+                if (pitFacts.TryGetValue(call, out var pit))
+                {
+                    if (combinedOwnsPit != null && (combinedOwnsPit(pit) ||
+                        (pit.Source == "car_in_front_is_pitting" || pit.Position == gs.SessionData.ClassPosition - 1) &&
+                        now - pit.Utc < TimeSpan.FromSeconds(1.8))) continue;
+                    if (pitFacts.Keys.Any(other => other.IsReserved)) continue;
+                    call.Text = Text(pit, call.FieldNamesAllowed, pitVariants.Heard);
+                }
+                if (call.TryReserve(now)) return call;
+            }
+            return null;
         }
         private static string Text(NativeFieldFact f,bool names,int variant)
         {
             string who=names?Name(f.Name):"Ein Gegner";if(who.Length==0)return null;
-            if (f.Kind == "pit")
-            {
-                switch (variant)
-                {
-                    case 0: return who + " fährt an die Box.";
-                    case 1: return who + " nimmt die Boxeneinfahrt.";
-                    case 2: return who + " biegt in die Boxengasse ab.";
-                    case 3: return who + " ist auf dem Weg in die Box.";
-                    default: return who + " kommt rein.";
-                }
-            }
+            if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who);
             if(f.Kind=="leader")return who+" führt jetzt unsere Klasse an.";
             if(f.Kind=="retired")return who+" ist ausgefallen.";
             if(f.Kind=="dq")return who+" wurde disqualifiziert.";

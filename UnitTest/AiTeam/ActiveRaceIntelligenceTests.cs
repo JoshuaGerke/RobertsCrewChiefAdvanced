@@ -181,6 +181,46 @@ namespace UnitTest.AiTeamTests
             StringAssert.DoesNotContain("Sauber", call.Text); StringAssert.DoesNotContain("erkämpft", call.Text);
         }
         [Test]
+        public void Verified_pit_gain_combines_only_the_same_rival_and_keeps_a_safe_retry()
+        {
+            var gs = Race();
+            var rival = gs.OpponentData["timo"];
+            gs.SessionData.OpponentKeyInFront = "timo";
+            var observer = new ActiveRaceObserver();
+            observer.Observe(gs, Now, "Rob", 120);
+            gs.Now = gs.SourceTelemetryUtc = Now.AddMilliseconds(100);
+            gs.PitData.OpponentForCarAheadPitting = rival;
+            var pit = NativeFieldFact.Capture("car_in_front_is_pitting", null, gs);
+            Assert.IsNotNull(pit);
+            rival.InPits = true;
+            Change(gs);
+            Confirm(observer, gs);
+
+            var call = Take(observer, gs);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("same_class_front_rival_entered_pit_before_rank_gain", call.Evidence);
+            var at = Now.AddMilliseconds(350);
+            Assert.IsTrue(observer.CoversPit(pit, gs, at));
+
+            var context = Context(gs);
+            StringAssert.Contains("Timo Glock ist in der Box", call.ComposeForDelivery(context, out var current));
+            Assert.IsTrue(current(gs, at));
+            context.SendDriverNames = false;
+            StringAssert.DoesNotContain("Timo", call.ComposeForDelivery(context, out _));
+            Assert.AreEqual(call.Text, call.ComposeForDelivery(context, out _, standalonePitClaimed: true));
+            rival.CarNumber = "99";
+            Assert.IsFalse(current(gs, at));
+            Assert.IsFalse(observer.CoversPit(pit, gs, at));
+            rival.CarNumber = "16";
+            call.ReleaseForRetry(at, "opponent_changed_during_render");
+            Assert.IsTrue(call.TryReserve(at.AddSeconds(1)));
+            Assert.AreEqual(call.Text, call.ComposeForDelivery(context, out var retryCheck));
+            Assert.IsNull(retryCheck);
+            call.MarkPlaybackStarted(at.AddSeconds(1));
+            Assert.AreEqual(0, call.VariantCursor.Heard);
+        }
+
+        [Test]
         public void Overlap_defers_then_releases_without_70_second_gate()
         {
             var gs = Race(); var d = new ActiveRaceObserver(); d.Observe(gs, Now, "Rob", 120); Change(gs); Confirm(d, gs);

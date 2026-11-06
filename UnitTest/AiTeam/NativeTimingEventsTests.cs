@@ -109,6 +109,29 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Gap_variant_advances_only_after_playback_starts()
+        {
+            var q = new NativeTimingEvents();
+            var s = State();
+            string first = null;
+            for (int i = 0; i < 3; i++)
+            {
+                Advance(s, i * 31);
+                q.Capture(Fact(s));
+                q.Observe(s, s.Now, null, true);
+                var call = q.Take(s, s.Now, false, true, false);
+                Assert.IsNotNull(call);
+                if (i == 0) first = call.Text;
+                if (i == 1)
+                {
+                    Assert.AreEqual(first, call.Text);
+                    call.MarkPlaybackStarted(s.Now);
+                }
+                if (i == 2) Assert.AreNotEqual(first, call.Text);
+            }
+        }
+
+        [Test]
         public void Freshness_is_checked_at_capture_take_and_playback_without_expiring_during_normal_tts_rendering()
         {
             var s = State(); var q = Observe(s); var call = q.Take(s, T, false, true, false);

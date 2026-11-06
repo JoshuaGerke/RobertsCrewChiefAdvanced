@@ -274,6 +274,7 @@
     <Compile Include="AiTeam\RaceFactStore.cs" />
     <Compile Include="AiTeam\GermanRadioText.cs" />
     <Compile Include="AiTeam\LocalTemplateReference.cs" />
+    <Compile Include="AiTeam\RadioPhraseCatalog.cs" />
     <Compile Include="AiTeam\FuelWatch.cs" />
     <Compile Include="AiTeam\IncidentWatch.cs" />
     <Compile Include="AiTeam\LapWatch.cs" />
@@ -1200,6 +1201,14 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="AiTeam\Rennfunk.de.json">
+      <WithCulture>false</WithCulture>
+      <LogicalName>RRCA.Rennfunk.de.json</LogicalName>
+    </EmbeddedResource>
+    <Content Include="AiTeam\Rennfunk.de.json">
+      <TargetPath>Rennfunk.de.json</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="AiTeam\ui\rrca.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

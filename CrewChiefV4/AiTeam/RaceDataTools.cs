@@ -23,6 +23,7 @@ namespace CrewChiefV4.AiTeam
         public float CrewChiefAdditionalFuelNeeded = float.MaxValue;
         public CornerCoach Corners;
         public TrackAwareness Tracks;
+        public LocalTemplateReference RadioReference;
 
         public double TelemetryAgeSeconds
         {

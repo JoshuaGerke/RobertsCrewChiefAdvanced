@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "groups": {
+    "pass-first": ["Sauber, {driver}. Einen Platz gutgemacht. Jetzt auf Position {position}.", "Gut durchgezogen, {driver}. Jetzt auf Position {position}."],
+    "pass-repeat": [
+      "Und den nächsten geschnappt. Jetzt auf Position {position}.",
+      "Wieder einen Platz erkämpft. Sauber. Jetzt auf Position {position}.",
+      "Gut, den hast du. Jetzt auf Position {position}.",
+      "Sauber vorbei. Jetzt auf Position {position}.",
+      "Der nächste ist hinter dir. Jetzt auf Position {position}.",
+      "Noch einen Platz gewonnen. Stark. Jetzt auf Position {position}.",
+      "Den nächsten hast du auch. Jetzt auf Position {position}.",
+      "Gut durchgezogen, einen Platz weiter vorn. Jetzt auf Position {position}."
+    ],
+    "pit-rival": ["{opponent} fährt an die Box.", "{opponent} nimmt die Boxeneinfahrt.", "{opponent} biegt in die Boxengasse ab.", "{opponent} ist auf dem Weg in die Box.", "{opponent} kommt rein."],
+    "pit-gain": ["{opponent} ist in der Box. Jetzt Platz {position}.", "{opponent} ist in die Box gefahren. Du bist jetzt auf Platz {position}.", "{opponent} kommt rein. Du rückst auf Platz {position} vor."],
+    "fuel-tank": ["Noch {litres} Liter im Tank.", "Im Tank sind noch {litres} Liter.", "Spritstand {litres} Liter."],
+    "fuel-range": ["Noch {litres} Liter im Tank. Das reicht für etwa {laps} Runden.", "Spritstand {litres} Liter. Bei dem Verbrauch sind das rund {laps} Runden.", "{litres} Liter. Damit kommen wir noch ungefähr {laps} Runden weit."],
+    "finish-podium": ["Podium, richtig stark!", "Das ist ein Podestplatz. Glückwunsch!", "Auf dem Podium. Stark gemacht!", "Podestplatz im Ziel. Freu dich darüber!"],
+    "finish-other": ["Gut gekämpft. Wir schauen uns das Rennen gemeinsam an.", "Danke für deinen Einsatz. Jetzt schauen wir, was wir daraus mitnehmen.", "Geschafft. Wir gehen das Rennen in Ruhe durch.", "Das Rennen ist durch. Gleich besprechen wir die wichtigsten Punkte."],
+    "gap-front-close": ["Du bist dicht an {rival} dran.", "Der Abstand nach vorn bleibt klein.", "Die Lücke nach vorn ist weiter klein.", "{opponent} bleibt direkt vor dir."],
+    "gap-front-increasing": ["{opponent} setzt sich ab.", "Der Abstand nach vorn wächst.", "Die Lücke nach vorn geht auf.", "{opponent} zieht ein Stück weg."],
+    "gap-front-decreasing": ["Du kommst näher an {target} ran.", "Der Abstand nach vorn wird kleiner.", "Auf {target} machst du Zeit gut.", "Die Lücke nach vorn geht zu."],
+    "gap-front-steady": ["Der Abstand zu {rival} bleibt ähnlich.", "Die Lücke nach vorn bleibt stabil.", "Der Abstand nach vorn bleibt in etwa gleich.", "Die Lücke nach vorn verändert sich kaum."],
+    "gap-rear-close": ["{opponent} bleibt dicht dran.", "Der Abstand nach hinten bleibt klein.", "Der Hintermann ist weiter nah dran.", "Nach hinten bleibt die Lücke klein."],
+    "gap-rear-increasing": ["Wir setzen uns von {rival} ab.", "Der Abstand nach hinten wächst.", "Nach hinten haben wir mehr Luft.", "{opponent} fällt etwas zurück."],
+    "gap-rear-decreasing": ["{opponent} kommt näher.", "Der Abstand nach hinten wird kleiner.", "Von hinten kommt Druck, der Abstand schrumpft.", "Die Lücke nach hinten geht zu."],
+    "gap-rear-steady": ["Der Abstand zu {rival} bleibt ähnlich.", "Die Lücke nach hinten bleibt stabil.", "Der Abstand nach hinten bleibt in etwa gleich.", "Die Lücke nach hinten verändert sich kaum."]
+  }
+}

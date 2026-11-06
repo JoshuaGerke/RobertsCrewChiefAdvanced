@@ -26,6 +26,25 @@ namespace UnitTest.AiTeamTests
         {return new RaceDataContext {GameState=gs,NowUtc=now,LastTelemetryUtc=now};}
 
         [Test]
+        public void Partial_radio_override_uses_a_validated_contract_and_keeps_other_defaults()
+        {
+            const string json = "{\"version\":1,\"groups\":{\"pit-gain\":[\"{opponent} kommt rein. Platz {position}.\"]}}";
+            var catalog = RadioPhraseCatalog.ParseOverrides(new StringReader(json));
+            Assert.AreEqual("Müller kommt rein. Platz 7.", catalog.Preview("pit-gain", 0, "Rob"));
+            Assert.AreEqual(RadioPhraseCatalog.Current.Preview("fuel", 1, "Rob"), catalog.Preview("fuel", 1, "Rob"));
+            Assert.AreEqual("{position} kommt rein. Platz 7.", catalog.Format("pit-gain", 0, "{position}", "7"));
+        }
+
+        [TestCase("{opponent} kommt rein.")]
+        [TestCase("{opponent} kommt rein. Platz {position}. {weather}")]
+        [TestCase("{opponent} kommt rein. Platz {position}. {}")]
+        public void Radio_override_rejects_wrong_or_missing_facts(string line)
+        {
+            string json = "{\"version\":1,\"groups\":{\"pit-gain\":[\"" + line + "\"]}}";
+            Assert.Throws<InvalidDataException>(() => RadioPhraseCatalog.ParseOverrides(new StringReader(json)));
+        }
+
+        [Test]
         public void Retained_mapper_key_never_attaches_old_gap_to_new_class_neighbour()
         {
             var gs=State();var old=gs.OpponentData["a"];old.ClassPosition=4;

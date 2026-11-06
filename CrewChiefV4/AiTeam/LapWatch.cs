@@ -57,7 +57,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Ein Telemetrie-Tick. gapAhead/gapBehind in Sekunden, &lt;= 0 = unbekannt. Liefert den Funkspruch oder null.</summary>
-        public string Evaluate(GameStateData previous, GameStateData current, float gapAhead, float gapBehind, bool minimalMode)
+        public string Evaluate(GameStateData previous, GameStateData current, float gapAhead, float gapBehind, bool minimalMode, LocalTemplateReference reference = null)
         {
             if (previous == null || current == null || current.SessionData.SessionType != SessionType.Race)
             {
@@ -99,6 +99,8 @@ namespace CrewChiefV4.AiTeam
             if (left == 1)
             {
                 lastCalledLap = s.CompletedLaps;
+                string local = !LapsAreEstimated(s) && s.ClassPosition != 1 ? reference?.AuditedLastLap() : null;
+                if (local != null) return local + (s.ClassPosition > 0 ? " Platz " + s.ClassPosition + "." : "") + Duel(gapAhead, gapBehind);
                 return (LapsAreEstimated(s) ? "Voraussichtlich letzte Runde! " : "Letzte Runde! ") +
                     (s.ClassPosition == 1 ? "Du führst. Bleib ruhig, bring es sauber nach Hause." :
                         s.ClassPosition > 0 ? "Platz " + s.ClassPosition + ". Bleib konzentriert." : "Bleib konzentriert.") + Duel(gapAhead, gapBehind);

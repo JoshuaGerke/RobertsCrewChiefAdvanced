@@ -187,6 +187,11 @@
   $('#rrca-sara-only').addEventListener('click', () => { state.roles = { ben: false, mik: false, sara: true }; syncRoles(null); send('saraOnly'); });
   $$('[data-voice-select]').forEach(s => s.addEventListener('change', () => send('setVoice', { member: s.dataset.voiceSelect, id: s.value })));
   $$('[data-voice]').forEach(b => b.addEventListener('click', () => send('testVoice', { member: b.dataset.voice })));
+  $('#rrca-phrase-play').addEventListener('click', () => {
+    const index = Number($('#rrca-phrase-variant').value);
+    if (!Number.isInteger(index) || index < 1 || index > 16) return;
+    send('testRacePhrase', { situation: $('#rrca-phrase-situation').value, member: $('#rrca-phrase-speaker').value, variant: index - 1 });
+  });
   root.addEventListener('click', e => {
     const b = e.target.closest('[data-cmd]'); if (!b || !b.dataset.cmd) return;
     e.preventDefault();

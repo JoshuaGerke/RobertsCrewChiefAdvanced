@@ -77,6 +77,7 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastDeferral=DateTime.MinValue;
         private DateTime lastReport = DateTime.MinValue;
         private ObservedRaceCall outstanding,lastRoutine;
+        private readonly RadioVariantCursor fuelVariants = new RadioVariantCursor();
         private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
@@ -161,10 +162,11 @@ namespace CrewChiefV4.AiTeam
                 due[topic] = now.AddSeconds(prefs.NextDelaySeconds(topic, random));
                 TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
-                string text = Compose(topic, ctx);
+                var cursor = topic == "fuel" ? fuelVariants : null;
+                string text = Compose(topic, ctx, cursor?.Heard ?? 0);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
                 if(filterUnchanged && UnchangedRoutine(topic,text,now)) { LiveDiagnostics.Decision(topic,"suppressed","unchanged_routine_since_last_delivery"); continue; }
-                outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1,
+                outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1, VariantCursor=cursor,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
                     AdditionalValidity=live=>!BusyForRoutine(live),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
@@ -201,7 +203,7 @@ namespace CrewChiefV4.AiTeam
             return parts.Count>0?string.Join(" ",parts):null;
         }
 
-        public static string Compose(string topic, RaceDataContext ctx)
+        public static string Compose(string topic, RaceDataContext ctx, int variant = 0)
         {
             var gs = ctx.GameState;
             if (topic == "ahead" || topic == "behind")
@@ -217,9 +219,11 @@ namespace CrewChiefV4.AiTeam
                 var measurement = RaceDataTools.ReadGap(ctx, op, ahead);
                 float gap = measurement.Seconds;
                 if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
-                string name = ctx.SendDriverNames ? new string((op.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(60).ToArray()) : "";
-                return (ahead ? "Vor dir " : "Hinter dir ") + (name.Length > 0 ? name + ", " : "") +
-                    (measurement.IsEstimated ? "ungefähr " : "") + Number(gap) + " Sekunden Abstand.";
+                string name = ctx.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
+                string duration = (measurement.IsEstimated ? "ungefähr " : "") + Number(gap) + " Sekunden";
+                string local = measurement.Kind == RaceGapKind.SimulatorTiming || measurement.Kind == RaceGapKind.InterpolatedTiming
+                    ? ctx.RadioReference?.AuditedGap(ahead, name, duration) : null;
+                return local ?? (ahead ? "Vor dir " : "Hinter dir ") + (name.Length > 0 ? name + ", " : "") + duration + " Abstand.";
             }
             if (topic == "weather")
             {
@@ -234,9 +238,10 @@ namespace CrewChiefV4.AiTeam
             {
                 if (!gs.FuelData.FuelUseActive || !Good(gs.FuelData.FuelLeft, .1, 1000)) return null;
                 float perLap = ctx.Memory == null ? -1 : ctx.Memory.AverageFuelPerLap();
-                string text = "Noch " + Number(gs.FuelData.FuelLeft) + " Liter im Tank.";
-                if (Good(perLap, .1, 100)) text += " Das reicht bei dem Verbrauch für etwa " + Number(gs.FuelData.FuelLeft / perLap) + " Runden Reichweite.";
-                return text;
+                string litres = Number(gs.FuelData.FuelLeft);
+                var catalog = RadioPhraseCatalog.Current;
+                return Good(perLap, .1, 100) ? catalog.Format("fuel-range", variant, litres, Number(gs.FuelData.FuelLeft / perLap)) :
+                    catalog.Format("fuel-tank", variant, litres);
             }
             if (topic == "tyres")
             {
