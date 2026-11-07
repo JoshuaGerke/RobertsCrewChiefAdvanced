@@ -1224,6 +1224,9 @@
       <Link>README_EN.md</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\NOTICES_EN.md"><Link>NOTICES_EN.md</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="..\NOTICES_ES.md"><Link>NOTICES_ES.md</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="..\README_ES.md"><Link>README_ES.md</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
     <Content Include="..\HINWEISE_UND_DANK.md">
       <Link>HINWEISE_UND_DANK.md</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

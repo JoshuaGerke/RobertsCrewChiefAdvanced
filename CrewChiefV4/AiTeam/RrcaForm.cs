@@ -188,7 +188,9 @@ namespace CrewChiefV4.AiTeam
                     break;
                 case "openReadmeDe": OpenLocalNotice("README_DE.md"); break;
                 case "openReadmeEn": OpenLocalNotice("README_EN.md"); break;
-                case "openNotes": OpenLocalNotice("HINWEISE_UND_DANK.md"); break;
+                case "openNotes":
+                    string language = (string)m["uiLanguage"];
+                    OpenLocalNotice(language == "es" ? "NOTICES_ES.md" : language == "en" ? "NOTICES_EN.md" : "HINWEISE_UND_DANK.md"); break;
                 case "setSendNames":
                     SaveProperty("enable_ai_team_send_driver_names", (bool)m["on"]);
                     Post(BuildInit());
@@ -345,7 +347,7 @@ namespace CrewChiefV4.AiTeam
             var tick = service.Memory.LastTickUtc;
             bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
             string source = GameDataConnectionStatus.SourceAt(DateTime.UtcNow);
-            var o = new JObject { ["type"] = "live", ["connected"] = connected, ["audioLevels"] = AudioLevels(),
+            var o = new JObject { ["type"] = "live", ["connected"] = connected, ["audioLevels"] = AudioLevels(), ["sendDriverNames"] = service.Settings.SendDriverNames,
                 ["sourceStatus"] = !connected && source != null ? source + ": Datenquelle erreichbar" : null,
                 ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein." };
             if (MainWindow.instance != null)
@@ -584,7 +586,7 @@ namespace CrewChiefV4.AiTeam
         {
             var user = UserSettings.GetUserSettings();
             float messages = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume : user.getFloat("messages_volume");
-            return new JObject { ["messages"] = Percent(messages), ["background"] = Percent(user.getFloat("background_volume")) };
+            return new JObject { ["messages"] = Percent(messages), ["background"] = Percent(user.getFloat("background_volume")), ["ben"] = Percent(CrewVoiceLevels.Get("ben")), ["mik"] = Percent(CrewVoiceLevels.Get("mik")), ["sara"] = Percent(CrewVoiceLevels.Get("sara")) };
         }
 
         private static int Percent(float value)
@@ -593,13 +595,20 @@ namespace CrewChiefV4.AiTeam
         private void SetAudioLevel(string channel, JToken value, bool persist)
         {
             int percent;
-            if ((channel != "messages" && channel != "background") || value == null ||
+            if ((channel != "messages" && channel != "background" && channel != "ben" && channel != "mik" && channel != "sara") || value == null ||
                 value.Type != JTokenType.Integer || !int.TryParse(value.ToString(), out percent) || percent < 0 || percent > 100)
             { Notice("Lautstärke muss zwischen 0 und 100 Prozent liegen."); return; }
             float volume = percent / 100f;
             var main = MainWindow.instance;
             var user = UserSettings.GetUserSettings();
-            if (channel == "messages")
+            if (channel == "ben" || channel == "mik" || channel == "sara")
+            {
+                CrewVoiceLevels.Set(channel, volume);
+                user.setProperty("ai_team_volume_" + channel, volume);
+                if (persist) user.saveUserSettings();
+                AiAudio.RefreshDirectVolume();
+            }
+            else if (channel == "messages")
             {
                 if (main != null) main.updateMessagesVolume(volume, persist, true);
                 else { MainWindow.currentMessageVolume = volume; user.setProperty("messages_volume", volume); if (persist) user.saveUserSettings(); }

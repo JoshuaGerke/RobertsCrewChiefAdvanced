@@ -113,7 +113,7 @@ namespace UnitTest.AiTeamTests
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-save').click()");
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-page=cockpit]').click(); " +
                             "document.querySelector('#rrca-messages-volume').value=37; document.querySelector('#rrca-messages-volume').dispatchEvent(new Event('change')); " +
-                            "document.querySelector('#rrca-background-volume').value=0; document.querySelector('#rrca-background-volume').dispatchEvent(new Event('change'))");
+                            "document.querySelector('#rrca-send-names').click(); ['ben','mik','sara'].forEach((m,n)=>{let i=document.querySelector('#rrca-'+m+'-volume');i.value=40+n*20;i.dispatchEvent(new Event('change'));}); document.querySelector('#rrca-background-volume').value=0; document.querySelector('#rrca-background-volume').dispatchEvent(new Event('change'))");
                         profileStage = 4; timer.Start(); return;
                     }
                     if (profileStage == 4)
@@ -121,6 +121,8 @@ namespace UnitTest.AiTeamTests
                         Assert.AreEqual(0,AiTeamSettings.Load().RadioPreferences["weather"],"The preset preserves a disabled topic.");
                         Assert.AreEqual(300,AiTeamSettings.Load().RadioPreferences["vehicle"],"The preset is saved through the real WebView bridge.");
                         var levels = (Newtonsoft.Json.Linq.JObject)typeof(RrcaForm).GetMethod("AudioLevels", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null);
+                        Assert.AreEqual(40,(int)levels["ben"]); Assert.AreEqual(60,(int)levels["mik"]); Assert.AreEqual(80,(int)levels["sara"]);
+                        CrewVoiceLevels.Load(); Assert.AreEqual(.4f,CrewVoiceLevels.Get("ben"),.001);
                         Assert.AreEqual(37, (int)levels["messages"]); Assert.AreEqual(0, (int)levels["background"]);
                         Assert.AreEqual(.37f, CrewChiefV4.MainWindow.currentMessageVolume, .001);
                         var userType = typeof(AiTeamService).Assembly.GetType("CrewChiefV4.UserSettings");
@@ -138,6 +140,8 @@ namespace UnitTest.AiTeamTests
                         string levels = await web.CoreWebView2.ExecuteScriptAsync("[document.querySelector('#rrca-messages-volume').value, document.querySelector('#rrca-background-volume').value].join('|')");
                         if ((levels == null || levels == "null") && DateTime.UtcNow < timeout) { timer.Start(); return; }
                         Assert.AreEqual("\"62|12\"", levels);
+                        Assert.IsTrue(AiTeamSettings.Load().SendDriverNames);
+                        Assert.AreEqual("true", await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-send-names').checked"));
                         string probes = await web.CoreWebView2.ExecuteScriptAsync("!!document.querySelector('#rrca-mik-numbers') && !!document.querySelector('#rrca-mik-numbers-spelled')");
                         Assert.AreEqual("true", probes);
                         // Invalid input must not alter the current level.
@@ -204,6 +208,14 @@ namespace UnitTest.AiTeamTests
                         string doc=await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-help-dialog').open+'|'+document.querySelector('#rrca-help-dialog h2').textContent+'|'+document.querySelector('#rrca-help-dialog p').textContent");
                         StringAssert.Contains("true|README_EN.md",doc);StringAssert.Contains("Unofficial",doc);
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-help-dialog button').click()");
+                        foreach (var lang in new[]{"en","es","de"}) {
+                            await web.CoreWebView2.ExecuteScriptAsync("RRCAI18n.setLanguage('"+lang+"');document.querySelector('[data-cmd=openNotes]').click()");
+                            await System.Threading.Tasks.Task.Delay(100);
+                            string notice=await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-help-dialog p').textContent");
+                            StringAssert.Contains(lang=="es" ? "No se afirma" : lang=="en" ? "No partnership" : "Eine Partnerschaft",notice);
+                            StringAssert.DoesNotContain("Simulator Controller",notice);
+                            await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-help-dialog button').click()");
+                        }
                         liveTimer.Start();
                         profileStage=7;
                     }

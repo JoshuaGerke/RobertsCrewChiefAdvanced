@@ -1,6 +1,6 @@
 # Schnellstart - KI-Crew für Crew Chief
 
-RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug) und Sara (lokaler Spotter). Das klassische Crew-Chief-Fenster läuft in derselben Instanz minimiert weiter. Simulator Controller und SimHub sind nicht erforderlich. Alpha: Fehler und ausbleibende Ansagen sind möglich.
+RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug) und Sara (lokaler Spotter). Das klassische Crew-Chief-Fenster läuft in derselben Instanz minimiert weiter. Alpha: Fehler und ausbleibende Ansagen sind möglich.
 
 1. Original-Crew-Chief separat sichern. Vollständige ZIP in einen eigenen RRCA-Ordner entpacken. Der Freeware-Kandidat verwendet getrennte Profile/Sounds; das Testpaket nutzt den bisherigen Datenmodus.
 2. CrewChiefV4.exe aus dem RRCA-Ordner starten. Benötigt werden Windows x64, .NET Framework 4.8 und WebView2. Fehlende Grundsounds über die Soundverwaltung einrichten.

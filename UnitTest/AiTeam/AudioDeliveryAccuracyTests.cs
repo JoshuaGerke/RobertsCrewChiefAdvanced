@@ -10,6 +10,23 @@ namespace UnitTest.AiTeamTests
     public class AudioDeliveryAccuracyTests
     {
         [Test]
+        public void Member_gain_is_independent_and_does_not_attenuate_radio_tones()
+        {
+            float b=CrewVoiceLevels.Get("ben"), m=CrewVoiceLevels.Get("mik"), a=CrewVoiceLevels.Get("sara");
+            try {
+                CrewVoiceLevels.Set("ben", .4f); CrewVoiceLevels.Set("mik", .7f); CrewVoiceLevels.Set("sara", .9f);
+                Assert.AreEqual(.4f, CrewVoiceLevels.ForSound(false,"Ben: Test"));
+                Assert.AreEqual(.7f, CrewVoiceLevels.ForSound(false,"Mik: Test"));
+                Assert.AreEqual(.9f, CrewVoiceLevels.ForSound(true,null));
+                Assert.AreEqual(.9f, CrewVoiceLevels.ForSound(false,"Sara: Test"));
+                Assert.AreEqual(1f, CrewVoiceLevels.ForSound(false,null));
+                CrewVoiceLevels.Set("ben",0); Assert.AreEqual(0f,CrewVoiceLevels.ForSound(false,"Ben: Test"));
+                Assert.AreEqual(1f,CrewVoiceLevels.Clamp(float.NaN)); Assert.AreEqual(1f,CrewVoiceLevels.Clamp(2));
+                Assert.AreEqual(0f,CrewVoiceLevels.Clamp(-1));
+            } finally { CrewVoiceLevels.Set("ben",b); CrewVoiceLevels.Set("mik",m); CrewVoiceLevels.Set("sara",a); }
+        }
+
+        [Test]
         public void Changed_rank_during_the_channel_open_tone_cannot_reach_the_driver()
         {
             bool valid = true;

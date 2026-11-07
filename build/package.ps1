@@ -3,7 +3,8 @@ param(
     [string]$Configuration = "Release",
     [switch]$PublicDistribution,
     [string]$Version = "v0.9-alpha3",
-    [string]$GuidePdf
+    [string]$GuidePdf,
+    [string]$ReadmePdfDirectory
 )
 # Stellt das Programmverzeichnis so zusammen wie der Original-Installer (CrewChiefV4_installer.wixproj, BeforeBuild):
 # Build-Ausgabe plus Datenordner und Standarddateien, die Crew Chief neben der exe erwartet.
@@ -59,7 +60,7 @@ foreach ($file in 'help.txt', 'Newtonsoft_Json_licence.txt', 'SharpDX_licence.tx
     Copy-Item -Force (Join-Path $root $file) (Join-Path $OutDir $file)
 }
 Copy-Item -Force (Join-Path $root 'LICENSE') (Join-Path $OutDir 'LICENSE_CrewChief_MIT.txt')
-foreach ($note in 'START_HIER_DE.md','VORSTELLUNG_DE.md','README_DE.md','README_EN.md','HINWEISE_UND_DANK.md','FREEWARE_PRUEFUNG.md','THIRD_PARTY_NOTICES.md','TESTSTATUS_ALPHA3.md','AENDERUNGEN_v0.9_ALPHA3.md') {
+foreach ($note in 'AENDERUNGEN_v0.9_ALPHA3_LAUTSTAERKEN.md','START_HIER_DE.md','VORSTELLUNG_DE.md','README_DE.md','README_EN.md','README_ES.md','HINWEISE_UND_DANK.md','NOTICES_EN.md','NOTICES_ES.md','FREEWARE_PRUEFUNG.md','THIRD_PARTY_NOTICES.md','TESTSTATUS_ALPHA3.md','AENDERUNGEN_v0.9_ALPHA3.md') {
     Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note)
 }
 Copy-Item -LiteralPath (Join-Path $root 'ThirdPartyLicenses') -Destination (Join-Path $OutDir 'ThirdPartyLicenses') -Recurse
@@ -71,6 +72,14 @@ if ($GuidePdf) {
     Copy-Item -LiteralPath $guide.FullName -Destination (Join-Path $OutDir 'ANLEITUNG_RRCA_DE.pdf')
 }
 
+if ($ReadmePdfDirectory) {
+    foreach ($language in 'EN','ES') {
+        $pdf = Join-Path $ReadmePdfDirectory "README_$language.pdf"
+        $bytes = [IO.File]::ReadAllBytes($pdf)
+        if ($bytes.Length -lt 5 -or $bytes.Length -gt 5MB -or [Text.Encoding]::ASCII.GetString($bytes,0,5) -ne '%PDF-') { throw 'Ungültige PDF-README' }
+        Copy-Item -LiteralPath $pdf -Destination (Join-Path $OutDir "README_$language.pdf")
+    }
+}
 # Selbstprüfung: diese Dateien müssen im Paket liegen
 foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt', 'AiTeam/ui/rrca.i18n.js', 'Rennfunk.de.json', 'README_DE.md', 'README_EN.md')) {
     if (-not (Test-Path (Join-Path $OutDir $required))) { throw "Paket unvollständig: $required fehlt" }

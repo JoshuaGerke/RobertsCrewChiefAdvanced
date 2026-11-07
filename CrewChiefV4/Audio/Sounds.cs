@@ -90,6 +90,7 @@ namespace CrewChiefV4.Audio
 
         static SoundCache()
         {
+        AiTeam.CrewVoiceLevels.Load();
         forceStereoPlayback = UserSettings.GetUserSettings().getBoolean("force_stereo");
         forceResamplePlayback = UserSettings.GetUserSettings().getInt("force_resample");
         recordVarietyData = UserSettings.GetUserSettings().getBoolean("record_sound_variety_data");
@@ -2347,7 +2348,7 @@ namespace CrewChiefV4.Audio
 
         private float getVolume(float boost)
         {
-            float volume = MainWindow.currentMessageVolume * boost;
+            float volume = MainWindow.currentMessageVolume * boost * AiTeam.CrewVoiceLevels.ForSound(isSpotter, isAiAudio ? subtitle : null);
             // volume can be higher than 1, it seems. Not sure if this is device dependent
             /*if (volume > 1)
             {

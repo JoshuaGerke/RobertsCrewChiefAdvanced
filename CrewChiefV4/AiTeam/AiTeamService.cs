@@ -1598,7 +1598,7 @@ namespace CrewChiefV4.AiTeam
                 try
                 {
                     LiveDiagnostics.Decision("audio","direct_playback","no_running_sim");
-                    AiAudio.PlayDirect(wav, AudioPlayer.naudioMessagesPlaybackDeviceId);
+                    AiAudio.PlayDirect(wav, AudioPlayer.naudioMessagesPlaybackDeviceId, member);
                 }
                 catch (Exception e)
                 {

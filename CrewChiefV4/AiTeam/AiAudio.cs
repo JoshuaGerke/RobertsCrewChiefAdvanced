@@ -183,6 +183,31 @@ namespace CrewChiefV4.AiTeam
         }
     }
 
+    // Playback-only gain: no cache rewrites, network calls or locks on Sara's path.
+    public static class CrewVoiceLevels
+    {
+        private static volatile float ben = 1, mik = 1, sara = 1;
+        public static float Clamp(float value) { return float.IsNaN(value) || float.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(1, value)); }
+        public static float Get(string member) { return member == "ben" ? ben : member == "mik" ? mik : member == "sara" ? sara : 1; }
+        public static void Set(string member, float value)
+        { value = Clamp(value); if (member == "ben") ben = value; else if (member == "mik") mik = value; else if (member == "sara") sara = value; }
+        public static void Load()
+        {
+            var user = UserSettings.GetUserSettings();
+            foreach (var member in new[] { "ben", "mik", "sara" }) Set(member, user.getFloat("ai_team_volume_" + member));
+        }
+        public static float ForSound(bool spotter, string aiSubtitle)
+        {
+            if (spotter) return sara;
+            if (aiSubtitle != null) {
+                if (aiSubtitle.StartsWith("Ben: ", StringComparison.Ordinal)) return ben;
+                if (aiSubtitle.StartsWith("Mik: ", StringComparison.Ordinal)) return mik;
+                if (aiSubtitle.StartsWith("Sara: ", StringComparison.Ordinal)) return sara;
+            }
+            return 1;
+        }
+    }
+
     public static class AiAudio
     {
         public const int OpenAiPcmSampleRate = 24000;
@@ -279,6 +304,7 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly object directSync = new object();
         private static WaveOutEvent directOut;
+        private static TeamMember directMember;
 
         /// <summary>
         /// Spielt einen Clip direkt ab. Nur für Tests im KI-Team-Fenster, solange Crew Chief nicht gestartet ist
@@ -288,7 +314,7 @@ namespace CrewChiefV4.AiTeam
         {
             float volume = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume :
                 UserSettings.GetUserSettings().getFloat("messages_volume");
-            return float.IsNaN(volume) || float.IsInfinity(volume) ? 0 : Math.Max(0, Math.Min(1, volume));
+            return float.IsNaN(volume) || float.IsInfinity(volume) ? 0 : Math.Max(0, Math.Min(1, volume)) * CrewVoiceLevels.Get(directMember.ToString().ToLowerInvariant());
         }
 
         public static void RefreshDirectVolume()
@@ -296,7 +322,7 @@ namespace CrewChiefV4.AiTeam
             lock (directSync) { if (directOut != null) directOut.Volume = DirectPlaybackVolume(); }
         }
 
-        public static void PlayDirect(byte[] wav, int deviceNumber)
+        public static void PlayDirect(byte[] wav, int deviceNumber, TeamMember member = TeamMember.Ben)
         {
             lock (directSync)
             {
@@ -304,6 +330,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     directOut.Stop();
                 }
+                directMember = member;
                 var reader = new WaveFileReader(new MemoryStream(wav));
                 var output = new WaveOutEvent { DeviceNumber = deviceNumber, Volume = DirectPlaybackVolume() };
                 output.PlaybackStopped += (s, e) =>

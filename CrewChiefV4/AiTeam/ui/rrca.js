@@ -3,7 +3,7 @@
   const root = document.getElementById('rrca-design');
   const $ = s => root.querySelector(s), $$ = s => Array.from(root.querySelectorAll(s));
   const bridge = window.chrome && window.chrome.webview;
-  const send = (cmd, data) => { if (bridge) bridge.postMessage(Object.assign({ cmd }, data || {})); };
+  const send = (cmd, data) => { if (bridge) bridge.postMessage(Object.assign({ cmd, uiLanguage: I.language }, data || {})); };
   const I = window.RRCAI18n, t = text => I.t(text);
   let lastLive = null;
   const members = ['ben', 'mik', 'sara'];
@@ -112,7 +112,7 @@
     $('#rrca-radio-effect').checked = d.radioEffect;
     $('#rrca-recorder').checked = d.recorder;
     $('#rrca-memory').checked = d.memoryEnabled;
-    $('#rrca-send-names').checked = !!d.sendDriverNames;
+    if (typeof d.sendDriverNames === 'boolean') $('#rrca-send-names').checked = d.sendDriverNames;
     $('#rrca-memory-status').textContent = t(t(d.memoryStatus || ''));
     $('#rrca-memory-folder').textContent = d.memoryFolder || '';
     $('#rrca-diag-status').textContent = t(d.recorderStatus);
@@ -135,7 +135,7 @@
     syncAudioLevels(d.audioLevels);
     state.voiceReadiness = d.voiceReadiness;
     if (typeof d.memoryEnabled === 'boolean') $('#rrca-memory').checked = d.memoryEnabled;
-    $('#rrca-send-names').checked = !!d.sendDriverNames;
+    if (typeof d.sendDriverNames === 'boolean') $('#rrca-send-names').checked = d.sendDriverNames;
     if (d.memoryStatus != null) $('#rrca-memory-status').textContent = t(d.memoryStatus);
     if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;

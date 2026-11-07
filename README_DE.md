@@ -59,7 +59,6 @@ Frühere private Testpakete mit `RRCAStandaloneData=false` verwenden weiter die 
 
 ## Teststatus, Grenzen und Support
 
-Automatische Prüfungen stehen in `TESTSTATUS_ALPHA3.md`. Der neue Stand braucht einen echten Fahrtest; frühere Tests sind keine Garantie für jede Simulation. Heute wurde RaceRoom mit Alpha 1 beobachtet; Alpha 3 ist daraus abgeleitet. AMS2 und weitere Adapter benötigen gesonderte Live-Tests. Keine SimHub-Brücke erforderlich. SimHub, PitCrew und Simulator Controller sind Vergleichs-/Ideengeber, keine Voraussetzung. Der öffentliche Modus lädt keinen installierten fremden PitCrew-Katalog. Eigene 280 deutsche Vorlagen decken 21 Gruppen ab; nicht jede Phrase ist ein eigener Erkennungstrigger.
 
 Abstände sind von Gegneridentität, Klassenbezug, Zeitpunkt und Quelle abhängig. Näherungen werden gekennzeichnet. Ein schrumpfender Abstand beweist keinen Dreher oder Reifenschaden des Gegners. Gefahrenentfernungen nur mit frischen Positionen und vorbereiteten Clips; sonst kurze Grundwarnung. Nicht jede Sim liefert Reifen-/Sektor-/Wetterdaten für Gegner oder eine Wettervorhersage.
 
@@ -68,3 +67,5 @@ Fehler bitte im [eigenen GitHub-Projekt](https://github.com/JoshuaGerke/RobertsC
 Lizenzen und Danksagung: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT-Quellcodelizenz ersetzt keine Rechte an Sounds, Stimmen, Marken oder fremden Vorlagen. Vor öffentlicher Werbung die offenen Punkte in `FREEWARE_PRUEFUNG.md` klären.
 
 Direkt sichtbarer App-Hinweis: kostenloses, nichtkommerzielles Privatprojekt auf Basis von Crew Chief V4; Dank an die Entwickler, MIT-Lizenz und separate Dienstkosten. Eine zusätzliche persönliche Entwicklerfreigabe wird mangels Nachweis nicht behauptet.
+
+Im Cockpit lassen sich Ben, Mik und Sara separat regeln (0-100 %, anfangs 100 %). Die allgemeine Funklautstärke wirkt zusätzlich; 0 % schaltet die Stimme einschließlich Saras Warnungen stumm. Kein Neustart oder erneutes Erzeugen von Clips nötig. Englische und spanische PDF-READMEs liegen direkt neben der EXE.

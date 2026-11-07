@@ -1889,5 +1889,8 @@
     <Setting Name="ai_team_radio_progress_seconds_plus" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">8</Value>
     </Setting>
+    <Setting Name="ai_team_volume_ben" Type="System.Single" Scope="User"><Value Profile="(Default)">1</Value></Setting>
+    <Setting Name="ai_team_volume_mik" Type="System.Single" Scope="User"><Value Profile="(Default)">1</Value></Setting>
+    <Setting Name="ai_team_volume_sara" Type="System.Single" Scope="User"><Value Profile="(Default)">1</Value></Setting>
   </Settings>
 </SettingsFile>

@@ -16,6 +16,18 @@ namespace CrewChiefV4.Properties {
     internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1")]
+        public float ai_team_volume_ben { get { return (float)this["ai_team_volume_ben"]; } set { this["ai_team_volume_ben"] = value; } }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1")]
+        public float ai_team_volume_mik { get { return (float)this["ai_team_volume_mik"]; } set { this["ai_team_volume_mik"] = value; } }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1")]
+        public float ai_team_volume_sara { get { return (float)this["ai_team_volume_sara"]; } set { this["ai_team_volume_sara"] = value; } }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool enable_ai_team_ben { get { return (bool)this["enable_ai_team_ben"]; } set { this["enable_ai_team_ben"] = value; } }
 

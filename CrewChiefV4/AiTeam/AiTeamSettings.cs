@@ -55,6 +55,7 @@ namespace CrewChiefV4.AiTeam
 
         public static AiTeamSettings Load()
         {
+            CrewVoiceLevels.Load();
             var s = new AiTeamSettings();
             var u = UserSettings.GetUserSettings();
             s.Enabled = Get(() => u.getBoolean("enable_ai_team"), s.Enabled);
