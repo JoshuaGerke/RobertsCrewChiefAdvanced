@@ -49,6 +49,48 @@ namespace UnitTest.AiTeamTests
             {Move(s,c,i*.1,gap,speed);tracks.Observe(s,T.AddSeconds(i*.1));watch.Observe(tracks,s,T.AddSeconds(i*.1));call=watch.Take(s,T.AddSeconds(i*.1),false,true)??call;}
             return call;
         }
+
+        [Test]
+        public void Fresh_hazard_distance_is_optional_prepared_and_does_not_wait_for_cloud()
+        {
+            var s=State();var c=Car(s);TrackAwareness tracks;RaceTrafficWatch watch;
+            var call=Traffic(s,c,300,0,out tracks,out watch);Assert.IsNotNull(call);
+            Func<GameStateData,DateTime,bool> valid;
+            string generic=call.ComposePreparedDetail(s,T.AddSeconds(3.5),text=>false,out valid);
+            Assert.AreEqual(call.Text,generic);Assert.IsNull(valid,"Missing numeric clip must keep the immediate generic warning.");
+            string detailed=call.ComposePreparedDetail(s,T.AddSeconds(3.5),text=>true,out valid);
+            int rounded=(int)Math.Round(tracks.Snapshot.Cars.Single().RouteGapM.Value/20,MidpointRounding.AwayFromZero)*20;
+            Assert.AreEqual(RaceTrafficWatch.DistancePhrase(rounded,true),detailed);
+            Assert.IsTrue(valid(s,T.AddSeconds(3.5)));
+            Assert.IsFalse(valid(s,T.AddSeconds(4.1)),"A stale numeric distance must never survive to playback.");
+        }
+        [Test]
+        public void Hazard_distance_is_invalid_when_same_slot_changes_driver_before_next_track_tick()
+        {
+            var s=State();var c=Car(s);TrackAwareness tracks;RaceTrafficWatch watch;
+            var call=Traffic(s,c,300,0,out tracks,out watch);
+            Func<GameStateData,DateTime,bool> valid;
+            call.ComposePreparedDetail(s,T.AddSeconds(3.5),text=>true,out valid);Assert.IsNotNull(valid);
+            c.DriverRawName="Replacement Driver";
+            Assert.IsFalse(valid(s,T.AddSeconds(3.5)));
+        }
+        [Test]
+        public void Numeric_hazard_retry_uses_generic_warning_after_changed_distance()
+        {
+            var call=new ObservedRaceCall {Text="Vorsicht, stehendes Fahrzeug voraus.",DetectedUtc=T,ExpiresUtc=T.AddSeconds(3),
+                PreparedDetail=(gs,now)=>new PreparedRadioDetail {Text=RaceTrafficWatch.DistancePhrase(100,true),StillCurrent=(gs2,now2)=>true}};
+            Assert.IsTrue(call.TryReserve(T));Func<GameStateData,DateTime,bool> valid;
+            Assert.AreNotEqual(call.Text,call.ComposePreparedDetail(State(),T,text=>true,out valid));
+            call.ReleaseForRetry(T,"numeric_distance_changed");
+            Assert.IsTrue(call.TryReserve(T.AddSeconds(1.1)));
+            Assert.AreEqual(call.Text,call.ComposePreparedDetail(State(),T.AddSeconds(1.1),text=>true,out valid));Assert.IsNull(valid);
+        }
+        [Test]
+        public void All_numeric_hazard_clips_are_bounded_prepared_and_use_approximation()
+        {
+            Assert.AreEqual(24,RaceTrafficWatch.DistancePhrases.Length);
+            foreach(string text in RaceTrafficWatch.DistancePhrases){Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Ben,text));StringAssert.Contains("in etwa",text);}
+        }
         [SetUp] public void Setup() {NativeTrafficBridge.Enabled=false;NativeTrafficBridge.Clear();}
         [TearDown] public void Cleanup() {NativeTrafficBridge.Enabled=false;NativeTrafficBridge.Clear();}
 

@@ -4,12 +4,14 @@
   const $ = s => root.querySelector(s), $$ = s => Array.from(root.querySelectorAll(s));
   const bridge = window.chrome && window.chrome.webview;
   const send = (cmd, data) => { if (bridge) bridge.postMessage(Object.assign({ cmd }, data || {})); };
+  const I = window.RRCAI18n, t = text => I.t(text);
+  let lastLive = null;
   const members = ['ben', 'mik', 'sara'];
   const idle = { ben: 'Beobachtet die Strategie', mik: 'Beobachtet das Fahrzeug', sara: 'Hat die Seiten im Blick' };
-  let state = { roles: { ben: true, mik: true, sara: true } }, noticeTimer;
+  let state = { roles: { ben: true, mik: true, sara: true } }, noticeTimer, noticeText;
 
   function notify(text) {
-    const n = $('#rrca-notice'); n.textContent = text; n.hidden = false;
+    noticeText=text;const n = $('#rrca-notice'); n.textContent = t(text); n.hidden = false;
     clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { n.hidden = true; }, 12000);
   }
   function page(name) {
@@ -25,14 +27,14 @@
     });
     $$('[data-status]').forEach(el => {
       const m = el.dataset.status, on = state.roles[m];
-      el.textContent = !on ? 'Ausgeschaltet' : speaking === m ? '● Funkt gerade' : m === 'sara' && state.voiceReadiness && !state.voiceReadiness.ready ? 'Noch nicht bereit, siehe Hinweis oben' : idle[m];
+      el.textContent = t(!on ? 'Ausgeschaltet' : speaking === m ? '● Funkt gerade' : m === 'sara' && state.voiceReadiness && !state.voiceReadiness.ready ? 'Noch nicht bereit, siehe Hinweis oben' : idle[m]);
       el.classList.toggle('lime', on && speaking === m);
     });
   }
 
   function fillSelect(sel, options, value) {
     sel.innerHTML = '';
-    options.forEach(o => { const opt = document.createElement('option'); opt.value = o.id; opt.textContent = o.name; sel.appendChild(opt); });
+    options.forEach(o => { const opt = document.createElement('option'); opt.value = o.id; opt.textContent = o.name; if(o.ui)opt.dataset.uiText=o.ui; sel.appendChild(opt); });
     if (value != null && !options.some(o => o.id === value)) {
       const opt = document.createElement('option'); opt.value = value; opt.textContent = value; sel.appendChild(opt);
     }
@@ -41,19 +43,22 @@
   function fillVoices(list, current) {
     members.forEach(m => {
       const sel = $('[data-voice-select=' + m + ']');
-      const opts = list && list.length ? list : [{ id: current[m], name: 'Gespeicherte Stimme' }];
+      const empty = { id: '', name:t('Stimme auswählen'), ui:'Stimme auswählen' };
+      const opts = list && list.length ? (!current[m] ? [empty].concat(list) : list) :
+        [{ id: current[m] || '', name: t(current[m] ? 'Gespeicherte Stimme' : 'Stimme auswählen'), ui: current[m] ? 'Gespeicherte Stimme' : 'Stimme auswählen' }];
       fillSelect(sel, opts, current[m]);
     });
   }
 
   function buildSchedule(topics) {
     const box = $('#rrca-schedule'); box.innerHTML = '';
-    $('#rrca-topic-count').textContent = topics.length + ' Themen';
+    $('#rrca-topic-count').textContent = t(topics.length + ' Themen');
     topics.forEach(t => {
-      const row = document.createElement('div'); row.className = 'schedule-row'; row.dataset.topic = t.id; row.dataset.recommendedSeconds = t.recommendedSeconds; row.title = t.hint;
+      const row = document.createElement('div'); row.className = 'schedule-row'; row.dataset.topic = t.id; row.dataset.recommendedSeconds = t.recommendedSeconds; row.title = I.t(t.hint);
       row.innerHTML = '<span></span><label class="switch"><input type="checkbox" data-part="on"></label>' +
         '<input type="number" min="' + t.minimum + '" max="3600" data-part="seconds"><input type="number" min="0" max="300" data-part="minus"><input type="number" min="0" max="300" data-part="plus">';
-      row.querySelector('span').textContent = t.label;
+      row.querySelector('span').textContent = I.t(t.label);
+      row.dataset.label=t.label; row.dataset.hint=t.hint;
       row.querySelector('[data-part=on]').checked = t.on;
       row.querySelector('[data-part=seconds]').value = t.seconds;
       row.querySelector('[data-part=minus]').value = t.minus;
@@ -61,12 +66,14 @@
       const update = () => { const on = row.querySelector('[data-part=on]').checked; row.classList.toggle('inactive', !on); row.querySelectorAll('input[type=number]').forEach(i => { i.disabled = !on; }); };
       row.querySelector('[data-part=on]').addEventListener('change', update); update();
       box.appendChild(row);
+      I.attach('[data-topic='+t.id+'] > span','schedule');
+      row.querySelectorAll('input').forEach(i=>i.setAttribute('aria-label', I.t(t.label)+' · '+({on:I.t('An'),seconds:I.t('Alle / s'),minus:'− / s',plus:'+ / s'}[i.dataset.part])));
     });
   }
 
   function updateGreetingPreview() {
     const name = $('[data-setting=driverNickname]').value.trim() || $('[data-setting=driverName]').value.trim();
-    $('#rrca-greeting-preview').textContent = name ? 'Beispiel: „Hallo ' + name + ', willkommen in …“ · Strecke und Session kommen aus der Simulation.' : 'Trage deinen Fahrernamen ein.';
+    $('#rrca-greeting-preview').textContent = name ? I.pick('Beispiel: „Hallo '+name+', willkommen in …“ · Strecke und Session kommen aus der Simulation.', 'Example (German radio): “Hallo '+name+', willkommen in …” · Track and session come from the sim.', 'Ejemplo (radio en alemán): «Hallo '+name+', willkommen in …» · Circuito y sesión proceden del simulador.') : t('Trage deinen Fahrernamen ein.');
   }
   ['driverName', 'driverNickname'].forEach(key => $('[data-setting=' + key + ']').addEventListener('input', updateGreetingPreview));
 
@@ -76,7 +83,7 @@
       const channel = i.dataset.audioLevel;
       if (document.activeElement !== i && !i.dataset.dragging) i.value = levels[channel];
       $('#rrca-' + channel + '-value').textContent = i.value + ' %';
-      i.setAttribute('aria-valuetext', i.value + ' Prozent');
+      i.setAttribute('aria-valuetext', i.value + I.pick(' Prozent',' percent',' por ciento'));
     });
   }
   $$('[data-audio-level]').forEach(i => {
@@ -95,21 +102,22 @@
   function applyInit(d) {
     state = d;
     syncAudioLevels(d.audioLevels);
-    $('#rrca-version').textContent = d.version;
+    $('#rrca-version').dataset.uiText=d.version;$('#rrca-version').textContent=t(d.version);
     fillSelect($('#rrca-game'), d.games.map(g => ({ id: g, name: g })), null);
     $('#rrca-auto').checked = d.autoDetect;
     syncRoles(null);
     fillVoices(null, d.voices);
-    fillSelect($('#rrca-mic'), [{ id: '', name: 'Windows-Standardgerät' }].concat(d.microphones.map(m => ({ id: m, name: m }))), d.microphone);
+    fillSelect($('#rrca-mic'), [{ id: '', name: t('Windows-Standardgerät'), ui:'Windows-Standardgerät' }].concat(d.microphones.map(m => ({ id: m, name: m }))), d.microphone);
     $('#rrca-ptt').value = d.ptt;
     $('#rrca-radio-effect').checked = d.radioEffect;
     $('#rrca-recorder').checked = d.recorder;
     $('#rrca-memory').checked = d.memoryEnabled;
-    $('#rrca-memory-status').textContent = d.memoryStatus || '';
+    $('#rrca-send-names').checked = !!d.sendDriverNames;
+    $('#rrca-memory-status').textContent = t(t(d.memoryStatus || ''));
     $('#rrca-memory-folder').textContent = d.memoryFolder || '';
-    $('#rrca-diag-status').textContent = d.recorderStatus;
-    $('#key-openrouter').textContent = d.keys.openrouter || 'kein Schlüssel hinterlegt';
-    $('#key-elevenlabs').textContent = d.keys.elevenlabs || 'kein Schlüssel hinterlegt';
+    $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    $('#key-openrouter').textContent = t(d.keys.openrouter || 'kein Schlüssel hinterlegt');
+    $('#key-elevenlabs').textContent = t(d.keys.elevenlabs || 'kein Schlüssel hinterlegt');
     if (!d.keys.openrouter || !d.keys.elevenlabs) $('#rrca-keys').open = true;
     $$('[data-setting]').forEach(i => {
       const v = d.settings[i.dataset.setting];
@@ -123,43 +131,45 @@
   }
 
   function applyLive(d) {
+    lastLive=d;
     syncAudioLevels(d.audioLevels);
     state.voiceReadiness = d.voiceReadiness;
     if (typeof d.memoryEnabled === 'boolean') $('#rrca-memory').checked = d.memoryEnabled;
-    if (d.memoryStatus != null) $('#rrca-memory-status').textContent = d.memoryStatus;
+    $('#rrca-send-names').checked = !!d.sendDriverNames;
+    if (d.memoryStatus != null) $('#rrca-memory-status').textContent = t(d.memoryStatus);
     if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
-    if (d.recorderStatus != null) $('#rrca-diag-status').textContent = d.recorderStatus;
-    $('#rrca-conn').textContent = d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden');
+    if (d.recorderStatus != null) $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    $('#rrca-conn').textContent = t(d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden'));
     const run = $('#rrca-run'), game = $('#rrca-game');
-    run.textContent = d.running ? 'Stopp' : 'Start';
+    run.textContent = t(d.running ? 'Stopp' : 'Start');
     run.classList.toggle('primary', !d.running); run.classList.toggle('danger', !!d.running);
     game.disabled = !!d.running;
     if (d.game && document.activeElement !== game) game.value = d.game;
     $('#rrca-conn-dot').classList.toggle('off', !d.connected);
-    $('#rrca-rail-hint').textContent = d.connected ? 'Live-Daten vom Spiel' : (d.sourceStatus ? 'Quelle erreichbar · Fahrdaten fehlen' : 'Wartet auf das Spiel');
-    $('#rrca-where').textContent = d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : (d.sourceStatus || 'Kein Spiel verbunden');
-    $('#rrca-sub').textContent = d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
+    $('#rrca-rail-hint').textContent = t(d.connected ? 'Live-Daten vom Spiel' : (d.sourceStatus ? 'Quelle erreichbar · Fahrdaten fehlen' : 'Wartet auf das Spiel'));
+    $('#rrca-where').textContent = t(d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : (d.sourceStatus || 'Kein Spiel verbunden'));
+    $('#rrca-sub').textContent = t(d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
       : !d.running ? ($('#rrca-auto').checked ? 'Automatische Spielerkennung ist aktiv. Ein eindeutig laufendes Spiel wird auch im Hintergrund erkannt. Bei mehreren laufenden Sims das gewünschte Spiel in den Vordergrund holen.' : 'Spiel auswählen und Start drücken. Die automatische Spielerkennung ist ausgeschaltet.')
-      : (d.sourceStatus ? d.sourceHint : 'Die Crew läuft. Spiel starten und ins Auto setzen, damit Fahrdaten ankommen.');
+      : (d.sourceStatus ? d.sourceHint : 'Die Crew läuft. Spiel starten und ins Auto setzen, damit Fahrdaten ankommen.'));
     $('#m-pos').textContent = d.position > 0 ? 'P' + d.position : '–';
-    $('#m-pos-sub').textContent = d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ';
-    $('#m-lap-label').textContent = d.timed ? 'Restzeit' : 'Runde';
+    $('#m-pos-sub').textContent = t(d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ');
+    $('#m-lap-label').textContent = t(d.timed ? 'Restzeit' : 'Runde');
     $('#m-lap').textContent = d.lapValue || '–';
-    $('#m-lap-sub').textContent = d.lapSub || ' ';
+    $('#m-lap-sub').textContent = t(d.lapSub || ' ');
     $('#m-gap').textContent = d.gapValue || '–';
-    $('#m-gap-sub').textContent = d.gapSub || ' ';
+    $('#m-gap-sub').textContent = t(d.gapSub || ' ');
 
     const warn = d.warning;
     $('#rrca-warn').hidden = !warn;
     if (warn) {
-      $('#rrca-warn-text').textContent = warn.text;
-      const b = $('#rrca-warn-button'); b.hidden = !warn.cmd; b.textContent = warn.button || ''; b.dataset.cmd = warn.cmd || '';
+      $('#rrca-warn-text').textContent = t(warn.text);
+      const b = $('#rrca-warn-button'); b.hidden = !warn.cmd; b.textContent = t(warn.button || ''); b.dataset.cmd = warn.cmd || '';
     }
 
     const radio = d.radio || [];
     const tl = $('#rrca-timeline'); tl.innerHTML = '';
-    if (!radio.length) tl.innerHTML = '<div class="timeline empty"><span>Noch nichts gefunkt.</span></div>';
+    if (!radio.length) {const row=document.createElement('div');row.className='timeline empty';row.textContent=t('Noch nichts gefunkt.');tl.appendChild(row);}
     radio.slice().reverse().forEach(r => {
       const row = document.createElement('div'); row.className = 'timeline';
       row.innerHTML = '<time></time><b></b><span></span>';
@@ -167,8 +177,8 @@
       tl.appendChild(row);
     });
     const last = radio[radio.length - 1];
-    $('#rrca-speaker').textContent = last ? last.member + (d.speaking ? ' · funkt gerade' : ' · zuletzt ' + last.time) : 'Funk';
-    $('#rrca-quote').textContent = last ? last.text : 'Noch kein Funkspruch.';
+    $('#rrca-speaker').textContent = t(last ? last.member + (d.speaking ? ' · funkt gerade' : ' · zuletzt ' + last.time) : 'Funk');
+    $('#rrca-quote').textContent = last ? last.text : t('Noch kein Funkspruch.');
     syncRoles(d.speaking);
   }
 
@@ -202,6 +212,7 @@
   $('#rrca-auto').addEventListener('change', e => send('setAutoDetect', { on: e.target.checked }));
   $('#rrca-mic').addEventListener('change', e => send('setMicrophone', { name: e.target.value }));
   $('#rrca-radio-effect').addEventListener('change', e => send('setRadioEffect', { on: e.target.checked }));
+  $('#rrca-send-names').addEventListener('change', e => send('setSendNames', { on: e.target.checked }));
   $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
   $$('[data-key-save]').forEach(b => b.addEventListener('click', () => {
@@ -235,10 +246,19 @@
       else if (d.type === 'audioLevels') syncAudioLevels(d.audioLevels);
       else if (d.type === 'voices') fillVoices(d.list, d.current);
       else if (d.type === 'notice') notify(d.text);
+      else if (d.type === 'document') I.openDocument(d.title,d.text);
     });
     send('ready');
   } else {
     notify('Diese Seite läuft nur im RRCA-Fenster von Crew Chief.');
   }
+  document.addEventListener('rrca-language-changed',()=>{
+    updateGreetingPreview();syncRoles(null);
+    if(noticeText && !$('#rrca-notice').hidden)$('#rrca-notice').textContent=t(noticeText);
+    $$('[data-ui-text]').forEach(el=>el.textContent=t(el.dataset.uiText));
+    $$('#rrca-schedule .schedule-row').forEach(row=>{row.firstElementChild.firstChild.nodeValue=t(row.dataset.label);row.title=t(row.dataset.hint);row.querySelectorAll('input').forEach(i=>i.setAttribute('aria-label',t(row.dataset.label)+' · '+({on:t('An'),seconds:t('Alle / s'),minus:'− / s',plus:'+ / s'}[i.dataset.part])));});
+    $('#rrca-topic-count').textContent=t($$('#rrca-schedule .schedule-row').length+' Themen');
+    if(lastLive)applyLive(lastLive);
+  });
   page('cockpit');
 })();

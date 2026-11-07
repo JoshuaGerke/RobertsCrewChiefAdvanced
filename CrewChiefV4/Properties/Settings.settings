@@ -1737,13 +1737,13 @@
       <Value Profile="(Default)">eleven_flash_v2_5</Value>
     </Setting>
     <Setting Name="ai_team_elevenlabs_voice_ben" Type="System.String" Scope="User">
-      <Value Profile="(Default)">JBFqnCBsd6RMkjVDRZzb</Value>
+      <Value Profile="(Default)"></Value>
     </Setting>
     <Setting Name="ai_team_elevenlabs_voice_mik" Type="System.String" Scope="User">
-      <Value Profile="(Default)">nPczCjzI2devNBz1zQrb</Value>
+      <Value Profile="(Default)"></Value>
     </Setting>
     <Setting Name="ai_team_elevenlabs_voice_sara" Type="System.String" Scope="User">
-      <Value Profile="(Default)">EXAVITQu4vr4xnSDxMaL</Value>
+      <Value Profile="(Default)"></Value>
     </Setting>
     <Setting Name="ai_team_voice_ben" Type="System.String" Scope="User">
       <Value Profile="(Default)">de-DE-Klaus:MAI-Voice-2.1-Flash</Value>
@@ -1767,7 +1767,7 @@
       <Value Profile="(Default)">NORMAL</Value>
     </Setting>
     <Setting Name="ai_team_driver_name" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Rob</Value>
+      <Value Profile="(Default)">Fahrer</Value>
     </Setting>
     <Setting Name="ai_team_driver_nickname" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
@@ -1791,7 +1791,7 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="enable_ai_team_send_driver_names" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">True</Value>
+      <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="enable_ai_team_replaces_crew_chief_voice" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>

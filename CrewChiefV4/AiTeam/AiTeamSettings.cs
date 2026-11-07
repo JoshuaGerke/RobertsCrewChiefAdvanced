@@ -27,10 +27,10 @@ namespace CrewChiefV4.AiTeam
         public string TtsModel = "microsoft/mai-voice-2.1-flash";
         public AiTtsProvider TtsProvider = AiTtsProvider.ELEVENLABS;
         public string ElevenLabsModel = "eleven_flash_v2_5";
-        // Standardstimmen aus der ElevenLabs-Grundausstattung, im Fenster "KI-Team" per Liste änderbar
-        public string ElevenLabsVoiceBen = "JBFqnCBsd6RMkjVDRZzb";
-        public string ElevenLabsVoiceMik = "nPczCjzI2devNBz1zQrb";
-        public string ElevenLabsVoiceSara = "EXAVITQu4vr4xnSDxMaL";
+        // No author/account voice is shipped as a default. Select your own voices before first use.
+        public string ElevenLabsVoiceBen = "";
+        public string ElevenLabsVoiceMik = "";
+        public string ElevenLabsVoiceSara = "";
         public string VoiceBen = "de-DE-Klaus:MAI-Voice-2.1-Flash";
         public string VoiceMik = "de-DE-Grant:MAI-Voice-2.1-Flash";
         public string VoiceSara = "de-DE-Mia:MAI-Voice-2.1-Flash";
@@ -38,7 +38,7 @@ namespace CrewChiefV4.AiTeam
         public string WindowsVoiceMik = "";
         public string WindowsVoiceSara = "";
         public AiRadioMode RadioMode = AiRadioMode.NORMAL;
-        public string DriverName = "Rob";
+        public string DriverName = "Fahrer";
         public string DriverNickname = "";
         public string RadioName { get { return string.IsNullOrWhiteSpace(DriverNickname) ? DriverName : DriverNickname.Trim(); } }
         public string PttKey = "";
@@ -48,7 +48,7 @@ namespace CrewChiefV4.AiTeam
         public int StatusIntervalMinutes = 2; // Lokaler, belegter Rennstatus; 0 bleibt explizit deaktiviert
         public AiRadioPreferences RadioPreferences = new AiRadioPreferences();
         public bool RadioEffect = true;
-        public bool SendDriverNames = true;
+        public bool SendDriverNames = false;
         public bool WriteLog = true;
         public bool PersistentMemory = true;
         public bool ReplaceCrewChiefVoice = true;

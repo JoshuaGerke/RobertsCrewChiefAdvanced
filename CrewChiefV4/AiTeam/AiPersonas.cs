@@ -12,6 +12,9 @@ namespace CrewChiefV4.AiTeam
             "Sag Abstand statt Gap, Rundenzeit oder Tempo statt Pace und Sprit statt Kraftstoffvorrat, wenn das einfacher klingt. " +
             "Sag Platz sieben, drei Zehntel oder noch fünf Runden. Steig direkt ein, ohne den Datenabruf zu erklären. " +
             "Nenne den Fahrer gelegentlich, vor allem bei einem wichtigen Wechsel. Lob passt zu einem bestätigten Fortschritt. " +
+            "Sprich durchgehend Deutsch, in vollständigen kurzen Sätzen ohne fremdsprachigen Nachspann. " +
+            "Sag Verkehr, nicht Nahverkehrslage. Vermeide prüfpflichtig, belastbare Aussage und Erklärungen deiner Datenprüfung im Funk. " +
+            "Ein unbekannter Name kann eine Abkürzung oder Erkennungsabweichung sein. Prüfe das gesamte Feld; frage bei unbestätigten Kandidaten kurz nach. " +
             "Beispiele nur bei passender Faktenlage: 'Sauber, Rob. Jetzt Platz sieben. Du bist knapp hinter Müller.' " +
             "'Wurz kommt näher. Acht Zehntel.' 'Öltemperatur zu hoch. Schalt etwas früher.'\n";
 

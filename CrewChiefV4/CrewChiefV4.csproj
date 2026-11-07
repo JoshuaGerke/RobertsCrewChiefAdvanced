@@ -290,6 +290,9 @@
     <Compile Include="AiTeam\RaceRadioLanguage.cs" />
     <Compile Include="AiTeam\CrewVoiceReadiness.cs" />
     <Compile Include="AiTeam\RaceFieldTools.cs" />
+    <Compile Include="AiTeam\OpponentNameMatching.cs" />
+    <Compile Include="AiTeam\RadioAnswerQuality.cs" />
+    <Compile Include="AiTeam\OwnTyreAnswer.cs" />
     <Compile Include="AiTeam\TrackAwareness.cs" />
     <Compile Include="AiTeam\TrackSituationWatch.cs" />
     <Compile Include="AiTeam\RaceTrafficWatch.cs" />
@@ -1211,10 +1214,37 @@
       <TargetPath>Rennfunk.de.json</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\README_DE.md">
+      <Link>README_DE.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\README_EN.md">
+      <Link>README_EN.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\HINWEISE_UND_DANK.md">
+      <Link>HINWEISE_UND_DANK.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\FREEWARE_PRUEFUNG.md">
+      <Link>FREEWARE_PRUEFUNG.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\THIRD_PARTY_NOTICES.md">
+      <Link>THIRD_PARTY_NOTICES.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\TESTSTATUS_ALPHA3.md">
+      <Link>TESTSTATUS_ALPHA3.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="AiTeam\ui\rrca.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="AiTeam\ui\rrca.css">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="AiTeam\ui\rrca.i18n.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="AiTeam\ui\rrca.js">

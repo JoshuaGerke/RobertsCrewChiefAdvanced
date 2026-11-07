@@ -16,7 +16,7 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly CultureInfo de = CultureInfo.GetCultureInfo("de-DE");
 
-        public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory)
+        public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory, bool allowDriverNames = true)
         {
             if (gs == null || string.IsNullOrWhiteSpace(question))
             {
@@ -36,6 +36,7 @@ namespace CrewChiefV4.AiTeam
             }
 
             var named = RaceFieldTools.NamedInQuestion(question, gs);
+            if (named.Count > 0 && !allowDriverNames) return "Die Namensfreigabe ist ausgeschaltet.";
             if (named.Count > 1) return "Der Fahrername ist nicht eindeutig. Welche Startnummer meinst du?";
             if (named.Count == 1)
             {
@@ -72,6 +73,7 @@ namespace CrewChiefV4.AiTeam
             bool ownQuestion = q.Contains("mein ") || q.Contains("meine") || q.Contains("unsere") || q.Contains("bin ich") || q.Contains("sind wir") ||
                 q.Trim(' ', '?', '.', '!') == "letzte runde" || q.Trim(' ', '?', '.', '!') == "wie war die letzte runde" || q.Trim(' ', '?', '.', '!') == "rundenzeit";
             if (!ownQuestion) return null;
+            if (OwnTyreAnswer.Matches(question)) return OwnTyreAnswer.Answer(gs, DateTime.UtcNow);
 
             if (q.Contains("gesamtplatz") || q.Contains("klassenplatz") || q.Contains("position") || q.Contains("welcher platz") || q.Contains("welchem platz") || q.Contains("wievielter") || q.Contains("wie vielter"))
             {

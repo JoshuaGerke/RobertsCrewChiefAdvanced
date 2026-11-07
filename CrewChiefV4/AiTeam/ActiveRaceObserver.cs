@@ -27,11 +27,31 @@ namespace CrewChiefV4.AiTeam
             gs.carClass != null && rival.CarClass != null && CarData.IsCarClassEqual(gs.carClass, rival.CarClass, false);
     }
 
+    public sealed class PreparedRadioDetail
+    {
+        public string Text;
+        public Func<GameStateData,DateTime,bool> StillCurrent;
+    }
+
     public sealed class ObservedRaceCall
     {
         public string Topic, Text, Evidence;
+        public readonly string EventId = Guid.NewGuid().ToString("N");
+        public Func<GameStateData,DateTime,PreparedRadioDetail> PreparedDetail;
+
+        /// <summary>Optional numeric detail is cache-only. A miss always retains the immediate generic warning.
+        /// After any failed delivery attempt retry the generic warning, never wait on cloud synthesis.</summary>
+        public string ComposePreparedDetail(GameStateData state, DateTime now, Func<string,bool> cached,
+            out Func<GameStateData,DateTime,bool> stillCurrent)
+        {
+            stillCurrent=null;
+            if(PreparedDetail==null || Volatile.Read(ref attempts)!=1 || cached==null) return Text;
+            var detail=PreparedDetail(state,now);
+            if(detail==null || detail.StillCurrent==null || !detail.StillCurrent(state,now) || !cached(detail.Text)) return Text;
+            stillCurrent=detail.StillCurrent;return detail.Text;
+        }
         internal bool ConfirmedPass;
-        internal RadioVariantCursor VariantCursor;
+        internal RadioVariantCursor VariantCursor, AdditionalVariantCursor;
         internal string ReferenceTemplate;
         internal PitGainEvidence PitGain;
         internal bool FieldNamesAllowed;
@@ -131,6 +151,7 @@ namespace CrewChiefV4.AiTeam
             if (!CanReserve(now) || Interlocked.CompareExchange(ref deliveryState, 1, 0) != 0) return false;
             Interlocked.Increment(ref attempts);
             LiveDiagnostics.Decision(Topic, "reserved", "awaiting_playback", Evidence);
+            if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_reserved",LiveDiagnostics.Data("topic",Topic,"text",Text,"reason",Evidence),EventId);
             return true;
         }
         // Called from the audio callback. Observers consume this state on their own telemetry thread.
@@ -142,7 +163,9 @@ namespace CrewChiefV4.AiTeam
             if (Interlocked.CompareExchange(ref deliveryState, 2, 1) == 1)
             {
                 if (PitGain == null || spokePitGain) VariantCursor?.OnPlaybackStarted();
+                AdditionalVariantCursor?.OnPlaybackStarted();
                 LiveDiagnostics.Decision(Topic, "delivered", "playback_started", Evidence);
+                if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_delivered",LiveDiagnostics.Data("topic",Topic,"reason",Evidence),EventId);
                 if (ReferenceTemplate != null) LiveDiagnostics.Decision(Topic, "template_played", ReferenceTemplate);
             }
         }
@@ -232,6 +255,7 @@ namespace CrewChiefV4.AiTeam
         private DateTime candidateSince, lastTick, lastCall = DateTime.MinValue, nextSummary;
         private bool candidatePass, candidatePit, previousInPits;
         private RadioVariantCursor passVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor firstPassVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor pitGainVariants = new RadioVariantCursor();
         private string previousFrontKey;
         private PitGainEvidence recentFrontPit, spokenPitGain;
@@ -349,7 +373,7 @@ namespace CrewChiefV4.AiTeam
                         string text;
                         if (candidatePass && !candidatePit)
                         {
-                            text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName, RaceRadioLanguage.SeparateClass(s));
+                            text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName, RaceRadioLanguage.SeparateClass(s), firstPassVariants.Heard);
                         }
                         else text = RaceRadioLanguage.SeparateClass(s) ? "Wir sind vorgerückt. Jetzt " + RaceRadioLanguage.Rank(s, candidatePosition) + "." :
                             "Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".";
@@ -373,6 +397,7 @@ namespace CrewChiefV4.AiTeam
                             var passCall = pending.Last();
                             passCall.ConfirmedPass = true;
                             passCall.VariantCursor = passVariants;
+                            if(passVariants.Heard==0)passCall.AdditionalVariantCursor=firstPassVariants;
                             passCall.AdditionalValidity = live => !live.PenaltiesData.IsOffRacingSurface &&
                                 live.PenaltiesData.CutTrackWarnings <= cuts &&
                                 !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);

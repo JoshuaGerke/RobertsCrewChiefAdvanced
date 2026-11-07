@@ -25,6 +25,14 @@ namespace CrewChiefV4
         {
             get { string root = Environment.GetEnvironmentVariable("RCCA_DATA_ROOT"); return string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root); }
         }
+        /// <summary>Supported public ZIP mode. Legacy installations remain opt-in compatible.
+        /// RCCA_DATA_ROOT always takes precedence for isolated validation.</summary>
+        public static bool StandaloneData
+        {
+            get { return string.Equals(ConfigurationManager.AppSettings["RRCAStandaloneData"], "true", StringComparison.OrdinalIgnoreCase); }
+        }
+        public static string StandaloneDocumentsPath(string documents) => Path.Combine(documents, "RRCA", "CrewChiefV4");
+        public static string StandaloneLocalPath(string local) => Path.Combine(local, "RobertsCrewChiefAdvanced");
         #region StringsAsProperties
         // Proved necessary to ensure they're initialised when unit testing
         // called MakeFolders()
@@ -41,7 +49,7 @@ namespace CrewChiefV4
             {
                 if (_BaseFolder == null)
                 {
-                    _BaseFolder = Path.Combine(MyDocuments_Debug, "CrewChiefV4");
+                    _BaseFolder = IsolatedRoot == null && StandaloneData ? StandaloneDocumentsPath(MyDocuments_Debug) : Path.Combine(MyDocuments_Debug, "CrewChiefV4");
                 }
 
                 return _BaseFolder;
@@ -83,6 +91,7 @@ namespace CrewChiefV4
                 if (_LocalApplicationDataFolder == null)
                 {
                     _LocalApplicationDataFolder = IsolatedRoot != null ? Path.Combine(IsolatedRoot,"LocalApplicationData") : CrewChief.Debug.UseDebugFilePaths ? Path.Combine(MyDocuments_Debug, "LocalApplicationData")
+                        : StandaloneData ? StandaloneLocalPath(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))
                         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrewChiefV4");
                 }
 
@@ -101,7 +110,9 @@ namespace CrewChiefV4
             {
                 if (_SoundFilesFolder == null)
                 {
-                    _SoundFilesFolder = IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrewChiefV4", "Sounds") : Path.Combine(IsolatedRoot, "Sounds");
+                    _SoundFilesFolder = IsolatedRoot != null ? Path.Combine(IsolatedRoot, "Sounds") : StandaloneData ?
+                        Path.Combine(StandaloneLocalPath(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)), "Sounds") :
+                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrewChiefV4", "Sounds");
                 }
 
                 return _SoundFilesFolder;

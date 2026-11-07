@@ -600,8 +600,9 @@ namespace CrewChiefV4
             {
                 try
                 {
-                    if (!skipAppUpdates)
+                    if (!skipAppUpdates && !DataFiles.StandaloneData)
                     {
+                        // Never replace the RRCA fork with the upstream Crew Chief installer.
                         AutoUpdater.Start(updateURL);
                     }
                     if (updateURL.Contains("downloadxml") && CrewChief.gameDefinition != null)

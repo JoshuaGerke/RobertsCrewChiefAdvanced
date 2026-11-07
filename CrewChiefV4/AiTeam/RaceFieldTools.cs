@@ -69,8 +69,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     if (!ctx.SendDriverNames) return Error("Namensfreigabe deaktiviert. Startnummer oder Gesamtposition verwenden.");
                     string name = Normalize((string)args["name"]);
-                    selected = field.Where(o => Normalize(o.DriverRawName) == name).ToList();
-                    if (!selected.Any()) selected = field.Where(o => Normalize(o.DriverRawName).EndsWith(" " + name, StringComparison.Ordinal));
+                    selected = OpponentNameMatching.Find(name, field);
                 }
                 else if (args["car_number"] != null) selected = field.Where(o => o.CarNumber == (string)args["car_number"]);
                 else selected = field.Where(o => o.OverallPosition == (int)args["overall_position"]);
@@ -78,7 +77,17 @@ namespace CrewChiefV4.AiTeam
                 result["eindeutig"] = matches.Count == 1;
                 result["trefferzahl"] = matches.Count;
                 result["fahrer"] = new JArray(matches.Take(20).Select(o => Describe(o, ctx)));
-                if (matches.Count != 1) result["hinweis"] = matches.Count == 0 ? "Fahrer nicht gefunden; keine eigenen Werte einsetzen." : "Mehrdeutig. Fahrer über Startnummer oder Gesamtposition klären.";
+                if (matches.Count != 1) result["hinweis"] = matches.Count == 0 ? "Keine sichere Namenszuordnung; keine Identität oder eigenen Werte einsetzen." : "Mehrdeutig. Fahrer über Startnummer oder Gesamtposition klären.";
+                if (matches.Count == 0 && args["name"] != null && ctx.SendDriverNames)
+                {
+                    var candidates = OpponentNameMatching.Suggest((string)args["name"], field.Where(o => o.IsActive));
+                    if (candidates.Count > 0)
+                    {
+                        result["moegliche_zuordnungen"] = new JArray(candidates.Select(o => Describe(o, ctx)));
+                        result["zuordnung_bestaetigt"] = false;
+                        result["hinweis"] = "Ähnlich klingende oder geschriebene Namen, nur Vorschläge. Mit dem tatsächlichen Namen kurz nachfragen; nicht gleichsetzen.";
+                    }
+                }
             }
             else
             {
@@ -114,11 +123,7 @@ namespace CrewChiefV4.AiTeam
 
         public static List<OpponentData> NamedInQuestion(string question, GameStateData gs)
         {
-            string q = " " + Normalize(question) + " ";
-            var field = gs.OpponentData.Values.Where(o => !string.IsNullOrWhiteSpace(o.DriverRawName)).ToList();
-            var full = field.Where(o => q.Contains(" " + Normalize(o.DriverRawName) + " ")).ToList();
-            if (full.Count > 0) return full;
-            return field.Where(o => { string surname = Normalize(o.DriverRawName).Split(' ').Last(); return surname.Length >= 3 && q.Contains(" " + surname + " "); }).ToList();
+            return gs == null ? new List<OpponentData>() : OpponentNameMatching.InQuestion(question, gs.OpponentData.Values);
         }
 
         private static JObject Error(string text) { return new JObject { ["fehler"] = text, ["verfuegbar"] = false }; }

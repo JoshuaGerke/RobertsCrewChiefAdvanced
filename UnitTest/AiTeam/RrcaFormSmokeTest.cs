@@ -146,6 +146,67 @@ namespace UnitTest.AiTeamTests
                         Assert.AreEqual(.62f, CrewChiefV4.MainWindow.currentMessageVolume, .001);
                         profileStage = 6;
                     }
+                    if (profileStage == 6)
+                    {
+                        // Freeze only this isolated form's polling for a controlled UI fixture, not the app engine.
+                        var liveTimer=(Timer)typeof(RrcaForm).GetField("live",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(form);
+                        liveTimer.Stop();
+                        web.CoreWebView2.PostWebMessageAsJson(new Newtonsoft.Json.Linq.JObject {
+                            ["type"]="live",["connected"]=false,["running"]=false,
+                            ["radio"]=new Newtonsoft.Json.Linq.JArray(new Newtonsoft.Json.Linq.JObject {
+                                ["member"]="Ben",["time"]="12:00",["text"]="Eigener Funktext mit Fahrername"
+                            })
+                        }.ToString(Newtonsoft.Json.Formatting.None));
+                        await System.Threading.Tasks.Task.Delay(100);
+                        // Real WebView2, no provider call: switch languages without resetting unsaved input.
+                        string check = await web.CoreWebView2.ExecuteScriptAsync(@"(() => {
+                            try { const I=window.RRCAI18n, $=s=>document.querySelector(s);
+                            if(!I)throw Error('Localisation script missing');
+                            const before=$('[data-setting=driverName]').value;
+                            $('[data-setting=driverNickname]').value='Unsaved nickname';
+                            if($('#rrca-quote').textContent!=='Eigener Funktext mit Fahrername')throw Error('Controlled radio not loaded');
+                            I.setLanguage('en');
+                            if(document.documentElement.lang!=='en'||$('[data-page=team]').textContent.indexOf('Team & voices')<0)throw Error('English navigation');
+                            if(!$('[data-voice-select=ben]').selectedOptions[0].textContent.match(/Choose a voice|Saved voice/))throw Error('Voice placeholder untranslated');
+                            if($('#rrca-notice').textContent.includes('Lautstärke'))throw Error('Notice untranslated');
+                            $('[data-page=settings]').click();const help=$('[data-help=reasoning]');help.click();
+                            if(!$('#rrca-help-dialog').open||!$('#rrca-help-dialog p').textContent.includes('reasoning'))throw Error('English help');
+                            I.setLanguage('es');
+                            if(!$('#rrca-help-dialog p').textContent.includes('razonamiento'))throw Error('Spanish open help');
+                            if(!$('[data-page=settings]').textContent.includes('IA y radio'))throw Error('Spanish navigation');
+                            $('#rrca-help-dialog button').click();
+                            if(document.activeElement!==help)throw Error('Help focus not restored');
+                            if($('[data-setting=driverNickname]').value!=='Unsaved nickname'||$('[data-setting=driverName]').value!==before)throw Error('Input was reset');
+                            if($('#rrca-quote').textContent!=='Eigener Funktext mit Fahrername')throw Error('Radio was translated');
+                            if(localStorage.getItem('rrca.uiLanguage')!=='es')throw Error('Language not saved');
+                            const ids=[...document.querySelectorAll('[id]')].map(x=>x.id);
+                            if(new Set(ids).size!==ids.length)throw Error('Duplicate DOM IDs');
+                            if(document.querySelectorAll('label .help-button').length)throw Error('Help nested in label');
+                            if(document.querySelectorAll('.schedule-row').length!==10||document.querySelector('.schedule-row').children.length!==5)throw Error('Schedule columns changed');
+                            const count=document.querySelectorAll('[data-help]').length;
+                            if(count<35)throw Error('Help coverage too small: '+count);
+                            I.setLanguage('de');$('[data-setting=driverNickname]').value='';
+                            return 'languages=3; help='+count+'; inputs=preserved; radio=preserved'; } catch(e){return 'ERROR: '+e.message+' '+e.stack;}
+                        })()");
+                        StringAssert.Contains("languages=3",check);TestContext.WriteLine(check);
+                        string shotDir=System.IO.Path.GetDirectoryName(Environment.GetEnvironmentVariable("RRCA_SHOT"));
+                        if(!string.IsNullOrEmpty(shotDir))
+                            foreach(string lang in new[]{"de","en","es"})
+                                foreach(string page in new[]{"cockpit","team","settings"})
+                                {
+                                    await web.CoreWebView2.ExecuteScriptAsync("window.RRCAI18n.setLanguage('"+lang+"');document.querySelector('[data-page="+page+"]').click();window.scrollTo(0,0)");
+                                    using(var stream=System.IO.File.Create(System.IO.Path.Combine(shotDir,"ui-"+lang+"-"+page+".png")))
+                                        await web.CoreWebView2.CapturePreviewAsync(Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png,stream);
+                                }
+                        await web.CoreWebView2.ExecuteScriptAsync("window.RRCAI18n.setLanguage('de');document.querySelector('[data-page=cockpit]').click()");
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-cmd=openReadmeEn]').click()");
+                        await System.Threading.Tasks.Task.Delay(150);
+                        string doc=await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-help-dialog').open+'|'+document.querySelector('#rrca-help-dialog h2').textContent+'|'+document.querySelector('#rrca-help-dialog p').textContent");
+                        StringAssert.Contains("true|README_EN.md",doc);StringAssert.Contains("Unofficial",doc);
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-help-dialog button').click()");
+                        liveTimer.Start();
+                        profileStage=7;
+                    }
                     // Die Datenquelle gilt nur 3 s, die Schritte davor dauern länger
                     GameDataConnectionStatus.Record("RaceRoom", DateTime.UtcNow);
                     typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);

@@ -110,14 +110,14 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Use only after a same-rival on-track pass has been confirmed.</summary>
-        public static string Overtake(int confirmedPassCount, int position, string driverName, bool classRank = false)
+        public static string Overtake(int confirmedPassCount, int position, string driverName, bool classRank = false, int firstVariant = 0)
         {
             if (confirmedPassCount <= 0 || position <= 0) return null;
             string name = new string((driverName ?? "Rob").Where(c => char.IsLetter(c) || c == ' ' || c == '-').Take(30).ToArray()).Trim();
             if (name.Length == 0) name = "Rob";
             var catalog = RadioPhraseCatalog.Current;
             string rank = position + (classRank ? " in deiner Klasse" : "");
-            return confirmedPassCount == 1 ? catalog.Format("pass-first", 0, rank, name) :
+            return confirmedPassCount == 1 ? catalog.Format("pass-first", firstVariant, rank, name) :
                 catalog.Format("pass-repeat", confirmedPassCount - 2, rank);
         }
 

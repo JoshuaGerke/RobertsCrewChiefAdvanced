@@ -186,8 +186,12 @@ namespace CrewChiefV4.AiTeam
                     Directory.CreateDirectory(LiveDiagnostics.DefaultFolder);
                     System.Diagnostics.Process.Start("explorer.exe", "\"" + LiveDiagnostics.DefaultFolder + "\"");
                     break;
-                case "openNotes":
-                    System.Diagnostics.Process.Start("https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/blob/main/HINWEISE_UND_DANK.md");
+                case "openReadmeDe": OpenLocalNotice("README_DE.md"); break;
+                case "openReadmeEn": OpenLocalNotice("README_EN.md"); break;
+                case "openNotes": OpenLocalNotice("HINWEISE_UND_DANK.md"); break;
+                case "setSendNames":
+                    SaveProperty("enable_ai_team_send_driver_names", (bool)m["on"]);
+                    Post(BuildInit());
                     break;
                 case "toggleRun":
                     if (MainWindow.instance != null) MainWindow.instance.startApplicationButton_Click(this, EventArgs.Empty);
@@ -244,6 +248,15 @@ namespace CrewChiefV4.AiTeam
             else Notice("Gespeichert. Bitte Crew Chief einmal von Hand neu starten.");
         }
 
+        private void OpenLocalNotice(string name)
+        {
+            // Only fixed, code-owned document names reach here; never accept a WebView path.
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, name);
+            if (File.Exists(path) && new FileInfo(path).Length<=512*1024)
+                Post(new JObject {["type"]="document",["title"]=name,["text"]=File.ReadAllText(path)});
+            else Notice("Dokument nicht im Paket gefunden: " + name);
+        }
+
         private static void ShowMainWindow()
         {
             var main = MainWindow.instance;
@@ -287,6 +300,7 @@ namespace CrewChiefV4.AiTeam
                 ["microphone"] = s.Microphone ?? "",
                 ["ptt"] = "Controller-Aktion „KI-Team anfunken“" + (string.IsNullOrEmpty(s.PttKey) ? "" : " oder Taste " + s.PttKey),
                 ["radioEffect"] = s.RadioEffect,
+                ["sendDriverNames"] = service.Settings.SendDriverNames,
                 ["memoryEnabled"] = service.Settings.PersistentMemory,
                 ["memoryStatus"] = DriverMemory.Status,
                 ["memoryFolder"] = DriverMemory.Folder,

@@ -7087,7 +7087,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("JBFqnCBsd6RMkjVDRZzb")]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string ai_team_elevenlabs_voice_ben {
             get {
                 return ((string)(this["ai_team_elevenlabs_voice_ben"]));
@@ -7099,7 +7099,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("nPczCjzI2devNBz1zQrb")]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string ai_team_elevenlabs_voice_mik {
             get {
                 return ((string)(this["ai_team_elevenlabs_voice_mik"]));
@@ -7111,7 +7111,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("EXAVITQu4vr4xnSDxMaL")]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string ai_team_elevenlabs_voice_sara {
             get {
                 return ((string)(this["ai_team_elevenlabs_voice_sara"]));
@@ -7207,7 +7207,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Rob")]
+        [global::System.Configuration.DefaultSettingValueAttribute("Fahrer")]
         public string ai_team_driver_name {
             get {
                 return ((string)(this["ai_team_driver_name"]));
@@ -7299,7 +7299,7 @@ namespace CrewChiefV4.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool enable_ai_team_send_driver_names {
             get {
                 return ((bool)(this["enable_ai_team_send_driver_names"]));

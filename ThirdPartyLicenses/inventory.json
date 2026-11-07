@@ -1,0 +1,528 @@
+{
+  "packages": [
+    {
+      "package": "FuzzySharp",
+      "version": "2.0.2",
+      "metadata": {
+        "authors": "Jacob Bayer",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/JakeBayer/FuzzySharp"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "InputSimulatorPlus",
+      "version": "1.0.7",
+      "metadata": {
+        "authors": "Michael Noonan, Theodoros Chatzigiannakis",
+        "licenseUrl": "https://opensource.org/licenses/MS-PL",
+        "projectUrl": "https://github.com/TChatzigiannakis/InputSimulatorPlus",
+        "copyright": "Copyright 2009-2018"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "InSimDotNet",
+      "version": "2.9.4.1",
+      "metadata": {
+        "authors": "AlexMcBride",
+        "license": "license.txt",
+        "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+        "projectUrl": "https://github.com/alexmcbride/insimdotnet/"
+      },
+      "included_notices": [
+        "InSimDotNet-2.9.4.1-license.txt"
+      ]
+    },
+    {
+      "package": "MathNet.Numerics",
+      "version": "4.8.1",
+      "metadata": {
+        "authors": "Christoph Ruegg, Marcus Cuda, Jurgen Van Gael",
+        "licenseUrl": "https://numerics.mathdotnet.com/License.html",
+        "projectUrl": "https://numerics.mathdotnet.com/",
+        "copyright": "Copyright Math.NET Project"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "Microsoft.Bcl.AsyncInterfaces",
+      "version": "8.0.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "Microsoft.Bcl.AsyncInterfaces-8.0.0-LICENSE.TXT",
+        "Microsoft.Bcl.AsyncInterfaces-8.0.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "Microsoft.Web.WebView2",
+      "version": "1.0.2535.41",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "LICENSE.txt",
+        "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+        "projectUrl": "https://aka.ms/webview",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "Microsoft.Web.WebView2-1.0.2535.41-LICENSE.txt",
+        "Microsoft.Web.WebView2-1.0.2535.41-NOTICE.txt"
+      ]
+    },
+    {
+      "package": "Microsoft.Win32.Registry",
+      "version": "4.7.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/dotnet/corefx",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "Microsoft.Win32.Registry-4.7.0-LICENSE.TXT",
+        "Microsoft.Win32.Registry-4.7.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "MQTTnet",
+      "version": "3.1.2",
+      "metadata": {
+        "authors": "The contributors of MQTTnet",
+        "license": "LICENSE",
+        "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+        "projectUrl": "https://github.com/chkr1011/MQTTnet",
+        "copyright": "Copyright Christian Kratky 2016-2021"
+      },
+      "included_notices": [
+        "MQTTnet-3.1.2-LICENSE"
+      ]
+    },
+    {
+      "package": "NAudio",
+      "version": "2.0.1",
+      "metadata": {
+        "authors": "Mark Heath & Contributors",
+        "license": "license.txt",
+        "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": [
+        "NAudio-2.0.1-license.txt"
+      ]
+    },
+    {
+      "package": "NAudio.Asio",
+      "version": "2.0.0",
+      "metadata": {
+        "authors": "Mark Heath",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "NAudio.Core",
+      "version": "2.0.0",
+      "metadata": {
+        "authors": "Mark Heath",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "NAudio.Midi",
+      "version": "2.0.1",
+      "metadata": {
+        "authors": "Mark Heath",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "NAudio.Wasapi",
+      "version": "2.0.0",
+      "metadata": {
+        "authors": "Mark Heath",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "NAudio.WinForms",
+      "version": "2.0.1",
+      "metadata": {
+        "authors": "Mark Heath",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "NAudio.WinMM",
+      "version": "2.0.1",
+      "metadata": {
+        "authors": "NAudio.WinMM",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/naudio/NAudio",
+        "copyright": "© Mark Heath 2021"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "Newtonsoft.Json",
+      "version": "13.0.3",
+      "metadata": {
+        "authors": "James Newton-King",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://www.newtonsoft.com/json",
+        "copyright": "Copyright © James Newton-King 2008"
+      },
+      "included_notices": [
+        "Newtonsoft.Json-13.0.3-LICENSE.md"
+      ]
+    },
+    {
+      "package": "Phonix",
+      "version": "1.0.2",
+      "metadata": {
+        "authors": "eldersantos",
+        "licenseUrl": "https://github.com/eldersantos/phonix/blob/master/License.md",
+        "projectUrl": "http://eldersantos.github.io/phonix/"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "RestSharp",
+      "version": "112.1.0",
+      "metadata": {
+        "authors": ".NET Foundation and Contributors",
+        "license": "Apache-2.0",
+        "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+        "projectUrl": "https://restsharp.dev/"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "Serilog",
+      "version": "3.1.1",
+      "metadata": {
+        "authors": "Serilog Contributors",
+        "license": "Apache-2.0",
+        "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+        "projectUrl": "https://serilog.net/",
+        "copyright": "Copyright © 2013-23 Serilog Contributors"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "SharpDX",
+      "version": "4.2.0",
+      "metadata": {
+        "authors": "Alexandre Mutel",
+        "licenseUrl": "http://sharpdx.org/License.txt",
+        "projectUrl": "http://sharpdx.org/",
+        "copyright": "Copyright (c) 2010-2016 Alexandre Mutel"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "SharpDX.Direct2D1",
+      "version": "4.2.0",
+      "metadata": {
+        "authors": "Alexandre Mutel",
+        "licenseUrl": "http://sharpdx.org/License.txt",
+        "projectUrl": "http://sharpdx.org/",
+        "copyright": "Copyright (c) 2010-2016 Alexandre Mutel"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "SharpDX.Direct3D11",
+      "version": "4.2.0",
+      "metadata": {
+        "authors": "Alexandre Mutel",
+        "licenseUrl": "http://sharpdx.org/License.txt",
+        "projectUrl": "http://sharpdx.org/",
+        "copyright": "Copyright (c) 2010-2016 Alexandre Mutel"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "SharpDX.DirectInput",
+      "version": "4.2.0",
+      "metadata": {
+        "authors": "Alexandre Mutel",
+        "licenseUrl": "http://sharpdx.org/License.txt",
+        "projectUrl": "http://sharpdx.org/",
+        "copyright": "Copyright (c) 2010-2016 Alexandre Mutel"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "SharpDX.DXGI",
+      "version": "4.2.0",
+      "metadata": {
+        "authors": "Alexandre Mutel",
+        "licenseUrl": "http://sharpdx.org/License.txt",
+        "projectUrl": "http://sharpdx.org/",
+        "copyright": "Copyright (c) 2010-2016 Alexandre Mutel"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "SharpDX.Mathematics",
+      "version": "4.2.0",
+      "metadata": {
+        "authors": "Alexandre Mutel",
+        "licenseUrl": "http://sharpdx.org/License.txt",
+        "projectUrl": "http://sharpdx.org/",
+        "copyright": "Copyright (c) 2010-2016 Alexandre Mutel"
+      },
+      "included_notices": []
+    },
+    {
+      "package": "System.Buffers",
+      "version": "4.5.1",
+      "metadata": {
+        "authors": "Microsoft",
+        "licenseUrl": "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Buffers-4.5.1-LICENSE.TXT",
+        "System.Buffers-4.5.1-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Diagnostics.DiagnosticSource",
+      "version": "7.0.2",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Diagnostics.DiagnosticSource-7.0.2-LICENSE.TXT",
+        "System.Diagnostics.DiagnosticSource-7.0.2-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Memory",
+      "version": "4.5.5",
+      "metadata": {
+        "authors": "Microsoft",
+        "licenseUrl": "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Memory-4.5.5-LICENSE.TXT",
+        "System.Memory-4.5.5-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Numerics.Vectors",
+      "version": "4.5.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "licenseUrl": "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation.  All rights reserved."
+      },
+      "included_notices": [
+        "System.Numerics.Vectors-4.5.0-LICENSE.TXT",
+        "System.Numerics.Vectors-4.5.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Runtime.CompilerServices.Unsafe",
+      "version": "6.1.2",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/dotnet/maintenance-packages",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": []
+    },
+    {
+      "package": "System.Security.AccessControl",
+      "version": "4.7.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/dotnet/corefx",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Security.AccessControl-4.7.0-LICENSE.TXT",
+        "System.Security.AccessControl-4.7.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Security.Principal.Windows",
+      "version": "4.7.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://github.com/dotnet/corefx",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Security.Principal.Windows-4.7.0-LICENSE.TXT",
+        "System.Security.Principal.Windows-4.7.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Text.Encodings.Web",
+      "version": "8.0.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Text.Encodings.Web-8.0.0-LICENSE.TXT",
+        "System.Text.Encodings.Web-8.0.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Text.Json",
+      "version": "8.0.6",
+      "metadata": {
+        "authors": "Microsoft",
+        "license": "MIT",
+        "licenseUrl": "https://licenses.nuget.org/MIT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Text.Json-8.0.6-LICENSE.TXT",
+        "System.Text.Json-8.0.6-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.Threading.Tasks.Extensions",
+      "version": "4.5.4",
+      "metadata": {
+        "authors": "Microsoft",
+        "licenseUrl": "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation. All rights reserved."
+      },
+      "included_notices": [
+        "System.Threading.Tasks.Extensions-4.5.4-LICENSE.TXT",
+        "System.Threading.Tasks.Extensions-4.5.4-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "System.ValueTuple",
+      "version": "4.5.0",
+      "metadata": {
+        "authors": "Microsoft",
+        "licenseUrl": "https://github.com/dotnet/corefx/blob/master/LICENSE.TXT",
+        "projectUrl": "https://dot.net/",
+        "copyright": "© Microsoft Corporation.  All rights reserved."
+      },
+      "included_notices": [
+        "System.ValueTuple-4.5.0-LICENSE.TXT",
+        "System.ValueTuple-4.5.0-THIRD-PARTY-NOTICES.TXT"
+      ]
+    },
+    {
+      "package": "Verint.Microsoft.Speech.x64",
+      "version": "11.0.7400.345",
+      "metadata": {
+        "authors": "ladenedge",
+        "license": "Microsoft Speech Platform SDK 11 License.txt",
+        "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+        "projectUrl": "https://github.com/ladenedge/Verint.Microsoft.Speech",
+        "copyright": "Copyright 2011 Microsoft Corporation"
+      },
+      "included_notices": [
+        "Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.rtf",
+        "Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.txt"
+      ]
+    },
+    {
+      "package": "WebSocketSharp-netstandard",
+      "version": "1.0.1",
+      "metadata": {
+        "authors": "sta",
+        "licenseUrl": "https://github.com/PingmanTools/websocket-sharp/blob/master/LICENSE.txt",
+        "projectUrl": "https://github.com/PingmanTools/websocket-sharp/",
+        "copyright": "sta.blockhead"
+      },
+      "included_notices": []
+    }
+  ],
+  "downloaded_notices": [
+    {
+      "file": "FuzzySharp-MIT.txt",
+      "source": "https://raw.githubusercontent.com/JakeBayer/FuzzySharp/master/LICENSE",
+      "sha256": "83e4dd21429a91fb7cea67a476032a9641425e5355df2e0f589a738b6ec9fd2c"
+    },
+    {
+      "file": "MathNet-Numerics-LICENSE.md",
+      "source": "https://raw.githubusercontent.com/mathnet/mathnet-numerics/v4.8.1/LICENSE.md",
+      "sha256": "d7194681d9a0ab2a4ab5f4797be180f6becd891379b391583601e1b36f02eb69"
+    },
+    {
+      "file": "Phonix-License.md",
+      "source": "https://raw.githubusercontent.com/eldersantos/phonix/master/License.md",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+    },
+    {
+      "file": "WebSocketSharp-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/PingmanTools/websocket-sharp/master/LICENSE.txt",
+      "sha256": "976854c87f7c6c86d8c04f9ed70c2b2b576fdf7df6fdeeba40836173203b581c"
+    },
+    {
+      "file": "Apache-2.0.txt",
+      "source": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "AutoUpdater.NET-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/ravibpatel/AutoUpdater.NET/master/LICENSE",
+      "sha256": "9fef842a0a3dcaf2b90946c7fe7c8ea40a73c31f6a3bff6c40a78bb4c3713bb0"
+    },
+    {
+      "file": "InputSimulatorPlus-LICENSE.md",
+      "source": "https://raw.githubusercontent.com/TChatzigiannakis/InputSimulatorPlus/master/LICENSE.md",
+      "sha256": "17e62eeeaba489259c838b559c4adf4c94fe330d7f994564fc9c858968f71a44"
+    }
+  ]
+}

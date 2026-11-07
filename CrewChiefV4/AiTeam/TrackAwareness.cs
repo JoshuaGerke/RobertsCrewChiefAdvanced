@@ -13,14 +13,15 @@ namespace CrewChiefV4.AiTeam
     {
         public readonly int Id, OverallPosition, ClassPosition;
         public readonly string Key, Name;
-        internal readonly string NativeName;
+        internal readonly string NativeName, NativeNumber;
+        internal readonly int NativeCarId;
         public readonly bool InPits, SameClass, ClassComparisonKnown, SpatiallyConsistent, OnInLap, OnOutLap, LapContextKnown;
         public readonly double? X, Z, LapDistanceM, RouteGapM, WorldDistanceM, SpeedMps, ClosingMps;
         public readonly int? LapOffset;
         internal TrackCarPosition(int id, string key, OpponentData car, GameStateData own, double? x, double? z,
             double? distance, double? gap, double? worldDistance, double? closing, int? lapOffset, bool consistent)
         {
-            Id=id; Key=key; NativeName=car.DriverRawName; Name=car.CanUseName ? SafeName(car.DriverRawName) : null;
+            Id=id; Key=key; NativeName=car.DriverRawName; NativeNumber=car.CarNumber; NativeCarId=car.CostId; Name=car.CanUseName ? SafeName(car.DriverRawName) : null;
             OverallPosition=car.OverallPosition; ClassPosition=car.ClassPosition; InPits=car.InPits;
             LapContextKnown=car.getCurrentLapData()!=null; OnInLap=car.isEnteringPits(); OnOutLap=car.isOnOutLap();
             ClassComparisonKnown=own.carClass!=null && own.carClass.carClassEnum!=CarData.CarClassEnum.UNKNOWN_RACE &&
@@ -130,7 +131,7 @@ namespace CrewChiefV4.AiTeam
                 double? worldDistance=x.HasValue && ownX.HasValue && !(x==0 && z==0 && ownX==0 && ownZ==0)
                     ? (double?)Math.Sqrt(Math.Pow(x.Value-ownX.Value,2)+Math.Pow(z.Value-ownZ.Value,2)) : null;
                 bool consistent=gap.HasValue && (!worldDistance.HasValue || worldDistance<=Math.Abs(gap.Value)+20);
-                string identity=(car.DriverRawName??"")+"|"+(car.CarNumber??"");
+                string identity=(car.DriverRawName??"")+"|"+(car.CarNumber??"")+"|"+car.CostId;
                 History h;
                 if(!history.TryGetValue(pair.Key,out h) || h.Identity!=identity)
                     history[pair.Key]=h=new History{Id=++nextId,Identity=identity};

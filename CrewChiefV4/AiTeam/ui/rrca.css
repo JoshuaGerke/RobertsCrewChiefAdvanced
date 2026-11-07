@@ -82,3 +82,23 @@ html,body{margin:0;background:#0b0e10;min-height:100%}
 #rrca-design .audio-levels .level-value{position:absolute;right:0;top:0;color:var(--rr-lime);font-variant-numeric:tabular-nums}
 #rrca-design .audio-levels .note{grid-column:1/-1}
 @media(max-width:680px){#rrca-design .audio-levels{grid-template-columns:1fr}}
+
+
+/* Context help and interface language; no engine or radio timing changes. */
+.top-right{flex-wrap:wrap;gap:12px}.language-choice{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted,#a7b3b9)}
+.language-choice select{min-width:110px;padding:7px 10px;border:1px solid #344047;border-radius:6px;background:#111719;color:#edf3f5;font:inherit;font-size:13px}
+.language-note{padding:0 26px 12px;margin:0;border-bottom:1px solid #303a40}.field-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.field-caption{flex:1}
+.help-button{display:inline-flex;flex:0 0 23px;align-items:center;justify-content:center;vertical-align:middle;width:23px;height:23px;border:1px solid #647078;border-radius:50%;margin:0 5px;padding:0;background:#172025;color:#c6f236;font:700 13px Arial;cursor:pointer}
+.help-button:hover{background:#2d3b21}.help-button:focus-visible,.help-dialog button:focus-visible,.language-choice select:focus-visible{outline:3px solid #b9ef27;outline-offset:3px}
+.help-dialog{max-width:520px;width:calc(100% - 60px);border:1px solid #83934f;border-radius:12px;padding:26px;background:#131b1f;color:#f1f5f6;box-shadow:0 15px 65px #0009}
+.help-dialog::backdrop{background:#0009}.help-dialog h2{margin:0 0 14px;font-size:21px}.help-dialog p{line-height:1.65;margin:0 0 22px;font-size:15px;color:#d3dce0}.help-dialog button{float:right}
+.schedule-row>span{display:flex;align-items:center;justify-content:space-between;gap:5px}.schedule-row .help-button{flex-basis:23px}
+@media(max-width:900px){.top{flex-wrap:wrap;gap:14px}.top-right{justify-content:flex-start}.help-dialog{padding:20px}}
+
+.audio-levels .field-heading{padding-right:60px}
+
+.role-control{display:flex;align-items:center;gap:5px;white-space:nowrap}
+
+.document-dialog{max-width:900px;max-height:88vh}.document-dialog p{white-space:pre-wrap;max-height:65vh;overflow:auto;font-size:14px}.document-dialog h2{overflow-wrap:anywhere}
+
+@media(min-width:901px){.member-row{grid-template-columns:34px 150px minmax(140px,1fr) auto auto}}

@@ -254,7 +254,7 @@ namespace CrewChiefV4.AiTeam
             text = RadioPhraseCatalog.Current.Format(group, variant, subject, dative, target);
             if (text.Length > 0) text = char.ToUpper(text[0], CultureInfo.GetCultureInfo("de-DE")) + text.Substring(1);
             if (interval != null)
-                text += (ahead ? " Nach vorn " : " Nach hinten ") + interval + ".";
+                text = (ahead ? "Nach vorn " : "Nach hinten ") + interval + ". " + text;
             return text;
         }
     }

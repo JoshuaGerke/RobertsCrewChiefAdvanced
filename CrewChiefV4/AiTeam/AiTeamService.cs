@@ -830,7 +830,7 @@ namespace CrewChiefV4.AiTeam
             }
 
             // 2. Einfache Standardfragen ohne KI
-            string quick = LocalAnswers.TryAnswer(routed.Question, gs, Memory);
+            string quick = LocalAnswers.TryAnswer(routed.Question, gs, Memory, settings.SendDriverNames);
             if (quick != null)
             {
                 Stats.AddLocalAnswer();
@@ -870,6 +870,12 @@ namespace CrewChiefV4.AiTeam
                 linked = CancellationTokenSource.CreateLinkedTokenSource(driverCancel.Token);
                 linked.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
                 string answer = await AskModelAsync(routed, gs, linked.Token).ConfigureAwait(false);
+                var knownNames = (settings.SendDriverNames && gs != null ? gs.OpponentData.Values.Where(o => o != null).Select(o => o.DriverRawName) : Enumerable.Empty<string>())
+                    .Concat(new[] { settings.RadioName });
+                string cleanAnswer = RadioAnswerQuality.Clean(answer, knownNames);
+                if (cleanAnswer != answer)
+                    LiveDiagnostics.Emit("radio.answer_quality", LiveDiagnostics.Data("status", cleanAnswer == null ? "rejected" : "repaired", "reason", "language_or_incomplete_tail"));
+                answer = cleanAnswer ?? "Die Antwort war unklar. Frag bitte noch einmal.";
                 if (driverCancel.IsCancellationRequested || generation != Volatile.Read(ref sessionGeneration))
                 {
                     return null;
@@ -1442,6 +1448,10 @@ namespace CrewChiefV4.AiTeam
                     var context = call.ConfirmedPass || call.PitGain != null ? BuildContext(initialState) : null;
                     bool detailUsesNames = context != null && context.SendDriverNames;
                     string text = call.ComposeForDelivery(context, out var detailIsCurrent, pitAlreadyClaimed, TemplateReference);
+                    if(call.PreparedDetail!=null)
+                        text=call.ComposePreparedDetail(initialState,DateTime.UtcNow,candidate=>{
+                            try{return AiAudio.HasSpeechSignal(PreparedSpeech(call.Member,candidate));}catch(Exception){return false;}
+                        },out detailIsCurrent);
                     bool combinedPit = call.PitGain != null && detailIsCurrent != null;
                     Func<string, bool> valid = _ => {
                         var live = CrewChief.currentGameState;
@@ -1455,7 +1465,16 @@ namespace CrewChiefV4.AiTeam
                     };
                     if (!valid(text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid"); return; }
                     bool queued = await SpeakAsync(call.Member, text, true, CancellationToken.None, valid, true, Math.Min(10, call.Priority),
-                        () => { call.MarkPlaybackStarted(DateTime.UtcNow, combinedPit); },
+                        () => {
+                            call.MarkPlaybackStarted(DateTime.UtcNow, combinedPit);
+                            if(LiveDiagnostics.Enabled) {
+                                var live=CrewChief.currentGameState;
+                                LiveDiagnostics.Emit("race.spoken_facts",LiveDiagnostics.Data("topic",call.Topic,"text",text,
+                                    "source_utc",live==null || live.SourceTelemetryUtc==DateTime.MinValue?null:live.SourceTelemetryUtc.ToString("o"),
+                                    "opponent_front",live?.SessionData.OpponentKeyInFront,"opponent_behind",live?.SessionData.OpponentKeyBehind,
+                                    "gap_front_s",call.AheadGap>=0?(object)call.AheadGap:null,"gap_behind_s",call.BehindGap>=0?(object)call.BehindGap:null),call.EventId);
+                            }
+                        },
                         () => call.ReleaseForRetry(DateTime.UtcNow, "audio_discarded_before_playback"),
                         interrupted=>call.MarkPlaybackFinished(DateTime.UtcNow,interrupted),call.Topic,releaseRender).ConfigureAwait(false);
                     if (!queued) call.ReleaseForRetry(DateTime.UtcNow, "speech_not_queued");
@@ -1805,6 +1824,8 @@ namespace CrewChiefV4.AiTeam
         {
             if (MainWindow.instance != null && MainWindow.instance.crewChief != null && MainWindow.instance.crewChief.running)
                 return "Crew Chief zuerst regulär stoppen. Während einer laufenden Session wird kein Stimmenpaket geändert.";
+            if(settings.TtsProvider==AiTtsProvider.ELEVENLABS && string.IsNullOrWhiteSpace(settings.ElevenLabsVoiceSara))
+                return "Zuerst Saras eigene Stimme unter Team & Stimmen auswählen.";
             if (Interlocked.Exchange(ref saraPackRunning, 1) == 1)
             {
                 return "Saras Spotterpack wird bereits erzeugt.";
@@ -1937,6 +1958,9 @@ namespace CrewChiefV4.AiTeam
             if (Interlocked.CompareExchange(ref prewarmRunning, 1, 0) != 0) return "Vorbereitung läuft bereits.";
             try
             {
+                if(settings.TtsProvider==AiTtsProvider.ELEVENLABS && new[]{TeamMember.Ben,TeamMember.Mik,TeamMember.Sara}
+                    .Any(m=>settings.IsMemberEnabled(m) && string.IsNullOrWhiteSpace(settings.ElevenLabsVoiceFor(m))))
+                    return PreparedVoiceStatus="Zuerst eigene Stimmen für die aktiven Crew-Mitglieder auswählen.";
                 PreparedVoiceStatus = "Originalclips werden geprüft/vorbereitet.";
                 int ready=0, failed=0;
                 var sara = new[] { "Links frei.", "Rechts frei.", "Noch einer links.", "Noch einer rechts.", "Noch zwei links.", "Noch zwei rechts.",

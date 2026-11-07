@@ -74,6 +74,7 @@ namespace CrewChiefV4.AiTeam
             {
                 Console.WriteLine("[KI-Team] API-Schlüssel konnte nicht gelesen werden: " + e.Message);
             }
+            if(DataFiles.IsolatedRoot!=null)return null;
             foreach (string name in envVars)
             {
                 string env = Environment.GetEnvironmentVariable(name);

@@ -32,7 +32,7 @@ jobs:
 
       - name: Crew Chief + KI-Team bauen (Release)
         run: |
-          msbuild CrewChiefV4/CrewChiefV4.csproj -restore -p:Configuration=Release -p:Platform=AnyCPU -v:minimal -nologo
+          msbuild CrewChiefV4/CrewChiefV4.csproj -restore -p:Configuration=Release -p:Platform=AnyCPU -p:DebugSymbols=false -p:DebugType=None -p:Deterministic=true -v:minimal -nologo
           if ($LASTEXITCODE -ne 0) { throw 'Build fehlgeschlagen' }
 
       - name: Testprojekt bauen (Debug, wie von den Upstream-Tests verlangt)
@@ -60,7 +60,7 @@ jobs:
           ./build/package.ps1 -OutDir dist/RobertsCrewChiefAdvanced
           $out = 'dist/RobertsCrewChiefAdvanced'
           $sha = $env:GITHUB_SHA.Substring(0, 7)
-          Set-Content -Encoding UTF8 "$out/VERSION.txt" "Robert's Crew Chief Advanced – Alpha`nCommit: $env:GITHUB_SHA`nBuild: $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC`nBasis: Crew Chief V4 (MIT), siehe LICENSE_CrewChief_MIT.txt`nSounds sind nicht enthalten – sie kommen aus der normalen Crew-Chief-Installation bzw. dem Sound-Pack-Download in der App."
+          # VERSION.txt and its manifest are generated together by package.ps1; do not invalidate the hashes.
           Compress-Archive -Path "$out/*" -DestinationPath "dist/RobertsCrewChiefAdvanced-Alpha-$sha-win-x64.zip" -Force
           Copy-Item "dist/RobertsCrewChiefAdvanced-Alpha-$sha-win-x64.zip" "dist/RobertsCrewChiefAdvanced.zip"
 

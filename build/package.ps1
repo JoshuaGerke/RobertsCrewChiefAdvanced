@@ -1,6 +1,8 @@
 param(
     [string]$OutDir = "dist/RobertsCrewChiefAdvanced",
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [switch]$PublicDistribution,
+    [string]$Version = "v0.9-alpha3"
 )
 # Stellt das Programmverzeichnis so zusammen wie der Original-Installer (CrewChiefV4_installer.wixproj, BeforeBuild):
 # Build-Ausgabe plus Datenordner und Standarddateien, die Crew Chief neben der exe erwartet.
@@ -14,13 +16,32 @@ $bin = Join-Path $src "bin/$Configuration"
 $OutDir = [IO.Path]::GetFullPath($OutDir)
 if (Test-Path -LiteralPath $OutDir) { throw "Ziel existiert bereits; zum Schutz vorhandener Dateien einen neuen Paketordner angeben: $OutDir" }
 New-Item -ItemType Directory -Path $OutDir | Out-Null
-foreach ($file in Get-ChildItem -LiteralPath $bin -Recurse -File) {
-    if ($file.Extension -in '.pdb','.wav','.bin','.zip','.log','.jsonl' -or $file.Name -like '.env*') { continue }
-    $relative = $file.FullName.Substring($bin.Length + 1)
-    if ($relative -match '(?i)(^|[\\/])(cache|voicecache|logs|userdata)([\\/]|$)') { continue }
+# Production allowlist: never sweep a developer's bin directory into a public archive.
+foreach ($relative in Get-Content -LiteralPath (Join-Path $PSScriptRoot 'runtime-files.txt')) {
+    if ([string]::IsNullOrWhiteSpace($relative) -or $relative.StartsWith('#')) { continue }
+    $file = [IO.Path]::GetFullPath((Join-Path $bin $relative))
+    if (-not $file.StartsWith([IO.Path]::GetFullPath($bin) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw "Ungültiger Runtime-Pfad" }
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Runtime fehlt: $relative" }
     $destination = Join-Path $OutDir $relative
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
-    Copy-Item -LiteralPath $file.FullName -Destination $destination
+    Copy-Item -LiteralPath $file -Destination $destination
+}
+$ui = Join-Path $OutDir 'AiTeam/ui'
+New-Item -ItemType Directory -Force -Path (Join-Path $ui 'fonts') | Out-Null
+foreach ($name in 'rrca.html','rrca.css','rrca.js','rrca.i18n.js','logo.jpg') {
+    Copy-Item -LiteralPath (Join-Path $src "AiTeam/ui/$name") -Destination (Join-Path $ui $name)
+}
+foreach ($font in Get-ChildItem -LiteralPath (Join-Path $src 'AiTeam/ui/fonts') -File) {
+    if ($font.Extension -eq '.woff2' -or $font.Name -like '*OFL.txt') { Copy-Item -LiteralPath $font.FullName -Destination (Join-Path $ui "fonts/$($font.Name)") }
+}
+Copy-Item -LiteralPath (Join-Path $src 'AiTeam/Rennfunk.de.json') -Destination (Join-Path $OutDir 'Rennfunk.de.json')
+if ($PublicDistribution) {
+    $config = Join-Path $OutDir 'CrewChiefV4.exe.config'
+    $text = [IO.File]::ReadAllText($config)
+    $pattern = '(<add\s+key="RRCAStandaloneData"\s+value=")false("\s*/>)'
+    if ([regex]::Matches($text,$pattern).Count -ne 1) { throw 'Standalone-Schalter fehlt oder ist nicht eindeutig' }
+    $text = [regex]::Replace($text,$pattern,'${1}true${2}')
+    [IO.File]::WriteAllText($config,$text,[Text.UTF8Encoding]::new($false))
 }
 
 foreach ($folder in 'plugins', 'Resources') {
@@ -37,16 +58,26 @@ foreach ($file in 'help.txt', 'Newtonsoft_Json_licence.txt', 'SharpDX_licence.tx
     Copy-Item -Force (Join-Path $root $file) (Join-Path $OutDir $file)
 }
 Copy-Item -Force (Join-Path $root 'LICENSE') (Join-Path $OutDir 'LICENSE_CrewChief_MIT.txt')
-Copy-Item -Force (Join-Path $root 'HINWEISE_UND_DANK.md') (Join-Path $OutDir 'HINWEISE_UND_DANK.md')
-Copy-Item -Force (Join-Path $root 'docs/ANLEITUNG_KI-TEAM.md') (Join-Path $OutDir 'ANLEITUNG_KI-TEAM.md')
-
-# Fachliche Änderungen gehören in beide lokalen und CI-Testpakete, ohne private Aufzeichnungen.
-foreach ($note in 'AENDERUNGEN_LIVEFIXES_v0.7.md', 'AENDERUNGEN_GEDAECHTNIS_WETTER_v0.7.md', 'AENDERUNGEN_RGDUNK_v0.8.md', 'AENDERUNGEN_v0.8_AUDIOFIX.md', 'AENDERUNGEN_v0.8_AUDIOREGLER.md', 'AENDERUNGEN_v0.8_RENNINTELLIGENZ.md', 'AENDERUNGEN_v0.8_SPIELERKENNUNG.md', 'AENDERUNGEN_v0.8_TESTKANDIDAT_BOXENFUNK.md', 'RECHERCHE_RENNFUNK_AUSBAU_20261101.md', 'AENDERUNGEN_v0.8_ALPHA7_RENNBEOBACHTUNG.md', 'AENDERUNGEN_v0.8_ARBEITSMAPPE_TEST1.md', 'AENDERUNGEN_v0.8_NATIVE_EREIGNISSE.md', 'AENDERUNGEN_v0.8_NATIVE_VORFAELLE.md', 'AENDERUNGEN_v0.8_PR14_TEST1.md') {
-    if (Test-Path -LiteralPath (Join-Path $root $note)) { Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note) }
+foreach ($note in 'README_DE.md','README_EN.md','HINWEISE_UND_DANK.md','FREEWARE_PRUEFUNG.md','THIRD_PARTY_NOTICES.md','TESTSTATUS_ALPHA3.md','AENDERUNGEN_v0.9_ALPHA3.md') {
+    Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note)
 }
+Copy-Item -LiteralPath (Join-Path $root 'ThirdPartyLicenses') -Destination (Join-Path $OutDir 'ThirdPartyLicenses') -Recurse
 
 # Selbstprüfung: diese Dateien müssen im Paket liegen
-foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt')) {
+foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt', 'AiTeam/ui/rrca.i18n.js', 'Rennfunk.de.json', 'README_DE.md', 'README_EN.md')) {
     if (-not (Test-Path (Join-Path $OutDir $required))) { throw "Paket unvollständig: $required fehlt" }
 }
-Write-Output "Paket zusammengestellt: $OutDir"
+# Generated proof contains relative names only. Credentials and personal runtime data are never package inputs.
+$files = @(Get-ChildItem -LiteralPath $OutDir -Recurse -File)
+foreach ($file in $files) {
+    if ($file.Extension -in '.pdb','.wav','.bin','.zip','.log','.jsonl','.pcm' -or $file.Name -like '.env*' -or
+        ($file.Extension -eq '.exe' -and $file.Name -ne 'CrewChiefV4.exe')) { throw "Unzulässige Paketdatei: $($file.Name)" }
+}
+$commit = (& git -C $root rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[a-f0-9]{40}$') { throw 'Quellcommit nicht ermittelbar' }
+[IO.File]::WriteAllText((Join-Path $OutDir 'VERSION.txt'),"Version: $Version`r`nCommit: $commit`r`nStandaloneData: $([bool]$PublicDistribution)`r`n",[Text.UTF8Encoding]::new($false))
+$manifest = @(Get-ChildItem -LiteralPath $OutDir -Recurse -File | ForEach-Object {
+    [ordered]@{path=$_.FullName.Substring($OutDir.Length+1).Replace('\','/');bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
+})
+ConvertTo-Json -InputObject $manifest -Depth 3 | Set-Content -LiteralPath (Join-Path $OutDir 'PAKET_MANIFEST.json') -Encoding utf8
+Write-Output "Paket zusammengestellt: $OutDir; Runtime-Positivliste, keine Replay-/Testprogramme."
