@@ -24,6 +24,7 @@ namespace CrewChiefV4.AiTeam
         public CornerCoach Corners;
         public TrackAwareness Tracks;
         public LocalTemplateReference RadioReference;
+        public RaceReader Reader;
 
         public double TelemetryAgeSeconds
         {
@@ -41,7 +42,7 @@ namespace CrewChiefV4.AiTeam
 
         public static readonly string[] AllToolNames =
         {
-            "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
+            "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
         };
 
@@ -60,6 +61,10 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_pit_info", "Boxenfenster, Pflichtstopp, eigene Stopps, Boxengasse, Gegner die gerade stoppen."));
             tools.Add(Tool("get_damage_and_engine", "Schäden (Aero, Motor, Getriebe, Aufhängung, Bremsen), Motortemperaturen und Warnungen."));
             tools.Add(Tool("get_track_conditions", "Aktuelle Luft-/Streckentemperatur, Regen, Wind, gemeldete Nässe und bestätigte Spiel-/Servervorhersagen mit Quelle, Alter und Wahrscheinlichkeit. Fehlende Prognose bleibt unbekannt."));
+            tools.Add(Tool("get_race_reader", "Verdichtetes Live-Lagebild mit Fahrerbelastung, geprüften Drei-Runden- und Sektorvergleichen, Spritbilanz, Verschleißregression und Wetterverlauf. Ursachen nicht aus Messreihen erfinden.",
+                new JObject { ["type"] = "object", ["properties"] = new JObject {
+                    ["after_revision"] = new JObject { ["type"] = "integer", ["minimum"] = 0 }
+                }, ["additionalProperties"] = false }));
             tools.Add(Tool("get_stint_analysis", "Runde-für-Runde-Verlauf dieses Stints: Rundenzeit, Spritverbrauch, Reifenverschleiß, Reifentemperaturspitzen, Abstände. Für Trends und Prognosen."));
             tools.Add(Tool("get_corner_analysis", "Kurve für Kurve: letzte gültige Runde gegen die eigene Bestrunde – Zeitverlust, Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt. Für Fahrercoaching (\"wo verliere ich Zeit\", \"wie fahre ich Kurve X\")."));
             tools.Add(Tool("get_recent_events", "Was in den letzten Minuten passiert ist (Positionswechsel, Gegner an der Box, Flaggen, Kontakte) und was das Team zuletzt gefunkt hat."));
@@ -102,6 +107,21 @@ namespace CrewChiefV4.AiTeam
         public static JObject Execute(string toolName, RaceDataContext ctx, string arguments)
         {
             if (toolName == "get_race_field" || toolName == "get_opponent") return RaceFieldTools.Read(toolName, ctx, arguments);
+            if (toolName == "get_race_reader")
+            {
+                try
+                {
+                    if ((arguments ?? "").Length > 2048) return new JObject { ["fehler"] = "Zu große Werkzeugargumente." };
+                    var args = JObject.Parse(string.IsNullOrWhiteSpace(arguments) ? "{}" : arguments);
+                    if (args.Properties().Any(p => p.Name != "after_revision") ||
+                        args["after_revision"] != null && (args["after_revision"].Type != JTokenType.Integer ||
+                            (long)args["after_revision"] < 0 || (long)args["after_revision"] > int.MaxValue))
+                        return new JObject { ["fehler"] = "Ungültige Revision." };
+                    return ctx?.Reader?.Read(ctx, (int?)args["after_revision"]) ?? new JObject { ["verfuegbar"] = false };
+                }
+                catch (Exception e) when (e is Newtonsoft.Json.JsonException || e is OverflowException)
+                { return new JObject { ["fehler"] = "Ungültige Werkzeugargumente." }; }
+            }
             try
             {
                 if ((arguments ?? "").Length > 2048 || JObject.Parse(string.IsNullOrWhiteSpace(arguments) ? "{}" : arguments).Count != 0)
@@ -128,6 +148,7 @@ namespace CrewChiefV4.AiTeam
             {
                 switch (toolName)
                 {
+                    case "get_race_reader": data = ctx.Reader?.Read(ctx) ?? new JObject { ["verfuegbar"] = false }; break;
                     case "get_driver_history": data = DriverMemory.HistoricalFacts(ctx); break;
                     case "get_data_capabilities": data = TelemetryCapabilities.Describe(ctx); break;
                     case "get_race_state": data = RaceState(ctx, missing); break;
@@ -677,6 +698,7 @@ namespace CrewChiefV4.AiTeam
             o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
             o["streckenlage"] = TrackAwareness.Read(ctx);
+            if (ctx.Reader != null) o["rennbeobachtung"] = ctx.Reader.Read(ctx);
             var s = ctx.GameState.SessionData;
             var gapAhead = ReadGap(ctx, Neighbour(ctx.GameState, true), true);
             var gapBehind = ReadGap(ctx, Neighbour(ctx.GameState, false), false);

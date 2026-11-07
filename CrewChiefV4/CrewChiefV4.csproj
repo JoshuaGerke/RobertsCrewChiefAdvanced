@@ -245,6 +245,8 @@
     <Compile Include="Audio\SoundPackVersionsHelper.cs" />
     <Compile Include="Audio\Sounds.cs" />
     <Compile Include="AiTeam\AiAudio.cs" />
+    <Compile Include="AiTeam\DriverWorkload.cs" />
+    <Compile Include="AiTeam\RaceReader.cs" />
     <Compile Include="AiTeam\GameDataConnectionStatus.cs" />
     <Compile Include="AiTeam\DriverMemory.cs" />
     <Compile Include="AiTeam\WeatherWatch.cs" />

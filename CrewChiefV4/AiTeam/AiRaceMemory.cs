@@ -15,6 +15,8 @@ namespace CrewChiefV4.AiTeam
         public float FuelUsed = -1;          // -1 = unbekannt (z. B. nachgetankt)
         public float[] TyreWear;             // FL, FR, RL, RR in %, null = vom Spiel nicht geliefert
         public float[] PeakTyreTemps;        // FL, FR, RL, RR in °C, null = nicht geliefert
+        public float[] SectorTimes;
+        public string FrontIdentity, BehindIdentity;
         public float GapAhead = -1;
         public RaceGapKind GapAheadKind = RaceGapKind.Unknown, GapBehindKind = RaceGapKind.Unknown;
         public float GapBehind = -1;
@@ -123,6 +125,14 @@ namespace CrewChiefV4.AiTeam
                         InPitLap = pitDuringLap,
                         RecordedUtc = nowUtc,
                     };
+                    var frontCar = RaceDataTools.Neighbour(current, true);
+                    var rearCar = RaceDataTools.Neighbour(current, false);
+                    if (frontCar != null) record.FrontIdentity = RaceReader.Identity(current.OpponentData.First(p => ReferenceEquals(p.Value, frontCar)).Key, frontCar);
+                    if (rearCar != null) record.BehindIdentity = RaceReader.Identity(current.OpponentData.First(p => ReferenceEquals(p.Value, rearCar)).Key, rearCar);
+                    var sectors = current.SessionData.PlayerLapData.LastOrDefault(l => l.LapNumber == record.LapNumber &&
+                        l.IsValid && l.LapTime > 0 && Math.Abs(l.LapTime - record.LapTime) < .1f && !l.hasMissingSectors);
+                    if (sectors != null && sectors.SectorTimes.Length == 3 && sectors.SectorTimes.All(v => v > 0 && v < 3600))
+                        record.SectorTimes = (float[])sectors.SectorTimes.Clone();
                     if (current.FuelData.FuelUseActive && current.FuelData.FuelLeft > 0)
                     {
                         record.FuelAtEnd = current.FuelData.FuelLeft;

@@ -60,7 +60,7 @@ namespace CrewChiefV4.AiTeam
             "clip_id message_name message_id priority immediate queue_length sound_key audio_backend measurement bytes samples cpu_percent working_set_bytes private_bytes " +
             "dropped queued capture_limit_bytes folder_limit_bytes segment_limit_bytes stopwatch_frequency process_id schema_version " +
             "game track car session_type phase session_seconds lap lap_valid current_lap_valid class_best_s personal_best_s cut_warnings off_racing_surface in_pit speed_mps distance_m throttle brake gear fuel_l fuel_active refuel_allowed " +
-            "gap_front_s gap_behind_s opponent_front opponent_behind position flag tyre_wear_pct tyre_temp_c tyre_wear_active " +
+            "reader_revision workload_mode workload_index input_hz pace_avg_s front_pace_delta_s rear_pace_delta_s gap_front_s gap_behind_s opponent_front opponent_behind position flag tyre_wear_pct tyre_temp_c tyre_wear_active " +
             "lap_time_s fuel_used_l fuel_per_lap_l laps_remaining time_remaining_s laps_comparable lap_times_s fuel_used_window_l " +
             "overlap_left overlap_right telemetry_age_s api_calls budget radio_mode deadline_s correlation_parent utterance_sequence " +
             "prompt_tokens completion_tokens finish_reason reasoning_tokens content_chars completion_limit sample_count input_ticks duplicate late silence_s source trigger result " +

@@ -26,7 +26,7 @@ namespace CrewChiefV4.AiTeam
                 PitWallStyle +
                 (longAnswersAllowed
                     ? "Der Fahrer steht gerade, du darfst ausführlicher erklären (höchstens fünf kurze Sätze).\n"
-                    : "Der Fahrer ist auf der Strecke: ein bis zwei kurze Sätze, höchstens etwa 25 Wörter.\n") +
+                    : "Der Fahrer ist auf der Strecke: ein bis zwei kurze Sätze, höchstens achtzehn Wörter.\n") +
                 "- Keine Chatbot-Floskeln (nicht mit \"Natürlich\", \"Gerne\", \"Klar doch\" anfangen), nenne nicht deinen eigenen Namen, keine Aufzählungen, kein Markdown.\n" +
                 "- Zahlen und technische Zustände NUR aus den gelieferten Daten oder Werkzeugen. Niemals schätzen oder erfinden. " +
                 "Fehlt ein Wert (siehe \"nicht_verfuegbar\") oder sind die Daten \"veraltet\", sag das kurz und ehrlich.\n" +
@@ -48,6 +48,7 @@ namespace CrewChiefV4.AiTeam
                 "- Nutze den bisherigen Gesprächsverlauf für Anschlussfragen, aber verlass dich bei Zahlen immer auf die aktuellen Daten.\n" +
                 "- Sprich wie GT3-/Formel-Rennfunk: zuerst die relevante Beobachtung, dann höchstens EINE klare Maßnahme. Kein künstliches Pathos, kein Coaching-Klischee.\n" +
                 "- Funkdisziplin: kein Fülltext, keine sich wiederholenden Bestätigungen und keine Pseudo-Gewissheit. Eine gute Funkpause ist besser als eine belanglose Meldung.\n" +
+                "- Prüfe die tatsächlich gesprochenen Meldungen der letzten neunzig Sekunden. Gleiche Warnung nur bei neuer kritischer Eskalation wiederholen. Lokal priorisierte Sicherheitswarnungen verwaltet die Anwendung.\n" +
                 "- Trennt Messwert, Trend, Interpretation und Empfehlung. Behaupte niemals, Verkehr, Reifenverschleiß oder Setup hätten eine Rundenzeit verursacht, wenn dies nicht belegt ist.\n" +
                 "- Bei Safety-Car, Flagge, Verkehr und Boxenprozeduren haben lokale Warnungen Vorrang; du machst keine Spotter-Durchsagen.\n\n";
 
@@ -95,11 +96,15 @@ namespace CrewChiefV4.AiTeam
             "Kein 'Ich habe deine Daten analysiert', kein Smalltalk, kein allgemeines Lob und keine Aufzählung von Zahlen. " +
             "Wiederhole keinen bereits gefunkten Punkt. Ursachen nur nennen, wenn sie direkt belegt sind. " +
             "Niemals Überholchance, Reifenabbau, Boxenfenster oder Sparziel behaupten, die aus den Daten nicht folgen. " +
+            "Baue die Meldung aus einer optionalen passenden Reaktion, dem belegten Befund und höchstens einer begründeten Konsequenz. " +
+            "Variiere den Wortlaut anhand der tatsächlich gesprochenen letzten Meldungen. " +
+            "Gegnerreifenalter, Dirty Air, überhitzte Gegnerreifen, Gripklippe und ein Vorteil in einer bestimmten Kurve brauchen eigene Messbelege. " +
+            "Ein Geschwindigkeitsabfall allein belegt keinen Quersteher. Ein Wetter-/Mischungsvergleich belegt keine sichere Boxenentscheidung. " +
             "Streckenposition und Verkehrslage sind Momentaufnahmen, keine Zukunftsprognose. Meter sind keine Zeitabstände. " +
             "Keine behauptete Überholstelle, freie Lücke oder besseren Gegnerreifen allein aus Koordinaten ableiten. " +
             "Sara hat Sicherheitshoheit; keine Freigaben oder Seitenwarnungen. " +
             "Bei unzureichenden, veralteten oder widersprüchlichen Daten: speaker none, text leer. " +
-            "Antwort ausschließlich als JSON: {{\"speaker\":\"mik\"|\"ben\"|\"none\",\"text\":\"maximal 28 natürliche deutsche Wörter\"}}.";
+            "Antwort ausschließlich als JSON: {{\"speaker\":\"mik\"|\"ben\"|\"none\",\"text\":\"maximal 18 natürliche deutsche Wörter\"}}.";
 
         /// <summary>Optionaler Statusfunk; im Standardprofil ausgeschaltet, Ereignisfunk bevorzugt.</summary>
         public const string StatusPrompt =
@@ -109,7 +114,7 @@ namespace CrewChiefV4.AiTeam
             "Im Training übernimmt Mik saubere Pace-/Kurven-/Fahrzeugbeobachtungen; im Rennen übernimmt Ben Strategie, Tankstand, " +
             "Gegner-/Boxenereignisse, Mik die Fahrzeugtechnik. Keine Routine-Aufzählung von Position, Temperatur, Sprit und Abständen. " +
             "Kein Funk bei fehlendem Mehrwert oder Wiederholung; dann leeres Array zurückgeben. " +
-            "Keine erfundenen Zahlen, Kausalitäten oder Spotter-Freigaben. Natürliche deutsche GT3-/Formel-Funkstimme, höchstens 28 Wörter. " +
+            "Keine erfundenen Zahlen, Kausalitäten oder Spotter-Freigaben. Natürliche deutsche GT3-/Formel-Funkstimme, höchstens 18 Wörter. " +
             "Antwort ausschließlich als JSON: {{\"funksprueche\":[{{\"speaker\":\"mik\"|\"ben\",\"text\":\"...\"}}]}} " +
             "oder {{\"funksprueche\":[]}}.";
 
@@ -124,7 +129,7 @@ namespace CrewChiefV4.AiTeam
             "Qualifying statt Platz eher: Runde abbrechen oder weiter. Bei schwerem Schaden geht Sicherheit vor Position. " +
             "Nur Werte aus den Daten, nichts erfinden (das Spiel sagt z. B. nicht, ob Front- oder Heckflügel betroffen ist). " +
             "Natürliches gesprochenes Deutsch, ruhig und professionell, Zahlen wie gesprochen, kein Markdown.\n" +
-            "Antworte ausschließlich als JSON: {{\"funksprueche\": [{{\"speaker\": \"mik\", \"text\": \"höchstens 45 Wörter\"}}]}}.";
+            "Antworte ausschließlich als JSON: {{\"funksprueche\": [{{\"speaker\": \"mik\", \"text\": \"höchstens 20 Wörter\"}}]}}.";
 
         /// <summary>Begrüßung und Lagebericht beim Start einer Session (Training, Qualifying, Rennen).</summary>
         public const string SessionBriefingPrompt =
@@ -142,7 +147,7 @@ namespace CrewChiefV4.AiTeam
             "Beziehe dich auf diese konkrete Session, nicht auf generische Renntheorie. " +
             "Bei unbekanntem Standort keine Boxengasse oder Startaufstellung behaupten. " +
             "Bei fehlender Verbrauchsmessung weder Reichweite noch Tankstoppfenster nennen. Keine Zahlen ausdenken und " +
-            "keine Spotter-Warnungen. Natürliches Deutsch wie in einer echten Box, 20–40 Wörter je Sprecher. " +
+            "keine Spotter-Warnungen. Natürliches Deutsch wie in einer echten Box, im Stand höchstens drei kurze Sätze, während der Fahrt höchstens achtzehn Wörter je Sprecher. " +
             "Antwort ausschließlich als JSON: {{\"funksprueche\":[{{\"speaker\":\"mik\"|\"ben\",\"text\":\"...\"}}]}} " +
             "mit Mik zuerst und optional Ben als zweitem Sprecher.";
 

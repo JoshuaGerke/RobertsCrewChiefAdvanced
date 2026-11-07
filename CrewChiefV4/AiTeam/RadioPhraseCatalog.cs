@@ -28,6 +28,8 @@ namespace CrewChiefV4.AiTeam
             ["pass-first"] = "position|driver", ["pass-repeat"] = "position", ["pit-rival"] = "opponent",
             ["pit-gain"] = "opponent position", ["fuel-tank"] = "litres", ["fuel-range"] = "litres laps",
             ["finish-podium"] = "", ["finish-other"] = "", ["lap-best"] = "time",
+            ["pace-front-faster"] = "delta opponent", ["pace-front-slower"] = "delta opponent",
+            ["pace-rear-faster"] = "delta opponent", ["pace-rear-slower"] = "delta opponent",
             ["gap-front-close"] = "|opponent rival target", ["gap-front-increasing"] = "|opponent rival target",
             ["gap-front-decreasing"] = "|opponent rival target", ["gap-front-steady"] = "|opponent rival target",
             ["gap-rear-close"] = "|opponent rival target", ["gap-rear-increasing"] = "|opponent rival target",
@@ -121,6 +123,7 @@ namespace CrewChiefV4.AiTeam
                 case "pit": return Format("pit-rival", variant, "Müller");
                 case "pit-gain": return Format("pit-gain", variant, "Müller", "7");
                 case "fuel": return Format("fuel-range", variant, "18", "8");
+                case "pace-front-faster": return Format("pace-front-faster", variant, "0,4", "Müller");
                 case "lap-best": return Format("lap-best", variant, "2:06,073");
                 case "finish": return "Im Ziel. Platz 3. " + Format("finish-podium", variant);
                 case "pass-first": return Format("pass-first", variant, "7", SafeRivalName(driverName));

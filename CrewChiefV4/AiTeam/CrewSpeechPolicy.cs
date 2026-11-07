@@ -8,7 +8,10 @@ namespace CrewChiefV4.AiTeam
     /// This is preparation only; the existing audio queue still gives Sara exclusive safety priority.</summary>
     public sealed class RadioRenderGate
     {
-        private int regular,urgent;
+        private int regular,urgent,preparedRoutine;
+        public bool PreparedRoutineBusy => Volatile.Read(ref preparedRoutine) != 0;
+        public bool TryHoldRoutine() => Interlocked.CompareExchange(ref preparedRoutine, 1, 0) == 0;
+        public void ReleaseRoutine() => Interlocked.Exchange(ref preparedRoutine, 0);
         public bool Busy {get{return Volatile.Read(ref regular)!=0 || Volatile.Read(ref urgent)!=0;}}
         public bool UrgentBusy {get{return Volatile.Read(ref urgent)!=0;}}
         public bool TryEnter(bool urgentCall)

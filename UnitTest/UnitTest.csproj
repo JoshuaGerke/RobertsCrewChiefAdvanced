@@ -66,6 +66,7 @@
     </Compile>
     <None Include="GrammarFiles\TDD\TDD_GetGrammars.cs" />
     <Compile Include="AiTeam\AiTeamTests.cs" />
+    <Compile Include="AiTeam\RaceReaderPipelineTests.cs" />
     <Compile Include="AiTeam\RrcaFormSmokeTest.cs" />
     <Compile Include="AiTeam\RaceRadioDirectorTests.cs" />
     <Compile Include="AiTeam\LiveCrewV06Tests.cs" />
