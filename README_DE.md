@@ -66,3 +66,5 @@ Abstände sind von Gegneridentität, Klassenbezug, Zeitpunkt und Quelle abhängi
 Fehler bitte im [eigenen GitHub-Projekt](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/issues) melden: Version/Commit, Sim, Strecke, Session, genaue Uhrzeit, Erwartung/gehörte Meldung und bereinigten Logausschnitt. Keine garantierte Reaktionszeit; bitte nicht das Crew-Chief-Team für RRCA-spezifische Fehler verantwortlich machen. Beim Entfernen App schließen und nur den gewünschten RRCA-Programmordner manuell entfernen; persönliche Daten werden nicht automatisch gelöscht. Gemeinsame Ordner nie blind entfernen.
 
 Lizenzen und Danksagung: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT-Quellcodelizenz ersetzt keine Rechte an Sounds, Stimmen, Marken oder fremden Vorlagen. Vor öffentlicher Werbung die offenen Punkte in `FREEWARE_PRUEFUNG.md` klären.
+
+Direkt sichtbarer App-Hinweis: kostenloses, nichtkommerzielles Privatprojekt auf Basis von Crew Chief V4; Dank an die Entwickler, MIT-Lizenz und separate Dienstkosten. Eine zusätzliche persönliche Entwicklerfreigabe wird mangels Nachweis nicht behauptet.

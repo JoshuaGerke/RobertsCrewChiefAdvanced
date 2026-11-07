@@ -9,6 +9,8 @@
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>CrewChiefV4</RootNamespace>
+    <!-- CallerFilePath literals and debug metadata must not expose the builder's user directory. -->
+    <PathMap>$(MSBuildProjectDirectory)=/_/rrca/CrewChiefV4</PathMap>
     <AssemblyName>CrewChiefV4</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <RuntimeIdentifiers>win</RuntimeIdentifiers>
