@@ -29,6 +29,42 @@ namespace UnitTest.AiTeamTests
         [TearDown]
         public void Stop() { LiveDiagnostics.Shutdown(); }
 
+        [TestCase(SessionType.HotLap, false, false)]
+        [TestCase(SessionType.HotLap, true, false)]
+        [TestCase(SessionType.Practice, true, false)]
+        [TestCase(SessionType.Race, true, false)]
+        [TestCase(SessionType.Race, true, true)]
+        [TestCase(SessionType.Race, false, true)]
+        public void Race_reader_diagnostics_keep_absent_rivals_as_null(SessionType type, bool withWorkload, bool withFront)
+        {
+            string folder = Folder();
+            StringAssert.Contains("aktiv", LiveDiagnostics.Start(folder));
+            var now = DateTime.UtcNow;
+            var gs = new GameStateData(now.Ticks);
+            gs.Now = gs.SourceTelemetryUtc = now;
+            gs.SessionData.SessionId = 13;
+            gs.SessionData.SessionType = type;
+            gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.SessionRunningTime = 30;
+            gs.SessionData.TrackDefinition = new TrackDefinition("Imola", 4897);
+            if (withFront)
+            {
+                gs.SessionData.OpponentKeyInFront = "rival";
+                gs.OpponentData["rival"] = new OpponentData { DriverRawName = "rival", IsActive = true };
+            }
+            var context = new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = now,
+                Memory = new AiRaceMemory() };
+            var reader = new RaceReader();
+            Assert.IsTrue(reader.Observe(context, withWorkload ? new DriverWorkload() : null));
+            LiveDiagnostics.Shutdown();
+            var row = Read(folder).Single(x => (string)x["kind"] == "race.reader");
+            Assert.AreEqual(1, (int)row["data"]["reader_revision"]);
+            Assert.AreEqual(JTokenType.Null, row["data"]["front_pace_delta_s"].Type);
+            Assert.AreEqual(JTokenType.Null, row["data"]["rear_pace_delta_s"].Type);
+            Assert.AreEqual(withWorkload ? JTokenType.String : JTokenType.Null, row["data"]["workload_mode"].Type);
+            Assert.IsTrue((bool)reader.Read(context)["verfuegbar"]);
+        }
+
         [Test]
         public void Testdatenpfade_erreichen_nicht_das_Fahrprofil()
         {

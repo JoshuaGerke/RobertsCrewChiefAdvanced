@@ -82,11 +82,12 @@ namespace CrewChiefV4.AiTeam
             if (pending != null && !pending.IsValid(gs, now)) pending = null;
 
             var own = RecentOwn(context.Memory?.GetLaps(5));
+            var driverLoad = workload?.Describe(now);
             var data = new JObject {
                 ["schema"] = 1, ["revision"] = ++revision, ["gemessen_utc"] = source.ToString("o"),
                 ["session_id"] = session, ["session_typ"] = type.ToString(), ["runde"] = s.CompletedLaps,
                 ["sektor"] = s.SectorNumber, ["phase"] = s.SessionPhase.ToString(),
-                ["fahrerbelastung"] = workload?.Describe(now),
+                ["fahrerbelastung"] = driverLoad,
                 ["eigene_letzte_saubere_runden_s"] = new JArray(own.Select(l => Math.Round(l.LapTime, 3))),
                 ["interpretation"] = "Messwerte und Vergleiche. Eine Ursache oder Reifen-Gripgrenze folgt daraus nicht automatisch."
             };
@@ -103,8 +104,10 @@ namespace CrewChiefV4.AiTeam
                 ["reserve_l"] = Math.Round(balance.ReserveLitres, 2), ["quelle"] = balance.Source
             };
             ObserveTyres(gs);
-            data["klassengegner_vorne"] = Rival(context, true, own, mean);
-            data["klassengegner_hinten"] = Rival(context, false, own, mean);
+            var frontRival = Rival(context, true, own, mean);
+            var rearRival = Rival(context, false, own, mean);
+            data["klassengegner_vorne"] = frontRival;
+            data["klassengegner_hinten"] = rearRival;
             data["wetterverlauf"] = Weather(gs, now);
             data["spielvorhersage"] = WeatherWatch.ForecastData(gs.Conditions, now);
             var next = new Snapshot { Session = session, Type = type, Lap = s.CompletedLaps, Track = track,
@@ -117,11 +120,11 @@ namespace CrewChiefV4.AiTeam
             if (LiveDiagnostics.Enabled)
                 LiveDiagnostics.Emit("race.reader", LiveDiagnostics.Data("reader_revision", revision,
                     "source_utc", source.ToString("o"), "workload_mode", workload?.Mode.ToString(),
-                    "workload_index", (int?)data["fahrerbelastung"]?["belastungsindex"],
-                    "input_hz", (double?)data["fahrerbelastung"]?["gemessene_abtastrate_hz"],
+                    "workload_index", (int?)driverLoad?["belastungsindex"],
+                    "input_hz", (double?)driverLoad?["gemessene_abtastrate_hz"],
                     "pace_avg_s", mean,
-                    "front_pace_delta_s", (double?)data["klassengegner_vorne"]?["eigener_tempovorteil_s_pro_runde"],
-                    "rear_pace_delta_s", (double?)data["klassengegner_hinten"]?["eigener_tempovorteil_s_pro_runde"]));
+                    "front_pace_delta_s", (double?)frontRival?["eigener_tempovorteil_s_pro_runde"],
+                    "rear_pace_delta_s", (double?)rearRival?["eigener_tempovorteil_s_pro_runde"]));
             return true;
         }
 
