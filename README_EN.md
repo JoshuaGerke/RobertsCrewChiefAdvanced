@@ -67,4 +67,6 @@ Report RRCA issues in the [project issue tracker](https://github.com/JoshuaGerke
 
 Credits/licences: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT code permission does not cover voice recordings, sounds, marks or third-party templates. Resolve `FREEWARE_PRUEFUNG.md` before public promotion.
 
+**Microsoft Speech:** The package contains Microsoft's unmodified `Microsoft.Speech.dll` (Speech Platform SDK 11) for Crew Chief's voice commands. It remains Microsoft's property and is subject to Microsoft's licence terms (`ThirdPartyLicenses/Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.txt`). By using RRCA you agree to those terms for the DLL. In particular, you may not reverse engineer, decompile or redistribute it on its own. RRCA is not a Microsoft product and is not endorsed by Microsoft.
+
 Individual cockpit volume sliders for Ben/Mik/Sara: default 100%, multiplied by Messages; 0% mutes the member including Sara warnings. Saved per profile, applied to new calls and voice previews, no regenerated clips.
