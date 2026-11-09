@@ -87,6 +87,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete aktuell --yes --cleanup-tag 2>$null
-          $notes = "Neueste geprüfte Version (Commit $($env:GITHUB_SHA.Substring(0,7))). Download: RobertsCrewChiefAdvanced.zip – Anleitung: docs/ANLEITUNG_KI-TEAM.md"
+          $notes = "Neueste geprüfte Version (Commit $($env:GITHUB_SHA.Substring(0,7))). Download: RobertsCrewChiefAdvanced.zip – Anleitung: START_HIER_DE.md und README_DE.md im Paket"
           gh release create aktuell dist/RobertsCrewChiefAdvanced.zip --target $env:GITHUB_SHA --title "Robert's Crew Chief Advanced – neueste Version" --notes $notes --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release konnte nicht angelegt werden' }
