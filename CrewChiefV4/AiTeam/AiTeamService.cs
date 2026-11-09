@@ -35,12 +35,9 @@ namespace CrewChiefV4.AiTeam
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
         private readonly NativeTimingEvents timingEvents = new NativeTimingEvents();
-        private readonly Task<LocalTemplateReference> localTemplateReference = Task.Run<LocalTemplateReference>(() => LocalTemplateReference.LoadInstalled());
 
-        private LocalTemplateReference TemplateReference => localTemplateReference.Status == TaskStatus.RanToCompletion
-            ? localTemplateReference.Result : null;
 
-        private string ReferenceStyle(TeamMember member, string cue) => (TemplateReference?.Guidance(member, cue) ?? "") + workload.Guidance(DateTime.UtcNow);
+        private string ReferenceStyle(TeamMember member, string cue) => workload.Guidance(DateTime.UtcNow);
         private ObservedRaceCall pendingTimingDelivery;
         private readonly NativeIncidentWatch nativeIncidents = new NativeIncidentWatch();
         private readonly ThermalWatch thermalWatch = new ThermalWatch();
@@ -170,6 +167,11 @@ namespace CrewChiefV4.AiTeam
             lock (phraseCache)
             {
                 phraseCache.Clear();
+            }
+            // Nach einem Stimm- oder Anbieterwechsel die Warnclips gleich neu vorbereiten, nicht erst auf Knopfdruck
+            if (settings.Enabled && audioPlayer != null && (HasApiKey || (elevenLabs != null && elevenLabs.HasKey)))
+            {
+                PrewarmSaraPhrases();
             }
             if (settings.Enabled && audioPlayer != null)
             {
@@ -345,7 +347,7 @@ namespace CrewChiefV4.AiTeam
             }
             string lapCall = lapWatch.Evaluate(previous, current,
                 measuredFront.IsRaceGap ? measuredFront.Seconds : -1,
-                measuredRear.IsRaceGap ? measuredRear.Seconds : -1, settings.RadioMode == AiRadioMode.MINIMAL, TemplateReference);
+                measuredRear.IsRaceGap ? measuredRear.Seconds : -1, settings.RadioMode == AiRadioMode.MINIMAL);
             if (lapCall != null && (current.SessionData.SessionHasFixedTime || current.SessionData.SessionPhase != SessionPhase.Green || settings.RadioMode == AiRadioMode.MINIMAL))
             {
                 if (current.SessionData.SessionPhase == SessionPhase.Finished && current.SessionData.SessionType == SessionType.Race &&
@@ -368,7 +370,7 @@ namespace CrewChiefV4.AiTeam
                 Task.Run(() => ReportDamageAsync(damage, damageGeneration));
             }
             MaybeSessionBriefing(previous, current, now);
-            sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous, TemplateReference);
+            sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous);
             var radioPrefs = settings.RadioPreferences;
             activeRace.Observe(current, now, settings.RadioName, 0);
             radioSchedule.Observe(current, now, radioPrefs);
@@ -1417,7 +1419,7 @@ namespace CrewChiefV4.AiTeam
             // Disk access is on a worker, never the telemetry/spotter thread.
             string file = PhraseCacheFile(member, text);
             if (File.Exists(file)) { var pcm = File.ReadAllBytes(file); if (pcm.Length > 0) return pcm; }
-            throw new InvalidOperationException("Originalstimme noch nicht vorbereitet. Im KI-Team-Fenster Funkstimmen vorbereiten; keine Ersatzstimme wird verwendet.");
+            return null;
         }
 
         private bool TelemetryFresh()
@@ -1431,7 +1433,9 @@ namespace CrewChiefV4.AiTeam
         {
             int generation = Volatile.Read(ref sessionGeneration);
             bool urgentPit=RadioRenderGate.IsUrgentPit(call) || call.Priority>=7 &&
-                (call.Topic=="race-hazard-ahead" || call.Topic=="race-traffic-rear" || (call.Topic??"").StartsWith("warning-",StringComparison.Ordinal));
+                (call.Topic=="race-hazard-ahead" || call.Topic=="race-traffic-rear" ||
+                (call.Topic??"").StartsWith("warning-",StringComparison.Ordinal) && call.Topic!="warning-numeric-damage");
+            // Die Schadensmeldung mit Messwerten wird erst live gesprochen und darf Flaggen und Gefahren nicht sechs Sekunden blockieren
             if (!settings.IsMemberEnabled(call.Member) || !radioRenderGate.TryEnter(urgentPit))
             {
                 call.ReleaseForRetry(DateTime.UtcNow, "member_disabled_or_channel_busy");
@@ -1447,10 +1451,10 @@ namespace CrewChiefV4.AiTeam
                     var initialState = CrewChief.currentGameState;
                     var context = call.ConfirmedPass || call.PitGain != null ? BuildContext(initialState) : null;
                     bool detailUsesNames = context != null && context.SendDriverNames;
-                    string text = call.ComposeForDelivery(context, out var detailIsCurrent, pitAlreadyClaimed, TemplateReference);
+                    string text = call.ComposeForDelivery(context, out var detailIsCurrent, pitAlreadyClaimed);
                     if(call.PreparedDetail!=null)
                         text=call.ComposePreparedDetail(initialState,DateTime.UtcNow,candidate=>{
-                            try{return AiAudio.HasSpeechSignal(PreparedSpeech(call.Member,candidate));}catch(Exception){return false;}
+                            try{var prepared=PreparedSpeech(call.Member,candidate);return prepared!=null && AiAudio.HasSpeechSignal(prepared);}catch(Exception){return false;}
                         },out detailIsCurrent);
                     bool combinedPit = call.PitGain != null && detailIsCurrent != null;
                     Func<string, bool> valid = _ => {
@@ -1545,9 +1549,10 @@ namespace CrewChiefV4.AiTeam
                 using (var renderDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct))
                 {
                     renderDeadline.CancelAfter(TimeSpan.FromSeconds(CrewSpeechPolicy.LifetimeSeconds(localOnly, localPriority)));
+                    // Vorbereiteter Clip ohne Wartezeit; fehlt er, lieber dieselbe Stimme live erzeugen als eine Warnung verschlucken
                     pcm = (CrewSpeechPolicy.CacheOnly(localOnly, localPriority, member) ||
-                        localOnly && localPriority>=7 && CrewSpeechPolicy.IsPreparedPhrase(member,text)) ? PreparedSpeech(member, text) :
-                        await RenderAsync(member, text, renderDeadline.Token).ConfigureAwait(false);
+                        localOnly && localPriority>=7 && CrewSpeechPolicy.IsPreparedPhrase(member,text)) ? PreparedSpeech(member, text) : null;
+                    if (pcm == null) pcm = await RenderAsync(member, text, renderDeadline.Token).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -2007,7 +2012,6 @@ namespace CrewChiefV4.AiTeam
                 CrewChiefAdditionalFuelNeeded = extraFuel,
                 Corners = Corners,
                 Tracks = Tracks,
-                RadioReference = TemplateReference,
                 Reader = raceReader,
             };
         }

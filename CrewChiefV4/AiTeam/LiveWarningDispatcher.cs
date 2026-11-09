@@ -149,6 +149,9 @@ namespace CrewChiefV4.AiTeam
             foreach(var p in pending.Values.OrderByDescending(p=>p.Priority).ThenBy(p=>p.CapturedUtc))
             {
                 if(now<p.RetryAfter || !enabled(p.Member))continue;
+                // Mehrere stehende Autos am selben Unfall sind ein Vorfall, keine Ansagekette
+                if(p.Topic.StartsWith("warning-native-incident-",StringComparison.Ordinal) &&
+                    delivered.Any(d=>d.Key.StartsWith("warning-native-incident-",StringComparison.Ordinal) && now-d.Value<TimeSpan.FromSeconds(10)))continue;
                 if(p.Call==null)p.Call=new ObservedRaceCall {Topic=p.Topic,Text=p.Text,Member=p.Member,Priority=p.Priority,
                     Position=-1,SessionId=p.Session,SessionType=p.Type,CompletedLaps=p.Lap,DetectedUtc=now,
                     ExpiresUtc=now.AddSeconds(8),AdditionalValidity=p.Relevant,TimedValidity=p.TimedRelevant,Evidence=p.Evidence};

@@ -8,6 +8,6 @@ Externe KI-, Spracherkennungs- und Stimmenanbieter benötigen eigene Konten und 
 
 Nur für Rennsimulationen. Falsche, verspätete und fehlende Ansagen sind möglich. Nicht in realen Fahrzeugen oder als Sicherheitsgerät verwenden. Testnachweise: TESTSTATUS_ALPHA3.md. Echte Fahrtests bleiben erforderlich. Oberfläche DE/EN/ES; gesprochener Rennfunk derzeit deutsch.
 
-Anleitungen: README_DE.md, README_EN.md, README_ES.md und die PDF-Dateien im Hauptverzeichnis.
+Anleitungen: README_DE.md, README_EN.md und README_ES.md im Hauptverzeichnis.
 
 https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced

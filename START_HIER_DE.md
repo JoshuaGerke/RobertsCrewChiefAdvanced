@@ -11,4 +11,4 @@ RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug
 7. Cockpit: Spiel wählen/Start oder automatische Erkennung aktivieren; die Sim muss ihre Telemetrie liefern. Messages/Background und Ausgabe am Headset prüfen.
 8. Im Stand kurze Frage testen, dann kurze Fahrt. Recorder optional vor der Fahrt einschalten.
 
-Die Oberfläche ist DE/EN/ES wählbar, Rennfunk derzeit deutsch. Kein Original-CC-Update über den RRCA-Ordner installieren; originalen Crew Chief getrennt aktualisieren. Vollständige Anleitung: bebilderte PDF bei den Review-Artefakten sowie README_DE.md und README_EN.md. Rechte-/Freigabestand: FREEWARE_PRUEFUNG.md.
+Die Oberfläche ist DE/EN/ES wählbar, Rennfunk derzeit deutsch. Kein Original-CC-Update über den RRCA-Ordner installieren; originalen Crew Chief getrennt aktualisieren. Vollständige Anleitung: README_DE.md (Englisch: README_EN.md, Spanisch: README_ES.md). Rechte-/Freigabestand: FREEWARE_PRUEFUNG.md.

@@ -239,11 +239,7 @@ namespace CrewChiefV4.AiTeam
                 string name = ctx.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
                 string duration = (measurement.IsEstimated ? "ungefähr " : "") + Number(gap) + " Sekunden";
                 bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
-                bool confirmed = measurement.Kind == RaceGapKind.SimulatorTiming || measurement.Kind == RaceGapKind.InterpolatedTiming;
-                string local = confirmed && (variant & 1) == 1 ? ctx.RadioReference?.AuditedGap(ahead, name, duration, variant / 2) : null;
-                if (local != null) template = ahead ? "Carlo/talk_gap_ahead" : "Carlo/talk_gap_behind";
-                return local == null ? RaceRadioLanguage.MeasuredGap(ahead, name, duration, separate, variant / 2) :
-                    separate ? local.TrimEnd('.') + " in deiner Klasse." : local;
+                return RaceRadioLanguage.MeasuredGap(ahead, name, duration, separate, variant / 2);
             }
             if (topic == "weather")
             {
@@ -262,9 +258,7 @@ namespace CrewChiefV4.AiTeam
                 var catalog = RadioPhraseCatalog.Current;
                 if (!Good(perLap, .1, 100)) return catalog.Format("fuel-tank", variant, litres);
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
-                string local = (variant & 1) == 1 ? ctx.RadioReference?.AuditedFuel(litres + " Liter", "etwa " + laps + " Runden", variant / 2) : null;
-                if (local != null) template = "Carlo/talk_fuel";
-                return local ?? catalog.Format("fuel-range", variant, litres, laps);
+                return catalog.Format("fuel-range", variant, litres, laps);
             }
             if (topic == "tyres")
             {

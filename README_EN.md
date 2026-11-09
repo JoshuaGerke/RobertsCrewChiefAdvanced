@@ -59,7 +59,7 @@ Earlier private builds with `RRCAStandaloneData=false` keep using the original C
 
 ## Validation, limitations and support
 
-See `TESTSTATUS_ALPHA3.md` for executed checks. This build needs a live driving test. Today's RaceRoom observation used Alpha 1; Alpha 3 incorporates the findings. AMS2 and other adapters need separate live testing. Public mode does not load another installed PitCrew catalogue. The 280 own German phrases cover 21 groups, not 280 separate detection algorithms.
+See `TESTSTATUS_ALPHA3.md` for executed checks. This build needs a live driving test. Today's RaceRoom observation used Alpha 1; Alpha 3 incorporates the findings. AMS2 and other adapters need separate live testing. RRCA does not load another installed PitCrew catalogue. The 280 own German phrases cover 21 groups, not 280 separate detection algorithms.
 
 Class gaps and physically nearest vehicles are different. Estimates are marked. A closing gap alone does not prove an opponent spun or has worn tyres. Numeric hazard distance requires fresh mapped positions and an already prepared clip; otherwise use the generic warning. Some sims do not expose opponent sectors, tyre state or weather forecasts.
 
@@ -67,4 +67,4 @@ Report RRCA issues in the [project issue tracker](https://github.com/JoshuaGerke
 
 Credits/licences: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT code permission does not cover voice recordings, sounds, marks or third-party templates. Resolve `FREEWARE_PRUEFUNG.md` before public promotion.
 
-Individual cockpit volume sliders for Ben/Mik/Sara: default 100%, multiplied by Messages; 0% mutes the member including Sara warnings. Saved per profile, applied to new calls and voice previews, no regenerated clips. English and Spanish PDF READMEs are in the package root.
+Individual cockpit volume sliders for Ben/Mik/Sara: default 100%, multiplied by Messages; 0% mutes the member including Sara warnings. Saved per profile, applied to new calls and voice previews, no regenerated clips.

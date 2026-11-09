@@ -277,7 +277,6 @@
     <Compile Include="AiTeam\NativeTimingEvents.cs" />
     <Compile Include="AiTeam\RaceFactStore.cs" />
     <Compile Include="AiTeam\GermanRadioText.cs" />
-    <Compile Include="AiTeam\LocalTemplateReference.cs" />
     <Compile Include="AiTeam\RadioPhraseCatalog.cs" />
     <Compile Include="AiTeam\FuelWatch.cs" />
     <Compile Include="AiTeam\IncidentWatch.cs" />

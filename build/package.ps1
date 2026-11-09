@@ -55,7 +55,10 @@ foreach ($file in $dataFiles) {
     Copy-Item -Force (Join-Path $src $file) (Join-Path $OutDir $file)
 }
 New-Item -ItemType Directory -Force (Join-Path $OutDir 'ui_text') | Out-Null
-Copy-Item -Force (Join-Path $src 'ui_text/en.txt') (Join-Path $OutDir 'ui_text/en.txt')
+# Alle Oberflächensprachen von Crew Chief mitliefern, nicht nur Englisch
+foreach ($uiText in Get-ChildItem -LiteralPath (Join-Path $src 'ui_text') -Filter '*.txt' -File) {
+    Copy-Item -Force -LiteralPath $uiText.FullName -Destination (Join-Path $OutDir "ui_text/$($uiText.Name)")
+}
 foreach ($file in 'help.txt', 'Newtonsoft_Json_licence.txt', 'SharpDX_licence.txt', 'openvr_licence.txt', 'zlib_licence.txt') {
     Copy-Item -Force (Join-Path $root $file) (Join-Path $OutDir $file)
 }

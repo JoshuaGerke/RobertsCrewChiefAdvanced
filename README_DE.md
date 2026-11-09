@@ -68,4 +68,4 @@ Lizenzen und Danksagung: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `Thir
 
 Direkt sichtbarer App-Hinweis: kostenloses, nichtkommerzielles Privatprojekt auf Basis von Crew Chief V4; Dank an die Entwickler, MIT-Lizenz und separate Dienstkosten. Eine zusätzliche persönliche Entwicklerfreigabe wird mangels Nachweis nicht behauptet.
 
-Im Cockpit lassen sich Ben, Mik und Sara separat regeln (0-100 %, anfangs 100 %). Die allgemeine Funklautstärke wirkt zusätzlich; 0 % schaltet die Stimme einschließlich Saras Warnungen stumm. Kein Neustart oder erneutes Erzeugen von Clips nötig. Englische und spanische PDF-READMEs liegen direkt neben der EXE.
+Im Cockpit lassen sich Ben, Mik und Sara separat regeln (0-100 %, anfangs 100 %). Die allgemeine Funklautstärke wirkt zusätzlich; 0 % schaltet die Stimme einschließlich Saras Warnungen stumm. Kein Neustart oder erneutes Erzeugen von Clips nötig.

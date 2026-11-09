@@ -61,7 +61,7 @@ namespace CrewChiefV4.AiTeam
         private int pitGainSpoken;
 
         public string ComposeForDelivery(RaceDataContext context, out Func<GameStateData, DateTime, bool> detailIsCurrent,
-            bool standalonePitClaimed = false, LocalTemplateReference reference = null)
+            bool standalonePitClaimed = false)
         {
             detailIsCurrent = null;
             if (PitGain != null) ReferenceTemplate = null;
@@ -70,9 +70,7 @@ namespace CrewChiefV4.AiTeam
                 string pitRivalName = context.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(PitGain.Name) : "";
                 string position = Position.ToString(CultureInfo.InvariantCulture) + (RaceRadioLanguage.SeparateClass(context.GameState.SessionData) ? " in deiner Klasse" : "");
                 detailIsCurrent = (live, now) => PitGain.StillInPits(live);
-                string local = reference?.AuditedPitGain(pitRivalName, position, VariantCursor.Heard);
-                if (local != null) ReferenceTemplate = "Fred/position_gained_pit";
-                return local ?? RadioPhraseCatalog.Current.Format("pit-gain", VariantCursor.Heard,
+                return RadioPhraseCatalog.Current.Format("pit-gain", VariantCursor.Heard,
                     pitRivalName.Length == 0 ? "Der Vordermann" : pitRivalName, position);
             }
             // If the optional detail expires during rendering, the ordinary retry can still report the pass.

@@ -71,7 +71,7 @@ namespace CrewChiefV4.AiTeam
             return cars.Where(c => c != null && !string.IsNullOrWhiteSpace(c.DriverRawName)).Select(c => {
                 string normalized = Name(c);
                 var actual = normalized.Split(' ');
-                bool initialMatches = words.Length < 2 || words[0].Length != 1 || words[0][0] == actual[0][0];
+                bool initialMatches = words.Length < 2 || words[0].Length != 1 || actual[0].Length > 0 && words[0][0] == actual[0][0];
                 int distance = Distance(sound, SoundKey(actual.Last()));
                 return new { Car = c, Distance = distance, InitialMatches = initialMatches };
             }).Where(c => c.InitialMatches && c.Distance <= Math.Min(2, Math.Max(1, sound.Length / 3)))

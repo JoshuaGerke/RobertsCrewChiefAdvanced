@@ -57,7 +57,7 @@ jobs:
 
       - name: Paket schnüren
         run: |
-          ./build/package.ps1 -OutDir dist/RobertsCrewChiefAdvanced
+          ./build/package.ps1 -OutDir dist/RobertsCrewChiefAdvanced -PublicDistribution
           $out = 'dist/RobertsCrewChiefAdvanced'
           $sha = $env:GITHUB_SHA.Substring(0, 7)
           # VERSION.txt and its manifest are generated together by package.ps1; do not invalidate the hashes.

@@ -817,8 +817,7 @@ namespace CrewChiefV4
             StartButtonState initState()
             {
                 bool enabled = UserSettings.GetUserSettings().getBoolean("enable_auto_detect");
-                instance.autoDetectTimer.Enabled = enabled || instance._autoStartedGame != null &&
-                    UserSettings.GetUserSettings().getBoolean("enable_auto_detect_exit_cc");
+                instance.autoDetectTimer.Enabled = enabled || UserSettings.GetUserSettings().getBoolean("enable_auto_detect_exit_cc");
                 return enabled ? StartButtonState.AUTO_START : StartButtonState.START;
             }
 
@@ -3404,7 +3403,7 @@ namespace CrewChiefV4
             // Switching this preference never stops or reloads a running crew/audio session.
             if (!enabled) _autoStartedGame = null;
             autoDetectionPausedGame = null;
-            autoDetectTimer.Enabled = enabled;
+            autoDetectTimer.Enabled = enabled || user.getBoolean("enable_auto_detect_exit_cc");
             startButton?.RefreshAutoDetection();
             Log.Commentary(enabled ? "Automatic game detection enabled immediately" : "Automatic game detection disabled");
         }

@@ -24,7 +24,7 @@ namespace CrewChiefV4.AiTeam
         public static bool Supported(SessionType t)
         { return t == SessionType.Practice || t == SessionType.LonePractice || t == SessionType.Qualify || t == SessionType.PrivateQualify || t == SessionType.HotLap; }
 
-        public void Observe(GameStateData gs, LapRecord completed, DateTime now, bool names, GameStateData previous = null, LocalTemplateReference reference = null)
+        public void Observe(GameStateData gs, LapRecord completed, DateTime now, bool names, GameStateData previous = null)
         {
             if (gs == null) return;
             var s = gs.SessionData;
@@ -73,13 +73,12 @@ namespace CrewChiefV4.AiTeam
                             (!Good(classBest) || time < classBest - .01f);
                         int heard = improvements.Heard;
                         string formatted = LocalAnswers.LapTime(time);
-                        string local = improved && (heard & 1) == 1 ? reference?.AuditedBestLap(formatted, heard / 2) : null;
-                        string text = (local ?? (first ? "Erste gültige Zeit steht: " + formatted + "." :
-                            RadioPhraseCatalog.Current.Format("lap-best", heard, formatted))) + (classRecord ? " Das ist die Klassenbestzeit!" : "");
+                        string text = (first ? "Erste gültige Zeit steht: " + formatted + "." :
+                            RadioPhraseCatalog.Current.Format("lap-best", heard, formatted)) + (classRecord ? " Das ist die Klassenbestzeit!" : "");
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", race ? 5 : 4,
-                            improved ? improvements : null, local != null ? "Carlo/talk_last_lap_best" : null);
+                            improved ? improvements : null, null);
                         ownCall = true;
                     }
                     else if (!race && Good(personalBest) && time > personalBest + .01f && time - personalBest <= .30f)

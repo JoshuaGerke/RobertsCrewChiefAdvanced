@@ -5,12 +5,13 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("CrewChiefV4")]
-[assembly: AssemblyDescription("Race engineer for RaceRoom, PCars/2, rFactor/2, Le Mans Ultimate, Assetto Corsa, Assetto Corsa Competizione. Assetto Corsa Evo, Automobilista/2, iRacing, Project Notor Racing, Dirt/2 and Richard Burns Rally")]
+[assembly: AssemblyTitle("RRCA – inoffizielle KI-Crew auf Basis von Crew Chief V4")]
+[assembly: AssemblyDescription("RRCA, inoffizielle Erweiterung von Crew Chief V4. Race engineer for RaceRoom, PCars/2, rFactor/2, Le Mans Ultimate, Assetto Corsa, Assetto Corsa Competizione. Assetto Corsa Evo, Automobilista/2, iRacing, Project Notor Racing, Dirt/2 and Richard Burns Rally")]
 [assembly: AssemblyConfiguration("")]
+// Bleibt unverändert: .NET legt die Einstellungen unter diesem Namen ab, eine Änderung würde alle Profile verlieren
 [assembly: AssemblyCompany("Britton IT Ltd")]
-[assembly: AssemblyProduct("CrewChiefV4")]
-[assembly: AssemblyCopyright("Copyright © 2015-2026")]
+[assembly: AssemblyProduct("RRCA – inoffizielle Erweiterung von Crew Chief V4")]
+[assembly: AssemblyCopyright("Crew Chief V4 © 2015-2026 Britton IT Ltd (MIT); RRCA-Erweiterung © 2026 Robert und Joshua Gerke")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 [assembly: System.Windows.Media.DisableDpiAwareness]
