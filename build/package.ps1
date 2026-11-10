@@ -84,6 +84,8 @@ if ($ReadmePdfDirectory) {
     }
 }
 # Selbstprüfung: diese Dateien müssen im Paket liegen
+# Microsoft.Speech.dll darf nicht ins Paket (Weitergaberecht ungeklärt); Crew Chief nutzt dann die Windows-Spracherkennung
+if (Get-ChildItem -LiteralPath $OutDir -Recurse -Filter 'Microsoft.Speech.dll' -File) { throw 'Microsoft.Speech.dll gehört nicht ins Paket' }
 foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt', 'AiTeam/ui/rrca.i18n.js', 'Rennfunk.de.json', 'README_DE.md', 'README_EN.md')) {
     if (-not (Test-Path (Join-Path $OutDir $required))) { throw "Paket unvollständig: $required fehlt" }
 }

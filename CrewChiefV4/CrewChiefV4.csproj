@@ -105,7 +105,8 @@
     <Reference Include="Microsoft.Speech, Version=11.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\Program Files\Microsoft SDKs\Speech\v11.0\Assembly\Microsoft.Speech.dll</HintPath>
-      <Private>True</Private>
+      <!-- Nur zum Kompilieren: RRCA liefert die Microsoft-DLL nicht mit (Weitergaberecht ungeklärt) -->
+      <Private>False</Private>
     </Reference>
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="PresentationCore" />
@@ -1406,6 +1407,7 @@
     </PackageReference>
     <PackageReference Include="Verint.Microsoft.Speech.x64">
       <Version>11.0.7400.345</Version>
+      <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="WebSocketSharp-netstandard">
       <Version>1.0.1</Version>

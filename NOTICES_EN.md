@@ -4,7 +4,7 @@ RRCA is an unofficial, free, non-commercial AI extension based on Crew Chief V4 
 
 The source code licence does not grant rights to sound packs, voices, trademarks or third-party templates. Component notices: THIRD_PARTY_NOTICES.md and ThirdPartyLicenses. Open questions before public distribution: FREEWARE_PRUEFUNG.md. This alpha is not a blanket legal clearance.
 
-**Microsoft Speech:** The package contains Microsoft's unmodified `Microsoft.Speech.dll` (Speech Platform SDK 11) for Crew Chief's voice commands. It remains Microsoft's property and is subject to Microsoft's licence terms (`ThirdPartyLicenses/Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.txt`). By using RRCA you agree to those terms for the DLL. In particular, you may not reverse engineer, decompile or redistribute it on its own. RRCA is not a Microsoft product and is not endorsed by Microsoft.
+**Voice commands:** RRCA deliberately does not ship Microsoft's `Microsoft.Speech.dll`. Crew Chief's classic voice commands therefore use the Windows speech recogniser. Windows needs the matching language with speech recognition installed (Settings → Time & language → Language & region; English for the English Crew Chief commands). The AI crew (Ben, Mik, Sara) does not depend on this: it listens via its own radio button and cloud speech recognition.
 
 External AI, transcription and voice providers require your own accounts and keys; their services may cost money. Relevant racing facts, questions, selected memories, push-to-talk speech segments and spoken text may go to the selected providers. Keys are protected locally with Windows DPAPI for your user and sent to their provider for authentication. Never publish keys, private logs or voice caches.
 

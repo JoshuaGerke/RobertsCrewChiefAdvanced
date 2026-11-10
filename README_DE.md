@@ -66,7 +66,7 @@ Fehler bitte im [eigenen GitHub-Projekt](https://github.com/JoshuaGerke/RobertsC
 
 Lizenzen und Danksagung: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT-Quellcodelizenz ersetzt keine Rechte an Sounds, Stimmen, Marken oder fremden Vorlagen. Vor öffentlicher Werbung die offenen Punkte in `FREEWARE_PRUEFUNG.md` klären.
 
-**Microsoft Speech:** Das Paket enthält die unveränderte `Microsoft.Speech.dll` von Microsoft (Speech Platform SDK 11) für die Sprachbefehle von Crew Chief. Sie bleibt Eigentum von Microsoft und unterliegt deren Lizenzbedingungen (`ThirdPartyLicenses/Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.txt`). Mit der Nutzung von RRCA stimmst du diesen Bedingungen für die DLL zu. Insbesondere darfst du sie nicht zurückentwickeln, dekompilieren oder einzeln weiterverbreiten. RRCA ist kein Produkt von Microsoft und wird von Microsoft nicht unterstützt.
+**Sprachbefehle:** RRCA liefert Microsofts `Microsoft.Speech.dll` bewusst nicht mit. Die klassischen Sprachbefehle von Crew Chief nutzen deshalb die Spracherkennung von Windows. Dafür muss in Windows die passende Sprache mit Spracherkennung installiert sein (Einstellungen → Zeit und Sprache → Sprache und Region; für die englischen Crew-Chief-Befehle Englisch). Die KI-Crew (Ben, Mik, Sara) ist davon unabhängig: Sie hört über die eigene Funktaste und die Cloud-Spracherkennung zu.
 
 Direkt sichtbarer App-Hinweis: kostenloses, nichtkommerzielles Privatprojekt auf Basis von Crew Chief V4; Dank an die Entwickler, MIT-Lizenz und separate Dienstkosten. Eine zusätzliche persönliche Entwicklerfreigabe wird mangels Nachweis nicht behauptet.
 

@@ -462,21 +462,6 @@
       ]
     },
     {
-      "package": "Verint.Microsoft.Speech.x64",
-      "version": "11.0.7400.345",
-      "metadata": {
-        "authors": "ladenedge",
-        "license": "Microsoft Speech Platform SDK 11 License.txt",
-        "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
-        "projectUrl": "https://github.com/ladenedge/Verint.Microsoft.Speech",
-        "copyright": "Copyright 2011 Microsoft Corporation"
-      },
-      "included_notices": [
-        "Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.rtf",
-        "Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.txt"
-      ]
-    },
-    {
       "package": "WebSocketSharp-netstandard",
       "version": "1.0.1",
       "metadata": {

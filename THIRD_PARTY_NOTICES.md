@@ -42,7 +42,6 @@ The following inventory comes from the resolved production NuGet assets, not fro
 | System.Text.Json | 8.0.6 | MIT | System.Text.Json-8.0.6-LICENSE.TXT, System.Text.Json-8.0.6-THIRD-PARTY-NOTICES.TXT |
 | System.Threading.Tasks.Extensions | 4.5.4 | https://github.com/dotnet/corefx/blob/master/LICENSE.TXT | System.Threading.Tasks.Extensions-4.5.4-LICENSE.TXT, System.Threading.Tasks.Extensions-4.5.4-THIRD-PARTY-NOTICES.TXT |
 | System.ValueTuple | 4.5.0 | https://github.com/dotnet/corefx/blob/master/LICENSE.TXT | System.ValueTuple-4.5.0-LICENSE.TXT, System.ValueTuple-4.5.0-THIRD-PARTY-NOTICES.TXT |
-| Verint.Microsoft.Speech.x64 | 11.0.7400.345 | Microsoft Speech Platform SDK 11 License.txt | Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.rtf, Verint.Microsoft.Speech.x64-11.0.7400.345-Microsoft Speech Platform SDK 11 License.txt |
 | WebSocketSharp-netstandard | 1.0.1 | https://github.com/PingmanTools/websocket-sharp/blob/master/LICENSE.txt | shared/upstream notice; see inventory.json |
 
 Other included production components: Crew Chief V4 (Britton IT Ltd, MIT), GameOverlay.Net (MIT), OpenVR (Valve BSD-style), modified legacy AutoUpdater.NET (upstream MIT; historical binary provenance not fully resolved), game plugins already supplied by the base project. See the full source and `FREEWARE_PRUEFUNG.md` before public binary distribution.
@@ -51,4 +50,4 @@ Fonts: Inter, Exo 2 and Rajdhani under SIL Open Font License 1.1; complete OFL n
 
 Not included: Crew Chief sound packs, selected voice audio, private caches, PitCrew catalogue and Simulator Controller code. These products are not dependencies granted under this MIT licence.
 
-Microsoft Speech and WebView2 have their own notices; do not replace them with a generic MIT label. Windows/.NET/WebView runtimes are obtained from their respective official distributors, not bundled installers.
+WebView2 has its own notice; do not replace it with a generic MIT label. `Microsoft.Speech.dll` is not included: it is only referenced at build time, and Crew Chief uses the Windows speech recogniser instead. Windows/.NET/WebView runtimes are obtained from their respective official distributors, not bundled installers.

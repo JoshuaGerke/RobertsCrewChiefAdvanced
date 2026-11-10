@@ -1252,12 +1252,22 @@ namespace CrewChiefV4
                 // if we have no culture info here we need to fall back to the MS SRE and get the culture again
                 Log.Error("Unable to get language for System SRE with lang " + langCodes.langToUse + " or " + langCodes.langAndCountryToUse);
                 Log.Error("You may need to add an appropriate language from the Windows 'Time and language' control panel (go to Languages -> Add a language). " +
-                          "App will fall back to Microsoft SRE");
+                          (SREWrapperFactory.microsoftSpeechAvailable ? "App will fall back to Microsoft SRE" : "Voice commands stay disabled until then"));
+                if (!SREWrapperFactory.microsoftSpeechAvailable)
+                {
+                    // Ohne Microsoft.Speech.dll gibt es keinen zweiten Erkenner; die KI-Crew (Funk über Anbieter) läuft davon unabhängig
+                    return;
+                }
                 SREWrapperFactory.useSystem = false;
                 this.cultureInfo = SREWrapperFactory.GetCultureInfo(langCodes.langAndCountryToUse, langCodes.langToUse, false);
             }
             var sre = SREWrapperFactory.createNewSREWrapper(this.cultureInfo, voiceOptionEnum == MainWindow.VoiceOptionEnum.HOLD ? TimeSpan.FromSeconds(1.5) : (TimeSpan?) null, true);
 
+            if (sre == null && !SREWrapperFactory.microsoftSpeechAvailable)
+            {
+                Log.Error("Unable to initialise the Windows speech recogniser for voice commands");
+                return;
+            }
             if (sre == null)
             {
                 if (MessageBox.Show(
@@ -1319,12 +1329,7 @@ namespace CrewChiefV4
                 }
                 else
                 {
-                    sreWrapper.AddSpeechRecognizedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognizedEventArgs>(sre_SpeechRecognizedMicrosoft));
-                    sreWrapper.AddRecognitionCompleteCallback(new EventHandler<Microsoft.Speech.Recognition.RecognizeCompletedEventArgs>(sre_SpeechRecognitionCompleteMicrosoft));
-                    sreWrapper.AddRecognitionRejectedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognitionRejectedEventArgs>(sre_SpeechRecognitionRejectedMicrosoft));
-                    triggerSreWrapper.AddSpeechRecognizedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognizedEventArgs>(trigger_SpeechRecognizedMicrosoft));
-                    triggerSreWrapper.AddRecognitionCompleteCallback(new EventHandler<Microsoft.Speech.Recognition.RecognizeCompletedEventArgs>(sre_SpeechRecognitionCompleteMicrosoft));
-                    triggerSreWrapper.AddRecognitionRejectedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognitionRejectedEventArgs>(sre_SpeechRecognitionRejectedMicrosoft));
+                    addMicrosoftCallbacks();
                 }
             }
             catch (Exception ex)
@@ -1338,6 +1343,18 @@ namespace CrewChiefV4
                 Console.WriteLine("SRE is running in debug mode. Captured audio and metadata will be written to " + debugDataPath);
             }
             initialised = true;
+        }
+
+        // Eigene Methode, damit der JIT Microsoft.Speech-Typen nur anfasst, wenn die DLL vorhanden ist
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void addMicrosoftCallbacks()
+        {
+            sreWrapper.AddSpeechRecognizedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognizedEventArgs>(sre_SpeechRecognizedMicrosoft));
+            sreWrapper.AddRecognitionCompleteCallback(new EventHandler<Microsoft.Speech.Recognition.RecognizeCompletedEventArgs>(sre_SpeechRecognitionCompleteMicrosoft));
+            sreWrapper.AddRecognitionRejectedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognitionRejectedEventArgs>(sre_SpeechRecognitionRejectedMicrosoft));
+            triggerSreWrapper.AddSpeechRecognizedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognizedEventArgs>(trigger_SpeechRecognizedMicrosoft));
+            triggerSreWrapper.AddRecognitionCompleteCallback(new EventHandler<Microsoft.Speech.Recognition.RecognizeCompletedEventArgs>(sre_SpeechRecognitionCompleteMicrosoft));
+            triggerSreWrapper.AddRecognitionRejectedCallback(new EventHandler<Microsoft.Speech.Recognition.SpeechRecognitionRejectedEventArgs>(sre_SpeechRecognitionRejectedMicrosoft));
         }
 
         public void loadSRECommands()
