@@ -1,5 +1,7 @@
 # RRCA – AI crew for Crew Chief · v0.9 Alpha 3
 
+Illustrated step-by-step guide: `GUIDE_RRCA_EN.pdf` in the same folder.
+
 Unofficial free test build for racing simulations, based on Crew Chief V4 by Britton IT Ltd. Ben handles strategy and race observation, Mik the car, Sara immediate side warnings. No affiliation with the named projects, simulators or voice providers.
 
 **Alpha software: calls may be incorrect, late or missing. Simulation use only; not for real vehicles or safety-critical decisions.** The driver remains responsible. Free download does not include free AI/voice services. This is a test candidate, not a fully legally cleared public release; see `FREEWARE_PRUEFUNG.md`.

@@ -10,6 +10,6 @@ Los proveedores externos de IA, transcripción y voces requieren tus propias cue
 
 Solo para simulación de carreras. Los mensajes pueden ser incorrectos, tardíos o faltar. No usar en vehículos reales ni como dispositivo de seguridad. Pruebas: TESTSTATUS_ALPHA3.md. Siguen siendo necesarias pruebas reales de conducción. Interfaz DE/EN/ES; radio hablada actualmente en alemán.
 
-Guías: README_ES.md y las demás guías en la carpeta principal.
+Guías: GUIA_RRCA_ES.pdf (con imágenes), README_ES.md y las demás guías en la carpeta principal.
 
 https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced

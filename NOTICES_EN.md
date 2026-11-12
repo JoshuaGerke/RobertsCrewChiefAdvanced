@@ -10,6 +10,6 @@ External AI, transcription and voice providers require your own accounts and key
 
 For racing simulations only. Calls may be incorrect, late or missing. Do not use in real vehicles or as a safety device. Test evidence: TESTSTATUS_ALPHA3.md. Actual driving tests remain necessary. The interface offers DE/EN/ES; spoken race radio is currently German.
 
-Guides: README_EN.md and the other language guides in the package root.
+Guides: GUIDE_RRCA_EN.pdf (illustrated), README_EN.md and the other language guides in the package root.
 
 https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced

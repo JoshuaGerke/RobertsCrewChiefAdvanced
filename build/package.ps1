@@ -2,9 +2,7 @@ param(
     [string]$OutDir = "dist/RobertsCrewChiefAdvanced",
     [string]$Configuration = "Release",
     [switch]$PublicDistribution,
-    [string]$Version = "v0.9-alpha3",
-    [string]$GuidePdf,
-    [string]$ReadmePdfDirectory
+    [string]$Version = "v0.9-alpha3"
 )
 # Stellt das Programmverzeichnis so zusammen wie der Original-Installer (CrewChiefV4_installer.wixproj, BeforeBuild):
 # Build-Ausgabe plus Datenordner und Standarddateien, die Crew Chief neben der exe erwartet.
@@ -67,26 +65,15 @@ foreach ($note in 'AENDERUNGEN_v0.9_ALPHA3_LAUTSTAERKEN.md','START_HIER_DE.md','
     Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note)
 }
 Copy-Item -LiteralPath (Join-Path $root 'ThirdPartyLicenses') -Destination (Join-Path $OutDir 'ThirdPartyLicenses') -Recurse
-if ($GuidePdf) {
-    $guide = Get-Item -LiteralPath $GuidePdf
-    if ($guide.PSIsContainer -or $guide.Extension -ne '.pdf' -or $guide.Length -gt 10MB) { throw 'Ungültige Anleitung: PDF bis 10 MiB erforderlich' }
-    $header = [IO.File]::ReadAllBytes($guide.FullName)
-    if ($header.Length -lt 5 -or [Text.Encoding]::ASCII.GetString($header,0,5) -ne '%PDF-') { throw 'Anleitung ist keine PDF' }
-    Copy-Item -LiteralPath $guide.FullName -Destination (Join-Path $OutDir 'ANLEITUNG_RRCA_DE.pdf')
-}
-
-if ($ReadmePdfDirectory) {
-    foreach ($language in 'EN','ES') {
-        $pdf = Join-Path $ReadmePdfDirectory "README_$language.pdf"
-        $bytes = [IO.File]::ReadAllBytes($pdf)
-        if ($bytes.Length -lt 5 -or $bytes.Length -gt 5MB -or [Text.Encoding]::ASCII.GetString($bytes,0,5) -ne '%PDF-') { throw 'Ungültige PDF-README' }
-        Copy-Item -LiteralPath $pdf -Destination (Join-Path $OutDir "README_$language.pdf")
-    }
+# Bebilderte Anleitungen (DE/EN/ES) liegen direkt neben der exe
+$guides = 'ANLEITUNG_RRCA_DE.pdf','GUIDE_RRCA_EN.pdf','GUIA_RRCA_ES.pdf'
+foreach ($guide in $guides) {
+    Copy-Item -LiteralPath (Join-Path $root "docs/anleitung/$guide") -Destination (Join-Path $OutDir $guide)
 }
 # Selbstprüfung: diese Dateien müssen im Paket liegen
 # Microsoft.Speech.dll darf nicht ins Paket (Weitergaberecht ungeklärt); Crew Chief nutzt dann die Windows-Spracherkennung
 if (Get-ChildItem -LiteralPath $OutDir -Recurse -Filter 'Microsoft.Speech.dll' -File) { throw 'Microsoft.Speech.dll gehört nicht ins Paket' }
-foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt', 'AiTeam/ui/rrca.i18n.js', 'Rennfunk.de.json', 'README_DE.md', 'README_EN.md')) {
+foreach ($required in @('CrewChiefV4.exe', 'saved_command_macros.json', 'speech_recognition_config.txt', 'trackLandmarksData.json', 'carClassData.json', 'ui_text/en.txt', 'AiTeam/ui/rrca.i18n.js', 'Rennfunk.de.json', 'README_DE.md', 'README_EN.md') + $guides) {
     if (-not (Test-Path (Join-Path $OutDir $required))) { throw "Paket unvollständig: $required fehlt" }
 }
 # Generated proof contains relative names only. Credentials and personal runtime data are never package inputs.

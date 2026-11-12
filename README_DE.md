@@ -1,5 +1,7 @@
 # RRCA – KI-Crew für Crew Chief · v0.9 Alpha 3
 
+Bebilderte Schritt-für-Schritt-Anleitung: `ANLEITUNG_RRCA_DE.pdf` im selben Ordner.
+
 Inoffizielle, kostenlose Testfassung für Rennsimulationen. Ben beobachtet Strategie und Renngeschehen, Mik das Fahrzeug, Sara den unmittelbaren Verkehr neben dem Auto. Grundlage ist Crew Chief V4 von Britton IT Ltd. Keine Verbindung oder Partnerschaft mit den genannten Entwicklern, Simulationen oder Sprachanbietern.
 
 **Alpha: Fehler und verspätete oder ausbleibende Ansagen sind möglich. Kein System für reale Fahrzeuge oder sicherheitskritische Entscheidungen.** Der Fahrer bleibt verantwortlich. Kostenloser Download bedeutet nicht kostenlose KI-/Stimmen-APIs. Diese Fassung ist ein Testkandidat, keine abschließend rechtlich freigegebene öffentliche Veröffentlichung; offene Punkte stehen in `FREEWARE_PRUEFUNG.md`.

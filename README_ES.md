@@ -1,5 +1,7 @@
 # Equipo de IA para Crew Chief
 
+Guía ilustrada paso a paso: `GUIA_RRCA_ES.pdf` en la misma carpeta.
+
 ## Qué es esta aplicación
 
 RRCA es un proyecto personal no oficial, gratuito y no comercial, basado en Crew Chief V4 de Britton IT Ltd (licencia MIT). Ben se ocupa de estrategia y observación de carrera, Mik del coche y las preguntas técnicas, y Sara de avisos laterales locales inmediatos. La ventana clásica de Crew Chief forma parte de la misma aplicación modificada y puede permanecer minimizada. No ejecutes otro Crew Chief para el mismo simulador.
