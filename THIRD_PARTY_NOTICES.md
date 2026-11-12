@@ -2,7 +2,7 @@
 
 Own source contributions follow the repository MIT licence where indicated. Third-party components retain their licences. No permission for trademarks, voices, sound packs or external template catalogues is implied.
 
-The following inventory comes from the resolved production NuGet assets, not from a claim that all components share MIT. Full notices are in `ThirdPartyLicenses`. Current upstream notices may differ from the historical shipped binary; unresolved provenance and Microsoft Speech redistribution requirements are listed in `FREEWARE_PRUEFUNG.md`.
+The following inventory comes from the resolved production NuGet assets, not from a claim that all components share MIT. Full notices are in `ThirdPartyLicenses`. Current upstream notices may differ from the historical shipped binary.
 
 | Component | Version | Package licence metadata | Included notice |
 |---|---|---|---|
@@ -44,10 +44,10 @@ The following inventory comes from the resolved production NuGet assets, not fro
 | System.ValueTuple | 4.5.0 | https://github.com/dotnet/corefx/blob/master/LICENSE.TXT | System.ValueTuple-4.5.0-LICENSE.TXT, System.ValueTuple-4.5.0-THIRD-PARTY-NOTICES.TXT |
 | WebSocketSharp-netstandard | 1.0.1 | https://github.com/PingmanTools/websocket-sharp/blob/master/LICENSE.txt | shared/upstream notice; see inventory.json |
 
-Other included production components: Crew Chief V4 (Britton IT Ltd, MIT), GameOverlay.Net (MIT), OpenVR (Valve BSD-style), modified legacy AutoUpdater.NET (upstream MIT; historical binary provenance not fully resolved), game plugins already supplied by the base project. See the full source and `FREEWARE_PRUEFUNG.md` before public binary distribution.
+Other included production components: Crew Chief V4 (Britton IT Ltd, MIT), GameOverlay.Net (MIT), OpenVR (Valve BSD-style), modified legacy AutoUpdater.NET (upstream MIT; historical binary provenance not fully resolved), game plugins already supplied by the base project. See the full source for details.
 
 Fonts: Inter, Exo 2 and Rajdhani under SIL Open Font License 1.1; complete OFL notices are included. Logo/name clearance is separate.
 
-Not included: Crew Chief sound packs, selected voice audio, private caches, PitCrew catalogue and Simulator Controller code. These products are not dependencies granted under this MIT licence.
+Not included: Crew Chief sound packs, selected voice audio, private caches or content from other simracing tools.
 
 WebView2 has its own notice; do not replace it with a generic MIT label. `Microsoft.Speech.dll` is not included: it is only referenced at build time, and Crew Chief uses the Windows speech recogniser instead. Windows/.NET/WebView runtimes are obtained from their respective official distributors, not bundled installers.

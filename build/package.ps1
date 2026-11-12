@@ -61,7 +61,7 @@ foreach ($file in 'help.txt', 'Newtonsoft_Json_licence.txt', 'SharpDX_licence.tx
     Copy-Item -Force (Join-Path $root $file) (Join-Path $OutDir $file)
 }
 Copy-Item -Force (Join-Path $root 'LICENSE') (Join-Path $OutDir 'LICENSE_CrewChief_MIT.txt')
-foreach ($note in 'AENDERUNGEN_v0.9_ALPHA3_LAUTSTAERKEN.md','START_HIER_DE.md','VORSTELLUNG_DE.md','README_DE.md','README_EN.md','README_ES.md','HINWEISE_UND_DANK.md','NOTICES_EN.md','NOTICES_ES.md','FREEWARE_PRUEFUNG.md','THIRD_PARTY_NOTICES.md','TESTSTATUS_ALPHA3.md','AENDERUNGEN_v0.9_ALPHA3.md') {
+foreach ($note in 'START_HIER_DE.md','README_DE.md','README_EN.md','README_ES.md','HINWEISE_UND_DANK.md','NOTICES_EN.md','NOTICES_ES.md','THIRD_PARTY_NOTICES.md') {
     Copy-Item -LiteralPath (Join-Path $root $note) -Destination (Join-Path $OutDir $note)
 }
 Copy-Item -LiteralPath (Join-Path $root 'ThirdPartyLicenses') -Destination (Join-Path $OutDir 'ThirdPartyLicenses') -Recurse

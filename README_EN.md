@@ -1,10 +1,10 @@
-# RRCA – AI crew for Crew Chief · v0.9 Alpha 3
+# RRCA – AI crew for Crew Chief · v0.9 test version
 
 Illustrated step-by-step guide: `GUIDE_RRCA_EN.pdf` in the same folder.
 
 Unofficial free test build for racing simulations, based on Crew Chief V4 by Britton IT Ltd. Ben handles strategy and race observation, Mik the car, Sara immediate side warnings. No affiliation with the named projects, simulators or voice providers.
 
-**Alpha software: calls may be incorrect, late or missing. Simulation use only; not for real vehicles or safety-critical decisions.** The driver remains responsible. Free download does not include free AI/voice services. This is a test candidate, not a fully legally cleared public release; see `FREEWARE_PRUEFUNG.md`.
+**Alpha software: calls may be incorrect, late or missing. Simulation use only; not for real vehicles or safety-critical decisions.** The driver remains responsible. Free download does not include free AI/voice services. This is a test version.
 
 ## Install and set up
 
@@ -57,17 +57,17 @@ Use your own provider accounts and authorised voices. Check [ElevenLabs terms](h
 
 **Existing Crew Chief installation:** public mode does not automatically import/read `Documents\CrewChiefV4` or `%LOCALAPPDATA%\CrewChiefV4\Sounds`. Existing RRCA keys, memory and UI language for the same Windows user are intentionally reused; this does not mean they were included in the ZIP. If you explicitly select a shared sound-folder override, sound/Sara operations can write there. Keep the new folder for separation.
 
-Earlier private builds with `RRCAStandaloneData=false` keep using the original Crew Chief paths. Do not confuse the two modes. Update your RRCA folder or extract a separate build; profiles, keys and memory remain external. Public mode prevents the upstream Crew Chief binary updater from replacing the fork; obtain RRCA updates deliberately from its project. Sound updates are separate. Removing the app never automatically removes your personal data. Do not blindly remove shared folders.
+Update your RRCA folder or extract a separate build; profiles, keys and memory remain external. Public mode prevents the upstream Crew Chief binary updater from replacing the fork; obtain RRCA updates deliberately from its project. Sound updates are separate. Removing the app never automatically removes your personal data. Do not blindly remove shared folders.
 
 ## Validation, limitations and support
 
-See `TESTSTATUS_ALPHA3.md` for executed checks. This build needs a live driving test. Today's RaceRoom observation used Alpha 1; Alpha 3 incorporates the findings. AMS2 and other adapters need separate live testing. RRCA does not load another installed PitCrew catalogue. The 280 own German phrases cover 21 groups, not 280 separate detection algorithms.
+This build still needs more live driving tests. AMS2 and other adapters need separate live testing. The 280 own German phrases cover 21 groups, not 280 separate detection algorithms.
 
 Class gaps and physically nearest vehicles are different. Estimates are marked. A closing gap alone does not prove an opponent spun or has worn tyres. Numeric hazard distance requires fresh mapped positions and an already prepared clip; otherwise use the generic warning. Some sims do not expose opponent sectors, tyre state or weather forecasts.
 
 Report RRCA issues in the [project issue tracker](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/issues), including build/commit, sim, track, session, exact time, expected/heard call and a sanitised log excerpt. No guaranteed support response time. Do not direct RRCA-specific bug reports to Crew Chief developers.
 
-Credits/licences: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT code permission does not cover voice recordings, sounds, marks or third-party templates. Resolve `FREEWARE_PRUEFUNG.md` before public promotion.
+Credits/licences: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT code permission does not cover voice recordings, sounds, marks or third-party templates.
 
 **Voice commands:** RRCA deliberately does not ship Microsoft's `Microsoft.Speech.dll`. Crew Chief's classic voice commands therefore use the Windows speech recogniser. Windows needs the matching language with speech recognition installed (Settings → Time & language → Language & region; English for the English Crew Chief commands). The AI crew (Ben, Mik, Sara) does not depend on this: it listens via its own radio button and cloud speech recognition.
 

@@ -20,7 +20,7 @@ El software alfa puede emitir mensajes incorrectos, tardíos o ausentes. Solo pa
 
 ## 1 - Extraer e iniciar
 
-Extrae el ZIP completo del candidato Freeware en una carpeta nueva con permiso de escritura. No sobrescribas la instalación original de Crew Chief. Inicia CrewChiefV4.exe desde esta carpeta. El modo público usa perfiles y sonidos separados; puede reutilizar claves y memoria de RRCA del mismo usuario de Windows guardadas fuera del ZIP. Si faltan sonidos base, usa el gestor de sonidos integrado. Los paquetes de audio no se incluyen.
+Extrae el ZIP completo en una carpeta nueva con permiso de escritura. No sobrescribas la instalación original de Crew Chief. Inicia CrewChiefV4.exe desde esta carpeta. El modo público usa perfiles y sonidos separados; puede reutilizar claves y memoria de RRCA del mismo usuario de Windows guardadas fuera del ZIP. Si faltan sonidos base, usa el gestor de sonidos integrado. Los paquetes de audio no se incluyen.
 
 ## 2 - Claves, voces y micrófono
 
@@ -52,6 +52,6 @@ La memoria persistente opcional guarda texto, preferencias y hechos limitados fu
 
 ## Actualizaciones, soporte y derechos
 
-Mantén y actualiza por separado el Crew Chief original. Nunca instales su actualización binaria sobre RRCA; usa un paquete RRCA probado. El modo público bloquea ese actualizador. Los datos permanecen fuera del ZIP; eliminar la aplicación no elimina automáticamente tus datos. Informa al repositorio RRCA indicando versión/commit, simulador, circuito, sesión, hora, mensaje esperado/escuchado y un extracto revisado. No se garantiza un plazo de respuesta. Gracias a los desarrolladores de Crew Chief. La licencia MIT del código no concede derechos sobre voces, grabaciones o marcas; no se afirma un aval personal de los desarrolladores. Es un candidato de revisión interna: quedan cuestiones de publicación en FREEWARE_PRUEFUNG.md. Consulta también los avisos de terceros incluidos.
+Mantén y actualiza por separado el Crew Chief original. Nunca instales su actualización binaria sobre RRCA; usa un paquete RRCA probado. El modo público bloquea ese actualizador. Los datos permanecen fuera del ZIP; eliminar la aplicación no elimina automáticamente tus datos. Informa al repositorio RRCA indicando versión/commit, simulador, circuito, sesión, hora, mensaje esperado/escuchado y un extracto revisado. No se garantiza un plazo de respuesta. Gracias a los desarrolladores de Crew Chief. La licencia MIT del código no concede derechos sobre voces, grabaciones o marcas; no se afirma un aval personal de los desarrolladores. Consulta también los avisos de terceros incluidos.
 
 **Comandos de voz:** RRCA no incluye a propósito `Microsoft.Speech.dll` de Microsoft. Por eso, los comandos de voz clásicos de Crew Chief usan el reconocimiento de voz de Windows. Windows necesita el idioma correspondiente con reconocimiento de voz instalado (Configuración → Hora e idioma → Idioma y región; inglés para los comandos en inglés de Crew Chief). El equipo de IA (Ben, Mik, Sara) no depende de esto: escucha mediante su propio botón de radio y el reconocimiento de voz en la nube.

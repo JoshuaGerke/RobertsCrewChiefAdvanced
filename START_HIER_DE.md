@@ -2,7 +2,7 @@
 
 RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug) und Sara (lokaler Spotter). Das klassische Crew-Chief-Fenster läuft in derselben Instanz minimiert weiter. Alpha: Fehler und ausbleibende Ansagen sind möglich.
 
-1. Original-Crew-Chief separat sichern. Vollständige ZIP in einen eigenen RRCA-Ordner entpacken. Der Freeware-Kandidat verwendet getrennte Profile/Sounds; das Testpaket nutzt den bisherigen Datenmodus.
+1. Original-Crew-Chief separat sichern. Vollständige ZIP in einen eigenen RRCA-Ordner entpacken. RRCA verwendet eigene Profile und Sounds.
 2. CrewChiefV4.exe aus dem RRCA-Ordner starten. Benötigt werden Windows x64, .NET Framework 4.8 und WebView2. Fehlende Grundsounds über die Soundverwaltung einrichten.
 3. Team & Stimmen > Dienste & Schlüssel: eigene OpenRouter- und ElevenLabs-Schlüssel speichern. Externe Anbieter können Geld kosten.
 4. Stimmenliste laden, drei deutsch geeignete Stimmen wählen und testen. Funkclips vorbereiten, Sara-Pack erzeugen, danach im Stand die App vollständig neu starten.
@@ -11,4 +11,4 @@ RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug
 7. Cockpit: Spiel wählen/Start oder automatische Erkennung aktivieren; die Sim muss ihre Telemetrie liefern. Messages/Background und Ausgabe am Headset prüfen.
 8. Im Stand kurze Frage testen, dann kurze Fahrt. Recorder optional vor der Fahrt einschalten.
 
-Die Oberfläche ist DE/EN/ES wählbar, Rennfunk derzeit deutsch. Kein Original-CC-Update über den RRCA-Ordner installieren; originalen Crew Chief getrennt aktualisieren. Bebilderte Anleitung: ANLEITUNG_RRCA_DE.pdf (Englisch: GUIDE_RRCA_EN.pdf, Spanisch: GUIA_RRCA_ES.pdf). Ausführliche Textfassung: README_DE.md (README_EN.md, README_ES.md). Rechte-/Freigabestand: FREEWARE_PRUEFUNG.md.
+Die Oberfläche ist DE/EN/ES wählbar, Rennfunk derzeit deutsch. Kein Original-CC-Update über den RRCA-Ordner installieren; originalen Crew Chief getrennt aktualisieren. Bebilderte Anleitung: ANLEITUNG_RRCA_DE.pdf (Englisch: GUIDE_RRCA_EN.pdf, Spanisch: GUIA_RRCA_ES.pdf). Ausführliche Textfassung: README_DE.md (README_EN.md, README_ES.md). Lizenzen und Dank: HINWEISE_UND_DANK.md.

@@ -1,10 +1,10 @@
-# RRCA – KI-Crew für Crew Chief · v0.9 Alpha 3
+# RRCA – KI-Crew für Crew Chief · v0.9 Testversion
 
 Bebilderte Schritt-für-Schritt-Anleitung: `ANLEITUNG_RRCA_DE.pdf` im selben Ordner.
 
 Inoffizielle, kostenlose Testfassung für Rennsimulationen. Ben beobachtet Strategie und Renngeschehen, Mik das Fahrzeug, Sara den unmittelbaren Verkehr neben dem Auto. Grundlage ist Crew Chief V4 von Britton IT Ltd. Keine Verbindung oder Partnerschaft mit den genannten Entwicklern, Simulationen oder Sprachanbietern.
 
-**Alpha: Fehler und verspätete oder ausbleibende Ansagen sind möglich. Kein System für reale Fahrzeuge oder sicherheitskritische Entscheidungen.** Der Fahrer bleibt verantwortlich. Kostenloser Download bedeutet nicht kostenlose KI-/Stimmen-APIs. Diese Fassung ist ein Testkandidat, keine abschließend rechtlich freigegebene öffentliche Veröffentlichung; offene Punkte stehen in `FREEWARE_PRUEFUNG.md`.
+**Alpha: Fehler und verspätete oder ausbleibende Ansagen sind möglich. Kein System für reale Fahrzeuge oder sicherheitskritische Entscheidungen.** Der Fahrer bleibt verantwortlich. Kostenloser Download bedeutet nicht kostenlose KI-/Stimmen-APIs. Dies ist eine Testversion.
 
 ## Installation und erster Start
 
@@ -57,7 +57,7 @@ Messages und Background sind direkt im Cockpit regelbar. Background ist Funkambi
 
 **Wenn Crew Chief bereits installiert ist:** Der öffentliche Modus liest/importiert nicht automatisch `Dokumente\CrewChiefV4` oder `%LOCALAPPDATA%\CrewChiefV4\Sounds`. Bestehende RRCA-Schlüssel, Gedächtnis und WebView-Sprachwahl desselben Windows-Benutzers bleiben hingegen bewusst auffindbar – das beweist keinen Schlüssel im ZIP. Originalprofile werden nicht migriert. Wer in den erweiterten Einstellungen ausdrücklich einen gemeinsamen Soundordner auswählt, erlaubt damit auch Sound-/Sara-Schreibzugriffe dort. Für vollständige Trennung den neuen Soundordner behalten.
 
-Frühere private Testpakete mit `RRCAStandaloneData=false` verwenden weiter die bisherigen Crew-Chief-Pfade. Nicht mit dem öffentlichen Modus verwechseln. Die .NET- und eigenen RRCA-Datenpfade gelten unabhängig davon. Für Updates denselben **RRCA-Testordner** nutzen oder neues Paket separat entpacken; Profile/Schlüssel/Erinnerungen liegen außerhalb der ZIP. Keine automatische App-Aktualisierung durch den Crew-Chief-Installer im öffentlichen Modus; RRCA-Updates bewusst über das eigene Projekt beziehen. Soundupdates sind getrennt.
+Die .NET- und eigenen RRCA-Datenpfade gelten unabhängig davon. Für Updates denselben **RRCA-Testordner** nutzen oder neues Paket separat entpacken; Profile/Schlüssel/Erinnerungen liegen außerhalb der ZIP. Keine automatische App-Aktualisierung durch den Crew-Chief-Installer im öffentlichen Modus; RRCA-Updates bewusst über das eigene Projekt beziehen. Soundupdates sind getrennt.
 
 ## Teststatus, Grenzen und Support
 
@@ -66,7 +66,7 @@ Abstände sind von Gegneridentität, Klassenbezug, Zeitpunkt und Quelle abhängi
 
 Fehler bitte im [eigenen GitHub-Projekt](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/issues) melden: Version/Commit, Sim, Strecke, Session, genaue Uhrzeit, Erwartung/gehörte Meldung und bereinigten Logausschnitt. Keine garantierte Reaktionszeit; bitte nicht das Crew-Chief-Team für RRCA-spezifische Fehler verantwortlich machen. Beim Entfernen App schließen und nur den gewünschten RRCA-Programmordner manuell entfernen; persönliche Daten werden nicht automatisch gelöscht. Gemeinsame Ordner nie blind entfernen.
 
-Lizenzen und Danksagung: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT-Quellcodelizenz ersetzt keine Rechte an Sounds, Stimmen, Marken oder fremden Vorlagen. Vor öffentlicher Werbung die offenen Punkte in `FREEWARE_PRUEFUNG.md` klären.
+Lizenzen und Danksagung: `HINWEISE_UND_DANK.md`, `THIRD_PARTY_NOTICES.md`, `ThirdPartyLicenses`. MIT-Quellcodelizenz ersetzt keine Rechte an Sounds, Stimmen, Marken oder fremden Vorlagen.
 
 **Sprachbefehle:** RRCA liefert Microsofts `Microsoft.Speech.dll` bewusst nicht mit. Die klassischen Sprachbefehle von Crew Chief nutzen deshalb die Spracherkennung von Windows. Dafür muss in Windows die passende Sprache mit Spracherkennung installiert sein (Einstellungen → Zeit und Sprache → Sprache und Region; für die englischen Crew-Chief-Befehle Englisch). Die KI-Crew (Ben, Mik, Sara) ist davon unabhängig: Sie hört über die eigene Funktaste und die Cloud-Spracherkennung zu.
 
