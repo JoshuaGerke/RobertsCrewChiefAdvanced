@@ -1,5 +1,7 @@
 # RRCA – Rob's Race Crew Advanced
 
+[![Downloads](https://img.shields.io/github/downloads/JoshuaGerke/RobertsCrewChiefAdvanced/total?label=Downloads&color=b9ef35)](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)
+
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
 RRCA is a free, unofficial extension for [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). It gives you a pit crew of three voices that you can talk to during a race:
