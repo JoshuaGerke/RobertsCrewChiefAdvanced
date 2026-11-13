@@ -10,9 +10,9 @@ RRCA ist eine kostenlose, inoffizielle Erweiterung für [Crew Chief V4](https://
 
 Du drückst einen Knopf am Lenkrad, fragst in normalen Worten, und die Crew antwortet mit den Live-Daten aus deiner Simulation. Liefert das Spiel einen Wert nicht, sagt die Crew das, statt etwas zu erfinden.
 
-> **Testversion.** Der Funk spricht derzeit nur **Deutsch**. Das Programmfenster gibt es auf Deutsch, Englisch und Spanisch, es richtet sich nach deiner Windows-Sprache. Ansagen können falsch, verspätet oder ausbleiben. Nur für Rennsimulationen.
+> **Testversion.** Die Crew spricht **Deutsch, Englisch oder Spanisch**, du wählst. Das Programmfenster gibt es in denselben drei Sprachen, es richtet sich nach deiner Windows-Sprache. Ansagen können falsch, verspätet oder ausbleiben. Nur für Rennsimulationen.
 
-**[Aktuelle Version herunterladen](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/tag/aktuell)** · Im Download liegt außerdem eine bebilderte Schritt-für-Schritt-Anleitung: `ANLEITUNG_RRCA_DE.pdf`.
+**[Aktuelle Version herunterladen](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · Im Download liegt außerdem eine bebilderte Schritt-für-Schritt-Anleitung: `ANLEITUNG_RRCA_DE.pdf`.
 
 ---
 
@@ -93,7 +93,7 @@ Die Zahlen sind Schätzungen, keine Garantie. Deine echten Kosten stehen in dein
 
 1. Geh auf [elevenlabs.io](https://elevenlabs.io) und klick auf **Sign up**. Bestätige deine E-Mail-Adresse.
 2. Wähl unter **Pricing** oder in deinen Kontoeinstellungen einen Tarif. **Starter** ist die sichere Wahl (siehe Kosten oben).
-3. Stimmen aussuchen: Öffne die **Voice Library** (manchmal „Voices“ → „Explore“). Filtere nach der Sprache **German** und hör dir einige an. Such dir drei aus, je eine für Ben, Mik und Sara (für Sara passt eine Frauenstimme), und klick jeweils auf **Add to my voices**. Nur Stimmen unter „My voices“ erscheinen später in RRCA.
+3. Stimmen aussuchen: Öffne die **Voice Library** (manchmal „Voices“ → „Explore“). Filtere nach deiner Funksprache (zum Beispiel **German**) und hör dir einige an. Such dir drei aus, je eine für Ben, Mik und Sara (für Sara passt eine Frauenstimme), und klick jeweils auf **Add to my voices**. Nur Stimmen unter „My voices“ erscheinen später in RRCA.
 4. Schlüssel anlegen: Öffne in deinem Konto **API Keys** (meist unter **Developers** oder im Profilmenü) und klick auf **Create API key**.
    - Name: zum Beispiel `RRCA`.
    - Berechtigungen: **Text to Speech: Access** und **Voices: Read** reichen. Alles andere kann aus bleiben.
@@ -102,7 +102,7 @@ Die Zahlen sind Schätzungen, keine Garantie. Deine echten Kosten stehen in dein
 
 ## 6. RRCA installieren
 
-1. Lade `RobertsCrewChiefAdvanced.zip` von der [Download-Seite](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/tag/aktuell).
+1. Lade `RobertsCrewChiefAdvanced.zip` von der [Download-Seite](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest).
 2. Rechtsklick auf die ZIP → **Alle extrahieren…** und einen neuen Ordner wählen, zum Beispiel `C:\Simracing\RRCA`. Nicht in einen bestehenden Crew-Chief-Ordner entpacken.
 3. Im neuen Ordner **CrewChiefV4.exe** doppelt anklicken. Zeigt Windows die blaue Meldung „Der Computer wurde durch Windows geschützt“, klick auf **Weitere Informationen** → **Trotzdem ausführen**. Das kommt, weil das Programm neu und nicht signiert ist.
 4. Das RRCA-Fenster öffnet sich. Das klassische Crew-Chief-Fenster liegt minimiert dahinter in der Taskleiste, beide gehören zum selben Programm.
@@ -113,7 +113,7 @@ Die Zahlen sind Schätzungen, keine Garantie. Deine echten Kosten stehen in dein
 
 Mach das alles bei geschlossenem Spiel oder wenn du in der Box stehst, nie während der Fahrt.
 
-**a) Sprache wählen (optional).** Oben rechts unter **Oberflächensprache** kannst du zwischen Deutsch, English und Español wechseln.
+**a) Sprachen wählen.** Oben rechts unter **Oberflächensprache** stellst du das Fenster auf Deutsch, English oder Español. Die Sprache der Crew stellst du getrennt unter **KI & Funk** → **Funksprache** ein (Automatisch nimmt die Windows-Sprache). Wechselst du die Funksprache später, **Funkclips vorbereiten** und **Sara als Spotter erzeugen** erneut ausführen (Schritt c) und RRCA neu starten.
 
 **b) Schlüssel eintragen.** Geh auf **Team & Stimmen** → **Dienste & Schlüssel**.
 - Füg den OpenRouter-Schlüssel in das Feld **OpenRouter (Ben, Mik, Spracherkennung)** ein (ins Feld klicken, Strg+V) und klick auf **Speichern**.
@@ -169,13 +169,14 @@ Diese alten Befehle nutzen die Spracherkennung von Windows. Installiere in Windo
 
 - Wenn du mit der Crew sprichst, gehen deine gesprochene Frage, die dafür nötigen Renndaten und, bei eingeschaltetem Fahrergedächtnis, passende Notizen an OpenRouter und das dort genutzte KI-Modell. Der zu sprechende Text geht an ElevenLabs. Es gelten die Regeln der Anbieter: [OpenRouter-Datenschutz](https://openrouter.ai/privacy), [ElevenLabs-Bedingungen](https://elevenlabs.io/terms-of-use-eu).
 - Das Mikrofon nimmt nur auf, solange du die Funktaste hältst. Es werden keine vollständigen Aufnahmen gespeichert.
+- Beim Start fragt RRCA bei GitHub nach, ob es eine neuere Version gibt. Dabei werden keine persönlichen Daten übertragen.
 - Deine Schlüssel werden verschlüsselt für deinen Windows-Benutzer gespeichert (Windows-DPAPI) und sind nie im Download enthalten.
 - Die Option **Fahrernamen an KI übermitteln** ist bei neuen Profilen aus.
 - Das Fahrergedächtnis speichert Notizen und Wünsche nur auf deinem PC. Es trainiert kein KI-Modell.
 
 ## 11. Updates, Deinstallieren und Fehler melden
 
-- **Update:** neue ZIP herunterladen und in einen neuen Ordner entpacken (oder bei geschlossenem RRCA über deinen RRCA-Ordner). Schlüssel, Profile und Gedächtnis liegen außerhalb des Programmordners und bleiben erhalten.
+- **Update:** Gibt es eine neue Version, zeigt RRCA oben einen Knopf **Update auf …**. Draufklicken und bestätigen: RRCA lädt und prüft das Update, startet neu und behält Schlüssel, Profile und Gedächtnis. Alternativ die neue ZIP herunterladen und bei geschlossenem RRCA über deinen RRCA-Ordner entpacken.
 - **Nicht** den normalen Crew-Chief-Installer oder dessen Updates über den RRCA-Ordner installieren. Einen normalen Crew Chief, falls vorhanden, in seinem eigenen Ordner lassen.
 - **Deinstallieren:** RRCA schließen und den RRCA-Ordner löschen. Deine persönlichen Daten (siehe Tabelle unten) bleiben, bis du sie selbst löschst.
 - **Fehler melden:** ein [Issue auf GitHub](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/issues) anlegen oder im [Thread auf virtualracing.org](https://forum.virtualracing.org/threads/rrca-erweiterung-freier-ki-boxenfunk-fuer-crew-chief-v4.146346/) schreiben. Bitte Version (`VERSION.txt` im RRCA-Ordner), Spiel, Strecke, Uhrzeit und das Gehörte angeben. **Niemals deine Schlüssel posten.** Bitte das Crew-Chief-Team nicht wegen RRCA anschreiben.

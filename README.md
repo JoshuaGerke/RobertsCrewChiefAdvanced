@@ -10,9 +10,9 @@ RRCA is a free, unofficial extension for [Crew Chief V4](https://gitlab.com/mr_b
 
 You press a button on your wheel, ask a question in plain words, and the crew answers using the live data from your sim. If the sim does not provide a value, the crew says so instead of making something up.
 
-> **Test version.** The radio currently speaks **German** only. The app window is available in English, German and Spanish and follows your Windows language. Calls can be wrong, late or missing. For racing simulators only.
+> **Test version.** The crew speaks **English, German or Spanish**, you choose. The app window is available in the same three languages and follows your Windows language. Calls can be wrong, late or missing. For racing simulators only.
 
-**[Download the latest version](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/tag/aktuell)** · The download also contains an illustrated step-by-step guide: `GUIDE_RRCA_EN.pdf`.
+**[Download the latest version](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · The download also contains an illustrated step-by-step guide: `GUIDE_RRCA_EN.pdf`.
 
 ---
 
@@ -93,7 +93,7 @@ These numbers are estimates, not a guarantee. Your actual costs appear in your a
 
 1. Go to [elevenlabs.io](https://elevenlabs.io) and click **Sign up**. Confirm your e-mail address.
 2. Choose a plan under **Pricing** or in your account settings. **Starter** is the safe choice (see costs above).
-3. Choose voices: open the **Voice Library** (sometimes called "Voices" → "Explore"). Filter by language **German** and listen to a few. Pick three you like, one each for Ben, Mik and Sara (a female voice suits Sara), and click **Add to my voices**. Only voices in "My voices" appear in RRCA later.
+3. Choose voices: open the **Voice Library** (sometimes called "Voices" → "Explore"). Filter by your radio language (for example **English**) and listen to a few. Pick three you like, one each for Ben, Mik and Sara (a female voice suits Sara), and click **Add to my voices**. Only voices in "My voices" appear in RRCA later.
 4. Create the key: in your account, open **API Keys** (usually under **Developers** or in your profile menu) and click **Create API key**.
    - Name: for example `RRCA`.
    - Permissions: **Text to Speech: Access** and **Voices: Read** are enough. You can leave everything else off.
@@ -102,7 +102,7 @@ These numbers are estimates, not a guarantee. Your actual costs appear in your a
 
 ## 6. Install RRCA
 
-1. Download `RobertsCrewChiefAdvanced.zip` from the [download page](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/tag/aktuell).
+1. Download `RobertsCrewChiefAdvanced.zip` from the [download page](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest).
 2. Right-click the ZIP → **Extract All…** and choose a new folder, for example `C:\Simracing\RRCA`. Do not extract it into an existing Crew Chief folder.
 3. In the new folder, double-click **CrewChiefV4.exe**. If Windows shows a blue "Windows protected your PC" message, click **More info** → **Run anyway**. This appears because the program is new and not signed.
 4. The RRCA window opens. The classic Crew Chief window is minimised in the taskbar behind it; both belong to the same program.
@@ -113,7 +113,7 @@ These numbers are estimates, not a guarantee. Your actual costs appear in your a
 
 Do all of this while the sim is closed or while you are standing in the pits, never while driving.
 
-**a) Choose your language (optional).** At the top right, under **Interface language**, you can switch between English, Deutsch and Español.
+**a) Choose your languages.** At the top right, under **Interface language**, you can switch the window between English, Deutsch and Español. The language the crew speaks is set separately under **AI & radio** → **Radio language** (Automatic follows your Windows language). If you change the radio language later, run **Prepare radio clips** and **Generate Sara spotter pack** again (step c) and restart RRCA.
 
 **b) Enter your keys.** Go to **Team & voices** → **Services & keys**.
 - Paste the OpenRouter key into the field **OpenRouter (Ben, Mik, speech recognition)** (click into the field, press Ctrl+V) and click **Save**.
@@ -141,7 +141,7 @@ Do all of this while the sim is closed or while you are standing in the pits, ne
 
 1. Start your sim and sit in the car in the pits.
 2. RRCA should show your sim as connected, and the crew greets you.
-3. Hold your talk button, ask something simple, for example (in German) *"Wie viel Sprit habe ich?"* ("How much fuel do I have?"), and release the button.
+3. Hold your talk button, ask something simple, for example *"How much fuel do I have?"*, and release the button.
 4. Mik should answer within a few seconds.
 5. Then drive a short practice session before your first race.
 
@@ -157,7 +157,7 @@ Run **Generate Sara spotter pack** again, wait until it is finished, and restart
 Add voices at ElevenLabs to **My voices**, then click **Load voice list** again. Check that the key has the permission **Voices: Read**.
 
 **My question is not understood.**
-Hold the button a moment before you speak and release it only after you have finished. Speak German. Check the selected microphone.
+Hold the button a moment before you speak and release it only after you have finished. Speak in your radio language. Check the selected microphone.
 
 **It suddenly stopped talking.**
 Your balance or monthly characters may be used up, or the key's credit limit was reached. Check both websites.
@@ -169,13 +169,14 @@ These old commands use the Windows speech recogniser. Install English with speec
 
 - When you talk to the crew, your spoken question, the relevant race data and, if driver memory is on, matching notes are sent to OpenRouter and the AI model it uses. The text to be spoken is sent to ElevenLabs. The providers' own privacy rules apply: [OpenRouter privacy](https://openrouter.ai/privacy), [ElevenLabs terms](https://elevenlabs.io/terms-of-use-eu).
 - Microphone audio is only recorded while you hold the talk button. No full recordings are stored.
+- At startup RRCA asks GitHub whether a newer version exists. No personal data is sent.
 - Your keys are stored encrypted for your Windows user (Windows DPAPI) and are never included in the download.
 - The option **Send driver names to the AI** is off for new profiles.
 - Driver memory stores notes and preferences on your PC only. It does not train any AI model.
 
 ## 11. Updates, uninstalling and reporting bugs
 
-- **Update:** download the new ZIP and extract it into a new folder (or over your RRCA folder while RRCA is closed). Keys, profiles and memory are stored outside the program folder and are kept.
+- **Update:** when a new version is available, RRCA shows an **Install update** button at the top. Click it and confirm: RRCA downloads and checks the update, restarts, and keeps your keys, profiles and memory. Alternatively download the new ZIP and extract it over your RRCA folder while RRCA is closed.
 - **Do not** install the normal Crew Chief installer or its updates over the RRCA folder. Keep your normal Crew Chief, if you have one, in its own folder.
 - **Uninstall:** close RRCA and delete the RRCA folder. Your personal data (see the table below) stays until you delete it yourself.
 - **Report a bug:** open an [issue on GitHub](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/issues) or write in the [thread on virtualracing.org](https://forum.virtualracing.org/threads/rrca-erweiterung-freier-ki-boxenfunk-fuer-crew-chief-v4.146346/). Please include the version (`VERSION.txt` in the RRCA folder), sim, track, time and what you heard. **Never post your keys.** Please do not contact the Crew Chief team about RRCA.

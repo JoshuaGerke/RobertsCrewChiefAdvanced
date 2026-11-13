@@ -271,6 +271,8 @@ namespace CrewChiefV4.AiTeam
                 float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 int worst = Array.IndexOf(wear, wear.Max());
+                // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten
+                if (wear[worst] < 1) return null;
                 return RadioLanguage.T("Am stärksten abgenutzt ist der Reifen ", "Most worn tyre is ", "El neumático más gastado es el ") +
                     RadioLanguage.Pick(new[] { "vorne links", "vorne rechts", "hinten links", "hinten rechts" },
                         new[] { "front left", "front right", "rear left", "rear right" },
@@ -310,7 +312,7 @@ namespace CrewChiefV4.AiTeam
                 if(ctx.Memory==null)return null;
                 float fuel=ctx.Memory.AverageFuelPerLap();var wear=ctx.Memory.AverageWearPerLap();var parts=new List<string>();
                 if(Good(fuel,.1,100))parts.Add(RadioLanguage.T("Gemessener Verbrauch ", "Measured consumption ", "Consumo medido ")+Number(fuel)+RadioLanguage.T(" Liter pro Runde", " litres per lap", " litros por vuelta"));
-                if(wear!=null && wear.Length==4 && wear.All(w=>Good(w,0,100)))parts.Add(RadioLanguage.T("Der Reifen mit dem höchsten Verschleiß verliert ", "Most worn tyre loses ", "El neumático más gastado pierde ") + Number(wear.Max()) + RadioLanguage.T(" Prozentpunkte pro Runde", " percentage points per lap", " puntos porcentuales por vuelta"));
+                if(wear!=null && wear.Length==4 && wear.All(w=>Good(w,0,100)) && wear.Max()>=0.1)parts.Add(RadioLanguage.T("Der Reifen mit dem höchsten Verschleiß verliert ", "Most worn tyre loses ", "El neumático más gastado pierde ") + Number(wear.Max()) + RadioLanguage.T(" Prozentpunkte pro Runde", " percentage points per lap", " puntos porcentuales por vuelta"));
                 return parts.Count>0?string.Join(". ",parts)+".":null;
             }
             return null;

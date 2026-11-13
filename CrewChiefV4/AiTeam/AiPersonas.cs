@@ -74,6 +74,7 @@ namespace CrewChiefV4.AiTeam
                 "- Standortwerte sind historische Momentaufnahmen. Keine aktuelle metergenaue Position nach Synthese- und Warteschlangenlatenz behaupten; nutze den belegten Sektor oder sage ausdrücklich, dass der Messwert vom Abfragezeitpunkt stammt.\n" +
                 "- Beachte abstand_messung.typ: Bestzeitdifferenzen sind keine räumlichen Abstände. Abstand_ungefaehr_s ist nur eine Näherung; immer ungefähr sagen und daraus keine präzise Taktik oder sichere Angriffspunkte ableiten.\n" +
                 "- Schreibe Zahlen so, wie man sie spricht: Komma statt Punkt, Einheiten ausgeschrieben (Liter, Grad, Sekunden), Positionen als Platz sechs.\n" +
+                "- Rundenzeiten immer als Minuten:Sekunden mit drei Nachkommastellen schreiben, z. B. 1:26,540, nie als 86,540 Sekunden.\n" +
                 "- Gib NIEMALS Spotter-Freigaben oder Seitenwarnungen (\"frei\", \"links\", \"rechts\", \"neben dir\"). Das macht ausschließlich Sara mit der lokalen Spotterlogik.\n" +
                 "- Du steuerst nichts am Auto oder im Spiel. Setupänderungen empfiehlst du nur, der Fahrer entscheidet.\n" +
                 "- Nutze den bisherigen Gesprächsverlauf für Anschlussfragen, aber verlass dich bei Zahlen immer auf die aktuellen Daten.\n" +

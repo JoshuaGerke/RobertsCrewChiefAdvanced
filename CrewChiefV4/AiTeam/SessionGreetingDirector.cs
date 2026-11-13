@@ -101,9 +101,9 @@ namespace CrewChiefV4.AiTeam
             var type = gs.SessionData.SessionType;
             bool race = type == SessionType.Race, qualifying = type == SessionType.Qualify || type == SessionType.PrivateQualify;
             string place = RadioLanguage.T(
-                " Wir sind in " + track + " zum " + (race ? "Rennen" : qualifying ? "Qualifying" : "Training") + ". ",
-                " We're at " + track + " for " + (race ? "the race" : qualifying ? "qualifying" : "practice") + ". ",
-                " Estamos en " + track + " para " + (race ? "la carrera" : qualifying ? "la clasificación" : "los libres") + ". ");
+                " Wir sind in " + SpokenTrack(track) + " zum " + (race ? "Rennen" : qualifying ? "Qualifying" : "Training") + ". ",
+                " We're at " + SpokenTrack(track) + " for " + (race ? "the race" : qualifying ? "qualifying" : "practice") + ". ",
+                " Estamos en " + SpokenTrack(track) + " para " + (race ? "la carrera" : qualifying ? "la clasificación" : "los libres") + ". ");
             string weather = GreetingWeather(context);
             string encouragement = race ? RadioLanguage.T("Ruhig bleiben, sauber durch die erste Kurve.", "Stay calm, clean through turn one.", "Tranquilo, limpio en la primera curva.") :
                 qualifying ? RadioLanguage.T("Finde deinen Rhythmus, dann setzen wir eine saubere Zeit.", "Find your rhythm, then we'll set a clean time.", "Encuentra tu ritmo y luego marcamos un tiempo limpio.") :
@@ -169,6 +169,13 @@ namespace CrewChiefV4.AiTeam
                 ". Verwende eine zeitneutrale Begrüßung, keine erfundene Tageszeit. Keine Behauptung über Wetter, Grip, Training oder Strategie ohne bestätigte Daten. " +
                 "Ben begrüßt zuerst; Mik ergänzt nur bei einem Rennen und nur bei einem echten strategischen Befund. " +
                 "Keine Grußwiederholung und keine Aufzählung aller Telemetriegrößen.";
+        }
+
+        /// <summary>Interne Streckennamen wie "Monza:Monza_2020" so, wie man sie spricht ("Monza").</summary>
+        internal static string SpokenTrack(string track)
+        {
+            string name = (track ?? "").Split(':')[0].Replace('_', ' ').Trim();
+            return name.Length > 0 ? name : track;
         }
     }
 }

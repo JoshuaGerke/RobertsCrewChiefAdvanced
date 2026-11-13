@@ -10,9 +10,9 @@ RRCA es una extensión gratuita y no oficial para [Crew Chief V4](https://gitlab
 
 Pulsas un botón del volante, preguntas con palabras normales y el equipo responde con los datos en directo de tu simulador. Si el simulador no ofrece un dato, el equipo lo dice en lugar de inventarlo.
 
-> **Versión de prueba.** Por ahora la radio habla solo en **alemán**: el equipo responde en alemán y entiende preguntas en alemán. La ventana del programa está en español, inglés y alemán y se adapta al idioma de Windows. Los mensajes pueden ser incorrectos, llegar tarde o faltar. Solo para simuladores de carreras.
+> **Versión de prueba.** El equipo habla **español, inglés o alemán**, tú eliges. La ventana del programa está en los mismos tres idiomas y se adapta al idioma de Windows. Los mensajes pueden ser incorrectos, llegar tarde o faltar. Solo para simuladores de carreras.
 
-**[Descargar la versión actual](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/tag/aktuell)** · La descarga incluye además una guía ilustrada paso a paso: `GUIA_RRCA_ES.pdf`.
+**[Descargar la versión actual](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · La descarga incluye además una guía ilustrada paso a paso: `GUIA_RRCA_ES.pdf`.
 
 ---
 
@@ -93,7 +93,7 @@ Estas cifras son estimaciones, no una garantía. Tus costes reales aparecen en t
 
 1. Entra en [elevenlabs.io](https://elevenlabs.io) y pulsa **Sign up**. Confirma tu correo electrónico.
 2. Elige un plan en **Pricing** o en los ajustes de tu cuenta. **Starter** es la opción segura (ver costes arriba).
-3. Elige voces: abre la **Voice Library** (a veces "Voices" → "Explore"). Filtra por el idioma **German** (alemán, porque la radio habla alemán) y escucha algunas. Elige tres, una para Ben, otra para Mik y otra para Sara (para Sara va bien una voz femenina), y pulsa **Add to my voices** en cada una. Solo las voces de "My voices" aparecerán después en RRCA.
+3. Elige voces: abre la **Voice Library** (a veces "Voices" → "Explore"). Filtra por tu idioma de radio (por ejemplo **Spanish**) y escucha algunas. Elige tres, una para Ben, otra para Mik y otra para Sara (para Sara va bien una voz femenina), y pulsa **Add to my voices** en cada una. Solo las voces de "My voices" aparecerán después en RRCA.
 4. Crea la clave: en tu cuenta abre **API Keys** (normalmente en **Developers** o en el menú del perfil) y pulsa **Create API key**.
    - Nombre: por ejemplo `RRCA`.
    - Permisos: basta con **Text to Speech: Access** y **Voices: Read**. Todo lo demás puede quedar desactivado.
@@ -102,7 +102,7 @@ Estas cifras son estimaciones, no una garantía. Tus costes reales aparecen en t
 
 ## 6. Instalar RRCA
 
-1. Descarga `RobertsCrewChiefAdvanced.zip` desde la [página de descarga](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/tag/aktuell).
+1. Descarga `RobertsCrewChiefAdvanced.zip` desde la [página de descarga](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest).
 2. Clic derecho sobre el ZIP → **Extraer todo…** y elige una carpeta nueva, por ejemplo `C:\Simracing\RRCA`. No lo extraigas en una carpeta de Crew Chief existente.
 3. En la carpeta nueva, haz doble clic en **CrewChiefV4.exe**. Si Windows muestra el aviso azul "Windows protegió su PC", pulsa **Más información** → **Ejecutar de todas formas**. Aparece porque el programa es nuevo y no está firmado.
 4. Se abre la ventana de RRCA. La ventana clásica de Crew Chief queda minimizada detrás, en la barra de tareas; las dos forman parte del mismo programa.
@@ -113,7 +113,7 @@ Estas cifras son estimaciones, no una garantía. Tus costes reales aparecen en t
 
 Haz todo esto con el simulador cerrado o parado en boxes, nunca conduciendo.
 
-**a) Elegir idioma (opcional).** Arriba a la derecha, en **Idioma de la interfaz**, puedes cambiar entre Español, English y Deutsch.
+**a) Elegir idiomas.** Arriba a la derecha, en **Idioma de la interfaz**, cambias la ventana entre Español, English y Deutsch. El idioma del equipo se ajusta aparte en **IA y radio** → **Idioma de la radio** (Automático usa el idioma de Windows). Si cambias el idioma de la radio más tarde, vuelve a pulsar **Preparar clips de radio** y **Generar paquete de Sara** (paso c) y reinicia RRCA.
 
 **b) Introducir las claves.** Ve a **Equipo y voces** → **Servicios y claves**.
 - Pega la clave de OpenRouter en el campo **OpenRouter (Ben, Mik, reconocimiento de voz)** (haz clic en el campo y pulsa Ctrl+V) y pulsa **Guardar**.
@@ -141,7 +141,7 @@ Haz todo esto con el simulador cerrado o parado en boxes, nunca conduciendo.
 
 1. Arranca el simulador y siéntate en el coche, en boxes.
 2. RRCA debe mostrar el simulador como conectado y el equipo te saluda.
-3. Mantén pulsado el botón de radio, haz una pregunta sencilla en alemán, por ejemplo *"Wie viel Sprit habe ich?"* ("¿Cuánto combustible tengo?"), y suelta el botón.
+3. Mantén pulsado el botón de radio, haz una pregunta sencilla, por ejemplo *"¿Cuánto combustible tengo?"*, y suelta el botón.
 4. Mik debería responder en pocos segundos.
 5. Haz después una sesión corta de entrenamiento antes de tu primera carrera.
 
@@ -157,7 +157,7 @@ Vuelve a pulsar **Generar paquete de Sara**, espera a que termine y reinicia RRC
 Añade voces a **My voices** en ElevenLabs y pulsa de nuevo **Cargar lista de voces**. Comprueba que la clave tiene el permiso **Voices: Read**.
 
 **No entiende mi pregunta.**
-Mantén pulsado el botón un momento antes de hablar y suéltalo cuando hayas terminado. Habla en alemán. Comprueba el micrófono elegido.
+Mantén pulsado el botón un momento antes de hablar y suéltalo cuando hayas terminado. Habla en tu idioma de radio. Comprueba el micrófono elegido.
 
 **De repente deja de hablar.**
 Puede que se haya acabado tu saldo o tus caracteres del mes, o que se haya alcanzado el límite de la clave. Revisa las dos webs.
@@ -169,13 +169,14 @@ Estos comandos antiguos usan el reconocimiento de voz de Windows. Instala el ing
 
 - Cuando hablas con el equipo, tu pregunta hablada, los datos de carrera necesarios y, si la memoria del piloto está activada, las notas relacionadas se envían a OpenRouter y al modelo de IA que use. El texto que se va a decir se envía a ElevenLabs. Se aplican las normas de cada proveedor: [privacidad de OpenRouter](https://openrouter.ai/privacy), [condiciones de ElevenLabs](https://elevenlabs.io/terms-of-use-eu).
 - El micrófono solo graba mientras mantienes pulsado el botón de radio. No se guardan grabaciones completas.
+- Al iniciarse, RRCA pregunta a GitHub si hay una versión nueva. No se envían datos personales.
 - Tus claves se guardan cifradas para tu usuario de Windows (Windows DPAPI) y nunca se incluyen en la descarga.
 - La opción **Enviar nombres de pilotos a la IA** está desactivada en los perfiles nuevos.
 - La memoria del piloto guarda notas y preferencias solo en tu PC. No entrena ningún modelo de IA.
 
 ## 11. Actualizar, desinstalar e informar de errores
 
-- **Actualizar:** descarga el ZIP nuevo y extráelo en una carpeta nueva (o encima de tu carpeta de RRCA con RRCA cerrado). Las claves, los perfiles y la memoria están fuera de la carpeta del programa y se conservan.
+- **Actualizar:** cuando hay una versión nueva, RRCA muestra arriba un botón **Actualizar a …**. Púlsalo y confirma: RRCA descarga y comprueba la actualización, se reinicia y conserva tus claves, perfiles y memoria. También puedes descargar el ZIP nuevo y extraerlo encima de tu carpeta de RRCA con RRCA cerrado.
 - **No** instales el instalador normal de Crew Chief ni sus actualizaciones sobre la carpeta de RRCA. Si tienes un Crew Chief normal, déjalo en su propia carpeta.
 - **Desinstalar:** cierra RRCA y borra la carpeta de RRCA. Tus datos personales (ver la tabla de abajo) se quedan hasta que los borres tú.
 - **Informar de un error:** abre un [issue en GitHub](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/issues) o escribe en el [hilo de virtualracing.org](https://forum.virtualracing.org/threads/rrca-erweiterung-freier-ki-boxenfunk-fuer-crew-chief-v4.146346/). Indica la versión (`VERSION.txt` en la carpeta de RRCA), el simulador, el circuito, la hora y lo que oíste. **Nunca publiques tus claves.** Por favor, no contactes al equipo de Crew Chief por temas de RRCA.

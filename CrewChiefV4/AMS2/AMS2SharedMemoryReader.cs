@@ -26,6 +26,8 @@ namespace CrewChiefV4.AMS2
         private int dataReadFromFileIndex = 0;
         private String lastReadFileName = null;
         private long tornFramesCount = 0;
+        private long reusedFramesCount = 0;
+        private AMS2StructWrapper lastStableFrame;
         
         public class AMS2StructWrapper
         {
@@ -97,7 +99,7 @@ namespace CrewChiefV4.AMS2
             for(retries=0;retries<MaximumSnapshotAttempts;retries++)
             {
                 uint before=sequence();
-                if((before&1)!=0)continue;
+                if((before&1)!=0){System.Threading.Thread.Yield();continue;}
                 copy(buffer);
                 uint after=sequence();
                 if(before==after && (after&1)==0 && BitConverter.ToUInt32(buffer,SequenceOffset)==before)return true;
@@ -136,7 +138,8 @@ namespace CrewChiefV4.AMS2
 
         public override void stop()
         {
-            Console.WriteLine("Stopped reading ams2 data, discarded " + tornFramesCount + " torn frames");
+            Console.WriteLine("Stopped reading ams2 data, discarded " + tornFramesCount + " torn frames, reused " + reusedFramesCount + " previous frames");
+            lastStableFrame=null;
         }
 
         public override Object ReadGameData(Boolean forSpotter)
@@ -158,7 +161,13 @@ namespace CrewChiefV4.AMS2
                         target=>{if(sharedMemoryView.ReadArray(0,target,0,target.Length)!=target.Length)throw new IOException("Incomplete AMS2 snapshot.");},
                         sharedMemoryReadBuffer,out retries);
                     tornFramesCount+=retries;
-                    if(!stable)throw new IOException("AMS2 snapshot is being updated; bounded retry exhausted.");
+                    if(!stable)
+                    {
+                        // Kein Fehler, nur ein gerade beschriebener Rahmen: der letzte saubere hat seinen alten Zeitstempel,
+                        // Frischeprüfungen sehen ihn also korrekt als älter an
+                        if(lastStableFrame!=null){reusedFramesCount++;return lastStableFrame;}
+                        throw new IOException("AMS2 snapshot is being updated; bounded retry exhausted.");
+                    }
                     _ams2apistruct=BytesToStructure(sharedMemoryReadBuffer);
                     long now=DateTime.UtcNow.Ticks;
                     if(lastSourceTicks==0 || lastSequence!=_ams2apistruct.mSequenceNumber)
@@ -173,6 +182,7 @@ namespace CrewChiefV4.AMS2
                     {
                         dataToDump.Add(structWrapper);
                     }
+                    lastStableFrame=structWrapper;
                     return structWrapper;
                 }
                 catch (Exception ex)

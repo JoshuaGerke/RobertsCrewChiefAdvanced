@@ -364,7 +364,9 @@ namespace CrewChiefV4.AiTeam
                 if (conductUncertain) candidatePass = false;
                 if (gs.OpponentData.Values.Any(o => o.ClassPosition == stablePosition && (o.InPits || !o.IsActive || o.Speed <= 10)))
                     candidatePass = false;
-                if (candidateSamples >= 3 && now - candidateSince >= TimeSpan.FromMilliseconds(250))
+                // In der ersten Runde wechseln die Plätze im Sekundentakt; erst einen stabilen Platz melden statt jeden Zwischenstand
+                TimeSpan settle = s.CompletedLaps < 1 && !candidatePass ? TimeSpan.FromSeconds(2.5) : TimeSpan.FromMilliseconds(250);
+                if (candidateSamples >= 3 && now - candidateSince >= settle)
                 {
                     int gain = stablePosition - candidatePosition;
                     pending.RemoveAll(c => c.Topic == "position" || c.Topic == "summary");

@@ -157,7 +157,7 @@ namespace CrewChiefV4.AiTeam
                 Spins++;
                 string text = language.Stopped();
                 float behind = current.SessionData.TimeDeltaBehind;
-                if (current.SessionData.SessionType == SessionType.Race && behind > 0 && behind < 15)
+                if (current.SessionData.SessionType == SessionType.Race && behind >= 0.1f && behind < 15)
                 {
                     string gap = SaraLocal.Seconds(behind);
                     text += RadioLanguage.T(" Der Nächste war zuletzt etwa " + gap + " hinter dir.", " The next car was last about " + gap + " behind you.",
