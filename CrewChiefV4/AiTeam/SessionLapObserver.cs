@@ -11,7 +11,7 @@ namespace CrewChiefV4.AiTeam
     {
         private readonly List<ObservedRaceCall> pending = new List<ObservedRaceCall>();
         private int session = int.MinValue, lastLap = -1;
-        private RadioVariantCursor improvements = new RadioVariantCursor();
+        private RadioVariantCursor improvements = new RadioVariantCursor(), rivalBests = new RadioVariantCursor();
         private SessionType type = SessionType.Unavailable;
         private float personalBest = -1, classBest = -1;
         private DateTime lastRadio = DateTime.MinValue;
@@ -21,7 +21,7 @@ namespace CrewChiefV4.AiTeam
         private bool firstTimedLapCalled;
 
         public void Reset()
-        { pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1; lastLap = -1; improvements = new RadioVariantCursor(); lastRadio = DateTime.MinValue; firstTimedLapCalled = false; }
+        { pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1; lastLap = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor(); lastRadio = DateTime.MinValue; firstTimedLapCalled = false; }
 
         public static bool Supported(SessionType t)
         { return t == SessionType.Practice || t == SessionType.LonePractice || t == SessionType.Qualify || t == SessionType.PrivateQualify || t == SessionType.HotLap; }
@@ -37,7 +37,7 @@ namespace CrewChiefV4.AiTeam
                 Reset(); session = s.SessionId; type = s.SessionType;
                 // Joining an existing session does not turn its historic best into a new event.
                 personalBest = s.PlayerLapTimeSessionBest;
-                classBest = s.PlayerClassSessionBestLapTime;
+                classBest = FieldBest(gs);
                 return;
             }
             bool green = s.SessionPhase == SessionPhase.Green;
@@ -96,21 +96,83 @@ namespace CrewChiefV4.AiTeam
                     personalBest = Good(personalBest) ? Math.Min(personalBest, time) : time;
                 }
             }
-            float nextBest = s.PlayerClassSessionBestLapTime;
-            if (!race && green && Good(nextBest) && Good(classBest) && nextBest < classBest - .01f && !ownCall)
+            // Schnellste Runde im Feld (bei mehreren Klassen: in Robs Klasse), in jeder Session.
+            // Die erste Zeit einer Session ist kein Ereignis, erst jede Verbesserung danach.
+            float nextBest = FieldBest(gs);
+            if (green && Good(nextBest) && Good(classBest) && nextBest < classBest - .01f && !ownCall)
             {
-                var rival = gs.OpponentData.Values.FirstOrDefault(o => o.IsActive && gs.carClass != null &&
-                    CarData.IsCarClassEqual(gs.carClass, o.CarClass) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - nextBest) < .01f);
+                // Nur eine gerade gefahrene Runde; nachgeladene alte Bestzeiten (Session-Beitritt) bleiben still.
+                var rival = gs.OpponentData.Values.FirstOrDefault(o => SameClass(gs, o) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - nextBest) < .01f &&
+                    (!Good(o.LastLapTime) || Math.Abs(o.LastLapTime - nextBest) < .01f));
                 if (rival != null)
                 {
-                    string name = names ? new string((rival.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()) : "";
-                    string text = (name.Length > 0 ? name : RadioLanguage.T("Ein Gegner", "A rival", "Un rival")) +
-                        RadioLanguage.T(" setzt die neue Klassenbestzeit: ", " sets the new class best: ", " marca el nuevo mejor tiempo de la clase: ") + LocalAnswers.LapTime(nextBest) + ".";
-                    Add(gs, now, "rival-best", text, "measured_class_best_and_identified_rival", 2);
+                    string name = names ? new string((rival.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()).Trim() : "";
+                    float mine = Good(personalBest) && Good(s.PlayerLapTimeSessionBest) ? Math.Min(personalBest, s.PlayerLapTimeSessionBest) :
+                        Good(personalBest) ? personalBest : s.PlayerLapTimeSessionBest;
+                    Add(gs, now, "rival-best", FastestLapText(name, nextBest, mine, RaceRadioLanguage.SeparateClass(s), rivalBests.Heard),
+                        "measured_field_best_and_identified_rival", race ? 4 : 2, rivalBests);
                 }
             }
             if (Good(nextBest)) classBest = nextBest;
         }
+
+        private static bool SameClass(GameStateData gs, OpponentData o) =>
+            o != null && o.IsActive && gs.carClass != null && CarData.IsCarClassEqual(gs.carClass, o.CarClass);
+
+        private static float FieldBest(GameStateData gs)
+        {
+            float best = gs.SessionData.PlayerClassSessionBestLapTime;
+            foreach (var o in gs.OpponentData.Values)
+                if (SameClass(gs, o) && Good(o.CurrentBestLapTime) && (!Good(best) || o.CurrentBestLapTime < best)) best = o.CurrentBestLapTime;
+            return best;
+        }
+
+        internal static string FastestLapText(string name, float best, float mine, bool classOnly, int variant)
+        {
+            string who = string.IsNullOrEmpty(name) ? RadioLanguage.T("Ein Gegner", "A rival", "Un rival") : name;
+            string text = who + (classOnly
+                ? RadioLanguage.T(" fährt die schnellste Runde der Klasse: ", " sets the fastest lap in class: ", " marca la vuelta rápida de la clase: ")
+                : RadioLanguage.T(" fährt die schnellste Runde: ", " sets the fastest lap: ", " marca la vuelta rápida: ")) + LocalAnswers.LapTime(best) + ". ";
+            if (Good(mine) && mine > best + .01f)
+            {
+                string gap = RadioLanguage.Num(mine - best, mine - best < 1 ? "0.00" : "0.0");
+                text += RadioLanguage.T("Dir fehlen " + gap + " Sekunden. ", "You're " + gap + " seconds off. ", "Te faltan " + gap + " segundos. ");
+            }
+            var push = MotivationPhrases;
+            return text + push[(int)((uint)variant % push.Length)];
+        }
+
+        private static readonly string[] MotivationDe = {
+            "Da geht noch was, bleib dran.",
+            "Das ist die Messlatte. Du kannst das.",
+            "Ruhig bleiben, die Zeit kommt.",
+            "Hol sie dir Stück für Stück.",
+            "Sauber fahren, dann kommst du ran.",
+            "Nimm das als Ansporn.",
+            "Lass dich nicht hetzen, dein Rhythmus zählt.",
+            "Kopf hoch, wir arbeiten uns ran."
+        };
+        private static readonly string[] MotivationEn = {
+            "There's more in it, stay with it.",
+            "That's the benchmark. You can do this.",
+            "Stay calm, the time will come.",
+            "Chip away at it, bit by bit.",
+            "Drive it clean and you'll get there.",
+            "Use that as motivation.",
+            "Don't rush it, your rhythm matters.",
+            "Head up, we're closing in."
+        };
+        private static readonly string[] MotivationEs = {
+            "Aún hay margen, sigue así.",
+            "Esa es la referencia. Tú puedes.",
+            "Tranquilo, el tiempo llegará.",
+            "Ve recortando poco a poco.",
+            "Conduce limpio y llegarás.",
+            "Tómalo como motivación.",
+            "Sin prisas, lo que cuenta es tu ritmo.",
+            "Ánimo, nos estamos acercando."
+        };
+        internal static string[] MotivationPhrases => RadioLanguage.Pick(MotivationDe, MotivationEn, MotivationEs);
 
         private static bool Good(float t) { return !float.IsNaN(t) && !float.IsInfinity(t) && t > 10 && t < 3600; }
         private void Add(GameStateData gs, DateTime now, string topic, string text, string evidence, int priority,

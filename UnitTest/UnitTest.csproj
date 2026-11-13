@@ -74,6 +74,7 @@
     <Compile Include="AiTeam\RrcaFormSmokeTest.cs" />
     <Compile Include="AiTeam\RaceRadioDirectorTests.cs" />
     <Compile Include="AiTeam\RadioLanguageTests.cs" />
+    <Compile Include="AiTeam\FastestLapTests.cs" />
     <Compile Include="AiTeam\LiveCrewV06Tests.cs" />
     <Compile Include="AiTeam\VerifiedV06Tests.cs" />
     <Compile Include="AiTeam\LiveDiagnosticsTests.cs" />

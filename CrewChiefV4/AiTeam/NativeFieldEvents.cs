@@ -23,7 +23,6 @@ namespace CrewChiefV4.AiTeam
         {
             if(source=="leader_is_pitting" || source=="car_in_front_is_pitting" || source=="car_behind_is_pitting" || source=="car_is_pitting")return "pit";
             if(source=="new_leader")return "leader";
-            if(source=="new_fastest_lap")return "fastest";
             if(source=="retirement")return "retired";
             if(source=="disqualified")return "dq";
             if((source??"").StartsWith("opponent_tyre_change_",StringComparison.Ordinal))return "tyres";
@@ -130,7 +129,7 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="pit")return op.CarNumber==f.CarNumber && op.CostId==f.CarId && (op.InPits || op.isEnteringPits());
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;
-            return f.Kind=="fastest" && f.Seconds>10 && op.CurrentBestLapTime>0 && op.CurrentBestLapTime<=f.Seconds+.01;
+            return false;
         }
         private void Remove(ObservedRaceCall call)
         {
@@ -176,7 +175,6 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="retired")return who+RadioLanguage.T(" ist ausgefallen."," is out of the race."," ha abandonado.");
             if(f.Kind=="dq")return who+RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado.");
             if(f.Kind=="tyres")return who+RadioLanguage.T(" hat die Reifenmischung gewechselt."," has changed tyre compound."," ha cambiado de compuesto de neumáticos.");
-            if(f.Kind=="fastest" && f.Seconds>10 && f.Seconds<3600)return who+RadioLanguage.T(" setzt die Klassenbestzeit: "," sets the class fastest lap: "," marca la vuelta rápida de la clase: ")+LocalAnswers.LapTime((float)f.Seconds)+".";
             return null;
         }
     }

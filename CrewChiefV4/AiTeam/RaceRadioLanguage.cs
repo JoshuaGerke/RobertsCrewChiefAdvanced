@@ -59,8 +59,9 @@ namespace CrewChiefV4.AiTeam
         public string OffTrack(bool wet)
         { return Select("off-track", CrewSpeechPolicy.OffTrackPhrases) + (wet ? CrewSpeechPolicy.WetTrackHint : ""); }
 
+        // Gleiche Klassen- und Gesamtposition: einfach "Platz", auch wenn die Fahrzeugzahlen abweichen (R3E zählt dort uneinheitlich)
         internal static bool SeparateClass(SessionData s) => s.ClassPosition > 0 &&
-            (s.OverallPosition > 0 && s.OverallPosition != s.ClassPosition ||
+            (s.OverallPosition > 0 ? s.OverallPosition != s.ClassPosition :
              s.NumCarsInPlayerClass > 0 && s.NumCarsOverall > s.NumCarsInPlayerClass);
 
         // EN/ES nennen Positionen als "P7".

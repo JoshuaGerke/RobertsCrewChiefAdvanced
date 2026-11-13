@@ -74,7 +74,7 @@ namespace UnitTest.AiTeamTests
             gs.SessionData.PlayerClassSessionBestLapTime=89;
             observer.Observe(gs,null,T.AddSeconds(1),true);
             var call=observer.Take(gs,T.AddSeconds(1),false);
-            Assert.IsNotNull(call); StringAssert.Contains("Alex",call.Text); StringAssert.Contains("Klassenbestzeit",call.Text);
+            Assert.IsNotNull(call); StringAssert.Contains("Alex",call.Text); StringAssert.Contains("schnellste Runde",call.Text);
         }
 
         [Test]

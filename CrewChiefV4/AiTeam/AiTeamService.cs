@@ -49,6 +49,7 @@ namespace CrewChiefV4.AiTeam
         private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
+        private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
         private readonly DriverWorkload workload = new DriverWorkload();
         private readonly RaceReader raceReader = new RaceReader();
         private readonly RaceRadioDirector radioDirector = new RaceRadioDirector();
@@ -234,6 +235,7 @@ namespace CrewChiefV4.AiTeam
                 pitLaneWatch.Reset();
                 lapWatch.Reset();
                 sessionLaps.Reset();
+                lock (recentLocalCalls) recentLocalCalls.Clear();
                 radioDirector.Reset();
                 workload.Reset();
                 raceReader.Reset();
@@ -1435,6 +1437,40 @@ namespace CrewChiefV4.AiTeam
             return now >= last && (now - last).TotalSeconds <= 1;
         }
 
+        // Warnungen gleicher Art zählen als eine Ansage, alles andere nur bei identischem Text.
+        internal static string RepeatKey(ObservedRaceCall call, out TimeSpan window)
+        {
+            string topic = call.Topic ?? "";
+            if (topic == "race-hazard-ahead") { window = TimeSpan.FromSeconds(12); return topic; }
+            if (topic == "race-traffic-rear" || topic == "traffic-approaching" || topic == "traffic-catching") { window = TimeSpan.FromSeconds(15); return topic; }
+            window = TimeSpan.FromSeconds(60);
+            return string.IsNullOrEmpty(call.Text) ? null : call.Member + "|" + call.Text;
+        }
+
+        // Unterbrochene oder gescheiterte Ansagen dürfen wiederkommen.
+        internal static bool Covers(ObservedRaceCall previous, DateTime queuedUtc, ObservedRaceCall call, TimeSpan window, DateTime now) =>
+            previous != null && !ReferenceEquals(previous, call) && now - queuedUtc < window && !previous.PlaybackInterrupted && !previous.DeliveryFailed &&
+            (previous.DeliveryStartedUtc != DateTime.MinValue || now - queuedUtc < TimeSpan.FromSeconds(10));
+
+        private bool CoveredByRecentCall(ObservedRaceCall call, DateTime now)
+        {
+            string key = RepeatKey(call, out var window);
+            lock (recentLocalCalls)
+                return key != null && recentLocalCalls.TryGetValue(key, out var last) && Covers(last.Value, last.Key, call, window, now);
+        }
+
+        private void RememberLocalCall(ObservedRaceCall call, DateTime now)
+        {
+            string key = RepeatKey(call, out _);
+            if (key == null) return;
+            lock (recentLocalCalls)
+            {
+                if (recentLocalCalls.Count > 64)
+                    foreach (var old in recentLocalCalls.Where(p => now - p.Value.Key > TimeSpan.FromMinutes(2)).Select(p => p.Key).ToArray()) recentLocalCalls.Remove(old);
+                recentLocalCalls[key] = new KeyValuePair<DateTime, ObservedRaceCall>(now, call);
+            }
+        }
+
         private void QueueLocalRaceCall(ObservedRaceCall call)
         {
             int generation = Volatile.Read(ref sessionGeneration);
@@ -1442,11 +1478,19 @@ namespace CrewChiefV4.AiTeam
                 (call.Topic=="race-hazard-ahead" || call.Topic=="race-traffic-rear" ||
                 (call.Topic??"").StartsWith("warning-",StringComparison.Ordinal) && call.Topic!="warning-numeric-damage");
             // Die Schadensmeldung mit Messwerten wird erst live gesprochen und darf Flaggen und Gefahren nicht sechs Sekunden blockieren
+            if (CoveredByRecentCall(call, DateTime.UtcNow))
+            {
+                var at = DateTime.UtcNow;
+                call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "same_call_recently_spoken", call.Text);
+                return;
+            }
             if (!settings.IsMemberEnabled(call.Member) || !radioRenderGate.TryEnter(urgentPit))
             {
                 call.ReleaseForRetry(DateTime.UtcNow, "member_disabled_or_channel_busy");
                 return;
             }
+            RememberLocalCall(call, DateTime.UtcNow);
             bool pitAlreadyClaimed = fieldEvents.HasClaimedPit(call.PitGain, DateTime.UtcNow);
             int renderReleased = 0;
             Action releaseRender = () => { if (Interlocked.Exchange(ref renderReleased, 1) == 0) radioRenderGate.Exit(urgentPit); };
