@@ -196,12 +196,6 @@ namespace CrewChiefV4.GameState
                         spotterEnabled = true;
                         Log.Commentary("Spotter enabled on road circuit because Realistic Mode is not checked");
                     }
-                    else if (UserSettings.GetUserSettings().getBoolean("enable_ai_team") && UserSettings.GetUserSettings().getBoolean("enable_ai_team_sara"))
-                    {
-                        // RRCA: Sara übernimmt den Spotter, der Realistik-Modus soll sie nicht stummschalten
-                        spotterEnabled = true;
-                        Log.Commentary("Spotter enabled on road circuit for Sara (AI team) although Realistic Mode is checked");
-                    }
                     else
                     {
                         Log.Warning("SPOTTER NOT ENABLED on road circuit because Realistic Mode is checked");

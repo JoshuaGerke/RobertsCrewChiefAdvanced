@@ -233,6 +233,15 @@ namespace CrewChiefV4.AiTeam
                     SaveProperty("ai_team_microphone", (string)m["name"] ?? "");
                     Notice("Mikrofon gespeichert.");
                     break;
+                case "setSpotterMode":
+                    bool realistic = (bool)m["realistic"];
+                    SaveProperty("realistic_mode", realistic);
+                    if (UserSettings.GetUserSettings().getBoolean("realistic_mode") == realistic)
+                    {
+                        GlobalBehaviourSettings.realisticMode = realistic;
+                        Notice("Spottermodus gespeichert. Gilt ab dem nächsten Start von Crew Chief.");
+                    }
+                    break;
                 case "setRadioEffect":
                     SaveProperty("enable_ai_team_radio_effect", (bool)m["on"]);
                     break;
@@ -367,6 +376,7 @@ namespace CrewChiefV4.AiTeam
                 ["microphone"] = s.Microphone ?? "",
                 ["ptt"] = "Controller-Aktion „KI-Team anfunken“" + (string.IsNullOrEmpty(s.PttKey) ? "" : " oder Taste " + s.PttKey),
                 ["radioEffect"] = s.RadioEffect,
+                ["realisticMode"] = UserSettings.GetUserSettings().getBoolean("realistic_mode"),
                 ["sendDriverNames"] = service.Settings.SendDriverNames,
                 ["memoryEnabled"] = service.Settings.PersistentMemory,
                 ["memoryStatus"] = DriverMemory.Status,

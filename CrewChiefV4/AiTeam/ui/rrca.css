@@ -107,3 +107,4 @@ html,body{margin:0;background:#0b0e10;min-height:100%}
 
 dialog.help-dialog { font-family: inherit; }
 .member-volume { margin-top:12px; } .member-volume output { float:right; color:var(--lime,#b5eb32); }
+#rrca-design .spotter-mode{display:flex;align-items:center;gap:6px;margin-top:6px}#rrca-design .spotter-mode select{width:auto;min-height:27px;padding:3px 6px;font-size:11px}

@@ -110,6 +110,7 @@
     fillSelect($('#rrca-mic'), [{ id: '', name: t('Windows-Standardgerät'), ui:'Windows-Standardgerät' }].concat(d.microphones.map(m => ({ id: m, name: m }))), d.microphone);
     $('#rrca-ptt').value = d.ptt;
     $('#rrca-radio-effect').checked = d.radioEffect;
+    $('#rrca-spotter-mode').value = d.realisticMode ? 'realistic' : 'normal';
     $('#rrca-recorder').checked = d.recorder;
     $('#rrca-memory').checked = d.memoryEnabled;
     if (typeof d.sendDriverNames === 'boolean') $('#rrca-send-names').checked = d.sendDriverNames;
@@ -212,6 +213,7 @@
   $('#rrca-auto').addEventListener('change', e => send('setAutoDetect', { on: e.target.checked }));
   $('#rrca-mic').addEventListener('change', e => send('setMicrophone', { name: e.target.value }));
   $('#rrca-radio-effect').addEventListener('change', e => send('setRadioEffect', { on: e.target.checked }));
+  $('#rrca-spotter-mode').addEventListener('change', e => send('setSpotterMode', { realistic: e.target.value === 'realistic' }));
   $('#rrca-send-names').addEventListener('change', e => send('setSendNames', { on: e.target.checked }));
   $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
