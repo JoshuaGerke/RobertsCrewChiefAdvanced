@@ -60,6 +60,8 @@ namespace CrewChiefV4.AiTeam
 
         private static HttpClient Client()
         {
+            // GitHub verlangt TLS 1.2; ältere Laufzeiteinstellungen nicht dem Zufall überlassen
+            System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12;
             var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("RRCA-Updater");
             return http;
@@ -87,7 +89,7 @@ namespace CrewChiefV4.AiTeam
                     return new Release { Tag = tag, ZipUrl = zip, HashUrl = hash, Notes = (string)json["body"] ?? "" };
                 }
             }
-            catch (Exception) { return null; }
+            catch (Exception e) { Console.WriteLine("[RRCA] Update-Prüfung nicht möglich: " + e.GetBaseException().Message); return null; }
         }
 
         /// <summary>Darf in den Programmordner geschrieben werden? Sonst nur die Download-Seite öffnen.</summary>
