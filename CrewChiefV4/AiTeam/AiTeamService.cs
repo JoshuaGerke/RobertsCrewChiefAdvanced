@@ -140,6 +140,7 @@ namespace CrewChiefV4.AiTeam
         private void ApplySettings(AiTeamSettings newSettings)
         {
             settings = newSettings;
+            RadioLanguage.Current = RadioLanguage.Resolve(settings.RadioLanguageSetting);
             NativeTrafficBridge.Enabled = settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
             NativeTrafficBridge.Clear();
             NativeIncidentWatch.Enabled=settings.Enabled && settings.ReplaceCrewChiefVoice && settings.BenEnabled;
@@ -748,7 +749,7 @@ namespace CrewChiefV4.AiTeam
             if (!HasApiKey)
             {
                 Status("Kein API-Schlüssel hinterlegt (Menü \"KI-Team\").");
-                await SpeakAsync(TeamMember.Mik, "Für die Spracherkennung fehlt noch der API-Schlüssel.", true, CancellationToken.None).ConfigureAwait(false);
+                await SpeakAsync(TeamMember.Mik, RadioLanguage.T("Für die Spracherkennung fehlt noch der API-Schlüssel.", "Speech recognition still needs the API key.", "Al reconocimiento de voz todavía le falta la clave API."), true, CancellationToken.None).ConfigureAwait(false);
                 return;
             }
             string text;
@@ -761,7 +762,7 @@ namespace CrewChiefV4.AiTeam
             {
                 Log("Spracherkennung fehlgeschlagen: " + e.Message);
                 Status("Spracherkennung fehlgeschlagen: " + e.Message);
-                await SpeakAsync(TeamMember.Mik, SpokenError(e, "Funk war nicht zu verstehen, die Verbindung hakt."), true, CancellationToken.None).ConfigureAwait(false);
+                await SpeakAsync(TeamMember.Mik, SpokenError(e, RadioLanguage.T("Funk war nicht zu verstehen, die Verbindung hakt.", "Couldn't understand that, the connection is patchy.", "No se te ha entendido, la conexión falla.")), true, CancellationToken.None).ConfigureAwait(false);
                 return;
             }
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("stt.recognized",LiveDiagnostics.Data("transcript",text,"utterance_sequence",sequence,"confidence_available",false));
@@ -823,10 +824,13 @@ namespace CrewChiefV4.AiTeam
             }
 
             string repeat = (routed.Question ?? "").Trim().TrimEnd('.', '!', '?').ToLowerInvariant();
-            if (repeat == "wiederhol" || repeat == "wiederhole" || repeat == "nochmal" || repeat == "bitte wiederholen" || repeat == "was hast du gesagt")
+            if (repeat == "wiederhol" || repeat == "wiederhole" || repeat == "nochmal" || repeat == "bitte wiederholen" || repeat == "was hast du gesagt" ||
+                repeat == "repeat" || repeat == "say again" || repeat == "repeat that" || repeat == "what did you say" || repeat == "come again" ||
+                repeat == "repite" || repeat == "repítelo" || repeat == "repitelo" || repeat == "otra vez" || repeat == "qué has dicho" || repeat == "que has dicho")
             {
                 var lastSpoken = Memory.GetRadio(TimeSpan.FromMinutes(3), DateTime.UtcNow).LastOrDefault();
-                string repeated = lastSpoken == null ? "Es liegt noch kein bestätigter Funkspruch vor." : "Zuletzt am Funk: " + lastSpoken.Text;
+                string repeated = lastSpoken == null ? RadioLanguage.T("Es liegt noch kein bestätigter Funkspruch vor.", "Nothing confirmed on the radio yet.", "Todavía no hay ningún mensaje confirmado por radio.") :
+                    RadioLanguage.T("Zuletzt am Funk: ", "Last on the radio: ", "Lo último por radio: ") + lastSpoken.Text;
                 await SpeakAsync(routed.Member, repeated, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 return repeated;
             }
@@ -844,13 +848,13 @@ namespace CrewChiefV4.AiTeam
 
             if (!HasApiKey)
             {
-                const string noKey = "Dafür brauch ich die KI, aber es ist noch kein API-Schlüssel hinterlegt.";
+                string noKey = RadioLanguage.T("Dafür brauch ich die KI, aber es ist noch kein API-Schlüssel hinterlegt.", "I need the AI for that, but there's no API key set yet.", "Para eso necesito la IA, pero todavía no hay clave API.");
                 await SpeakAsync(routed.Member, noKey, true, CancellationToken.None).ConfigureAwait(false);
                 return noKey;
             }
             if (settings.MaxCallsPerSession > 0 && callsThisSession >= settings.MaxCallsPerSession)
             {
-                const string budget = "Das KI-Budget für diese Session ist aufgebraucht. Die lokalen Ansagen laufen weiter.";
+                string budget = RadioLanguage.T("Das KI-Budget für diese Session ist aufgebraucht. Die lokalen Ansagen laufen weiter.", "The AI budget for this session is used up. Local calls keep running.", "El presupuesto de IA de esta sesión se ha agotado. Los avisos locales siguen.");
                 await SpeakAsync(routed.Member, budget, true, CancellationToken.None).ConfigureAwait(false);
                 return budget;
             }
@@ -877,7 +881,7 @@ namespace CrewChiefV4.AiTeam
                 string cleanAnswer = RadioAnswerQuality.Clean(answer, knownNames);
                 if (cleanAnswer != answer)
                     LiveDiagnostics.Emit("radio.answer_quality", LiveDiagnostics.Data("status", cleanAnswer == null ? "rejected" : "repaired", "reason", "language_or_incomplete_tail"));
-                answer = cleanAnswer ?? "Die Antwort war unklar. Frag bitte noch einmal.";
+                answer = cleanAnswer ?? RadioLanguage.T("Die Antwort war unklar. Frag bitte noch einmal.", "That answer was unclear. Ask again, please.", "La respuesta no ha quedado clara. Pregunta otra vez.");
                 if (driverCancel.IsCancellationRequested || generation != Volatile.Read(ref sessionGeneration))
                 {
                     return null;
@@ -900,7 +904,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 Log("KI-Anfrage fehlgeschlagen: " + e.Message);
                 Status("KI-Fehler: " + e.Message);
-                string fallback = SpokenError(e, "Ich krieg gerade keine Antwort von der Auswertung. Versuch's gleich nochmal.");
+                string fallback = SpokenError(e, RadioLanguage.T("Ich krieg gerade keine Antwort von der Auswertung. Versuch's gleich nochmal.", "I'm not getting an answer from the analysis right now. Try again in a moment.", "Ahora mismo no me llega respuesta del análisis. Inténtalo de nuevo enseguida."));
                 await SpeakAsync(routed.Member, fallback, true, CancellationToken.None).ConfigureAwait(false);
                 return fallback;
             }
@@ -1018,7 +1022,7 @@ namespace CrewChiefV4.AiTeam
                     });
                 }
             }
-            return "Ich komm mit der Auswertung gerade nicht zu einem sauberen Ergebnis.";
+            return RadioLanguage.T("Ich komm mit der Auswertung gerade nicht zu einem sauberen Ergebnis.", "I can't get a clean result from the analysis right now.", "Ahora mismo no consigo un resultado limpio del análisis.");
         }
 
         public static string RequireCompleteAnswer(JObject response, int maxChars)
@@ -1053,12 +1057,14 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         private async Task<string> TranscribeWithFallbackAsync(byte[] wav)
         {
-            const string hint = "Rennfunk an die Boxencrew Mik, Ben und Sara. Simracing, Reifen, Sprit, Boxenstopp, Undercut.";
+            string hint = RadioLanguage.T("Rennfunk an die Boxencrew Mik, Ben und Sara. Simracing, Reifen, Sprit, Boxenstopp, Undercut.",
+                "Race radio to the pit crew Mik, Ben and Sara. Sim racing, tyres, fuel, pit stop, undercut.",
+                "Radio de carrera al equipo de boxes Mik, Ben y Sara. Simracing, neumáticos, combustible, parada en boxes, undercut.");
             try
             {
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
                 {
-                    return await client.TranscribeAsync(wav, settings.SttModel, "de", hint, cts.Token).ConfigureAwait(false);
+                    return await client.TranscribeAsync(wav, settings.SttModel, RadioLanguage.SpeechCode, hint, cts.Token).ConfigureAwait(false);
                 }
             }
             catch (AiApiException e) when (e.Status.HasValue && (int)e.Status.Value >= 400 && (int)e.Status.Value != 401 &&
@@ -1067,7 +1073,7 @@ namespace CrewChiefV4.AiTeam
                 Log("Spracherkennung mit " + settings.SttModel + " abgelehnt (" + e.Message + "), versuche " + FallbackSttModel);
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
                 {
-                    return await client.TranscribeAsync(wav, FallbackSttModel, "de", hint, cts.Token).ConfigureAwait(false);
+                    return await client.TranscribeAsync(wav, FallbackSttModel, RadioLanguage.SpeechCode, hint, cts.Token).ConfigureAwait(false);
                 }
             }
         }
@@ -1080,23 +1086,23 @@ namespace CrewChiefV4.AiTeam
             string msg = e.Message ?? "";
             if (status == 401 || (msg.IndexOf("invalid", StringComparison.OrdinalIgnoreCase) >= 0 && msg.IndexOf("key", StringComparison.OrdinalIgnoreCase) >= 0))
             {
-                return "Der OpenRouter-Schlüssel wird nicht angenommen. Trag ihn bitte im KI-Team-Fenster neu ein.";
+                return RadioLanguage.T("Der OpenRouter-Schlüssel wird nicht angenommen. Trag ihn bitte im KI-Team-Fenster neu ein.", "The OpenRouter key isn't accepted. Please enter it again in the AI team window.", "La clave de OpenRouter no se acepta. Vuelve a introducirla en la ventana del equipo de IA.");
             }
             if (status == 402 || msg.IndexOf("credit", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return "Bei OpenRouter ist kein Guthaben mehr drauf. Bitte aufladen.";
+                return RadioLanguage.T("Bei OpenRouter ist kein Guthaben mehr drauf. Bitte aufladen.", "No credit left on OpenRouter. Please top up.", "No queda saldo en OpenRouter. Recárgalo, por favor.");
             }
             if (status == 403)
             {
-                return "OpenRouter verweigert die Anfrage. Schau bitte ins KI-Team-Fenster.";
+                return RadioLanguage.T("OpenRouter verweigert die Anfrage. Schau bitte ins KI-Team-Fenster.", "OpenRouter is refusing the request. Please check the AI team window.", "OpenRouter rechaza la petición. Mira la ventana del equipo de IA.");
             }
             if (status == 429)
             {
-                return "OpenRouter bremst gerade, zu viele Anfragen. Gleich nochmal versuchen.";
+                return RadioLanguage.T("OpenRouter bremst gerade, zu viele Anfragen. Gleich nochmal versuchen.", "OpenRouter is throttling, too many requests. Try again in a moment.", "OpenRouter está limitando, demasiadas peticiones. Inténtalo otra vez enseguida.");
             }
             if (status >= 400 && status < 500)
             {
-                return "Die Anfrage wurde abgelehnt, da stimmt eine Einstellung nicht. Details stehen im KI-Team-Fenster.";
+                return RadioLanguage.T("Die Anfrage wurde abgelehnt, da stimmt eine Einstellung nicht. Details stehen im KI-Team-Fenster.", "The request was rejected, a setting is wrong. Details are in the AI team window.", "La petición ha sido rechazada, hay un ajuste mal. Los detalles están en la ventana del equipo de IA.");
             }
             return connectionMessage;
         }
@@ -1801,6 +1807,15 @@ namespace CrewChiefV4.AiTeam
         {
             get
             {
+                // Deutsch ohne Zusatz, damit bestehende Pakete gültig bleiben; andere Sprachen brauchen ein eigenes Paket
+                return SaraVoiceKeyWithoutLanguage + (RadioLanguage.IsGerman ? "" : "|lang=" + RadioLanguage.Current);
+            }
+        }
+
+        private string SaraVoiceKeyWithoutLanguage
+        {
+            get
+            {
                 if (settings.TtsProvider == AiTtsProvider.ELEVENLABS)
                 {
                     return "elevenlabs|" + settings.ElevenLabsModel + "|" + settings.ElevenLabsVoiceSara + "|radio=" + settings.RadioEffect;
@@ -1968,8 +1983,7 @@ namespace CrewChiefV4.AiTeam
                     return PreparedVoiceStatus="Zuerst eigene Stimmen für die aktiven Crew-Mitglieder auswählen.";
                 PreparedVoiceStatus = "Originalclips werden geprüft/vorbereitet.";
                 int ready=0, failed=0;
-                var sara = new[] { "Links frei.", "Rechts frei.", "Noch einer links.", "Noch einer rechts.", "Noch zwei links.", "Noch zwei rechts.",
-                    "Frei, keiner neben dir.", "Noch einer links, rechts frei.", "Noch einer rechts, links frei.", SaraLocal.NoDataAnswer }.Concat(FlagWatch.Phrases);
+                var sara = SaraLocal.PreparedPhrases.Concat(FlagWatch.Phrases);
                 var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
                     .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(LiveWarningDispatcher.MikPhrases).Concat(ThermalWatch.PreparedPhrases).Concat(CrewSpeechPolicy.FinishPhrases).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(CrewSpeechPolicy.WeatherPhrases).Concat(PitLaneWatch.UnknownLimitPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
                     .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.StoppedPhrases).Concat(TrackSituationWatch.ApproachingPhrases).Concat(RaceTrafficWatch.PreparedPhrases).Concat(NativeIncidentWatch.Phrases).Concat(RaceSituationWatch.PreparedPhrases(settings.RadioName)).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))

@@ -174,6 +174,10 @@ namespace CrewChiefV4.AiTeam
                     PushLive();
                     live.Start();
                     if (service.HasElevenLabsKey) LoadVoices(false);
+                    CheckForUpdate();
+                    break;
+                case "installUpdate":
+                    InstallUpdate((string)m["uiLanguage"]);
                     break;
                 case "setAudioLevel":
                     SetAudioLevel((string)m["channel"], m["percent"], (bool?)m["persist"] ?? true);
@@ -377,6 +381,7 @@ namespace CrewChiefV4.AiTeam
                 ["settings"] = new JObject
                 {
                     ["radioMode"] = s.RadioMode.ToString(),
+                    ["radioLanguage"] = s.RadioLanguageSetting,
                     ["fastModel"] = s.FastModel,
                     ["deepModel"] = s.DeepModel,
                     ["sttModel"] = s.SttModel,
@@ -572,6 +577,9 @@ namespace CrewChiefV4.AiTeam
             u.setProperty("ai_team_max_calls_per_session", Math.Max(0, Int(v["callLimit"], 300)));
             u.setProperty("ai_team_timeout_seconds", Math.Max(3, Math.Min(60, Int(v["timeout"], 12))));
             if (Enum.TryParse((string)v["radioMode"], out mode)) u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
+            string radioLanguage = ((string)v["radioLanguage"] ?? RadioLanguage.Auto).Trim().ToLowerInvariant();
+            if (radioLanguage == RadioLanguage.Auto || radioLanguage == RadioLanguage.German || radioLanguage == RadioLanguage.English || radioLanguage == RadioLanguage.Spanish)
+                u.setProperty("ai_team_radio_language", radioLanguage);
             u.setProperty("ai_team_driver_name", fullName);
             u.setProperty("ai_team_driver_nickname", nickname);
             prefs.Save();
@@ -732,6 +740,44 @@ namespace CrewChiefV4.AiTeam
         private void Run(Task<string> task)
         {
             task.ContinueWith(t => Notice(t.Exception == null ? t.Result : "Fehler: " + t.Exception.GetBaseException().Message));
+        }
+
+        private RrcaUpdater.Release pendingUpdate;
+
+        private async void CheckForUpdate()
+        {
+            var release = await RrcaUpdater.CheckAsync();
+            if (release == null || IsDisposed) return;
+            pendingUpdate = release;
+            Post(new JObject { ["type"] = "update", ["version"] = release.Tag });
+        }
+
+        private async void InstallUpdate(string uiLanguage)
+        {
+            var release = pendingUpdate;
+            if (release == null) return;
+            string L(string de, string en, string es) => uiLanguage == "en" ? en : uiLanguage == "es" ? es : de;
+            if (!RrcaUpdater.CanWriteProgramFolder())
+            {
+                // Programmordner ohne Schreibrecht (z. B. unter Programme): dann nur die Download-Seite öffnen
+                System.Diagnostics.Process.Start(RrcaUpdater.ReleasesPage);
+                return;
+            }
+            if (MessageBox.Show(this, L("RRCA " + release.Tag + " jetzt installieren? RRCA wird dafür beendet und startet danach neu. Schlüssel, Profile und Gedächtnis bleiben erhalten.",
+                    "Install RRCA " + release.Tag + " now? RRCA will close and restart afterwards. Your keys, profiles and memory are kept.",
+                    "¿Instalar RRCA " + release.Tag + " ahora? RRCA se cerrará y volverá a abrirse. Tus claves, perfiles y memoria se conservan."),
+                    "RRCA", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            Notice(L("Update wird heruntergeladen …", "Downloading update …", "Descargando actualización …"));
+            string error = await RrcaUpdater.PrepareAsync(release, null);
+            if (error != null)
+            {
+                Notice(L("Update fehlgeschlagen (" + error + "). Die Download-Seite öffnet sich.", "Update failed (" + error + "). Opening the download page.", "La actualización falló (" + error + "). Se abre la página de descarga."));
+                System.Diagnostics.Process.Start(RrcaUpdater.ReleasesPage);
+                return;
+            }
+            // Austausch läuft im Hintergrund, sobald dieser Prozess beendet ist
+            try { MainWindow.instance?.Close(); } catch (Exception) { }
+            Application.Exit();
         }
 
         private void Notice(string text)

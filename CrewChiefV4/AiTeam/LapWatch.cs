@@ -79,13 +79,15 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {
                 lastCalledLap = s.CompletedLaps;
-                return "Zielflagge ist draußen, bring die Runde sauber zu Ende." + (s.ClassPosition == 1 ? (separate ? " Du führst deine Klasse." : " Du führst, jetzt konzentriert nach Hause bringen.") :
+                return RadioLanguage.T("Zielflagge ist draußen, bring die Runde sauber zu Ende.", "Chequered flag is out, bring the lap home clean.", "Bandera a cuadros, termina la vuelta limpio.") +
+                    (s.ClassPosition == 1 ? (separate ? RadioLanguage.T(" Du führst deine Klasse.", " You're leading your class.", " Lideras tu clase.") :
+                        RadioLanguage.T(" Du führst, jetzt konzentriert nach Hause bringen.", " You're leading, bring it home focused.", " Vas líder, llévalo a casa concentrado.")) :
                     rank.Length > 0 ? " " + rank : "") + duel;
             }
             if (!timedClockCalled && s.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane && TimedClockElapsed(s))
             {
                 timedClockCalled = true;
-                return "Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.";
+                return RadioLanguage.T("Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.", "Race time is up. Watch for the chequered flag.", "Se acabó el tiempo de carrera. Atento a la bandera a cuadros.");
             }
             if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)
             {
@@ -106,15 +108,18 @@ namespace CrewChiefV4.AiTeam
             if (left == 1)
             {
                 lastCalledLap = s.CompletedLaps;
-                return (LapsAreEstimated(s) ? "Voraussichtlich letzte Runde! " : "Letzte Runde! ") +
-                    (s.ClassPosition == 1 ? (separate ? "Du führst deine Klasse. Bring es sauber nach Hause." :
-                        "Du führst. Bleib ruhig, bring es sauber nach Hause.") :
-                        rank.Length > 0 ? rank + " Bleib konzentriert." : "Bleib konzentriert.") + duel;
+                string focus = RadioLanguage.T("Bleib konzentriert.", "Stay focused.", "Mantén la concentración.");
+                return (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich letzte Runde! ", "Probably the last lap! ", "¡Probablemente última vuelta! ") :
+                        RadioLanguage.T("Letzte Runde! ", "Last lap! ", "¡Última vuelta! ")) +
+                    (s.ClassPosition == 1 ? (separate ? RadioLanguage.T("Du führst deine Klasse. Bring es sauber nach Hause.", "You're leading your class. Bring it home clean.", "Lideras tu clase. Llévalo a casa limpio.") :
+                        RadioLanguage.T("Du führst. Bleib ruhig, bring es sauber nach Hause.", "You're leading. Stay calm, bring it home clean.", "Vas líder. Tranquilo, llévalo a casa limpio.")) :
+                        rank.Length > 0 ? rank + " " + focus : focus) + duel;
             }
             if (!minimalMode && left == 2)
             {
                 lastCalledLap = s.CompletedLaps;
-                return (LapsAreEstimated(s) ? "Voraussichtlich noch zwei Runden" : "Noch zwei Runden") +
+                return (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich noch zwei Runden", "Probably two laps to go", "Probablemente quedan dos vueltas") :
+                        RadioLanguage.T("Noch zwei Runden", "Two laps to go", "Quedan dos vueltas")) +
                     (rank.Length > 0 ? ", " + rank : ".");
             }
             return null;
@@ -124,11 +129,11 @@ namespace CrewChiefV4.AiTeam
         {
             if (gapBehind > 0 && gapBehind < 1.5f)
             {
-                return " Hinter dir " + SaraLocal.Seconds(gapBehind) + ", bleib aufmerksam.";
+                return RadioLanguage.T(" Hinter dir ", " Behind you ", " Detrás tienes ") + SaraLocal.Seconds(gapBehind) + RadioLanguage.T(", bleib aufmerksam.", ", stay alert.", ", atento.");
             }
             if (gapAhead > 0 && gapAhead < 1.5f)
             {
-                return " Nach vorn " + SaraLocal.Seconds(gapAhead) + ".";
+                return RadioLanguage.T(" Nach vorn ", " Gap ahead ", " Por delante ") + SaraLocal.Seconds(gapAhead) + ".";
             }
             return "";
         }
@@ -141,7 +146,9 @@ namespace CrewChiefV4.AiTeam
                 return "";
             }
             int diff = start - s.ClassPosition;
-            return diff > 0 ? " " + diff + (diff == 1 ? " Platz" : " Plätze") + " gutgemacht." : "";
+            return diff > 0 ? RadioLanguage.T(" " + diff + (diff == 1 ? " Platz" : " Plätze") + " gutgemacht.",
+                " " + diff + (diff == 1 ? " place" : " places") + " gained.",
+                " " + diff + (diff == 1 ? " posición ganada." : " posiciones ganadas.")) : "";
         }
     }
 }

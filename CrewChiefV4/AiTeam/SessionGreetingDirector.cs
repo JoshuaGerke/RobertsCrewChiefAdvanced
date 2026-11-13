@@ -11,7 +11,7 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     public sealed class SessionGreetingDirector
     {
-        private static readonly string[] Openings =
+        private static readonly string[] OpeningsDe =
         {
             "Hey Rob, schön, dass wir wieder zusammen unterwegs sind.",
             "Hey Rob, Ben hier. Wir sind für die Session bereit.",
@@ -26,6 +26,38 @@ namespace CrewChiefV4.AiTeam
             "Hey Rob. Schön, dass du da bist. Wir schauen gemeinsam auf den Rhythmus.",
             "Rob, Ben hier. Wir starten strukturiert und ohne Hektik."
         };
+        // "Rob" und "Ben" werden in CreateCall ersetzt; die Übersetzungen enthalten sie deshalb wörtlich.
+        private static readonly string[] OpeningsEn =
+        {
+            "Hey Rob, good to be out together again.",
+            "Hey Rob, Ben here. We're ready for the session.",
+            "Rob, here we are again. Let's stay focused today.",
+            "Welcome back, Rob. We've got everything covered.",
+            "Rob, Ben here. I'm on the radio whenever you need me.",
+            "Hello Rob. We handle the data, you handle the driving.",
+            "Right Rob, let's go. We stay calm and work our way in.",
+            "Rob, good to have you back in the cockpit. We're ready.",
+            "Hello Rob, Ben on the radio. We're keeping an eye on the car.",
+            "Rob, we're back at it. I'll be with you through the session.",
+            "Hey Rob. Good to have you here. Let's work on the rhythm together.",
+            "Rob, Ben here. We start methodically, no rush."
+        };
+        private static readonly string[] OpeningsEs =
+        {
+            "Hola Rob, qué bien volver a estar juntos en pista.",
+            "Hola Rob, aquí Ben. Estamos listos para la sesión.",
+            "Rob, aquí estamos otra vez. Hoy vamos concentrados.",
+            "Bienvenido de nuevo, Rob. Lo tenemos todo controlado.",
+            "Rob, aquí Ben. Estoy en la radio cuando me necesites.",
+            "Hola Rob. Nosotros nos ocupamos de los datos, tú de pilotar.",
+            "Venga Rob, vamos allá. Con calma y poco a poco.",
+            "Rob, qué bien tenerte de nuevo en el coche. Estamos listos.",
+            "Hola Rob, Ben en la radio. Vigilamos la parte técnica.",
+            "Rob, volvemos a la carga. Te acompaño durante la sesión.",
+            "Hola Rob. Qué bien que estés aquí. Vamos a trabajar juntos el ritmo.",
+            "Rob, aquí Ben. Empezamos con orden y sin prisas."
+        };
+        private static string[] Openings => RadioLanguage.Pick(OpeningsDe, OpeningsEn, OpeningsEs);
 
         private readonly Random random = new Random();
         private readonly System.Collections.Generic.Queue<int> variantBag = new System.Collections.Generic.Queue<int>();
@@ -67,14 +99,17 @@ namespace CrewChiefV4.AiTeam
             string name = string.IsNullOrWhiteSpace(driverName) ? "Rob" : driverName.Trim();
             string opening = Openings[NextVariant()].Replace("Rob", name).Replace("Ben", TeamRouter.DisplayName(speaker));
             var type = gs.SessionData.SessionType;
-            string session = type == SessionType.Race ? "Rennen" :
-                type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Qualifying" : "Training";
+            bool race = type == SessionType.Race, qualifying = type == SessionType.Qualify || type == SessionType.PrivateQualify;
+            string place = RadioLanguage.T(
+                " Wir sind in " + track + " zum " + (race ? "Rennen" : qualifying ? "Qualifying" : "Training") + ". ",
+                " We're at " + track + " for " + (race ? "the race" : qualifying ? "qualifying" : "practice") + ". ",
+                " Estamos en " + track + " para " + (race ? "la carrera" : qualifying ? "la clasificación" : "los libres") + ". ");
             string weather = GreetingWeather(context);
-            string encouragement = type == SessionType.Race ? "Ruhig bleiben, sauber durch die erste Kurve." :
-                type == SessionType.Qualify || type == SessionType.PrivateQualify ? "Finde deinen Rhythmus, dann setzen wir eine saubere Zeit." :
-                "Komm in Ruhe auf Tempo.";
+            string encouragement = race ? RadioLanguage.T("Ruhig bleiben, sauber durch die erste Kurve.", "Stay calm, clean through turn one.", "Tranquilo, limpio en la primera curva.") :
+                qualifying ? RadioLanguage.T("Finde deinen Rhythmus, dann setzen wir eine saubere Zeit.", "Find your rhythm, then we'll set a clean time.", "Encuentra tu ritmo y luego marcamos un tiempo limpio.") :
+                RadioLanguage.T("Komm in Ruhe auf Tempo.", "Build up to speed at your own pace.", "Coge ritmo con calma.");
             return new ObservedRaceCall {
-                Topic = "greeting", Text = opening + " Wir sind in " + track + " zum " + session + ". " + weather + encouragement,
+                Topic = "greeting", Text = opening + place + weather + encouragement,
                 Evidence = "confirmed_track_and_session; weather_only_when_fresh", Member = speaker, Priority = 2,
                 SessionId = gs.SessionData.SessionId, SessionType = type, Position = -1, AllowPitlane = true,
                 DetectedUtc = context.NowUtc, ExpiresUtc = windowEnd,
@@ -89,12 +124,14 @@ namespace CrewChiefV4.AiTeam
             if (c == null || !WeatherWatch.Fresh(context.NowUtc, c.Time)) return "";
             var parts = new System.Collections.Generic.List<string>();
             if (!float.IsNaN(c.AmbientTemperature) && c.AmbientTemperature >= -30 && c.AmbientTemperature <= 60)
-                parts.Add("Luft " + Math.Round(c.AmbientTemperature).ToString(System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " Grad");
+                parts.Add(RadioLanguage.T("Luft ", "air ", "aire ") + Math.Round(c.AmbientTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
             if (!float.IsNaN(c.TrackTemperature) && c.TrackTemperature >= -30 && c.TrackTemperature <= 85)
-                parts.Add("Strecke " + Math.Round(c.TrackTemperature).ToString(System.Globalization.CultureInfo.GetCultureInfo("de-DE")) + " Grad");
-            if (c.RainDensity >= .01 && c.RainDensity <= 1) parts.Add("Regen wird gemeldet");
+                parts.Add(RadioLanguage.T("Strecke ", "track ", "pista ") + Math.Round(c.TrackTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
+            if (c.RainDensity >= .01 && c.RainDensity <= 1) parts.Add(RadioLanguage.T("Regen wird gemeldet", "rain reported", "se informa de lluvia"));
             // Zero rain does not establish sunshine, cloud cover or a dry track.
-            return parts.Count == 0 ? "" : string.Join(", ", parts) + ". ";
+            if (parts.Count == 0) return "";
+            string text = string.Join(", ", parts) + ". ";
+            return char.ToUpperInvariant(text[0]) + text.Substring(1);
         }
 
         public static bool SafeToGreet(SessionType type, SessionPhase phase, bool inPitlane, float speedMetresPerSecond)

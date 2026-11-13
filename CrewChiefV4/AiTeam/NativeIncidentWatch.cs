@@ -12,8 +12,13 @@ namespace CrewChiefV4.AiTeam
     {
         private sealed class Subject {public string Key,Name;}
         private sealed class Detection {public int Session;public SessionType Type;public DateTime Utc;public string Corner;public Subject[] Cars;}
-        public static readonly string[] Phrases={"Vorsicht, Vorfall voraus. Dort steht oder rollt ein Wagen.",
+        private static readonly string[] PhrasesDe={"Vorsicht, Vorfall voraus. Dort steht oder rollt ein Wagen.",
             "Sehr langsames Fahrzeug beim Vorfall voraus. Bleib aufmerksam.","Achtung, stehender oder sehr langsamer Wagen voraus."};
+        private static readonly string[] PhrasesEn={"Careful, incident ahead. There's a car stopped or rolling there.",
+            "Very slow car at the incident ahead. Stay alert.","Watch out, stopped or very slow car ahead."};
+        private static readonly string[] PhrasesEs={"Cuidado, incidente delante. Hay un coche parado o rodando despacio.",
+            "Vehículo muy lento en el incidente de delante. Mantente atento.","Atención, coche parado o muy lento delante."};
+        public static string[] Phrases => RadioLanguage.Pick(PhrasesDe,PhrasesEn,PhrasesEs);
         private static readonly ConcurrentQueue<Detection> incoming=new ConcurrentQueue<Detection>();
         public static volatile bool Enabled;
         private readonly List<Detection> active=new List<Detection>();

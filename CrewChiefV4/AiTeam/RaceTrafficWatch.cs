@@ -38,24 +38,60 @@ namespace CrewChiefV4.AiTeam
     /// Side/clear calls remain exclusively with the existing Sara spotter.</summary>
     public sealed class RaceTrafficWatch
     {
-        public static readonly string[] StoppedPhrases = {
+        private static readonly string[] StoppedPhrasesDe = {
             "Vorsicht, stehendes Fahrzeug voraus.", "Achtung, vor dir steht ein Wagen.", "Stehender Wagen voraus, bleib aufmerksam."
         };
-        public static readonly string[] SlowPhrases = {
+        private static readonly string[] StoppedPhrasesEn = {
+            "Careful, stopped car ahead.", "Watch out, there's a car stopped ahead of you.", "Stationary car ahead, stay alert."
+        };
+        private static readonly string[] StoppedPhrasesEs = {
+            "Cuidado, vehículo parado delante.", "Atención, hay un coche parado delante de ti.", "Coche detenido delante, mantente atento."
+        };
+        public static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
+        private static readonly string[] SlowPhrasesDe = {
             "Achtung, sehr langsames Fahrzeug voraus.", "Vor dir fährt ein Wagen deutlich langsamer. Bleib aufmerksam.",
             "Vorsicht, langsamer Verkehr direkt voraus."
         };
-        public static readonly string[] RearPhrases = {
+        private static readonly string[] SlowPhrasesEn = {
+            "Watch out, very slow car ahead.", "Car ahead is going much slower. Stay alert.",
+            "Careful, slow traffic right ahead."
+        };
+        private static readonly string[] SlowPhrasesEs = {
+            "Atención, vehículo muy lento delante.", "Delante va un coche mucho más lento. Mantente atento.",
+            "Cuidado, tráfico lento justo delante."
+        };
+        public static string[] SlowPhrases => RadioLanguage.Pick(SlowPhrasesDe, SlowPhrasesEn, SlowPhrasesEs);
+        private static readonly string[] RearPhrasesDe = {
             "Schnelleres Fahrzeug von hinten. Bleib berechenbar.", "Von hinten kommt schneller Verkehr. Behalte deine Linie bei.",
             "Ein schnellerer Wagen läuft von hinten auf. Bleib berechenbar."
         };
-        public static readonly string[] RearGroupPhrases = {
+        private static readonly string[] RearPhrasesEn = {
+            "Faster car from behind. Stay predictable.", "Fast traffic coming from behind. Hold your line.",
+            "A faster car is closing from behind. Stay predictable."
+        };
+        private static readonly string[] RearPhrasesEs = {
+            "Coche más rápido por detrás. Sé predecible.", "Llega tráfico rápido por detrás. Mantén tu trazada.",
+            "Un coche más rápido se acerca por detrás. Sé predecible."
+        };
+        public static string[] RearPhrases => RadioLanguage.Pick(RearPhrasesDe, RearPhrasesEn, RearPhrasesEs);
+        private static readonly string[] RearGroupPhrasesDe = {
             "Mehrere schnellere Fahrzeuge kommen von hinten. Bleib berechenbar.",
             "Schnellere Gruppe von hinten. Behalte deine Linie bei."
         };
-        public static string DistancePhrase(int metres,bool stopped) => "Vorsicht, in etwa "+metres+" Metern "+
-            (stopped?"steht ein Fahrzeug.":"ein sehr langsames Fahrzeug.");
-        public static readonly string[] DistancePhrases=Enumerable.Range(1,12).SelectMany(i=>new[]{DistancePhrase(i*20,true),DistancePhrase(i*20,false)}).ToArray();
+        private static readonly string[] RearGroupPhrasesEn = {
+            "Several faster cars coming from behind. Stay predictable.",
+            "Faster group from behind. Hold your line."
+        };
+        private static readonly string[] RearGroupPhrasesEs = {
+            "Llegan varios coches más rápidos por detrás. Sé predecible.",
+            "Grupo más rápido por detrás. Mantén tu trazada."
+        };
+        public static string[] RearGroupPhrases => RadioLanguage.Pick(RearGroupPhrasesDe, RearGroupPhrasesEn, RearGroupPhrasesEs);
+        public static string DistancePhrase(int metres,bool stopped) => RadioLanguage.T(
+            "Vorsicht, in etwa "+metres+" Metern "+(stopped?"steht ein Fahrzeug.":"ein sehr langsames Fahrzeug."),
+            "Careful, "+(stopped?"stopped car":"very slow car")+" in about "+metres+" metres.",
+            "Cuidado, a unos "+metres+" metros hay un coche "+(stopped?"parado.":"muy lento."));
+        public static string[] DistancePhrases => Enumerable.Range(1,12).SelectMany(i=>new[]{DistancePhrase(i*20,true),DistancePhrase(i*20,false)}).ToArray();
         public static IEnumerable<string> PreparedPhrases { get { return DistancePhrases.Concat(StoppedPhrases).Concat(SlowPhrases).Concat(RearPhrases).Concat(RearGroupPhrases); } }
         private sealed class Reference { public float Speed; public int Lap; public DateTime Utc; }
         private sealed class Facts { public DateTime Utc; public int Epoch, Session; public TrackCarPosition[] Cars; }

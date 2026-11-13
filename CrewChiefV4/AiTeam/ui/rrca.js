@@ -247,6 +247,7 @@
       else if (d.type === 'voices') fillVoices(d.list, d.current);
       else if (d.type === 'notice') notify(d.text);
       else if (d.type === 'document') I.openDocument(d.title,d.text);
+      else if (d.type === 'update') { const b = $('#rrca-update'); b.dataset.version = d.version; b.textContent = I.pick('Update auf ', 'Install update ', 'Actualizar a ') + d.version; b.hidden = false; document.addEventListener('rrca-language-changed', () => { b.textContent = I.pick('Update auf ', 'Install update ', 'Actualizar a ') + b.dataset.version; }); }
     });
     send('ready');
   } else {

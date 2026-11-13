@@ -41,7 +41,6 @@ namespace CrewChiefV4.AiTeam
     public class FuelWatch
     {
         public const float SafetyMarginLaps = 0.3f;
-        private static readonly CultureInfo de = CultureInfo.GetCultureInfo("de-DE");
 
         private bool warned;
         private float lastWarnedDeficit;
@@ -75,7 +74,8 @@ namespace CrewChiefV4.AiTeam
                 if (warned)
                 {
                     warned = false;
-                    return "Sprit passt jetzt wieder bis ins Ziel, weiter so.";
+                    return RadioLanguage.T("Sprit passt jetzt wieder bis ins Ziel, weiter so.", "Fuel is good to the finish again, keep it up.",
+                        "El combustible vuelve a llegar hasta meta, sigue así.");
                 }
                 return null;
             }
@@ -89,32 +89,48 @@ namespace CrewChiefV4.AiTeam
             lastWarnedLap = completedLaps;
 
             if (bareDeficit <= 0)
-                return "Sprit reicht rechnerisch bis ins Ziel. Für unsere Reserve fehlen " + Litres(deficit) + ".";
+                return RadioLanguage.T("Sprit reicht rechnerisch bis ins Ziel. Für unsere Reserve fehlen " + Litres(deficit) + ".",
+                    "On paper the fuel reaches the finish. We're " + Litres(deficit) + " short of our reserve.",
+                    "En teoría el combustible llega a meta. Para nuestra reserva faltan " + Litres(deficit) + ".");
 
             float savePerLap = deficit / Math.Max(1f, lapsRemaining);
             string distance = estimatedFromTime ? "nach aktueller Pace" : "bis ins Ziel";
-            string text = (estimatedFromTime ? "Nach aktueller Rechnung wird der Sprit knapp. " : "So kommen wir " + distance + " nicht durch: ") +
-                "Ohne Reserve fehlen etwa " + Litres(bareDeficit) + ". ";
+            string text = RadioLanguage.T(
+                (estimatedFromTime ? "Nach aktueller Rechnung wird der Sprit knapp. " : "So kommen wir " + distance + " nicht durch: ") +
+                    "Ohne Reserve fehlen etwa " + Litres(bareDeficit) + ". ",
+                (estimatedFromTime ? "On current numbers, fuel is getting tight. " : "We won't make it to the finish like this: ") +
+                    "Without reserve we're about " + Litres(bareDeficit) + " short. ",
+                (estimatedFromTime ? "Según el cálculo actual, el combustible va justo. " : "Así no llegamos a meta: ") +
+                    "Sin reserva faltan unos " + Litres(bareDeficit) + ". ");
             // mehr als ~8 % sparen ist kaum realistisch, dann lieber stoppen
             if (savePerLap <= perLap * 0.08f)
             {
-                text += "Wir brauchen rund " + Litres(savePerLap) + " Einsparung pro Runde. Früher schalten und mehr rollen lassen.";
+                text += RadioLanguage.T("Wir brauchen rund " + Litres(savePerLap) + " Einsparung pro Runde. Früher schalten und mehr rollen lassen.",
+                    "We need to save around " + Litres(savePerLap) + " per lap. Shift earlier and coast more.",
+                    "Necesitamos ahorrar unos " + Litres(savePerLap) + " por vuelta. Cambia antes y deja rodar más.");
             }
             else if (refuellingAllowed)
             {
-                text += estimatedFromTime ? "Stell dich auf einen Tankstopp ein. Die Restdistanz ist geschätzt." : "Mit Sparen allein ist das nicht realistisch, wir brauchen einen Tankstopp.";
+                text += estimatedFromTime
+                    ? RadioLanguage.T("Stell dich auf einen Tankstopp ein. Die Restdistanz ist geschätzt.", "Expect a fuel stop. The remaining distance is an estimate.",
+                        "Prepárate para una parada a repostar. La distancia restante es una estimación.")
+                    : RadioLanguage.T("Mit Sparen allein ist das nicht realistisch, wir brauchen einen Tankstopp.", "Saving alone won't do it, we need a fuel stop.",
+                        "Solo ahorrando no es realista, necesitamos una parada a repostar.");
             }
             else
             {
-                text += "Nachtanken ist nicht erlaubt. Das Sparziel liegt über acht Prozent je Runde; " +
-                    "damit ist das Ziel nach aktueller Rechnung nicht abgesichert.";
+                text += RadioLanguage.T("Nachtanken ist nicht erlaubt. Das Sparziel liegt über acht Prozent je Runde; " +
+                    "damit ist das Ziel nach aktueller Rechnung nicht abgesichert.",
+                    "Refuelling isn't allowed. The saving target is over eight percent per lap, so on current numbers the finish isn't secured.",
+                    "No se permite repostar. El objetivo de ahorro supera el ocho por ciento por vuelta; con el cálculo actual, la llegada a meta no está asegurada.");
             }
             return text;
         }
 
         private static string Litres(float litres)
         {
-            return litres < 1 ? litres.ToString("0.00", de) + " Liter" : litres.ToString(litres < 10 ? "0.0" : "0", de) + " Liter";
+            string unit = RadioLanguage.T(" Liter", " litres", " litros");
+            return litres < 1 ? RadioLanguage.Num(litres, "0.00") + unit : RadioLanguage.Num(litres, litres < 10 ? "0.0" : "0") + unit;
         }
     }
 }

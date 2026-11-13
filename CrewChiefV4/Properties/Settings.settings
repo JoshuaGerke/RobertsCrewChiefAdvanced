@@ -1772,6 +1772,9 @@
     <Setting Name="ai_team_driver_nickname" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="ai_team_radio_language" Type="System.String" Scope="User">
+      <Value Profile="(Default)">auto</Value>
+    </Setting>
     <Setting Name="ai_team_ptt_key" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>

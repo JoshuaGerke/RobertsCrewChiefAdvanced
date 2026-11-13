@@ -31,9 +31,15 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly string[] saraTopics = { "links", "rechts", "frei", "neben mir", "neben uns", "überlapp", "gelb", "unfall", "wrack", "steht auf der strecke" };
         private static readonly string[] mikTopics = { "box", "stopp", "stop ", "strategie", "sprit", "benzin", "kraftstoff", "tank", "undercut", "overcut",
-            "gegner", "vor mir", "hinter mir", "abstand", "position", "platz", "führend", "leader", "runden noch", "wie lange noch", "restzeit", "pace der" };
+            "gegner", "vor mir", "hinter mir", "abstand", "position", "platz", "führend", "leader", "runden noch", "wie lange noch", "restzeit", "pace der",
+            " pit", "strategy", "fuel", "opponent", "ahead of me", "behind me", "in front of me", " gap", "laps left", "laps to go", "how long", "time left", "pace of",
+            "parada", "estrategia", "combustible", "gasolina", "delante de m", "detrás de m", "detras de m", "distancia", "posición", "posicion", "puesto",
+            "líder", "lider", "vueltas quedan", "vueltas faltan", "cuánto queda", "cuanto queda", "tiempo queda", "ritmo de" };
         private static readonly string[] benTopics = { "reifen", "druck", "temperatur", "bremse", "setup", "untersteuer", "übersteuer", "schieb", "traktion",
-            "balance", "fahr", "kurve", "schaden", "motor", "getriebe", "abtrieb", "aero", "differential", "stabi", "feder", "dämpfer", "verliere ich" };
+            "balance", "fahr", "kurve", "schaden", "motor", "getriebe", "abtrieb", "aero", "differential", "stabi", "feder", "dämpfer", "verliere ich",
+            "tyre", "tire", "pressure", "brake", "understeer", "oversteer", "traction", "driving", "corner", "damage", "engine", "gearbox", "downforce",
+            "anti-roll", "springs", "damper", "losing time", "neumátic", "neumatic", "goma", "presión", "presion", "freno", "subviraje", "sobreviraje",
+            "tracción", "traccion", "equilibrio", "conducc", "curva", "daño", "caja de cambios", "carga aerodin", "diferencial", "muelle", "amortiguador", "pierdo" };
 
         public static RoutedRequest Route(string transcript, TeamMember? lastMember)
         {
@@ -78,16 +84,39 @@ namespace CrewChiefV4.AiTeam
 
         // "Reifendruck vorne links" oder "Ist die Box frei?" sind keine Fragen nach Autos neben dem Fahrer
         private static readonly Regex notAboutSides = new Regex(
-            @"reifen|druck|temperatur|brems|flügel|felge|schaden|aufhängung|setup|kurve|vorne|hinten|\bbox|strecke|sprit|tank|motor",
+            @"reifen|druck|temperatur|brems|flügel|felge|schaden|aufhängung|setup|kurve|vorne|hinten|\bbox|strecke|sprit|tank|motor|" +
+            @"\btyre|\btire|pressure|brake|\bwing|\brim\b|damage|suspension|corner|\bfront|\brear|\bpit\b|track|fuel|engine|" +
+            @"neumátic|neumatic|\bgoma|presión|presion|\bfren[oa]|alerón|aleron|llanta|daño|suspensi|curva|delante|detrás|detras|pista|combustible|gasolina",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        // Englisch "left" heißt oft "übrig" ("laps left"), "right" oft "richtig"/"sofort" – das sind keine Seitenfragen.
+        private static readonly Regex leftNotSide = new Regex(
+            @"\b(laps?|time|minutes?|seconds?|fuel|litres?|liters?|much|many|anything|nothing|enough|got)\s+left\b|\bleft\s+(to go|over|in the tank)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex rightNotSide = new Regex(
+            @"\b(all right|alright|that'?s right|is that right|you'?re right|right now|right away)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>Fragt der Fahrer nach links? Deutsch, Englisch und Spanisch gleichzeitig.</summary>
+        internal static bool AsksLeft(string text)
+        {
+            return HasWord(text, "links") || HasWord(text, "izquierda") || HasWord(text, "left") && !leftNotSide.IsMatch(text ?? "");
+        }
+
+        /// <summary>Fragt der Fahrer nach rechts? Deutsch, Englisch und Spanisch gleichzeitig.</summary>
+        internal static bool AsksRight(string text)
+        {
+            return HasWord(text, "rechts") || HasWord(text, "derecha") || HasWord(text, "right") && !rightNotSide.IsMatch(text ?? "");
+        }
 
         public static bool IsSideQuestion(string text)
         {
-            if (HasWord(text, "neben") || Regex.IsMatch(text ?? "", @"\büberlapp\w*\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            if (HasWord(text, "neben") || Regex.IsMatch(text ?? "", @"\büberlapp\w*\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
+                Regex.IsMatch(text ?? "", @"\b(beside|alongside|next to (me|us)|overlap\w*|solap\w*|al lado|a mi lado|a nuestro lado)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
             {
                 return true;
             }
-            return (HasWord(text, "links") || HasWord(text, "rechts") || HasWord(text, "frei")) && !notAboutSides.IsMatch(text ?? "");
+            return (AsksLeft(text) || AsksRight(text) || HasWord(text, "frei") || HasWord(text, "clear") || HasWord(text, "libre")) && !notAboutSides.IsMatch(text ?? "");
         }
 
         private static string StripLeadingName(string text, string nameWord)

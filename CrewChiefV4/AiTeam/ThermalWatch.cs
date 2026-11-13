@@ -47,10 +47,29 @@ namespace CrewChiefV4.AiTeam
         public ThermalWatch(Func<GameStateData,ThermalProfile> profileResolver=null){resolver=profileResolver??ThermalProfile.FromCar;}
         private static readonly int[] groups={1,2,4,8,3,12,15};
         private static readonly string[] tyres={"vorn links","vorn rechts","hinten links","hinten rechts","vorn","hinten","an allen vier Rädern"};
+        private static readonly string[] tyresEn={"front-left","front-right","rear-left","rear-right","front","rear","all four"};
+        private static readonly string[] tyresEs={"delantero izquierdo","delantero derecho","trasero izquierdo","trasero derecho","delanteros","traseros",""};
+        // EN/ES: "the front-left tyre" / "el neumático delantero izquierdo", "all four brakes" / "los cuatro frenos".
+        private static string PartEn(bool brake,int i){return (i==6?"":"the ")+tyresEn[i]+" "+(brake?"brake":"tyre")+(i<4?"":"s");}
+        private static string PartEs(bool brake,int i){string noun=brake?"freno":"neumático";return i<4?"el "+noun+" "+tyresEs[i]:i==6?"los cuatro "+noun+"s":"los "+noun+"s "+tyresEs[i];}
         public static string Phrase(bool brake,int mask,int variant)
         {
             int i=Array.IndexOf(groups,mask);if(i<0)throw new ArgumentException("Unsupported corner group.");
             bool single=i<4;
+            if(RadioLanguage.Current==RadioLanguage.English)
+            {
+                string en=PartEn(brake,i)+(single?" is ":" are ");
+                return variant%3==0?"Careful, "+en+"overheating. Take the next corners carefully.":
+                    variant%3==1?"Watch it, "+en+"too hot. Take the next corners gently.":
+                    "Careful, "+en+"overheating. Stay careful and avoid extra load.";
+            }
+            if(RadioLanguage.Current==RadioLanguage.Spanish)
+            {
+                string es=PartEs(brake,i)+(single?" está ":" están "),pl=single?"":"s";
+                return variant%3==0?"Atención, "+es+"sobrecalentado"+pl+". Toma las próximas curvas con cuidado.":
+                    variant%3==1?"Cuidado, "+es+"demasiado caliente"+pl+". Afronta las próximas curvas con calma.":
+                    "Atención, "+es+"sobrecalentado"+pl+". Sigue con cuidado y evita más carga.";
+            }
             string part=single?(brake?"die Bremse ":"der Reifen ")+tyres[i]:
                 (brake?"die Bremsen ":"die Reifen ")+tyres[i];
             string verb=single?" ist ":" sind ";
@@ -59,7 +78,12 @@ namespace CrewChiefV4.AiTeam
                 "Achtung, "+part+verb+"überhitzt. Bleib vorsichtig und vermeide weitere Belastung.";
         }
         public static string ClearPhrase(bool brake,int mask)
-        {int i=Array.IndexOf(groups,mask);return "Die Temperatur "+(i<4?(brake?"der Bremse ":"des Reifens "):(brake?"der Bremsen ":"der Reifen "))+tyres[i]+" hat sich wieder beruhigt.";}
+        {
+            int i=Array.IndexOf(groups,mask);
+            if(RadioLanguage.Current==RadioLanguage.English)return "The temperature of "+PartEn(brake,i)+" has settled again.";
+            if(RadioLanguage.Current==RadioLanguage.Spanish)return "La temperatura "+(i<4?"d"+PartEs(brake,i):"de "+PartEs(brake,i))+" se ha estabilizado.";
+            return "Die Temperatur "+(i<4?(brake?"der Bremse ":"des Reifens "):(brake?"der Bremsen ":"der Reifen "))+tyres[i]+" hat sich wieder beruhigt.";
+        }
         public static IEnumerable<string> PreparedPhrases
         {
             get {foreach(bool b in new[]{false,true})foreach(int g in groups){for(int v=0;v<3;v++)yield return Phrase(b,g,v);yield return ClearPhrase(b,g);}}

@@ -41,14 +41,20 @@ namespace CrewChiefV4.AiTeam
         public static string Compose(string driver,int position,bool final,int variant=0)
         {
             string name=AiPersonas.CleanForRadio(driver??"Rob",40,false);
-            string prefix=name+", "+(final?"die Qualifikation ist beendet. ":"die Quali-Zeit ist vorbei. ");
-            if(position<=0 || position>TrackAwareness.MaxCars)return prefix+"Dein Platz ist noch nicht bestätigt.";
-            if(!final)return prefix+"Aktuell Platz "+position+". Das Ergebnis ist noch vorläufig.";
-            string encouragement=position==1?(variant%2==0?"Ganz vorne! Stark gemacht.":"Die Bestzeit steht. Sehr gut gemacht."):
-                position<=3?(variant%2==0?"Unter den ersten drei, stark gemacht.":"Top drei. Das ist eine gute Ausgangslage."):
-                position<=10?(variant%2==0?"Unter den ersten zehn. Jetzt konzentrieren wir uns aufs Rennen.":"Jetzt richten wir den Fokus aufs Rennen."):
-                variant%2==0?"Jetzt richten wir uns fürs Rennen ein.":"Jetzt ruhig bleiben und aufs Rennen konzentrieren.";
-            return prefix+"Platz "+position+". "+encouragement;
+            string prefix=name+", "+(final?RadioLanguage.T("die Qualifikation ist beendet. ","qualifying is over. ","la clasificación ha terminado. "):
+                RadioLanguage.T("die Quali-Zeit ist vorbei. ","qualifying time is up. ","se acabó el tiempo de clasificación. "));
+            if(position<=0 || position>TrackAwareness.MaxCars)return prefix+RadioLanguage.T("Dein Platz ist noch nicht bestätigt.","Your position isn't confirmed yet.","Tu posición aún no está confirmada.");
+            if(!final)return prefix+RadioLanguage.T("Aktuell Platz "+position+". Das Ergebnis ist noch vorläufig.","Currently P"+position+". Result is still provisional.","Ahora mismo P"+position+". El resultado aún es provisional.");
+            bool even=variant%2==0;
+            string encouragement=position==1?(even?RadioLanguage.T("Ganz vorne! Stark gemacht.","Right at the front! Great job.","¡En lo más alto! Gran trabajo."):
+                    RadioLanguage.T("Die Bestzeit steht. Sehr gut gemacht.","Fastest time is yours. Very well done.","El mejor tiempo es tuyo. Muy bien hecho.")):
+                position<=3?(even?RadioLanguage.T("Unter den ersten drei, stark gemacht.","Top three, great job.","Entre los tres primeros, gran trabajo."):
+                    RadioLanguage.T("Top drei. Das ist eine gute Ausgangslage.","Top three. That's a good starting spot.","Top tres. Es una buena posición de salida.")):
+                position<=10?(even?RadioLanguage.T("Unter den ersten zehn. Jetzt konzentrieren wir uns aufs Rennen.","Top ten. Now we focus on the race.","Entre los diez primeros. Ahora a centrarnos en la carrera."):
+                    RadioLanguage.T("Jetzt richten wir den Fokus aufs Rennen.","Now we turn our focus to the race.","Ahora el foco está en la carrera.")):
+                even?RadioLanguage.T("Jetzt richten wir uns fürs Rennen ein.","Now we get set up for the race.","Ahora nos preparamos para la carrera."):
+                    RadioLanguage.T("Jetzt ruhig bleiben und aufs Rennen konzentrieren.","Stay calm now and focus on the race.","Ahora con calma y a centrarse en la carrera.");
+            return prefix+RadioLanguage.T("Platz ","P","P")+position+". "+encouragement;
         }
     }
 }

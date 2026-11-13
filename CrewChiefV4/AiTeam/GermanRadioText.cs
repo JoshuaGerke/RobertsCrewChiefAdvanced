@@ -31,7 +31,7 @@ namespace CrewChiefV4.AiTeam
 
         public static string Prepare(string text, bool pitWall = false)
         {
-            if(string.IsNullOrEmpty(text) || text.Length>8192)return text;
+            if(string.IsNullOrEmpty(text) || text.Length>8192 || !RadioLanguage.IsGerman)return text;
             if (pitWall)
             {
                 text = rank.Replace(text, m => m.Groups["word"].Value + " " + Integer(int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)));

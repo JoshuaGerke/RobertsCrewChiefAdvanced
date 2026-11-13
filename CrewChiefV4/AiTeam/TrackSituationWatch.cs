@@ -9,21 +9,54 @@ namespace CrewChiefV4.AiTeam
     /// Never uses classification/best-lap deltas. Side/clear warnings remain with Sara.</summary>
     public sealed class TrackSituationWatch
     {
-        internal static readonly string[] CatchingPhrases = {
+        private static readonly string[] CatchingPhrasesDe = {
             "Sehr langsamer Wagen vor dir. Du läufst gleich auf ihn auf.",
             "Achtung, langsamer Verkehr direkt voraus. Behalte ihn im Blick.",
             "Vor dir rollt ein Wagen deutlich langsamer. Du bist gleich dran."
         };
-        internal static readonly string[] StoppedPhrases = {
+        private static readonly string[] CatchingPhrasesEn = {
+            "Very slow car ahead. You'll be on him shortly.",
+            "Careful, slow traffic right ahead. Keep an eye on him.",
+            "Car ahead is rolling much slower. You're on him shortly."
+        };
+        private static readonly string[] CatchingPhrasesEs = {
+            "Coche muy lento delante. Lo vas a alcanzar enseguida.",
+            "Atención, tráfico lento justo delante. No lo pierdas de vista.",
+            "Delante va un coche mucho más lento. Lo tienes encima enseguida."
+        };
+        internal static string[] CatchingPhrases => RadioLanguage.Pick(CatchingPhrasesDe, CatchingPhrasesEn, CatchingPhrasesEs);
+        private static readonly string[] StoppedPhrasesDe = {
             "Achtung, vor dir steht ein Wagen.",
             "Stehendes Fahrzeug voraus. Bleib aufmerksam.",
             "Vorsicht, der Wagen direkt vor dir steht."
         };
-        internal static readonly string[] ApproachingPhrases = {
+        private static readonly string[] StoppedPhrasesEn = {
+            "Careful, there's a stopped car ahead.",
+            "Stationary car ahead. Stay alert.",
+            "Watch out, the car right ahead of you is stopped."
+        };
+        private static readonly string[] StoppedPhrasesEs = {
+            "Atención, hay un coche parado delante.",
+            "Vehículo detenido delante. Mantente atento.",
+            "Cuidado, el coche justo delante de ti está parado."
+        };
+        internal static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
+        private static readonly string[] ApproachingPhrasesDe = {
             "Ein deutlich schnellerer Wagen kommt von hinten. Bleib berechenbar.",
             "Schneller Verkehr direkt hinter dir. Behalte deine Linie bei.",
             "Von hinten kommt ein schnellerer Wagen heran. Keine plötzlichen Manöver."
         };
+        private static readonly string[] ApproachingPhrasesEn = {
+            "A much faster car is coming up behind. Stay predictable.",
+            "Fast traffic right behind you. Hold your line.",
+            "Faster car closing from behind. No sudden moves."
+        };
+        private static readonly string[] ApproachingPhrasesEs = {
+            "Viene un coche bastante más rápido por detrás. Sé predecible.",
+            "Tráfico rápido justo detrás de ti. Mantén tu trazada.",
+            "Se acerca un coche más rápido por detrás. Nada de maniobras bruscas."
+        };
+        internal static string[] ApproachingPhrases => RadioLanguage.Pick(ApproachingPhrasesDe, ApproachingPhrasesEn, ApproachingPhrasesEs);
         public const double AlertSeconds=6;
         private readonly Dictionary<string,DateTime> last=new Dictionary<string,DateTime>();
         private DateTime lastAny=DateTime.MinValue, lastTick=DateTime.MinValue;

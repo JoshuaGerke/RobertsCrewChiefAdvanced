@@ -10,11 +10,31 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     public class FlagWatch
     {
-        public static readonly string[] Phrases =
+        private static readonly string[] PhrasesDe =
         {
             "Gelb! Langsam, nicht überholen.", "Gelb vorbei.", "Gelb im Sektor.", "Doppelt Gelb, Vorsicht.", "Blaue Flagge, lass ihn vorbei.",
             "Schwarze Flagge.", "Full Course Yellow, Tempo runter.", "Grün, wieder freie Fahrt.", "Unfall voraus!",
         };
+        private static readonly string[] PhrasesEn =
+        {
+            "Yellow! Slow down, no overtaking.", "Yellow's clear.", "Yellow in the sector.", "Double yellow, careful.", "Blue flag, let him by.",
+            "Black flag.", "Full course yellow, slow down.", "Green, track is clear.", "Incident ahead!",
+        };
+        private static readonly string[] PhrasesEs =
+        {
+            "¡Amarilla! Despacio, no adelantes.", "Fin de amarilla.", "Amarilla en el sector.", "Doble amarilla, cuidado.", "Bandera azul, déjale pasar.",
+            "Bandera negra.", "Full course yellow, baja el ritmo.", "Verde, vía libre.", "¡Accidente delante!",
+        };
+        // Index in all three arrays: 0 local yellow, 1 yellow clear, 2 sector yellow, 3 double yellow, 4 blue, 5 black, 6 FCY, 7 green, 8 incident.
+        public static string[] Phrases => RadioLanguage.Pick(PhrasesDe, PhrasesEn, PhrasesEs);
+
+        // A phrase offered before a language switch is still recognised.
+        private static int IndexOf(string phrase)
+        {
+            int i = Array.IndexOf(PhrasesDe, phrase);
+            if (i < 0) i = Array.IndexOf(PhrasesEn, phrase);
+            return i >= 0 ? i : Array.IndexOf(PhrasesEs, phrase);
+        }
 
         private DateTime lastIncidentCallUtc = DateTime.MinValue;
         private DateTime lastBlueUtc = DateTime.MinValue;
@@ -26,7 +46,8 @@ namespace CrewChiefV4.AiTeam
 
         internal static bool FreshClear(string phrase, DateTime detected, DateTime now)
         {
-            return (phrase != Phrases[1] && phrase != Phrases[7]) ||
+            int i = IndexOf(phrase);
+            return (i != 1 && i != 7) ||
                 (now >= detected && now - detected <= TimeSpan.FromSeconds(3));
         }
 
@@ -34,17 +55,17 @@ namespace CrewChiefV4.AiTeam
         {
             if (gs == null || gs.PitData.InPitlane || (gs.SessionData.SessionPhase != SessionPhase.Green && gs.SessionData.SessionPhase != SessionPhase.FullCourseYellow)) return false;
             var f=gs.FlagData;
-            switch (phrase)
+            switch (IndexOf(phrase))
             {
-                case "Unfall voraus!": return f.distanceToNearestIncident > 0 && f.distanceToNearestIncident < 250;
-                case "Gelb! Langsam, nicht überholen.": return f.isLocalYellow;
-                case "Gelb vorbei.": return !f.isLocalYellow && !f.isFullCourseYellow && gs.SessionData.Flag != FlagEnum.YELLOW && gs.SessionData.Flag != FlagEnum.DOUBLE_YELLOW;
-                case "Gelb im Sektor.": return gs.SessionData.Flag == FlagEnum.YELLOW;
-                case "Doppelt Gelb, Vorsicht.": return gs.SessionData.Flag == FlagEnum.DOUBLE_YELLOW;
-                case "Blaue Flagge, lass ihn vorbei.": return gs.SessionData.Flag == FlagEnum.BLUE;
-                case "Schwarze Flagge.": return gs.SessionData.Flag == FlagEnum.BLACK;
-                case "Full Course Yellow, Tempo runter.": return f.isFullCourseYellow;
-                case "Grün, wieder freie Fahrt.": return !f.isFullCourseYellow && !f.isLocalYellow;
+                case 8: return f.distanceToNearestIncident > 0 && f.distanceToNearestIncident < 250;
+                case 0: return f.isLocalYellow;
+                case 1: return !f.isLocalYellow && !f.isFullCourseYellow && gs.SessionData.Flag != FlagEnum.YELLOW && gs.SessionData.Flag != FlagEnum.DOUBLE_YELLOW;
+                case 2: return gs.SessionData.Flag == FlagEnum.YELLOW;
+                case 3: return gs.SessionData.Flag == FlagEnum.DOUBLE_YELLOW;
+                case 4: return gs.SessionData.Flag == FlagEnum.BLUE;
+                case 5: return gs.SessionData.Flag == FlagEnum.BLACK;
+                case 6: return f.isFullCourseYellow;
+                case 7: return !f.isFullCourseYellow && !f.isLocalYellow;
                 default: return false;
             }
         }
@@ -67,12 +88,12 @@ namespace CrewChiefV4.AiTeam
             // Full Course Yellow / Safety Car
             if (f.isFullCourseYellow && !pf.isFullCourseYellow)
             {
-                result.Add("Full Course Yellow, Tempo runter.");
+                result.Add(Phrases[6]);
                 return result;
             }
             if (!f.isFullCourseYellow && pf.isFullCourseYellow)
             {
-                result.Add("Grün, wieder freie Fahrt.");
+                result.Add(Phrases[7]);
                 return result;
             }
 
@@ -82,17 +103,17 @@ namespace CrewChiefV4.AiTeam
             if (d > 0 && d < 250 && (pd <= 0 || pd >= 250) && nowUtc - lastIncidentCallUtc > TimeSpan.FromSeconds(20))
             {
                 lastIncidentCallUtc = nowUtc;
-                result.Add("Unfall voraus!");
+                result.Add(Phrases[8]);
             }
 
             // lokale Gelbphase
             if (f.isLocalYellow && !pf.isLocalYellow)
             {
-                result.Add("Gelb! Langsam, nicht überholen.");
+                result.Add(Phrases[0]);
             }
             else if (!f.isLocalYellow && pf.isLocalYellow)
             {
-                result.Add("Gelb vorbei.");
+                result.Add(Phrases[1]);
             }
 
             // Flagge für den eigenen Wagen
@@ -103,20 +124,20 @@ namespace CrewChiefV4.AiTeam
                 switch (flag)
                 {
                     case FlagEnum.YELLOW:
-                        if (!f.isLocalYellow) result.Add("Gelb im Sektor.");
+                        if (!f.isLocalYellow) result.Add(Phrases[2]);
                         break;
                     case FlagEnum.DOUBLE_YELLOW:
-                        result.Add("Doppelt Gelb, Vorsicht.");
+                        result.Add(Phrases[3]);
                         break;
                     case FlagEnum.BLUE:
                         if (nowUtc - lastBlueUtc > TimeSpan.FromSeconds(15))
                         {
                             lastBlueUtc = nowUtc;
-                            result.Add("Blaue Flagge, lass ihn vorbei.");
+                            result.Add(Phrases[4]);
                         }
                         break;
                     case FlagEnum.BLACK:
-                        result.Add("Schwarze Flagge.");
+                        result.Add(Phrases[5]);
                         break;
                 }
             }

@@ -135,7 +135,8 @@ namespace CrewChiefV4.AiTeam
                     int before = positionBeforeIncident, nowPos = current.SessionData.ClassPosition;
                     if (before > 0 && nowPos > before)
                     {
-                        report = "Du bist von Platz " + before + " auf " + nowPos + " zurückgefallen. " + report;
+                        report = RadioLanguage.T("Du bist von Platz " + before + " auf " + nowPos + " zurückgefallen. ",
+                            "You've dropped from P" + before + " to P" + nowPos + ". ", "Has caído de P" + before + " a P" + nowPos + ". ") + report;
                     }
                     assessment = new DamageAssessment
                     {
@@ -158,7 +159,9 @@ namespace CrewChiefV4.AiTeam
                 float behind = current.SessionData.TimeDeltaBehind;
                 if (current.SessionData.SessionType == SessionType.Race && behind > 0 && behind < 15)
                 {
-                    text += " Der Nächste war zuletzt etwa " + SaraLocal.Seconds(behind) + " hinter dir.";
+                    string gap = SaraLocal.Seconds(behind);
+                    text += RadioLanguage.T(" Der Nächste war zuletzt etwa " + gap + " hinter dir.", " The next car was last about " + gap + " behind you.",
+                        " El siguiente iba hace un momento a unos " + gap + " detrás de ti.");
                 }
                 result.Add(Say(TeamMember.Mik, text));
             }
@@ -195,16 +198,20 @@ namespace CrewChiefV4.AiTeam
             var p = current.PenaltiesData;
             var pp = previous.PenaltiesData;
             string penalty = null;
-            if (p.HasDriveThrough && !pp.HasDriveThrough) penalty = "eine Durchfahrtsstrafe";
-            else if (p.HasStopAndGo && !pp.HasStopAndGo) penalty = "eine Stop-and-Go-Strafe";
-            else if (p.HasTimeDeduction && !pp.HasTimeDeduction) penalty = "eine Zeitstrafe";
-            else if (p.HasSlowDown && !pp.HasSlowDown) penalty = "eine Slow-down-Strafe; reduziere das Tempo entsprechend der Spielanzeige";
-            else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties) penalty = "eine Strafe";
+            if (p.HasDriveThrough && !pp.HasDriveThrough) penalty = RadioLanguage.T("eine Durchfahrtsstrafe", "a drive-through penalty", "un drive-through");
+            else if (p.HasStopAndGo && !pp.HasStopAndGo) penalty = RadioLanguage.T("eine Stop-and-Go-Strafe", "a stop-and-go penalty", "un stop and go");
+            else if (p.HasTimeDeduction && !pp.HasTimeDeduction) penalty = RadioLanguage.T("eine Zeitstrafe", "a time penalty", "una penalización de tiempo");
+            else if (p.HasSlowDown && !pp.HasSlowDown) penalty = RadioLanguage.T("eine Slow-down-Strafe; reduziere das Tempo entsprechend der Spielanzeige",
+                "a slow-down penalty; reduce your speed as the game display shows", "una penalización de slow-down; reduce la velocidad según indique el juego");
+            else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties) penalty = RadioLanguage.T("eine Strafe", "a penalty", "una penalización");
             if (penalty != null)
             {
                 Penalties++;
-                result.Add(Say(TeamMember.Ben, "Wir haben " + penalty + " bekommen." +
-                    (p.HasDriveThrough || p.HasStopAndGo ? " Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick." : "")));
+                bool serve = p.HasDriveThrough || p.HasStopAndGo;
+                result.Add(Say(TeamMember.Ben, RadioLanguage.T(
+                    "Wir haben " + penalty + " bekommen." + (serve ? " Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick." : ""),
+                    "We've got " + penalty + "." + (serve ? " It has to be served in the pits, I'm keeping an eye on the gap behind." : ""),
+                    "Nos han puesto " + penalty + "." + (serve ? " Hay que cumplirla en boxes, vigilo la distancia por detrás." : ""))));
             }
 
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
@@ -239,18 +246,24 @@ namespace CrewChiefV4.AiTeam
         {
             var parts = new List<string>();
             int invalid = recordedInvalidLaps >= 0 ? recordedInvalidLaps : InvalidLaps;
-            if (invalid > 0) parts.Add(invalid == 1 ? "eine ungültige Runde" : invalid + " ungültige Runden");
-            if (TrackLimitWarnings > 0) parts.Add(TrackLimitWarnings == 1 ? "eine Tracklimit-Meldung" : TrackLimitWarnings + " Tracklimit-Meldungen");
-            if (OffTracks > 0) parts.Add(OffTracks == 1 ? "ein Ausritt" : OffTracks + " Ausritte");
-            if (Spins > 0) parts.Add(Spins == 1 ? "eine starke Verzögerung" : Spins + " starke Verzögerungen");
-            if (Penalties > 0) parts.Add(Penalties == 1 ? "eine Strafe" : Penalties + " Strafen");
+            if (invalid > 0) parts.Add(Count(invalid, "eine ungültige Runde", " ungültige Runden", "one invalid lap", " invalid laps", "una vuelta inválida", " vueltas inválidas"));
+            if (TrackLimitWarnings > 0) parts.Add(Count(TrackLimitWarnings, "eine Tracklimit-Meldung", " Tracklimit-Meldungen", "one track limits warning", " track limits warnings", "un aviso de límites de pista", " avisos de límites de pista"));
+            if (OffTracks > 0) parts.Add(Count(OffTracks, "ein Ausritt", " Ausritte", "one trip off track", " trips off track", "una salida de pista", " salidas de pista"));
+            if (Spins > 0) parts.Add(Count(Spins, "eine starke Verzögerung", " starke Verzögerungen", "one big slowdown", " big slowdowns", "una fuerte pérdida de velocidad", " fuertes pérdidas de velocidad"));
+            if (Penalties > 0) parts.Add(Count(Penalties, "eine Strafe", " Strafen", "one penalty", " penalties", "una penalización", " penalizaciones"));
             if (parts.Count == 0)
             {
                 // Absence of an observed warning does not prove a penalty/incident-free race.
                 return string.Empty;
             }
-            string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " und " + parts[parts.Count - 1];
-            return " Bilanz: " + list + "." + (InvalidLaps + OffTracks + Spins + Penalties >= 4 ? " Da ist beim nächsten Mal noch einiges drin." : "");
+            string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + RadioLanguage.T(" und ", " and ", " y ") + parts[parts.Count - 1];
+            return RadioLanguage.T(" Bilanz: ", " Summary: ", " Balance: ") + list + "." + (InvalidLaps + OffTracks + Spins + Penalties >= 4
+                ? RadioLanguage.T(" Da ist beim nächsten Mal noch einiges drin.", " There's still plenty to gain next time.", " La próxima vez hay bastante margen de mejora.") : "");
+        }
+
+        private static string Count(int n, string oneDe, string manyDe, string oneEn, string manyEn, string oneEs, string manyEs)
+        {
+            return n == 1 ? RadioLanguage.T(oneDe, oneEn, oneEs) : n + RadioLanguage.T(manyDe, manyEn, manyEs);
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
@@ -261,36 +274,38 @@ namespace CrewChiefV4.AiTeam
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
-            Add(parts, "Aero", d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
-            Add(parts, "Motor", d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
-            Add(parts, "Getriebe", d.OverallTransmissionDamage, d.TransmissionDamagePercent, ref serious);
-            string where = CornerText(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? CornerText(d.SuspensionDamageStatus, DamageLevel.MAJOR);
+            Add(parts, RadioLanguage.T("Aero", "Aero", "la aerodinámica"), d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
+            Add(parts, RadioLanguage.T("Motor", "Engine", "el motor"), d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
+            Add(parts, RadioLanguage.T("Getriebe", "Gearbox", "la caja de cambios"), d.OverallTransmissionDamage, d.TransmissionDamagePercent, ref serious);
+            string where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MAJOR);
             if (where != null)
             {
-                parts.Add("Aufhängung " + where + " stark beschädigt");
+                parts.Add(RadioLanguage.T("Aufhängung " + where + " stark beschädigt", "Suspension heavily damaged " + where, "Daño grave en la suspensión " + where));
                 serious = true;
             }
-            else if ((where = CornerText(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
+            else if ((where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
             {
-                parts.Add("Aufhängung " + where + " leicht beschädigt");
+                parts.Add(RadioLanguage.T("Aufhängung " + where + " leicht beschädigt", "Suspension lightly damaged " + where, "Daño leve en la suspensión " + where));
             }
-            where = CornerText(d.BrakeDamageStatus, DamageLevel.DESTROYED) ?? CornerText(d.BrakeDamageStatus, DamageLevel.MAJOR);
+            where = SpokenCorner(d.BrakeDamageStatus, DamageLevel.DESTROYED) ?? SpokenCorner(d.BrakeDamageStatus, DamageLevel.MAJOR);
             if (where != null)
             {
-                parts.Add("Bremse " + where + " stark beschädigt");
+                parts.Add(RadioLanguage.T("Bremse " + where + " stark beschädigt", "Brake heavily damaged " + where, "Daño grave en el freno " + where));
                 serious = true;
             }
-            else if ((where = CornerText(d.BrakeDamageStatus, DamageLevel.MINOR)) != null)
-                parts.Add("Bremse " + where + " leicht beschädigt");
+            else if ((where = SpokenCorner(d.BrakeDamageStatus, DamageLevel.MINOR)) != null)
+                parts.Add(RadioLanguage.T("Bremse " + where + " leicht beschädigt", "Brake lightly damaged " + where, "Daño leve en el freno " + where));
             if (parts.Count == 0)
             {
                 if(d.OverallAeroDamage==DamageLevel.UNKNOWN || d.OverallEngineDamage==DamageLevel.UNKNOWN || d.OverallTransmissionDamage==DamageLevel.UNKNOWN)
-                    return "Für eine vollständige Schadensbewertung fehlen Messwerte.";
-                return brief ? "Aero, Motor und Getriebe laut Meldung unauffällig." :
-                    "Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.";
+                    return RadioLanguage.T("Für eine vollständige Schadensbewertung fehlen Messwerte.", "Missing data for a full damage assessment.", "Faltan datos para valorar los daños por completo.");
+                return brief ? RadioLanguage.T("Aero, Motor und Getriebe laut Meldung unauffällig.", "Aero, engine and gearbox reported clear.", "Aerodinámica, motor y caja de cambios sin incidencias según los datos.") :
+                    RadioLanguage.T("Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.",
+                        "No significant damage reported to aero, engine or gearbox. Brakes and suspension can only be judged as far as the game reports them.",
+                        "Sin daños relevantes en aerodinámica, motor y caja de cambios. Frenos y suspensión solo se pueden valorar hasta donde informa el juego.");
             }
             string text = string.Join(", ", parts) + ".";
-            return serious ? text + " Wenn sich das Auto komisch anfühlt, komm an die Box." : text;
+            return serious ? text + RadioLanguage.T(" Wenn sich das Auto komisch anfühlt, komm an die Box.", " If the car feels strange, box.", " Si notas el coche raro, entra a boxes.") : text;
         }
 
         public static bool DamageIncreased(CarDamageData before, CarDamageData now)
@@ -346,12 +361,12 @@ namespace CrewChiefV4.AiTeam
 
         private static void Add(List<string> parts, string name, DamageLevel level, float percent, ref bool serious)
         {
-            string p = percent >= 1 ? " (" + Math.Round(percent) + " Prozent)" : "";
+            string p = percent >= 1 ? " (" + Math.Round(percent) + RadioLanguage.T(" Prozent)", " percent)", " por ciento)") : "";
             switch (level)
             {
-                case DamageLevel.MINOR: parts.Add(name + " leicht beschädigt" + p); break;
-                case DamageLevel.MAJOR: parts.Add(name + " stark beschädigt" + p); serious = true; break;
-                case DamageLevel.DESTROYED: parts.Add(name + " kaputt" + p); serious = true; break;
+                case DamageLevel.MINOR: parts.Add(RadioLanguage.T(name + " leicht beschädigt", name + " lightly damaged", "Daño leve en " + name) + p); break;
+                case DamageLevel.MAJOR: parts.Add(RadioLanguage.T(name + " stark beschädigt", name + " heavily damaged", "Daño grave en " + name) + p); serious = true; break;
+                case DamageLevel.DESTROYED: parts.Add(RadioLanguage.T(name + " kaputt", name + " destroyed", "Daño total en " + name) + p); serious = true; break;
             }
         }
 
@@ -380,6 +395,28 @@ namespace CrewChiefV4.AiTeam
                 case CornerData.Corners.LEFTS: return "links";
                 case CornerData.Corners.RIGHTS: return "rechts";
                 case CornerData.Corners.ALL: return "rundum";
+                default: return null;
+            }
+        }
+
+        // CornerText bleibt deutsch (Daten für das Sprachmodell); gesprochen wird diese Fassung.
+        private static string SpokenCorner(CornerData corners, DamageLevel level)
+        {
+            if (corners == null || RadioLanguage.IsGerman)
+            {
+                return CornerText(corners, level);
+            }
+            switch (corners.getCornersForStatus(level))
+            {
+                case CornerData.Corners.FRONT_LEFT: return RadioLanguage.T("", "front left", "delante a la izquierda");
+                case CornerData.Corners.FRONT_RIGHT: return RadioLanguage.T("", "front right", "delante a la derecha");
+                case CornerData.Corners.REAR_LEFT: return RadioLanguage.T("", "rear left", "detrás a la izquierda");
+                case CornerData.Corners.REAR_RIGHT: return RadioLanguage.T("", "rear right", "detrás a la derecha");
+                case CornerData.Corners.FRONTS: return RadioLanguage.T("", "at the front", "delante");
+                case CornerData.Corners.REARS: return RadioLanguage.T("", "at the rear", "detrás");
+                case CornerData.Corners.LEFTS: return RadioLanguage.T("", "on the left", "en el lado izquierdo");
+                case CornerData.Corners.RIGHTS: return RadioLanguage.T("", "on the right", "en el lado derecho");
+                case CornerData.Corners.ALL: return RadioLanguage.T("", "all round", "en las cuatro ruedas");
                 default: return null;
             }
         }

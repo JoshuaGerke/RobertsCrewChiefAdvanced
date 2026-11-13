@@ -12,6 +12,10 @@ namespace CrewChiefV4.AiTeam
     {
         private static readonly string[] Names={"Aero","Motor","Getriebe","Bremse vorne links","Bremse vorne rechts","Bremse hinten links","Bremse hinten rechts",
             "Aufhängung vorne links","Aufhängung vorne rechts","Aufhängung hinten links","Aufhängung hinten rechts"};
+        private static readonly string[] NamesEn={"Aero","Engine","Gearbox","Front-left brake","Front-right brake","Rear-left brake","Rear-right brake",
+            "Front-left suspension","Front-right suspension","Rear-left suspension","Rear-right suspension"};
+        private static readonly string[] NamesEs={"de la aerodinámica","del motor","de la caja de cambios","del freno delantero izquierdo","del freno delantero derecho","del freno trasero izquierdo","del freno trasero derecho",
+            "de la suspensión delantera izquierda","de la suspensión delantera derecha","de la suspensión trasera izquierda","de la suspensión trasera derecha"};
         private readonly float[] baseline=Enumerable.Repeat(-1f,11).ToArray();
         private int session=int.MinValue;
         private SessionType type;
@@ -23,7 +27,10 @@ namespace CrewChiefV4.AiTeam
             At(d.BrakeDamagePercent,0),At(d.BrakeDamagePercent,1),At(d.BrakeDamagePercent,2),At(d.BrakeDamagePercent,3),
             At(d.SuspensionDamagePercent,0),At(d.SuspensionDamagePercent,1),At(d.SuspensionDamagePercent,2),At(d.SuspensionDamagePercent,3)};}
         private static string Part(int i,float value)
-        {return Names[i]+"-Schadenswert "+value.ToString("0.0",CultureInfo.GetCultureInfo("de-DE"))+" Prozent";}
+        {
+            string n=RadioLanguage.Num(value,"0.0");
+            return RadioLanguage.T(Names[i]+"-Schadenswert "+n+" Prozent",NamesEn[i]+" damage value "+n+" percent","Valor de daño "+NamesEs[i]+" "+n+" por ciento");
+        }
         public static string Report(CarDamageData d)
         {
             var values=Values(d);var parts=new List<string>();
@@ -49,7 +56,7 @@ namespace CrewChiefV4.AiTeam
             if(changed.Count==0)return;
             var snapshot=(float[])values.Clone();var indices=changed.ToArray();
             string report=string.Join(", ",indices.Take(3).Select(i=>Part(i,snapshot[i])))+".";
-            if(indices.Length>3)report+=" Weitere Komponenten melden ebenfalls mehr Schaden.";
+            if(indices.Length>3)report+=RadioLanguage.T(" Weitere Komponenten melden ebenfalls mehr Schaden."," Other components are reporting more damage too."," Otros componentes también marcan más daño.");
             output.Offer("warning-numeric-damage",report,TeamMember.Mik,7,gs,now,
                 live=>!live.PitData.InPitlane && indices.All(i=>Good(Values(live.CarDamageData)[i]) && Math.Abs(Values(live.CarDamageData)[i]-snapshot[i])<=.1f),
                 "numeric_damage_increase_at_least_1_percentage_point;not_force_loss",-1,

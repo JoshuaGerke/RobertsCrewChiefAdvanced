@@ -7,7 +7,7 @@
 </head>
 <body>
 <div id="rrca-design">
-  <header class="top"><div class="brand"><img src="logo.jpg" alt="RRCA – Rob’s Race Crew Advanced"></div><div class="top-right"><span class="chip"><span class="dot off" id="rrca-conn-dot"></span> <span id="rrca-conn">Kein Spiel verbunden</span></span><span class="tag" id="rrca-version">Vorschau</span></div></header>
+  <header class="top"><div class="brand"><img src="logo.jpg" alt="RRCA – Rob’s Race Crew Advanced"></div><div class="top-right"><button type="button" class="button primary" id="rrca-update" data-cmd="installUpdate" hidden>Update</button><span class="chip"><span class="dot off" id="rrca-conn-dot"></span> <span id="rrca-conn">Kein Spiel verbunden</span></span><span class="tag" id="rrca-version">Vorschau</span></div></header>
   <aside class="project-notice" role="note" aria-label="Herkunft und Lizenz"><strong>Auf Basis von Crew Chief V4 – mit Dank an die Entwickler</strong><p>Inoffizielles Privatprojekt, unentgeltlich und nichtkommerziell angeboten. Der Crew-Chief-Quellcode wird gemäß MIT-Lizenz von Britton IT Ltd verwendet. KI- und Stimmendienste können separat Kosten verursachen.</p><button class="button quiet" type="button" data-cmd="openNotes">Hinweise, Lizenz und Dank</button></aside>
   <div id="rrca-notice" class="notification" role="status" aria-live="polite" hidden></div>
   <div class="layout">
@@ -74,7 +74,7 @@
         </div></details>
       </section>
       <section id="rrca-settings" role="tabpanel" hidden>
-        <div class="page-head"><div><div class="eyebrow">Intelligenz & Kommunikation</div><h1>Dein Funk. Dein Rhythmus.</h1><p>Ereignisse zuerst – regelmäßige Berichte ergänzen das Team.</p></div><label class="field" style="min-width:130px">Funkmodus<select data-setting="radioMode"><option value="NORMAL">Normal</option><option value="MINIMAL">Minimal</option><option value="ACTIVE">Aktiv</option></select></label></div>
+        <div class="page-head"><div><div class="eyebrow">Intelligenz & Kommunikation</div><h1>Dein Funk. Dein Rhythmus.</h1><p>Ereignisse zuerst – regelmäßige Berichte ergänzen das Team.</p></div><label class="field" style="min-width:150px">Funksprache<select data-setting="radioLanguage"><option value="auto">Automatisch (Windows)</option><option value="de">Deutsch</option><option value="en">English</option><option value="es">Español</option></select></label><label class="field" style="min-width:130px">Funkmodus<select data-setting="radioMode"><option value="NORMAL">Normal</option><option value="MINIMAL">Minimal</option><option value="ACTIVE">Aktiv</option></select></label></div>
         <details open><summary>Dein Fahrerprofil</summary><div class="form-grid">
           <label class="field">Vollständiger Name<input type="text" data-setting="driverName" maxlength="80" placeholder="z. B. Alex Beispiel" autocomplete="name" required></label>
           <label class="field">Spitzname / Funkname<input type="text" data-setting="driverNickname" maxlength="40" placeholder="z. B. Alex" autocomplete="nickname"></label>

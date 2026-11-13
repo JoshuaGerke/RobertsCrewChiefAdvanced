@@ -3437,6 +3437,9 @@ ai_team_driver_nickname = KI-Team Spitzname / Funkname
 ai_team_driver_nickname_help = So spricht dich die Crew an. Leer lassen, um den Fahrernamen zu verwenden.
 ai_team_driver_nickname_category = AI_TEAM
 ai_team_driver_nickname_metadata = RESTART_REQUIRED
+ai_team_radio_language = KI-Team Funksprache (auto, de, en, es)
+ai_team_radio_language_help = Sprache, in der Ben, Mik und Sara sprechen und dich verstehen. auto = Windows-Sprache (Deutsch, Englisch oder Spanisch, sonst Englisch).
+ai_team_radio_language_category = AI_TEAM
 ai_team_ptt_key = KI-Team Funktaste (Tastatur)
 ai_team_ptt_key_help = Optional eine Tastaturtaste zum Gedrückthalten, z. B. F9, Scroll, Pause, NumPad0. Leer = nur der Controller-Knopf "KI-Team anfunken".
 ai_team_ptt_key_category = AI_TEAM

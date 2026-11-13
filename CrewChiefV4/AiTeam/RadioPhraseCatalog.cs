@@ -20,6 +20,8 @@ namespace CrewChiefV4.AiTeam
     public sealed class RadioPhraseCatalog
     {
         public const string FileName = "Rennfunk.de.json";
+        /// <summary>Katalogdatei der jeweiligen Funksprache.</summary>
+        public static string FileNameFor(string language) => "Rennfunk." + language + ".json";
         private const int MaxFileBytes = 64 * 1024;
         private static readonly Regex Slot = new Regex(@"\{([a-z]+)\}", RegexOptions.CultureInvariant);
         // Required slots first, optional slots after |. Values use the same order at the call site.
@@ -35,42 +37,56 @@ namespace CrewChiefV4.AiTeam
             ["gap-rear-close"] = "|opponent rival target", ["gap-rear-increasing"] = "|opponent rival target",
             ["gap-rear-decreasing"] = "|opponent rival target", ["gap-rear-steady"] = "|opponent rival target"
         };
-        private static readonly Lazy<RadioPhraseCatalog> Stock = new Lazy<RadioPhraseCatalog>(LoadStock);
-        private static RadioPhraseCatalog current;
+        private static readonly Lazy<RadioPhraseCatalog> Stock = new Lazy<RadioPhraseCatalog>(() => LoadStock(RadioLanguage.German));
+        private static readonly Lazy<RadioPhraseCatalog> StockEn = new Lazy<RadioPhraseCatalog>(() => LoadStock(RadioLanguage.English));
+        private static readonly Lazy<RadioPhraseCatalog> StockEs = new Lazy<RadioPhraseCatalog>(() => LoadStock(RadioLanguage.Spanish));
+        private static RadioPhraseCatalog current, currentEn, currentEs;
         private readonly Dictionary<string, string[]> groups;
-        public static RadioPhraseCatalog Current => Volatile.Read(ref current) ?? Stock.Value;
+        /// <summary>Katalog der aktuellen Funksprache.</summary>
+        public static RadioPhraseCatalog Current => RadioLanguage.Pick(
+            Volatile.Read(ref current) ?? Stock.Value,
+            Volatile.Read(ref currentEn) ?? StockEn.Value,
+            Volatile.Read(ref currentEs) ?? StockEs.Value);
         public static string EditablePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, FileName);
         public static bool UsingCustomFile { get; private set; }
         public static bool CustomFileInvalid { get; private set; }
 
         private RadioPhraseCatalog(Dictionary<string, string[]> groups) { this.groups = groups; }
 
-        private static RadioPhraseCatalog LoadStock()
+        private static RadioPhraseCatalog LoadStock(string language)
         {
-            using (var stream = typeof(RadioPhraseCatalog).Assembly.GetManifestResourceStream("RRCA.Rennfunk.de.json"))
+            using (var stream = typeof(RadioPhraseCatalog).Assembly.GetManifestResourceStream("RRCA." + FileNameFor(language)))
             using (var reader = new StreamReader(stream)) return Parse(reader, null);
         }
 
         internal static void LoadForApplication()
         {
-            var loaded = Stock.Value;
-            if (DataFiles.IsolatedRoot == null && File.Exists(EditablePath))
+            Volatile.Write(ref current, LoadWithOverride(RadioLanguage.German, Stock.Value));
+            Volatile.Write(ref currentEn, LoadWithOverride(RadioLanguage.English, StockEn.Value));
+            Volatile.Write(ref currentEs, LoadWithOverride(RadioLanguage.Spanish, StockEs.Value));
+        }
+
+        // Eine bearbeitete Katalogdatei neben der exe ersetzt einzelne Gruppen ihrer Sprache
+        private static RadioPhraseCatalog LoadWithOverride(string language, RadioPhraseCatalog loaded)
+        {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, FileNameFor(language));
+            if (DataFiles.IsolatedRoot == null && File.Exists(path))
             {
                 try
                 {
-                    using (var file = new FileStream(EditablePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         if (file.Length > MaxFileBytes) throw new InvalidDataException();
                         using (var reader = new StreamReader(file)) loaded = Parse(reader, loaded);
                     }
-                    UsingCustomFile = true;
+                    if (language == RadioLanguage.German) UsingCustomFile = true;
                 }
                 catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is JsonException)
                 {
-                    CustomFileInvalid = true;
+                    if (language == RadioLanguage.German) CustomFileInvalid = true;
                 }
             }
-            Volatile.Write(ref current, loaded);
+            return loaded;
         }
 
         public static RadioPhraseCatalog ParseOverrides(TextReader reader) => Parse(reader, Stock.Value);
@@ -118,18 +134,20 @@ namespace CrewChiefV4.AiTeam
         {
             switch (situation)
             {
-                case "pass": return Format("pass-repeat", variant, "7") + " Du bist knapp hinter Müller.";
-                case "gap": return Format("gap-front-decreasing", variant, "Müller", "Müller", "Müller") + " Nach vorn 0,8 Sekunden.";
-                case "pit": return Format("pit-rival", variant, "Müller");
-                case "pit-gain": return Format("pit-gain", variant, "Müller", "7");
+                case "pass": return Format("pass-repeat", variant, "7") + RadioLanguage.T(" Du bist knapp hinter Müller.", " You're right behind Miller.", " Estás justo detrás de Molina.");
+                case "gap": return Format("gap-front-decreasing", variant, Rival, Rival, Rival) + RadioLanguage.T(" Nach vorn 0,8 Sekunden.", " Gap ahead 0.8 seconds.", " Por delante 0,8 segundos.");
+                case "pit": return Format("pit-rival", variant, Rival);
+                case "pit-gain": return Format("pit-gain", variant, Rival, "7");
                 case "fuel": return Format("fuel-range", variant, "18", "8");
-                case "pace-front-faster": return Format("pace-front-faster", variant, "0,4", "Müller");
-                case "lap-best": return Format("lap-best", variant, "2:06,073");
-                case "finish": return "Im Ziel. Platz 3. " + Format("finish-podium", variant);
+                case "pace-front-faster": return Format("pace-front-faster", variant, RadioLanguage.Num(0.4, "0.0"), Rival);
+                case "lap-best": return Format("lap-best", variant, RadioLanguage.T("2:06,073", "2:06.073", "2:06,073"));
+                case "finish": return RadioLanguage.T("Im Ziel. Platz 3. ", "Chequered flag. P3. ", "Bandera a cuadros. Tercero. ") + Format("finish-podium", variant);
                 case "pass-first": return Format("pass-first", variant, "7", SafeRivalName(driverName));
                 default: return null;
             }
         }
+
+        private static string Rival => RadioLanguage.T("Müller", "Miller", "Molina");
 
         public string Format(string group, int variant, params string[] values)
         {

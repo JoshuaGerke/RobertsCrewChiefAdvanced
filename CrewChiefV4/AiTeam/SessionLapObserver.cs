@@ -15,7 +15,9 @@ namespace CrewChiefV4.AiTeam
         private SessionType type = SessionType.Unavailable;
         private float personalBest = -1, classBest = -1;
         private DateTime lastRadio = DateTime.MinValue;
-        internal const string TimedLapStartPhrase = "Zeit läuft. Die erste gezeitete Runde beginnt, bleib bei deinem Rhythmus.";
+        internal static string TimedLapStartPhrase => RadioLanguage.T("Zeit läuft. Die erste gezeitete Runde beginnt, bleib bei deinem Rhythmus.",
+            "Clock's running. First timed lap starts now, keep your rhythm.",
+            "Corre el tiempo. Empieza la primera vuelta cronometrada, mantén tu ritmo.");
         private bool firstTimedLapCalled;
 
         public void Reset()
@@ -73,8 +75,9 @@ namespace CrewChiefV4.AiTeam
                             (!Good(classBest) || time < classBest - .01f);
                         int heard = improvements.Heard;
                         string formatted = LocalAnswers.LapTime(time);
-                        string text = (first ? "Erste gültige Zeit steht: " + formatted + "." :
-                            RadioPhraseCatalog.Current.Format("lap-best", heard, formatted)) + (classRecord ? " Das ist die Klassenbestzeit!" : "");
+                        string text = (first ? RadioLanguage.T("Erste gültige Zeit steht: ", "First valid time is in: ", "Primer tiempo válido: ") + formatted + "." :
+                            RadioPhraseCatalog.Current.Format("lap-best", heard, formatted)) +
+                            (classRecord ? RadioLanguage.T(" Das ist die Klassenbestzeit!", " That's the class best!", " ¡Es el mejor tiempo de la clase!") : "");
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", race ? 5 : 4,
@@ -83,8 +86,10 @@ namespace CrewChiefV4.AiTeam
                     }
                     else if (!race && Good(personalBest) && time > personalBest + .01f && time - personalBest <= .30f)
                     {
-                        string delta = (time - personalBest).ToString("0.00", CultureInfo.GetCultureInfo("de-DE"));
-                        Add(gs, now, "near-best", "Knapp dran: " + delta + " Sekunden über deiner Bestzeit. Bleib bei deinem Rhythmus.",
+                        string delta = RadioLanguage.Num(time - personalBest, "0.00");
+                        Add(gs, now, "near-best", RadioLanguage.T("Knapp dran: " + delta + " Sekunden über deiner Bestzeit. Bleib bei deinem Rhythmus.",
+                                "Close: " + delta + " seconds off your best. Keep your rhythm.",
+                                "Cerca: " + delta + " segundos por encima de tu mejor tiempo. Mantén tu ritmo."),
                             "valid_lap_within_0.30s_of_recorded_personal_best", 3);
                         ownCall = true;
                     }
@@ -99,7 +104,8 @@ namespace CrewChiefV4.AiTeam
                 if (rival != null)
                 {
                     string name = names ? new string((rival.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()) : "";
-                    string text = (name.Length > 0 ? name : "Ein Gegner") + " setzt die neue Klassenbestzeit: " + LocalAnswers.LapTime(nextBest) + ".";
+                    string text = (name.Length > 0 ? name : RadioLanguage.T("Ein Gegner", "A rival", "Un rival")) +
+                        RadioLanguage.T(" setzt die neue Klassenbestzeit: ", " sets the new class best: ", " marca el nuevo mejor tiempo de la clase: ") + LocalAnswers.LapTime(nextBest) + ".";
                     Add(gs, now, "rival-best", text, "measured_class_best_and_identified_rival", 2);
                 }
             }

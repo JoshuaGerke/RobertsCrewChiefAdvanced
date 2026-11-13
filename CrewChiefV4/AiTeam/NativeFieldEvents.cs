@@ -170,13 +170,13 @@ namespace CrewChiefV4.AiTeam
         }
         private static string Text(NativeFieldFact f,bool names,int variant)
         {
-            string who=names?Name(f.Name):"Ein Gegner";if(who.Length==0)return null;
+            string who=names?Name(f.Name):RadioLanguage.T("Ein Gegner","A rival","Un rival");if(who.Length==0)return null;
             if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who);
-            if(f.Kind=="leader")return who+" führt jetzt unsere Klasse an.";
-            if(f.Kind=="retired")return who+" ist ausgefallen.";
-            if(f.Kind=="dq")return who+" wurde disqualifiziert.";
-            if(f.Kind=="tyres")return who+" hat die Reifenmischung gewechselt.";
-            if(f.Kind=="fastest" && f.Seconds>10 && f.Seconds<3600)return who+" setzt die Klassenbestzeit: "+LocalAnswers.LapTime((float)f.Seconds)+".";
+            if(f.Kind=="leader")return who+RadioLanguage.T(" führt jetzt unsere Klasse an."," now leads our class."," lidera ahora nuestra clase.");
+            if(f.Kind=="retired")return who+RadioLanguage.T(" ist ausgefallen."," is out of the race."," ha abandonado.");
+            if(f.Kind=="dq")return who+RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado.");
+            if(f.Kind=="tyres")return who+RadioLanguage.T(" hat die Reifenmischung gewechselt."," has changed tyre compound."," ha cambiado de compuesto de neumáticos.");
+            if(f.Kind=="fastest" && f.Seconds>10 && f.Seconds<3600)return who+RadioLanguage.T(" setzt die Klassenbestzeit: "," sets the class fastest lap: "," marca la vuelta rápida de la clase: ")+LocalAnswers.LapTime((float)f.Seconds)+".";
             return null;
         }
     }

@@ -11,25 +11,67 @@ namespace CrewChiefV4.AiTeam
     /// A warning is acknowledged at playback start, never at recognition or enqueue.</summary>
     public sealed class LiveWarningDispatcher
     {
-        public static readonly string[] OilPhrases={
+        private static readonly string[] OilPhrasesDe={
             "Die Öltemperatur ist zu hoch. Schone den Motor und prüfe die Anzeige.",
             "Vorsicht, das Motoröl ist zu heiß. Nimm Belastung aus dem Motor.",
             "Achtung, zu hohe Öltemperatur. Schone den Motor."
         };
-        public static readonly string[] WaterPhrases={
+        private static readonly string[] OilPhrasesEn={
+            "Oil temperature is too high. Look after the engine and check the gauge.",
+            "Careful, the engine oil is too hot. Take some load off the engine.",
+            "Watch out, oil temperature too high. Look after the engine."
+        };
+        private static readonly string[] OilPhrasesEs={
+            "La temperatura del aceite es demasiado alta. Cuida el motor y revisa el indicador.",
+            "Cuidado, el aceite del motor está demasiado caliente. Quítale carga al motor.",
+            "Atención, temperatura de aceite demasiado alta. Cuida el motor."
+        };
+        public static string[] OilPhrases => RadioLanguage.Pick(OilPhrasesDe,OilPhrasesEn,OilPhrasesEs);
+        private static readonly string[] WaterPhrasesDe={
             "Die Wassertemperatur ist zu hoch. Schone den Motor und prüfe die Kühlung.",
             "Vorsicht, das Kühlwasser ist zu heiß. Nimm Belastung aus dem Motor.",
             "Achtung, zu hohe Wassertemperatur. Schone den Motor."
         };
-        public static readonly string[] BothPhrases={
+        private static readonly string[] WaterPhrasesEn={
+            "Water temperature is too high. Look after the engine and check the cooling.",
+            "Careful, the coolant is too hot. Take some load off the engine.",
+            "Watch out, water temperature too high. Look after the engine."
+        };
+        private static readonly string[] WaterPhrasesEs={
+            "La temperatura del agua es demasiado alta. Cuida el motor y revisa la refrigeración.",
+            "Cuidado, el refrigerante está demasiado caliente. Quítale carga al motor.",
+            "Atención, temperatura de agua demasiado alta. Cuida el motor."
+        };
+        public static string[] WaterPhrases => RadioLanguage.Pick(WaterPhrasesDe,WaterPhrasesEn,WaterPhrasesEs);
+        private static readonly string[] BothPhrasesDe={
             "Öl und Kühlwasser sind zu heiß. Schone den Motor und prüfe die Kühlung.",
             "Vorsicht, Öl- und Wassertemperatur sind zu hoch. Nimm Belastung aus dem Motor."
         };
-        public static readonly string[] LimitPhrases={
+        private static readonly string[] BothPhrasesEn={
+            "Oil and coolant are too hot. Look after the engine and check the cooling.",
+            "Careful, oil and water temperatures are too high. Take some load off the engine."
+        };
+        private static readonly string[] BothPhrasesEs={
+            "El aceite y el refrigerante están demasiado calientes. Cuida el motor y revisa la refrigeración.",
+            "Cuidado, las temperaturas de aceite y agua son demasiado altas. Quítale carga al motor."
+        };
+        public static string[] BothPhrases => RadioLanguage.Pick(BothPhrasesDe,BothPhrasesEn,BothPhrasesEs);
+        private static readonly string[] LimitPhrasesDe={
             "Tracklimit-Vorwarnung. Lass etwas mehr Platz zum Streckenrand.",
             "Die Rennleitung warnt wegen Tracklimits. Bleib sauber innerhalb der Strecke.",
             "Pass auf die Limits auf. Das ist eine Vorwarnung."
         };
+        private static readonly string[] LimitPhrasesEn={
+            "Track limits warning. Give yourself a bit more margin to the edge.",
+            "Race control is warning about track limits. Keep it clean inside the lines.",
+            "Watch the limits. That's a warning."
+        };
+        private static readonly string[] LimitPhrasesEs={
+            "Aviso de límites de pista. Deja algo más de margen al borde.",
+            "Dirección de carrera avisa por límites de pista. Mantente limpio dentro de la pista.",
+            "Cuidado con los límites. Es un aviso previo."
+        };
+        public static string[] LimitPhrases => RadioLanguage.Pick(LimitPhrasesDe,LimitPhrasesEn,LimitPhrasesEs);
         public static IEnumerable<string> MikPhrases {get{return OilPhrases.Concat(WaterPhrases).Concat(BothPhrases).Concat(LimitPhrases);}}
         private sealed class Native
         {

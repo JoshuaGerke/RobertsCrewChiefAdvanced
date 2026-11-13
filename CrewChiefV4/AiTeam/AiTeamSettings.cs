@@ -40,6 +40,7 @@ namespace CrewChiefV4.AiTeam
         public AiRadioMode RadioMode = AiRadioMode.NORMAL;
         public string DriverName = "Fahrer";
         public string DriverNickname = "";
+        public string RadioLanguageSetting = RadioLanguage.Auto;
         public string RadioName { get { return string.IsNullOrWhiteSpace(DriverNickname) ? DriverName : DriverNickname.Trim(); } }
         public string PttKey = "";
         public string Microphone = "";
@@ -67,6 +68,7 @@ namespace CrewChiefV4.AiTeam
             s.DeepModel = GetString(() => u.getString("ai_team_deep_model"), s.DeepModel);
             s.ReasoningEffort = Get(() => u.getString("ai_team_reasoning_effort"), s.ReasoningEffort);
             s.SttModel = GetString(() => u.getString("ai_team_stt_model"), s.SttModel);
+            s.RadioLanguageSetting = GetString(() => u.getString("ai_team_radio_language"), s.RadioLanguageSetting);
             s.TtsModel = GetString(() => u.getString("ai_team_tts_model"), s.TtsModel);
             s.TtsProvider = GetEnum(() => u.getString("ai_team_tts_provider_listprop"), s.TtsProvider);
             s.ElevenLabsModel = GetString(() => u.getString("ai_team_elevenlabs_model"), s.ElevenLabsModel);

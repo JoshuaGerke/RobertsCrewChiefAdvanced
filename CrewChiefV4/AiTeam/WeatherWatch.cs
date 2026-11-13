@@ -54,7 +54,12 @@ namespace CrewChiefV4.AiTeam
         }
         private static string RainText(int value)
         { return new[]{"kein Regen","Nieselregen","leichter Regen","mäßiger Regen","starker Regen","Sturmregen"}[value]; }
-        private static string Number(float value) { return value.ToString("0.#",CultureInfo.GetCultureInfo("de-DE")); }
+        // RainText bleibt deutsch (Daten für das Sprachmodell); gesprochen wird diese Fassung.
+        private static string SpokenRainText(int value)
+        { return RadioLanguage.Pick(new[]{"kein Regen","Nieselregen","leichter Regen","mäßiger Regen","starker Regen","Sturmregen"},
+            new[]{"no rain","drizzle","light rain","moderate rain","heavy rain","torrential rain"},
+            new[]{"sin lluvia","llovizna","lluvia ligera","lluvia moderada","lluvia fuerte","lluvia torrencial"})[value]; }
+        private static string Number(float value) { return RadioLanguage.Num(value,"0.#"); }
         public static JObject ForecastData(Conditions c,DateTime now)
         {
             if(!ForecastFresh(c,now))return new JObject { ["verfuegbar"]=false,["grund"]="Keine bestätigte frische Spiel-/Servervorhersage vom Adapter verfügbar." };
@@ -103,7 +108,8 @@ namespace CrewChiefV4.AiTeam
                     if(!wind.HasValue)wind=c.WindSpeed;
                     else if(Math.Abs(c.WindSpeed-wind.Value)>=4) {
                         float value=c.WindSpeed;
-                        Add(gs,now,"wind","Der gemeldete Wind hat sich verändert: "+Number(value)+" Meter pro Sekunde.",2,"measured_wind_speed_change",
+                        Add(gs,now,"wind",RadioLanguage.T("Der gemeldete Wind hat sich verändert: "+Number(value)+" Meter pro Sekunde.",
+                            "The reported wind has changed: "+Number(value)+" metres per second.","El viento reportado ha cambiado: "+Number(value)+" metros por segundo."),2,"measured_wind_speed_change",
                             live=>live.Conditions.LatestConditions!=null && Math.Abs(live.Conditions.LatestConditions.WindSpeed-value)<1,()=>wind=value);
                     }
                 }
@@ -119,7 +125,9 @@ namespace CrewChiefV4.AiTeam
             if(!Good(value,low,high))return;
             if(!baseline.HasValue){baseline=value;return;}
             if(Math.Abs(value-baseline.Value)<threshold)return;
-            Add(gs,now,topic,name+"temperatur verändert: jetzt "+Number(value)+" Grad.",2,"measured_temperature_change",
+            string n=Number(value);
+            Add(gs,now,topic,RadioLanguage.T(name+"temperatur verändert: jetzt "+n+" Grad.",(topic=="air"?"Air":"Track")+" temperature has changed: now "+n+" degrees.",
+                "La temperatura "+(topic=="air"?"del aire":"de la pista")+" ha cambiado: ahora "+n+" grados."),2,"measured_temperature_change",
                 live=>live.Conditions.LatestConditions!=null && Math.Abs((topic=="air"?live.Conditions.LatestConditions.AmbientTemperature:live.Conditions.LatestConditions.TrackTemperature)-value)<=.5f,
                 ()=> { if(topic=="air")air=value;else track=value; });
         }
@@ -135,7 +143,11 @@ namespace CrewChiefV4.AiTeam
             if(first && !relevant){baseline=level;priorChance=chance;priorTemperature=temperature;return;}
             if(!Good(priorTemperature,-40,70) && knownTemperature)priorTemperature=temperature;
             if(!relevant)return;
-            string text="Spielvorhersage für "+minutes+" Spielminuten: "+(knownChance?Number(chance)+" Prozent Regenwahrscheinlichkeit":RainText(level))+"."+(knownTemperature?" Luft: "+Number(temperature)+" Grad.":"");
+            string rain=SpokenRainText(level),temp=knownTemperature?Number(temperature):null,pct=knownChance?Number(chance):null;
+            string text=RadioLanguage.T(
+                "Spielvorhersage für "+minutes+" Spielminuten: "+(knownChance?pct+" Prozent Regenwahrscheinlichkeit":rain)+"."+(knownTemperature?" Luft: "+temp+" Grad.":""),
+                "Game forecast for "+minutes+" game minutes: "+(knownChance?pct+" percent chance of rain":rain)+"."+(knownTemperature?" Air: "+temp+" degrees.":""),
+                "Previsión del juego para "+minutes+" minutos de juego: "+(knownChance?pct+" por ciento de probabilidad de lluvia":rain)+"."+(knownTemperature?" Aire: "+temp+" grados.":""));
             Add(gs,now,"forecast-"+minutes,text,4,"confirmed_game_server_forecast_change",
                 live=>ForecastFresh(live.Conditions,live.Now) && (int)(minutes==10?live.Conditions.rainLevelIn10Mins:live.Conditions.rainLevelIn30Mins)==level &&
                     (!knownChance || Math.Abs((minutes==10?live.Conditions.RainChanceIn10Mins:live.Conditions.RainChanceIn30Mins)-chance)<1) &&

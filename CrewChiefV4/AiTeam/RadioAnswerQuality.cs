@@ -36,7 +36,8 @@ namespace CrewChiefV4.AiTeam
             // Drop a short, unfinished lower-case tail after a complete sentence only if it
             // has neither a normal German continuation, a value nor an actual known name.
             int end = text.LastIndexOfAny(new[] { '.', '!', '?' });
-            if (end >= 0 && end < text.Length - 1)
+            // Die Liste typischer Fortsetzungen ist deutsch; in EN/ES bleibt der Rest stehen statt falsch gekürzt zu werden
+            if (end >= 0 && end < text.Length - 1 && RadioLanguage.IsGerman)
             {
                 string tail = text.Substring(end + 1).Trim();
                 bool knownName = names.Any(n => tail.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0 ||

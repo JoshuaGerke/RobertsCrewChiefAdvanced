@@ -10,35 +10,58 @@ namespace CrewChiefV4.AiTeam
     /// No guessed limits or assumed speed-marker coordinates.</summary>
     public sealed class PitLaneWatch
     {
-        public static readonly string[] UnknownLimitPhrases={
+        private static readonly string[] UnknownLimitPhrasesDe={
             "Achte auf das ausgeschilderte Boxenlimit.",
             "Denk ans Tempolimit in der Boxengasse.",
             "Boxenlimit beachten. Schau auf die Beschilderung."
         };
+        private static readonly string[] UnknownLimitPhrasesEn={
+            "Watch the posted pit speed limit.",
+            "Remember the speed limit in the pit lane.",
+            "Mind the pit limit. Check the signs."
+        };
+        private static readonly string[] UnknownLimitPhrasesEs={
+            "Atento al límite de boxes señalizado.",
+            "Recuerda el límite de velocidad en el pit lane.",
+            "Respeta el límite de boxes. Mira la señalización."
+        };
+        public static string[] UnknownLimitPhrases => RadioLanguage.Pick(UnknownLimitPhrasesDe,UnknownLimitPhrasesEn,UnknownLimitPhrasesEs);
         public static bool Known(float value)
         {return !float.IsNaN(value) && !float.IsInfinity(value) && value>0 && value<56;}
         public static IEnumerable<string> Phrases(float limit)
         {
             if(!Known(limit)) return UnknownLimitPhrases;
             string number=Math.Round(limit*3.6f).ToString(CultureInfo.InvariantCulture);
-            return new[]{"Achte aufs Boxenlimit: "+number+" Kilometer pro Stunde.",
-                "Denk ans Tempo in der Box: "+number+" Kilometer pro Stunde.",
-                "Boxenlimit beachten: "+number+" Kilometer pro Stunde."};
+            return RadioLanguage.Pick(
+                new[]{"Achte aufs Boxenlimit: "+number+" Kilometer pro Stunde.",
+                    "Denk ans Tempo in der Box: "+number+" Kilometer pro Stunde.",
+                    "Boxenlimit beachten: "+number+" Kilometer pro Stunde."},
+                new[]{"Watch the pit limit: "+number+" kilometres per hour.",
+                    "Mind your speed in the pits: "+number+" kilometres per hour.",
+                    "Respect the pit limit: "+number+" kilometres per hour."},
+                new[]{"Atento al límite de boxes: "+number+" kilómetros por hora.",
+                    "Ojo a la velocidad en boxes: "+number+" kilómetros por hora.",
+                    "Respeta el límite de boxes: "+number+" kilómetros por hora."});
         }
         public static string[] SpeedPhrases(float limit)
         {
             if(!Known(limit)) return CrewSpeechPolicy.PitSpeedPhrases;
             string number=Math.Round(limit*3.6f).ToString(CultureInfo.InvariantCulture);
-            return new[]{"Zu schnell für die Box. Hier gelten "+number+" Kilometer pro Stunde.",
-                "Tempo runter, Boxenlimit: "+number+" Kilometer pro Stunde."};
+            return RadioLanguage.Pick(
+                new[]{"Zu schnell für die Box. Hier gelten "+number+" Kilometer pro Stunde.",
+                    "Tempo runter, Boxenlimit: "+number+" Kilometer pro Stunde."},
+                new[]{"Too fast for the pit lane. The limit here is "+number+" kilometres per hour.",
+                    "Slow down, pit limit: "+number+" kilometres per hour."},
+                new[]{"Demasiado rápido para boxes. Aquí el límite es de "+number+" kilómetros por hora.",
+                    "Baja la velocidad, límite de boxes: "+number+" kilómetros por hora."});
         }
         public static bool IsPreparedPhrase(string text)
         {
             if(UnknownLimitPhrases.Contains(text)) return true;
-            if(text==null || !text.EndsWith(" Kilometer pro Stunde.",StringComparison.Ordinal)) return false;
-            int colon=text.LastIndexOf(": "),number;
-            if(text.StartsWith("Zu schnell für die Box. Hier gelten ",StringComparison.Ordinal)) colon="Zu schnell für die Box. Hier gelten ".Length-2;
-            if(colon<0 || !int.TryParse(text.Substring(colon+2,text.Length-colon-2-" Kilometer pro Stunde.".Length),out number) || number<1 || number>201) return false;
+            if(text==null) return false;
+            // The limit is the only number in these phrases (all languages); the exact match below decides.
+            int number;
+            if(!int.TryParse(new string(text.Where(char.IsDigit).ToArray()),out number) || number<1 || number>201) return false;
             return Phrases(number/3.6f).Concat(SpeedPhrases(number/3.6f)).Contains(text);
         }
         private int session=int.MinValue,variant,epoch;

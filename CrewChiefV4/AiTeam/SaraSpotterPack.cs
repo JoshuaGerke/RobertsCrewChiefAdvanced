@@ -21,7 +21,53 @@ namespace CrewChiefV4.AiTeam
         public const string ManifestFile = "rcca_sara_manifest.json";
 
         /// <summary>Ordner relativ zu voice/ und die Varianten pro Ansage. Kurz, damit die Warnung sofort verständlich ist.</summary>
-        public static readonly Dictionary<string, string[]> Phrases = new Dictionary<string, string[]>
+        public static Dictionary<string, string[]> Phrases => RadioLanguage.Pick(PhrasesDe, PhrasesEn, PhrasesEs);
+
+        private static readonly Dictionary<string, string[]> PhrasesEn = new Dictionary<string, string[]>
+        {
+            { "spotter_Sara/car_left", new[] { "Left!", "Car left.", "Car on your left.", "Left." } },
+            { "spotter_Sara/car_right", new[] { "Right!", "Car right.", "Car on your right.", "Right." } },
+            { "spotter_Sara/still_there", new[] { "Still there.", "Still with you.", "Hold your line.", "Still alongside." } },
+            { "spotter_Sara/clear_left", new[] { "Clear left.", "Left side clear." } },
+            { "spotter_Sara/clear_right", new[] { "Clear right.", "Right side clear." } },
+            { "spotter_Sara/clear_all_round", new[] { "Clear.", "All clear.", "Clear all round." } },
+            { "spotter_Sara/in_the_middle", new[] { "You're in the middle.", "Three wide, you're in the middle." } },
+            { "spotter_Sara/three_wide_on_left", new[] { "Three wide, you're on the left.", "Three abreast, you're far left." } },
+            { "spotter_Sara/three_wide_on_right", new[] { "Three wide, you're on the right.", "Three abreast, you're far right." } },
+            { "spotter_Sara/car_inside", new[] { "Car inside.", "Inside!" } },
+            { "spotter_Sara/car_outside", new[] { "Car outside.", "Outside!" } },
+            { "spotter_Sara/clear_inside", new[] { "Clear inside." } },
+            { "spotter_Sara/clear_outside", new[] { "Clear outside." } },
+            { "spotter_Sara/three_wide_on_inside", new[] { "Three wide, you're inside." } },
+            { "spotter_Sara/three_wide_on_outside", new[] { "Three wide, you're outside." } },
+            { "radio_check_Sara/test", new[] { "Radio check, Sara here.", "Sara here, I'm spotting for you today.", "Radio check." } },
+            { "acknowledge/spotterEnabled_Sara", new[] { "Spotter on.", "I'm back." } },
+            { "acknowledge/spotterDisabled_Sara", new[] { "Spotter off.", "Okay, going quiet." } },
+        };
+
+        private static readonly Dictionary<string, string[]> PhrasesEs = new Dictionary<string, string[]>
+        {
+            { "spotter_Sara/car_left", new[] { "¡Izquierda!", "Coche a la izquierda.", "Coche a tu izquierda.", "Izquierda." } },
+            { "spotter_Sara/car_right", new[] { "¡Derecha!", "Coche a la derecha.", "Coche a tu derecha.", "Derecha." } },
+            { "spotter_Sara/still_there", new[] { "Sigue ahí.", "Sigue contigo.", "Mantén la línea.", "Sigue a tu lado." } },
+            { "spotter_Sara/clear_left", new[] { "Libre a la izquierda.", "Izquierda libre." } },
+            { "spotter_Sara/clear_right", new[] { "Libre a la derecha.", "Derecha libre." } },
+            { "spotter_Sara/clear_all_round", new[] { "Libre.", "Todo libre.", "Libre alrededor." } },
+            { "spotter_Sara/in_the_middle", new[] { "Estás en el medio.", "Tres en paralelo, tú en el medio." } },
+            { "spotter_Sara/three_wide_on_left", new[] { "Tres en paralelo, tú a la izquierda.", "Tres de frente, tú el de la izquierda." } },
+            { "spotter_Sara/three_wide_on_right", new[] { "Tres en paralelo, tú a la derecha.", "Tres de frente, tú el de la derecha." } },
+            { "spotter_Sara/car_inside", new[] { "Coche por dentro.", "¡Por dentro!" } },
+            { "spotter_Sara/car_outside", new[] { "Coche por fuera.", "¡Por fuera!" } },
+            { "spotter_Sara/clear_inside", new[] { "Libre por dentro." } },
+            { "spotter_Sara/clear_outside", new[] { "Libre por fuera." } },
+            { "spotter_Sara/three_wide_on_inside", new[] { "Tres en paralelo, tú por dentro." } },
+            { "spotter_Sara/three_wide_on_outside", new[] { "Tres en paralelo, tú por fuera." } },
+            { "radio_check_Sara/test", new[] { "Prueba de radio, aquí Sara.", "Aquí Sara, hoy hago de spotter para ti.", "Prueba de radio." } },
+            { "acknowledge/spotterEnabled_Sara", new[] { "Spotter activado.", "Ya estoy de vuelta." } },
+            { "acknowledge/spotterDisabled_Sara", new[] { "Spotter desactivado.", "Vale, me quedo en silencio." } },
+        };
+
+        private static readonly Dictionary<string, string[]> PhrasesDe = new Dictionary<string, string[]>
         {
             { "spotter_Sara/car_left", new[] { "Links!", "Auto links.", "Links neben dir.", "Links." } },
             { "spotter_Sara/car_right", new[] { "Rechts!", "Auto rechts.", "Rechts neben dir.", "Rechts." } },

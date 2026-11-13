@@ -364,12 +364,12 @@ namespace CrewChiefV4.AiTeam
         {
             if (string.IsNullOrWhiteSpace(raw))
             {
-                return "Kurve " + (index + 1);
+                return RadioLanguage.T("Kurve ", "Turn ", "Curva ") + (index + 1);
             }
             var m = turnPattern.Match(raw.Trim());
             if (m.Success)
             {
-                return "Kurve " + int.Parse(m.Groups[2].Value);
+                return RadioLanguage.T("Kurve ", "Turn ", "Curva ") + int.Parse(m.Groups[2].Value);
             }
             var words = raw.Replace('_', ' ').Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             return string.Join(" ", words.Select(w => char.ToUpperInvariant(w[0]) + w.Substring(1)));

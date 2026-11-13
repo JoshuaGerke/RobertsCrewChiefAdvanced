@@ -258,6 +258,8 @@
     <Compile Include="AiTeam\TelemetryMeasurementTools.cs" />
     <Compile Include="GameState\TelemetryMeasurement.cs" />
     <Compile Include="AiTeam\AiPersonas.cs" />
+    <Compile Include="AiTeam\RadioLanguage.cs" />
+    <Compile Include="AiTeam\RrcaUpdater.cs" />
     <Compile Include="AiTeam\AiRaceMemory.cs" />
     <Compile Include="AiTeam\AiSecretStore.cs" />
     <Compile Include="AiTeam\AiTeamForm.cs" />
@@ -1211,6 +1213,14 @@
     <EmbeddedResource Include="AiTeam\Rennfunk.de.json">
       <WithCulture>false</WithCulture>
       <LogicalName>RRCA.Rennfunk.de.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="AiTeam\Rennfunk.en.json">
+      <WithCulture>false</WithCulture>
+      <LogicalName>RRCA.Rennfunk.en.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="AiTeam\Rennfunk.es.json">
+      <WithCulture>false</WithCulture>
+      <LogicalName>RRCA.Rennfunk.es.json</LogicalName>
     </EmbeddedResource>
     <Content Include="AiTeam\Rennfunk.de.json">
       <TargetPath>Rennfunk.de.json</TargetPath>

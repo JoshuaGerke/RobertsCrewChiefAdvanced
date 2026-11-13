@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ['v*']
     paths-ignore:
       - 'docs/**'
       - '*.md'
@@ -57,12 +58,16 @@ jobs:
 
       - name: Paket schnüren
         run: |
-          ./build/package.ps1 -OutDir dist/RobertsCrewChiefAdvanced -PublicDistribution
-          $out = 'dist/RobertsCrewChiefAdvanced'
           $sha = $env:GITHUB_SHA.Substring(0, 7)
+          # Versions-Tag (v0.9.1) = offizielles Release mit Update-Hinweis in der App; sonst Entwicklungsstand
+          $version = if ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF_NAME } else { "dev-$sha" }
+          ./build/package.ps1 -OutDir dist/RobertsCrewChiefAdvanced -PublicDistribution -Version $version
+          $out = 'dist/RobertsCrewChiefAdvanced'
           # VERSION.txt and its manifest are generated together by package.ps1; do not invalidate the hashes.
           Compress-Archive -Path "$out/*" -DestinationPath "dist/RobertsCrewChiefAdvanced-Alpha-$sha-win-x64.zip" -Force
           Copy-Item "dist/RobertsCrewChiefAdvanced-Alpha-$sha-win-x64.zip" "dist/RobertsCrewChiefAdvanced.zip"
+          # Prüfsumme für das Update in der App
+          (Get-FileHash dist/RobertsCrewChiefAdvanced.zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  RobertsCrewChiefAdvanced.zip" | Set-Content -NoNewline -Encoding ascii dist/RobertsCrewChiefAdvanced.zip.sha256
 
       - name: Testergebnisse hochladen
         if: always()
@@ -88,5 +93,15 @@ jobs:
         run: |
           gh release delete aktuell --yes --cleanup-tag 2>$null
           $notes = "Aktuelle Testversion (Commit $($env:GITHUB_SHA.Substring(0,7))). ZIP komplett in einen neuen Ordner entpacken und CrewChiefV4.exe starten. Anleitung mit Bildern im Paket: ANLEITUNG_RRCA_DE.pdf (EN: GUIDE_RRCA_EN.pdf, ES: GUIA_RRCA_ES.pdf). Fehler bitte als Issue oder im Forenthread auf virtualracing.org melden."
-          gh release create aktuell dist/RobertsCrewChiefAdvanced.zip --target $env:GITHUB_SHA --title "RRCA – aktuelle Testversion" --notes $notes --latest
+          # Vorabversion: zählt nicht als neueste Version, löst also keinen Update-Hinweis aus
+          gh release create aktuell dist/RobertsCrewChiefAdvanced.zip dist/RobertsCrewChiefAdvanced.zip.sha256 --target $env:GITHUB_SHA --title "RRCA – Entwicklungsstand" --notes $notes --prerelease --latest=false
+          if ($LASTEXITCODE -ne 0) { throw 'Release konnte nicht angelegt werden' }
+
+      - name: Offizielles Release (Versions-Tag)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "RRCA $($env:GITHUB_REF_NAME). Download: RobertsCrewChiefAdvanced.zip. Installation and setup: https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced#readme (Deutsch: README_DE.md, Español: README_ES.md). If you already use RRCA, it offers this update itself."
+          gh release create $env:GITHUB_REF_NAME dist/RobertsCrewChiefAdvanced.zip dist/RobertsCrewChiefAdvanced.zip.sha256 --verify-tag --title "RRCA $($env:GITHUB_REF_NAME)" --notes $notes --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release konnte nicht angelegt werden' }

@@ -239,8 +239,8 @@ namespace CrewChiefV4.AiTeam
                 return "Nativ erkannter Abstand zum Wagen hinter uns auf der Strecke " +
                     (fact.Trend == NativeTimingTrend.Decreasing ? "wird kleiner" : fact.Trend == NativeTimingTrend.Increasing ? "wächst" :
                     fact.Trend == NativeTimingTrend.Close ? "bleibt klein" : "bleibt ähnlich") + ". Kein bestätigter Klassenabstand.";
-            string interval = measurement.HasValue ? (measurement.IsEstimated ? "ungefähr " : "") +
-                measurement.Seconds.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden" : null;
+            string interval = measurement.HasValue ? (measurement.IsEstimated ? RadioLanguage.T("ungefähr ", "about ", "unos ") : "") +
+                RadioLanguage.Num(measurement.Seconds, "0.0") + RadioLanguage.T(" Sekunden", " seconds", " segundos") : null;
             bool gapDiffers = measurement.HasValue && fact.NativeSeconds > .05f &&
                 Math.Abs(measurement.Seconds - fact.NativeSeconds) > Math.Max(.25f, measurement.Seconds * .20f);
             // The native trend may describe a different timing source. Never combine it with
@@ -248,13 +248,16 @@ namespace CrewChiefV4.AiTeam
             if (separateClass || gapDiffers || fact.Trend == NativeTimingTrend.Close && measurement.HasValue && measurement.Seconds > 2)
                 return interval == null ? null : RaceRadioLanguage.MeasuredGap(ahead, name, interval, separateClass, variant);
             string group = (ahead ? "gap-front-" : "gap-rear-") + fact.Trend.ToString().ToLowerInvariant();
-            string subject = name.Length > 0 ? name : ahead ? "Der Vordermann" : "Der Hintermann";
-            string dative = name.Length > 0 ? name : ahead ? "dem Vordermann" : "dem Hintermann";
-            string target = name.Length > 0 ? name : ahead ? "den Vordermann" : "den Hintermann";
+            string subject = name.Length > 0 ? name : ahead ? RadioLanguage.T("Der Vordermann", "The car ahead", "Tu rival de delante") :
+                RadioLanguage.T("Der Hintermann", "The car behind", "Tu rival de detrás");
+            string dative = name.Length > 0 ? name : ahead ? RadioLanguage.T("dem Vordermann", "the car ahead", "tu rival de delante") :
+                RadioLanguage.T("dem Hintermann", "the car behind", "tu rival de detrás");
+            string target = name.Length > 0 ? name : ahead ? RadioLanguage.T("den Vordermann", "the car ahead", "tu rival de delante") :
+                RadioLanguage.T("den Hintermann", "the car behind", "tu rival de detrás");
             text = RadioPhraseCatalog.Current.Format(group, variant, subject, dative, target);
-            if (text.Length > 0) text = char.ToUpper(text[0], CultureInfo.GetCultureInfo("de-DE")) + text.Substring(1);
+            if (text.Length > 0) text = char.ToUpper(text[0], RadioLanguage.Culture) + text.Substring(1);
             if (interval != null)
-                text = (ahead ? "Nach vorn " : "Nach hinten ") + interval + ". " + text;
+                text = (ahead ? RadioLanguage.T("Nach vorn ", "Gap ahead ", "Por delante ") : RadioLanguage.T("Nach hinten ", "Gap behind ", "Por detrás ")) + interval + ". " + text;
             return text;
         }
     }

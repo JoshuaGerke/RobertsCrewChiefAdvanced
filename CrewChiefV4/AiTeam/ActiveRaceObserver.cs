@@ -68,10 +68,10 @@ namespace CrewChiefV4.AiTeam
             if (MaySpeakPitGain && !standalonePitClaimed && context != null && PitGain.StillInPits(context.GameState))
             {
                 string pitRivalName = context.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(PitGain.Name) : "";
-                string position = Position.ToString(CultureInfo.InvariantCulture) + (RaceRadioLanguage.SeparateClass(context.GameState.SessionData) ? " in deiner Klasse" : "");
+                string position = Position.ToString(CultureInfo.InvariantCulture) + (RaceRadioLanguage.SeparateClass(context.GameState.SessionData) ? RadioLanguage.T(" in deiner Klasse", " in your class", " en tu clase") : "");
                 detailIsCurrent = (live, now) => PitGain.StillInPits(live);
                 return RadioPhraseCatalog.Current.Format("pit-gain", VariantCursor.Heard,
-                    pitRivalName.Length == 0 ? "Der Vordermann" : pitRivalName, position);
+                    pitRivalName.Length == 0 ? RadioLanguage.T("Der Vordermann", "The car ahead", "Tu rival de delante") : pitRivalName, position);
             }
             // If the optional detail expires during rendering, the ordinary retry can still report the pass.
             if (!ConfirmedPass || Volatile.Read(ref attempts) != 1 || context == null || !context.SendDriverNames)
@@ -95,8 +95,10 @@ namespace CrewChiefV4.AiTeam
                     CloseRaceRival(new RaceDataContext { GameState = live, NowUtc = now,
                         LastTelemetryUtc = live.Now, Tracks = tracks }, front);
             };
-            return Text + (RaceRadioLanguage.SeparateClass(state.SessionData) ? " Du bist in deiner Klasse knapp hinter " : " Du bist knapp hinter ") +
-                spokenName + ". Weiter so.";
+            return Text + (RaceRadioLanguage.SeparateClass(state.SessionData) ?
+                    RadioLanguage.T(" Du bist in deiner Klasse knapp hinter ", " In your class you're right behind ", " En tu clase vas justo detrás de ") :
+                    RadioLanguage.T(" Du bist knapp hinter ", " You're right behind ", " Vas justo detrás de ")) +
+                spokenName + RadioLanguage.T(". Weiter so.", ". Keep it up.", ". Sigue así.");
         }
 
         private static bool CloseRaceRival(RaceDataContext context, OpponentData rival)
@@ -373,8 +375,9 @@ namespace CrewChiefV4.AiTeam
                         {
                             text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName, RaceRadioLanguage.SeparateClass(s), firstPassVariants.Heard);
                         }
-                        else text = RaceRadioLanguage.SeparateClass(s) ? "Wir sind vorgerückt. Jetzt " + RaceRadioLanguage.Rank(s, candidatePosition) + "." :
-                            "Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".";
+                        else text = RaceRadioLanguage.SeparateClass(s) ? RadioLanguage.T("Wir sind vorgerückt. Jetzt ", "We've moved up. Now ", "Hemos subido. Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + "." :
+                            RadioLanguage.T("Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".",
+                                "We've moved up. You're now P" + candidatePosition + ".", "Hemos subido. Ahora vas P" + candidatePosition + ".");
                         var pitGain = gain == 1 && !conductUncertain && recentFrontPit != null && recentFrontPit.FormerRank == candidatePosition &&
                             now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
                             gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;
@@ -401,7 +404,7 @@ namespace CrewChiefV4.AiTeam
                                 !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);
                         }
                     }
-                    else Add("position", "Jetzt " + RaceRadioLanguage.Rank(s, candidatePosition) + ". Bleib dran.", gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    else Add("position", RadioLanguage.T("Jetzt ", "Now ", "Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + RadioLanguage.T(". Bleib dran.", ". Stay with it.", ". Sigue ahí."), gs, now, 8, 2, "stable_position_loss_cause_unknown");
                     stablePosition = candidatePosition; candidatePosition = 0;
                 }
             }
@@ -409,9 +412,14 @@ namespace CrewChiefV4.AiTeam
                 s.SessionLapsRemaining > 0 && s.SessionLapsRemaining <= 3 && s.SessionLapsRemaining != lastEndLap)
             {
                 lastEndLap = s.SessionLapsRemaining;
+                bool leading = s.ClassPosition == 1;
                 string text = lastEndLap == 1
-                    ? "Letzte Runde, " + SafeName(driverName) + (s.ClassPosition == 1 ? ". Du führst. Sauber nach Hause bringen." : ". Bleib konzentriert.")
-                    : "Noch " + lastEndLap + " Runden, " + SafeName(driverName) + (s.ClassPosition == 1 ? ". Du führst. Bleib bei deinem Rhythmus." : ". Bleib bei deinem Rhythmus.");
+                    ? RadioLanguage.T("Letzte Runde, ", "Last lap, ", "Última vuelta, ") + SafeName(driverName) + (leading
+                        ? RadioLanguage.T(". Du führst. Sauber nach Hause bringen.", ". You're leading. Bring it home clean.", ". Vas líder. Llévalo a casa limpio.")
+                        : RadioLanguage.T(". Bleib konzentriert.", ". Stay focused.", ". Mantén la concentración."))
+                    : RadioLanguage.T("Noch " + lastEndLap + " Runden, ", lastEndLap + " laps to go, ", "Quedan " + lastEndLap + " vueltas, ") + SafeName(driverName) + (leading
+                        ? RadioLanguage.T(". Du führst. Bleib bei deinem Rhythmus.", ". You're leading. Keep your rhythm.", ". Vas líder. Mantén tu ritmo.")
+                        : RadioLanguage.T(". Bleib bei deinem Rhythmus.", ". Keep your rhythm.", ". Mantén tu ritmo."));
                 Add("race-end", text, gs, now, 12, 4, "fixed_lap_race_remaining_from_adapter");
                 pending.Last().LapsRemaining = lastEndLap;
             }
@@ -469,17 +477,24 @@ namespace CrewChiefV4.AiTeam
             if (pos <= 0) return null;
             bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
             string text = separate ? SafeName(name) + ", " + RaceRadioLanguage.RaceRanks(gs.SessionData) + ". " :
-                SafeName(name) + ", wir liegen auf Position " + pos + ". ";
-            if (start > pos) text += "Seit dem Start " + (start - pos) + ((start - pos) == 1 ? " Platz" : " Plätze") + (separate ? " in deiner Klasse gewonnen. " : " gewonnen. ");
-            else if (start > 0 && start < pos) text += (pos - start) + " Plätze hinter unserer Startposition. ";
+                SafeName(name) + RadioLanguage.T(", wir liegen auf Position " + pos + ". ", ", we're running P" + pos + ". ", ", vamos P" + pos + ". ");
+            int gained = start - pos, lost = pos - start;
+            if (start > pos) text += RadioLanguage.T(
+                "Seit dem Start " + gained + (gained == 1 ? " Platz" : " Plätze") + (separate ? " in deiner Klasse gewonnen. " : " gewonnen. "),
+                "We've gained " + gained + (gained == 1 ? " place" : " places") + " since the start" + (separate ? " in your class. " : ". "),
+                "Hemos ganado " + gained + (gained == 1 ? " posición" : " posiciones") + " desde la salida" + (separate ? " en tu clase. " : ". "));
+            else if (start > 0 && start < pos) text += RadioLanguage.T(lost + " Plätze hinter unserer Startposition. ",
+                lost + (lost == 1 ? " place" : " places") + " behind our starting position. ",
+                lost + (lost == 1 ? " posición" : " posiciones") + " por detrás de nuestra posición de salida. ");
             var recent = (laps ?? new LapRecord[0]).Reverse().Take(3).Reverse().ToArray();
             if (recent.Length == 3 && recent.All(l => l.Valid && !l.InPitLap && l.LapTime > 20 && l.LapTime < 1200) &&
                 recent[1].LapNumber == recent[0].LapNumber + 1 && recent[2].LapNumber == recent[1].LapNumber + 1)
             {
                 float spread = recent.Max(l => l.LapTime) - recent.Min(l => l.LapTime);
                 if (spread <= Math.Max(0.6f, recent.Average(l => l.LapTime) * 0.01f))
-                    text += "Die letzten drei sauberen Runden liegen innerhalb von " + spread.ToString("0.0", CultureInfo.GetCultureInfo("de-DE")) + " Sekunden. Weiter so.";
-                else text += "Die letzten Rundenzeiten schwanken noch.";
+                    text += RadioLanguage.T("Die letzten drei sauberen Runden liegen innerhalb von ", "Last three clean laps within ", "Las últimas tres vueltas limpias están dentro de ") +
+                        RadioLanguage.Num(spread, "0.0") + RadioLanguage.T(" Sekunden. Weiter so.", " seconds. Keep it up.", " segundos. Sigue así.");
+                else text += RadioLanguage.T("Die letzten Rundenzeiten schwanken noch.", "Lap times are still inconsistent.", "Los tiempos por vuelta todavía varían.");
             }
             // No claim about a plan, tyre advantage, race finish or corner attack without supporting measurements.
             return text.Trim();
