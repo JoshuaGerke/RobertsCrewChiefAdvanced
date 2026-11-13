@@ -36,9 +36,19 @@ namespace CrewChiefV4.AiTeam
         {
             if (open == null || open.IsDisposed)
             {
-                open = new RrcaForm();
-                // ohne Besitzer: sonst verschwindet RRCA, sobald das Crew-Chief-Fenster minimiert ist
-                open.Show();
+                // Crew Chief selbst ist nicht DPI-fähig, Windows vergrößert seine Fenster als Bild (unscharf).
+                // Das RRCA-Fenster wird deshalb als eigenes Per-Monitor-DPI-Fenster angelegt; WebView2 rendert dann scharf.
+                IntPtr previous = SetDpiContext(DpiAwarenessPerMonitorV2);
+                try
+                {
+                    open = new RrcaForm();
+                    // ohne Besitzer: sonst verschwindet RRCA, sobald das Crew-Chief-Fenster minimiert ist
+                    open.Show();
+                }
+                finally
+                {
+                    if (previous != IntPtr.Zero) SetDpiContext(previous);
+                }
             }
             else
             {
@@ -46,6 +56,56 @@ namespace CrewChiefV4.AiTeam
                 open.Activate();
             }
         }
+
+        private static readonly IntPtr DpiAwarenessPerMonitorV2 = new IntPtr(-4);
+        private const int WmDpiChanged = 0x02E0;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        // DeviceDpi meldet im nicht DPI-fähigen Crew-Chief-Prozess immer 96, deshalb direkt beim Fenster fragen
+        private uint WindowDpi()
+        {
+            try { uint dpi = GetDpiForWindow(((Control)this).Handle); return dpi == 0 ? 96 : dpi; }
+            catch (EntryPointNotFoundException) { return 96; }
+        }
+
+        // Gibt den vorherigen Kontext zurück; auf Windows-Versionen ohne diese Funktion bleibt alles beim Alten
+        private static IntPtr SetDpiContext(IntPtr context)
+        {
+            try { return SetThreadDpiAwarenessContext(context); }
+            catch (EntryPointNotFoundException) { return IntPtr.Zero; }
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            // Fenstergröße war für 100 % gedacht; im DPI-fähigen Fenster gelten echte Pixel
+            float scale = WindowDpi() / 96f;
+            if (scale > 1.01f)
+            {
+                var area = Screen.FromHandle(((Control)this).Handle).WorkingArea;
+                int w = Math.Min((int)(1180 * scale), area.Width), h = Math.Min((int)(900 * scale), area.Height);
+                Bounds = new System.Drawing.Rectangle(area.Left + (area.Width - w) / 2, area.Top + (area.Height - h) / 2, w, h);
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WmDpiChanged)
+            {
+                // Beim Wechsel auf einen Monitor mit anderer Skalierung die von Windows vorgeschlagene Größe übernehmen
+                var r = (NativeRect)System.Runtime.InteropServices.Marshal.PtrToStructure(m.LParam, typeof(NativeRect));
+                Bounds = new System.Drawing.Rectangle(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+            }
+            base.WndProc(ref m);
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct NativeRect { public int Left, Top, Right, Bottom; }
 
         private RrcaForm()
         {
@@ -188,6 +248,7 @@ namespace CrewChiefV4.AiTeam
                     break;
                 case "openReadmeDe": OpenLocalNotice("README_DE.md"); break;
                 case "openReadmeEn": OpenLocalNotice("README_EN.md"); break;
+                case "openReadmeEs": OpenLocalNotice("README_ES.md"); break;
                 case "openNotes":
                     string language = (string)m["uiLanguage"];
                     OpenLocalNotice(language == "es" ? "NOTICES_ES.md" : language == "en" ? "NOTICES_EN.md" : "HINWEISE_UND_DANK.md"); break;

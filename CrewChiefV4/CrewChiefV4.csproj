@@ -1220,7 +1220,7 @@
       <Link>README_DE.md</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\README_EN.md">
+    <Content Include="..\README.md">
       <Link>README_EN.md</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
