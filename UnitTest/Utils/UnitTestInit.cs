@@ -31,6 +31,9 @@ using System.Windows.Forms;
             CrewChiefV4.UserSettings.GetUserSettings().setProperty("use_naudio", false);
             // Legacy speech tests exercise Crew Chief messages. AI fixtures opt in explicitly.
             CrewChiefV4.UserSettings.GetUserSettings().setProperty("enable_ai_team", false);
+            // Tests prüfen deutsche Funktexte; unabhängig von der Windows-Sprache des Testrechners
+            CrewChiefV4.UserSettings.GetUserSettings().setProperty("ai_team_radio_language", "de");
+            CrewChiefV4.AiTeam.RadioLanguage.Current = CrewChiefV4.AiTeam.RadioLanguage.German;
         }
     }
 namespace UnitTest.Misc

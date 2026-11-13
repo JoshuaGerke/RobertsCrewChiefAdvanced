@@ -40,7 +40,8 @@ namespace CrewChiefV4.AiTeam
         public AiRadioMode RadioMode = AiRadioMode.NORMAL;
         public string DriverName = "Fahrer";
         public string DriverNickname = "";
-        public string RadioLanguageSetting = RadioLanguage.Auto;
+        // Ohne geladenes Profil Deutsch (Tests, Altprofile); das Profil liefert standardmäßig "auto" = Windows-Sprache
+        public string RadioLanguageSetting = RadioLanguage.German;
         public string RadioName { get { return string.IsNullOrWhiteSpace(DriverNickname) ? DriverName : DriverNickname.Trim(); } }
         public string PttKey = "";
         public string Microphone = "";
