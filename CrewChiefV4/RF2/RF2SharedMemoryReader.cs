@@ -42,9 +42,11 @@ namespace CrewChiefV4.rFactor2
         public RF2_LMUSharedMemoryReader() : this(SharedMemoryMode.RF2) { }
 
         // Use this constructor to select LMU mode:
-        public RF2_LMUSharedMemoryReader(SharedMemoryMode mode)
+        public RF2_LMUSharedMemoryReader(SharedMemoryMode mode) : this(mode, useLegacyRF2SharedMemoryFilenames) { }
+
+        internal RF2_LMUSharedMemoryReader(SharedMemoryMode mode, bool legacyRF2Filenames)
         {
-            if (useLegacyRF2SharedMemoryFilenames)
+            if (mode == SharedMemoryMode.RF2 && legacyRF2Filenames)
             {
                 constants = new Consts
                 {
@@ -121,14 +123,54 @@ namespace CrewChiefV4.rFactor2
         private double lastScoringET = -1.0;
         // Capture mElapsedTime from telemetry of the first vehicle to prevent dumping double frames to the file.
         private double lastTelemetryET = -1.0;
+        private readonly CrewChiefV4.AiTeam.TelemetrySourceClock scoringClock = new CrewChiefV4.AiTeam.TelemetrySourceClock();
+        private readonly CrewChiefV4.AiTeam.TelemetrySourceClock playerTelemetryClock = new CrewChiefV4.AiTeam.TelemetrySourceClock();
+        private long lastPlayerTelemetryTicks;
 
         public class RF2_LMUStructWrapper
         {
             public long ticksWhenRead;
+            public long scoringSampleTicks;
+            public long playerTelemetrySampleTicks;
             public rF2Telemetry telemetry;
             public rF2Scoring scoring;
             public rF2Rules rules;
             public rF2Extended extended;
+            internal long OldestKnownSourceTicks
+            {
+                get
+                {
+                    if(scoringSampleTicks<=0 || scoringSampleTicks>ticksWhenRead)return 0;
+                    return playerTelemetrySampleTicks>0 && playerTelemetrySampleTicks<=ticksWhenRead ?
+                        Math.Min(scoringSampleTicks,playerTelemetrySampleTicks):scoringSampleTicks;
+                }
+            }
+        }
+
+        // Array order is independent between scoring and telemetry. Only an unambiguous
+        // player ID may supply the physical-channel clock; another car cannot refresh it.
+        internal long ObservePlayerTelemetryProgress(RF2_LMUStructWrapper frame)
+        {
+            if(frame==null)return lastPlayerTelemetryTicks;
+            int scoringCount=frame.scoring.mScoringInfo.mNumVehicles, telemetryCount=frame.telemetry.mNumVehicles;
+            var scoringCars=frame.scoring.mVehicles;var telemetryCars=frame.telemetry.mVehicles;
+            if(scoringCars==null || telemetryCars==null || scoringCount<1 || scoringCount>scoringCars.Length ||
+                telemetryCount<1 || telemetryCount>telemetryCars.Length)return lastPlayerTelemetryTicks;
+            int player=-1;
+            for(int i=0;i<scoringCount;i++)
+                if(scoringCars[i].mIsPlayer==1){if(player>=0 || scoringCars[i].mID<0)return lastPlayerTelemetryTicks;player=scoringCars[i].mID;}
+            if(player<0)return lastPlayerTelemetryTicks;
+            int scoringMatches=0;
+            for(int i=0;i<scoringCount;i++)if(scoringCars[i].mID==player)scoringMatches++;
+            if(scoringMatches!=1)return lastPlayerTelemetryTicks;
+            int match=-1;
+            for(int i=0;i<telemetryCount;i++)
+                if(telemetryCars[i].mID==player){if(match>=0)return lastPlayerTelemetryTicks;match=i;}
+            if(match<0)return lastPlayerTelemetryTicks;
+            long observed=playerTelemetryClock.Observe(telemetryCars[match].mElapsedTime,
+                frame.scoring.mScoringInfo.mSession,frame.scoring.mScoringInfo.mGamePhase,player,frame.ticksWhenRead);
+            if(observed>0)lastPlayerTelemetryTicks=observed;
+            return lastPlayerTelemetryTicks;
         }
 
         public override void DumpRawGameData()
@@ -254,6 +296,13 @@ namespace CrewChiefV4.rFactor2
                         ticksWhenRead = DateTime.UtcNow.Ticks
                     };
 
+                    if (!forSpotter)
+                    {
+                        wrapper.scoringSampleTicks = scoringClock.Observe(wrapper.scoring.mScoringInfo.mCurrentET,
+                            wrapper.scoring.mScoringInfo.mSession, wrapper.scoring.mScoringInfo.mGamePhase, 0, wrapper.ticksWhenRead);
+                        wrapper.playerTelemetrySampleTicks=ObservePlayerTelemetryProgress(wrapper);
+                    }
+
                     if (!forSpotter && currentlyTracingGameData && this.dataToDump != null)
                     {
                         // Note: this is lossy save, because we only save update if Telemtry or Scoring changed.
@@ -355,6 +404,9 @@ namespace CrewChiefV4.rFactor2
             this.initialised = false;
 
             this.telemetryBuffer.Disconnect();
+            scoringClock.Reset();
+            playerTelemetryClock.Reset();
+            lastPlayerTelemetryTicks=0;
             this.scoringBuffer.Disconnect();
             this.rulesBuffer.Disconnect();
             this.extendedBuffer.Disconnect();

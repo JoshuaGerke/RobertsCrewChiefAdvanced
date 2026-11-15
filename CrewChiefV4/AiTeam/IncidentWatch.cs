@@ -267,7 +267,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
-        public static string DamageReport(CarDamageData d, bool brief = false)
+        public static string DamageReport(CarDamageData d, bool brief = false, bool includeAdvice = true)
         {
             var numeric = NumericDamageWatch.Report(d);
             if (!d.DamageEnabled) return numeric;
@@ -305,8 +305,18 @@ namespace CrewChiefV4.AiTeam
                         "Sin daños relevantes en aerodinámica, motor y caja de cambios. Frenos y suspensión solo se pueden valorar hasta donde informa el juego.");
             }
             string text = string.Join(", ", parts) + ".";
-            return serious ? text + RadioLanguage.T(" Wenn sich das Auto komisch anfühlt, komm an die Box.", " If the car feels strange, box.", " Si notas el coche raro, entra a boxes.") : text;
+            return serious && includeAdvice ? text + RadioLanguage.T(" Wenn sich das Auto komisch anfühlt, komm an die Box.", " If the car feels strange, box.", " Si notas el coche raro, entra a boxes.") : text;
         }
+
+        internal static string PitAdviceAfterDamage(GameStateData state)
+        {
+            if (state == null || state.SessionData.SessionType != SessionType.Race || state.SessionData.SessionPhase != SessionPhase.Green ||
+                state.FlagData.isLocalYellow || state.PitData.InPitlane || state.PitData.PitWindow != PitWindow.Open ||
+                state.PitData.HasRequestedPitStop || !state.CarDamageData.DamageEnabled) return null;
+            return IsSerious(state.CarDamageData) ? DamagePitAdvicePhrase : null;
+        }
+
+        internal const string DamagePitAdvicePhrase = "Box diese Runde. Wir prüfen den Schaden.";
 
         public static bool DamageIncreased(CarDamageData before, CarDamageData now)
         {

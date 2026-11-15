@@ -10,15 +10,16 @@ namespace CrewChiefV4.AiTeam
     /// No sound-name parsing, retained OpponentData, network calls or native validator side effects.</summary>
     public sealed class NativeFieldFact
     {
-        public readonly string Kind,Key,Name,Detail,Source,CarNumber;
+        public readonly string Kind,Key,Name,Detail,Source,CarNumber,Identity;
         public readonly int CarId;
         public readonly int Session,Lap,Position;
         public readonly SessionType Type;
         public readonly DateTime Utc;
         public readonly double Seconds;
-        private NativeFieldFact(string kind,string key,string name,string detail,string source,GameStateData gs,OpponentData op,double seconds)
+        internal NativeFieldFact(string kind,string key,string name,string detail,string source,GameStateData gs,OpponentData op,double seconds)
         {Kind=kind;Key=key;Name=name;Detail=detail;Source=source;Session=gs.SessionData.SessionId;Type=gs.SessionData.SessionType;
-            Lap=op==null?-1:op.CompletedLaps;Position=op==null?-1:op.ClassPosition;Utc=gs.Now;Seconds=seconds;CarNumber=op?.CarNumber;CarId=op?.CostId??-1;}
+            Lap=op==null?-1:op.CompletedLaps;Position=op==null?-1:op.ClassPosition;Utc=gs.Now;Seconds=seconds;CarNumber=op?.CarNumber;CarId=op?.CostId??-1;
+            Identity=op==null?null:RaceReader.Identity(key,op);}
         public static string Classify(string source)
         {
             if(source=="leader_is_pitting" || source=="car_in_front_is_pitting" || source=="car_behind_is_pitting" || source=="car_is_pitting")return "pit";
@@ -64,6 +65,18 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
         private DateTime lastRadio=DateTime.MinValue;
         private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor fastestVariants = new RadioVariantCursor();
+        private struct LapEvidence
+        {
+            public string Identity;
+            public int Completed;
+            public float Best;
+            public DateTime PriorImprovementUtc;
+            public float PriorImprovementTime;
+        }
+        private readonly Dictionary<string, LapEvidence> lapEvidence = new Dictionary<string, LapEvidence>();
+        private float pendingClassRecord, pendingOverallRecord;
+        private DateTime classRecordUtc, overallRecordUtc;
         private readonly Dictionary<ObservedRaceCall, NativeFieldFact> pitFacts = new Dictionary<ObservedRaceCall, NativeFieldFact>();
         private NativeFieldFact spokenPit;
         private DateTime spokenPitUtc;
@@ -75,7 +88,14 @@ namespace CrewChiefV4.AiTeam
         }
         public void Capture(NativeFieldFact fact)
         {if(fact==null)return;incoming.Enqueue(fact);NativeFieldFact unused;while(incoming.Count>32)incoming.TryDequeue(out unused);}
-        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();seen.Clear();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
+        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();seen.Clear();ResetLapEvidence();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
+
+        private void ResetLapEvidence()
+        {
+            lapEvidence.Clear();
+            pendingClassRecord = pendingOverallRecord = 0;
+            classRecordUtc = overallRecordUtc = DateTime.MinValue;
+        }
         public void CaptureMappedPits(GameStateData before,GameStateData gs)
         {
             if(before==null || gs==null || before.SessionData.SessionId!=gs.SessionData.SessionId || before.SessionData.SessionType!=gs.SessionData.SessionType || gs.SessionData.IsNewSession)return;
@@ -83,6 +103,126 @@ namespace CrewChiefV4.AiTeam
             if(p.CarInFrontIsPitting && !old.CarInFrontIsPitting)Capture(NativeFieldFact.Capture("car_in_front_is_pitting",null,gs));
             if(p.CarBehindIsPitting && !old.CarBehindIsPitting)Capture(NativeFieldFact.Capture("car_behind_is_pitting",null,gs));
             if(p.LeaderIsPitting && !old.LeaderIsPitting)Capture(NativeFieldFact.Capture("leader_is_pitting",null,gs));
+            if (gs.SessionData.SessionType != SessionType.Race) return;
+            // Some mappers expose entry per opponent before setting a dedicated rival flag.
+            foreach (var pair in gs.OpponentData)
+            {
+                var car = pair.Value;
+                if (car == null || !car.IsActive || !car.InPits || string.IsNullOrWhiteSpace(car.DriverRawName) ||
+                    gs.carClass == null || car.CarClass == null || !CarData.IsCarClassEqual(gs.carClass, car.CarClass, false) ||
+                    !before.OpponentData.TryGetValue(pair.Key, out var prior) || prior == null || !prior.IsActive ||
+                    prior.InPits || RaceReader.Identity(pair.Key, prior) != RaceReader.Identity(pair.Key, car)) continue;
+                int rank = prior.ClassPosition;
+                int ownRank = before.SessionData.ClassPosition;
+                if (rank <= 0 || ownRank <= 0 || rank == ownRank || rank != 1 && Math.Abs(rank - ownRank) > 1) continue;
+                Capture(NativeFieldFact.Capture("car_is_pitting", new[] { MessageFragment.Opponent(car) }, gs));
+            }
+        }
+
+        public void CaptureMappedFastestLap(GameStateData before, GameStateData gs)
+        {
+            if (gs == null) return;
+            var current = gs.SessionData;
+            var previous = before?.SessionData;
+            if (previous != null && current.SessionId == previous.SessionId && !current.IsNewSession &&
+                current.SessionType == SessionType.Race && previous.SessionType == SessionType.Race)
+            {
+                bool separateClass = RaceRadioLanguage.SeparateClass(current);
+                UpdateRecordWindow(previous.PlayerClassSessionBestLapTime, current.PlayerClassSessionBestLapTime, gs.Now,
+                    ref pendingClassRecord, ref classRecordUtc);
+                if (separateClass)
+                    UpdateRecordWindow(previous.OverallSessionBestLapTime, current.OverallSessionBestLapTime, gs.Now,
+                        ref pendingOverallRecord, ref overallRecordUtc);
+
+                bool overall = separateClass && CaptureMappedRecord(before, gs, true, pendingOverallRecord, overallRecordUtc);
+                if (overall) pendingOverallRecord = 0;
+                if (!overall || Math.Abs(current.OverallSessionBestLapTime - current.PlayerClassSessionBestLapTime) >= .005f)
+                {
+                    if (CaptureMappedRecord(before, gs, false, pendingClassRecord, classRecordUtc)) pendingClassRecord = 0;
+                }
+                else pendingClassRecord = 0;
+            }
+            // RaceRoom rewrites OpponentData in place. Keep the prior scalar values rather than
+            // reading the already-updated car through the previous GameState.
+            if (current.IsNewSession || previous == null || previous.SessionId != current.SessionId ||
+                previous.SessionType != current.SessionType) ResetLapEvidence();
+            if (current.SessionType != SessionType.Race) return;
+
+            int observed = 0;
+            foreach (var pair in gs.OpponentData)
+            {
+                var car = pair.Value;
+                if (car == null || !car.IsActive) continue;
+                if (++observed > TrackAwareness.MaxCars) break;
+                bool hadEvidence = lapEvidence.TryGetValue(pair.Key, out var old);
+                if (hadEvidence)
+                {
+                    if (car.CompletedLaps == old.Completed && car.CurrentBestLapTime == old.Best && !car.IsNewLap) continue;
+                }
+                else if (lapEvidence.Count >= TrackAwareness.MaxCars) continue;
+                string identity = RaceReader.Identity(pair.Key, car);
+                bool sameDriver = hadEvidence && identity == old.Identity;
+                bool improved = sameDriver && !car.InPits && CompletedLap(car, old) && car.LastLapValid &&
+                    Math.Abs(car.LastLapTime - car.CurrentBestLapTime) < .005f &&
+                    (!(old.Best > 10) || car.CurrentBestLapTime < old.Best - .001f);
+                lapEvidence[pair.Key] = new LapEvidence { Identity = identity,
+                    Completed = car.CompletedLaps, Best = car.CurrentBestLapTime,
+                    PriorImprovementUtc = improved ? gs.Now : sameDriver ? old.PriorImprovementUtc : DateTime.MinValue,
+                    PriorImprovementTime = improved ? car.CurrentBestLapTime : sameDriver ? old.PriorImprovementTime : 0 };
+            }
+        }
+
+        private static void UpdateRecordWindow(float previous, float best, DateTime now, ref float pendingBest, ref DateTime pendingUtc)
+        {
+            if (best > 10 && best < 3600 && (!(previous > 10) || best < previous - .001f))
+            {
+                pendingBest = best;
+                pendingUtc = now;
+            }
+            else if (now < pendingUtc || now - pendingUtc > TimeSpan.FromSeconds(2) || best != pendingBest)
+                pendingBest = 0;
+        }
+
+        private static bool CompletedLap(OpponentData car, LapEvidence before)
+        {
+            return car.CompletedLaps == before.Completed + 1 ||
+                car.IsNewLap && car.CompletedLaps == before.Completed;
+        }
+
+        private bool CaptureMappedRecord(GameStateData before, GameStateData gs, bool overall, float pendingBest, DateTime pendingUtc)
+        {
+            var current = gs.SessionData;
+            var previous = before.SessionData;
+            float best = overall ? current.OverallSessionBestLapTime : current.PlayerClassSessionBestLapTime;
+            if (pendingBest <= 10 || current.SessionPhase != SessionPhase.Green || previous.SessionPhase != SessionPhase.Green ||
+                !overall && gs.carClass == null || Math.Abs(best - pendingBest) >= .005f ||
+                gs.Now < pendingUtc || gs.Now - pendingUtc > TimeSpan.FromSeconds(2) ||
+                current.PreviousLapWasValid && current.CompletedLaps > previous.CompletedLaps &&
+                    Math.Abs(current.LapTimePrevious - best) < .005f) return false;
+
+            var candidates = gs.OpponentData.Where(pair => {
+                var rival = pair.Value;
+                if (rival == null || !rival.IsActive || rival.InPits || (!overall &&
+                    (rival.CarClass == null || !CarData.IsCarClassEqual(gs.carClass, rival.CarClass, false))) ||
+                    !(Math.Abs(rival.CurrentBestLapTime - best) < .005f)) return false;
+                if (!lapEvidence.TryGetValue(pair.Key, out var old))
+                {
+                    if (ReferenceEquals(before.OpponentData, gs.OpponentData) ||
+                        !before.OpponentData.TryGetValue(pair.Key, out var prior) || prior == null || !prior.IsActive) return false;
+                    old = new LapEvidence { Identity = RaceReader.Identity(pair.Key, prior), Completed = prior.CompletedLaps, Best = prior.CurrentBestLapTime };
+                }
+                if (RaceReader.Identity(pair.Key, rival) != old.Identity) return false;
+                if (gs.Now >= old.PriorImprovementUtc && gs.Now - old.PriorImprovementUtc <= TimeSpan.FromSeconds(2) &&
+                    Math.Abs(old.PriorImprovementTime - best) < .005f) return true;
+                return CompletedLap(rival, old) && rival.LastLapValid && Math.Abs(rival.LastLapTime - best) < .005f &&
+                    (!(old.Best > 10) || old.Best > best + .001f);
+            }).Take(2).ToArray();
+            if (candidates.Length != 1) return false;
+            var selected = candidates[0];
+            Capture(new NativeFieldFact(overall ? "fastest-overall" : "fastest", selected.Key,
+                selected.Value.CanUseName ? selected.Value.DriverRawName : null, null,
+                overall ? "mapped_field_best_lap" : "mapped_class_best_lap", gs, selected.Value, best));
+            return true;
         }
         private static string Name(string text)
         {return new string((text??"").Where(c=>char.IsLetterOrDigit(c)||c==' '||c=='-'||c=='\'').Take(60).ToArray()).Trim();}
@@ -93,12 +233,28 @@ namespace CrewChiefV4.AiTeam
             while(incoming.TryDequeue(out f))
             {
                 if(gs==null || f.Session!=gs.SessionData.SessionId || f.Type!=gs.SessionData.SessionType || now<f.Utc || now-f.Utc>TimeSpan.FromSeconds(2))continue;
-                string id=f.Kind+"|"+(f.Key??f.Name)+"|"+f.Lap+"|"+f.Detail+"|"+f.Seconds;
+                if (f.Kind == "fastest" && RaceRadioLanguage.SeparateClass(gs.SessionData) &&
+                    Math.Abs(gs.SessionData.OverallSessionBestLapTime - f.Seconds) <= .005 &&
+                    StillCurrent(f, gs) && gs.OpponentData.Values.Count(o => o != null && o.IsActive &&
+                        Math.Abs(o.CurrentBestLapTime - f.Seconds) <= .005) == 1 &&
+                    Math.Abs(gs.SessionData.PlayerLapTimeSessionBest - f.Seconds) > .005)
+                {
+                    f = new NativeFieldFact("fastest-overall", f.Key, f.Name, f.Detail, f.Source, gs,
+                        gs.OpponentData[f.Key], f.Seconds);
+                }
+                bool fastest = f.Kind == "fastest" || f.Kind == "fastest-overall";
+                if (f.Kind == "pit" && !StillCurrent(f, gs)) continue;
+                string id=(fastest?"fastest":f.Kind)+"|"+(f.Identity??f.Name)+"|"+(fastest?
+                    Math.Round(f.Seconds,3).ToString("0.000",System.Globalization.CultureInfo.InvariantCulture):
+                    f.Lap+"|"+f.Detail+"|"+f.Seconds);
                 if(seen.ContainsKey(id))continue;
                 if(seen.Count>=128)seen.Remove(seen.OrderBy(p=>p.Value).First().Key);
                 seen[id]=now;
-                string text = Text(f, names, 0);
+                string group = f.Kind == "fastest-overall" ? "race-overall-best" : "race-class-best";
+                int variant = fastest ? fastestVariants.Select(group, RadioPhraseCatalog.Current.Count(group)) : 0;
+                string text = Text(f, names, variant);
                 if(text==null)continue;
+                if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapAndPush((float)f.Seconds,gs.SessionData.PlayerLapTimeSessionBest,variant);
                 if(memory!=null)memory.AddObservation(text,now,"field-"+f.Kind,f.Key,f.Source);
                 // Existing SessionLapObserver already owns non-race class records.
                 bool nonRace=SessionLapObserver.Supported(f.Type);
@@ -108,7 +264,7 @@ namespace CrewChiefV4.AiTeam
                 var fact=f;
                 if (pending.Count >= 16) Remove(pending[0]);
                 var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,
-                    SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=3,
+                    SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=fastest?4:3,
                     DetectedUtc=now,ExpiresUtc=now.AddSeconds(10),AdditionalValidity=live=>StillCurrent(fact,live)};
                 pending.Add(call);
                 if (f.Kind == "pit")
@@ -117,7 +273,12 @@ namespace CrewChiefV4.AiTeam
                     call.VariantCursor = pitVariants;
                     call.FieldNamesAllowed = names;
                 }
-                LiveDiagnostics.Decision("field-"+f.Kind,"detected","native_semantic_handoff",text);
+                else if (fastest)
+                {
+                    call.FieldNamesAllowed = names && !string.IsNullOrWhiteSpace(f.Name);
+                    call.BindVariant(fastestVariants, group, variant);
+                }
+                LiveDiagnostics.Decision("field-"+f.Kind,"detected","native_semantic_handoff",text,call.EventId);
             }
         }
         public static bool StillCurrent(NativeFieldFact f,GameStateData gs)
@@ -125,11 +286,14 @@ namespace CrewChiefV4.AiTeam
             if(gs==null || gs.SessionData.SessionId!=f.Session || gs.SessionData.SessionType!=f.Type)return false;
             if(f.Kind=="retired")return gs.retriedDriverNames.ContainsKey(f.Name);
             if(f.Kind=="dq")return gs.disqualifiedDriverNames.ContainsKey(f.Name);
-            OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op.DriverRawName!=f.Name)return false;
-            if(f.Kind=="pit")return op.CarNumber==f.CarNumber && op.CostId==f.CarId && (op.InPits || op.isEnteringPits());
+            OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op==null || RaceReader.Identity(f.Key,op)!=f.Identity)return false;
+            if(f.Kind=="pit")return op.IsActive && (op.InPits || op.isEnteringPits());
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;
-            return false;
+            float reference = f.Kind == "fastest-overall" ? gs.SessionData.OverallSessionBestLapTime : gs.SessionData.PlayerClassSessionBestLapTime;
+            return (f.Kind=="fastest" || f.Kind=="fastest-overall") && f.Seconds>10 &&
+                op.IsActive && op.CurrentBestLapTime>0 && Math.Abs(op.CurrentBestLapTime-f.Seconds)<=.005 &&
+                (!(reference > 10) || Math.Abs(reference-f.Seconds)<=.005);
         }
         private void Remove(ObservedRaceCall call)
         {
@@ -148,20 +312,30 @@ namespace CrewChiefV4.AiTeam
             foreach(var call in pending.ToArray())
             {
                 if(call.DeliveryStartedUtc!=DateTime.MinValue){lastRadio=call.DeliveryStartedUtc;Remove(call);}
-                else if(!call.IsValid(gs,now))Remove(call);
+                else if(!call.IsValid(gs,now))
+                {
+                    LiveDiagnostics.Decision(call.Topic, "suppressed", now > call.ExpiresUtc ? "expired" :
+                        call.DeliveryFailed ? "delivery_attempts_exhausted" : "field_facts_changed", call.Evidence, call.EventId);
+                    Remove(call);
+                }
             }
             if(!enabled || minimal){pending.Clear();pitFacts.Clear();return null;}
-            if(busy || AiRadioSchedule.BusyForRoutine(gs) || now-lastRadio<TimeSpan.FromSeconds(8))return null;
-            foreach (var call in pending)
+            if(busy || AiRadioSchedule.BusyForRoutine(gs))return null;
+            foreach (var call in pending.OrderByDescending(c => c.Priority).ThenByDescending(c => c.DetectedUtc))
             {
                 if (!call.CanReserve(now)) continue;
+                bool record = call.Topic == "field-fastest" || call.Topic == "field-fastest-overall";
+                if (now-lastRadio<TimeSpan.FromSeconds(record ? 3 : 8)) continue;
                 if (pitFacts.TryGetValue(call, out var pit))
                 {
                     if (combinedOwnsPit != null && (combinedOwnsPit(pit) ||
                         (pit.Source == "car_in_front_is_pitting" || pit.Position == gs.SessionData.ClassPosition - 1) &&
                         now - pit.Utc < TimeSpan.FromSeconds(1.8))) continue;
                     if (pitFacts.Keys.Any(other => other.IsReserved)) continue;
-                    call.Text = Text(pit, call.FieldNamesAllowed, pitVariants.Heard);
+                    const string group = "pit-rival";
+                    int index = pitVariants.Select(group, RadioPhraseCatalog.Current.Count(group));
+                    call.Text = Text(pit, call.FieldNamesAllowed, index);
+                    call.BindVariant(pitVariants, group, index);
                 }
                 if (call.TryReserve(now)) return call;
             }
@@ -169,12 +343,17 @@ namespace CrewChiefV4.AiTeam
         }
         private static string Text(NativeFieldFact f,bool names,int variant)
         {
-            string who=names?Name(f.Name):RadioLanguage.T("Ein Gegner","A rival","Un rival");if(who.Length==0)return null;
+            string who=names?Name(f.Name):"";
+            if(who.Length==0)who=RadioLanguage.T("Ein Gegner","A rival","Un rival");
             if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who);
             if(f.Kind=="leader")return who+RadioLanguage.T(" führt jetzt unsere Klasse an."," now leads our class."," lidera ahora nuestra clase.");
             if(f.Kind=="retired")return who+RadioLanguage.T(" ist ausgefallen."," is out of the race."," ha abandonado.");
             if(f.Kind=="dq")return who+RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado.");
             if(f.Kind=="tyres")return who+RadioLanguage.T(" hat die Reifenmischung gewechselt."," has changed tyre compound."," ha cambiado de compuesto de neumáticos.");
+            if(f.Kind=="fastest" && f.Seconds>10 && f.Seconds<3600)
+                return RadioPhraseCatalog.Current.Format("race-class-best", variant, who, LocalAnswers.LapTime((float)f.Seconds));
+            if(f.Kind=="fastest-overall" && f.Seconds>10 && f.Seconds<3600)
+                return RadioPhraseCatalog.Current.Format("race-overall-best", variant, who, LocalAnswers.LapTime((float)f.Seconds));
             return null;
         }
     }

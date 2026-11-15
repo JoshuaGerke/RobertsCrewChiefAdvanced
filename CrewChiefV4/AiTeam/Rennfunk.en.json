@@ -1,6 +1,182 @@
 {
   "version": 1,
   "groups": {
+    "corner-improvement": [
+      "{corner} was {gain} quicker than your average before. Tidy.",
+      "Well done. You found {gain} in {corner}.",
+      "{gain} gained in {corner} compared to the laps before.",
+      "That was better through {corner}. {gain} found.",
+      "{corner} was {gain} faster. Nicely done.",
+      "Good progress in {corner}. {gain} under your previous average."
+    ],
+    "pit-undercut-overcut-result": [
+      "Both stops are done. {opponent}. {result} {interval} {change}",
+      "Pit stop summary. {opponent}. {result} {interval} {change}",
+      "{opponent}. Here's where we stand after the stops. {result} {interval} {change}",
+      "Both back out on track. {opponent}. {result} {interval} {change}",
+      "Stops are done. {opponent}. {result} {interval} {change}",
+      "Quick pit summary. {opponent}. {result} {interval} {change}"
+    ],
+    "stint-consistency": [
+      "Four laps all close together around {time}. Very tidy{driver}.",
+      "Good rhythm{driver}. Average {time} over four tight laps.",
+      "Averaging {time}. Four laps with very consistent pace{driver}.",
+      "Nice run of laps{driver}. Your last four are all around {time}.",
+      "Four consistent laps, averaging {time}. Keep that rhythm{driver}.",
+      "That was consistent{driver}. Four laps around {time}."
+    ],
+    "race-defense-hold": [
+      "Strong defending{driver}. Three laps and you've held the place. {opponent} is {interval} back.",
+      "Well held{driver}. {opponent} has been behind for three laps. Gap {interval}.",
+      "You're holding the place{driver}. After three close laps {opponent} is {interval} back.",
+      "Three close laps, place held{driver}. {opponent} is {interval} behind you.",
+      "{opponent} is still behind you, {interval}. Three laps of clean defending{driver}.",
+      "Three laps under pressure, well held{driver}. {opponent} stays {interval} behind you."
+    ],
+    "own-sector-best": [
+      "Your best sector {sector}. {time} seconds.",
+      "Strong sector {sector}. Personal best with {time} seconds.",
+      "{time} seconds. That was your best sector {sector}.",
+      "You've improved in sector {sector}. {time} seconds.",
+      "Sector {sector} in {time} seconds. Personal best.",
+      "Clean sector {sector}. Your best split here: {time} seconds."
+    ],
+    "own-best-pace": [
+      "After two sectors you're {delta} up on your best. Keep it going.",
+      "You're {delta} quicker than on your best lap. Now a clean final sector.",
+      "{delta} up on your best. Bring it home calmly.",
+      "Good split. {delta} under your best lap.",
+      "You've found {delta} on your best lap so far. Now clean to the line.",
+      "Second split is in. {delta} up on your own best."
+    ],
+    "race-overall-best": [
+      "New overall fastest lap. {opponent} with a {time}.",
+      "{opponent} has the fastest race lap in the field. {time}.",
+      "{time} from {opponent}. That's the new overall fastest lap.",
+      "{opponent} is now the quickest in the field. {time}.",
+      "Fastest lap of the whole field goes to {opponent}. {time}.",
+      "{opponent}, {time}. Nobody in the field has gone quicker yet."
+    ],
+    "race-rear-pressure": [
+      "{opponent} is closing in. Only {interval} behind you.",
+      "{opponent} is pushing. The gap is down to {interval}.",
+      "{opponent} is getting closer. {interval} behind now.",
+      "{opponent} has caught up. Gap is {interval} now.",
+      "{opponent} is moving closer. Your cushion is {interval}.",
+      "Eyes behind. {opponent} has closed to {interval}."
+    ],
+    "race-class-best": [
+      "{opponent} sets the class fastest lap: {time}.",
+      "New fastest lap in your class. {opponent}, {time}.",
+      "{time} from {opponent}. Class fastest lap.",
+      "Class best for {opponent}. {time}.",
+      "{opponent}, {time}. Fastest lap in the class.",
+      "Fastest lap in your class goes to {opponent}, with a {time}."
+    ],
+    "race-position-loss": [
+      "We've dropped from P{from} to P{position}.",
+      "P{position} now. We were P{from} before.",
+      "The timing shows P{position}, down from P{from}.",
+      "We've lost P{from}. We're P{position} now.",
+      "Down from P{from} to P{position}. Let's get back into the rhythm.",
+      "We were P{from}. The order now has us in P{position}."
+    ],
+    "lap-first-valid": [
+      "First valid time is in: {time}.",
+      "{time}. That's your first valid lap on the board.",
+      "First valid lap is in. {time}.",
+      "Time set. {time} for your first valid lap.",
+      "Good, the first time counts. {time}.",
+      "{time} on the board. Your first counted lap."
+    ],
+    "lap-near-best": [
+      "Close: {delta} seconds off your best. Keep your rhythm.",
+      "Your best lap stands. Only {delta} seconds short.",
+      "That was close. {delta} seconds off your best lap.",
+      "Nearly your best. {delta} seconds short.",
+      "{delta} seconds off your best. Stay with it.",
+      "Your best was only {delta} seconds quicker. You're close."
+    ],
+    "quali-sector-comparison": [
+      "Sector {sector}, {time} seconds. {delta} {direction} than {opponent}.",
+      "{time} seconds in sector {sector}. {delta} {direction} than {opponent}.",
+      "Sector {sector} done. {time} seconds, {delta} {direction} than {opponent}.",
+      "Sector {sector} is {time} seconds. {delta} {direction} than {opponent}.",
+      "Sector {sector}: {time} seconds. That's {delta} {direction} than {opponent}.",
+      "{time} seconds for sector {sector}. {delta} {direction} than {opponent}."
+    ],
+    "race-last": [
+      "Last lap, {driver}. Stay focused.",
+      "{driver}, just this lap. Clean to the line.",
+      "One more lap, {driver}. Keep your rhythm.",
+      "{driver}, final lap now. Focus to the end.",
+      "Just this lap left, {driver}. Bring it home clean.",
+      "{driver}, one lap to the flag. Stay in your zone."
+    ],
+    "race-closing": [
+      "{laps} laps to go, {driver}. Keep your rhythm.",
+      "{driver}, {laps} laps remaining. Stay focused to the end.",
+      "{laps} laps left, {driver}. Keep it clean.",
+      "{driver}, {laps} laps to the finish. Keep your focus.",
+      "{driver}, the flag comes out in {laps} laps. Clean to the end.",
+      "We've got {laps} laps left, {driver}. Hold your rhythm."
+    ],
+    "quali-first": [
+      "P{position}. Right at the front! Great job.",
+      "P{position}. Yes, that's exactly where we wanted to be!",
+      "P{position}. Very good. Now let's reset for the race.",
+      "P{position}. Brilliant work. We take that momentum with us.",
+      "You're at the front in P{position}. Really well delivered.",
+      "That's P{position}. Good work, now let's regroup."
+    ],
+    "quali-top3": [
+      "P{position}. In the top three, great job.",
+      "P{position}. Top three. Very good work!",
+      "P{position}. Top three secured. Take a breath now.",
+      "P{position}. In the top three. We can build on that.",
+      "P{position} it is. A strong starting spot.",
+      "Top three in P{position}. Good work."
+    ],
+    "quali-field": [
+      "P{position}. Now we turn our focus to the race.",
+      "P{position}. Thanks for the effort. On to the race.",
+      "P{position}. Take a breath, then we'll prepare for the race.",
+      "P{position}. That's set. Now let's get ready for the race.",
+      "It's P{position}. We'll go into the race from there.",
+      "The order is set. P{position}. Now we look ahead."
+    ],
+    "quali-provisional": [
+      "Currently P{position}. That's still provisional.",
+      "Provisionally P{position}. We'll wait for the remaining laps.",
+      "P{position} for now. Still provisional, the order can change.",
+      "As it stands, P{position}. That's still provisional.",
+      "In the provisional order you're P{position}.",
+      "P{position} at the moment. Final classification still to come."
+    ],
+    "quali-unknown": [
+      "Your position isn't confirmed yet.",
+      "The position isn't confirmed yet. We're waiting for the classification.",
+      "Your result isn't confirmed yet.",
+      "Position not confirmed yet. Still waiting on the classification.",
+      "We're still waiting for your confirmed position.",
+      "The final position is still to come."
+    ],
+    "gap-front-measured": [
+      "{opponent} is {interval} ahead of you.",
+      "Gap ahead to {opponent}: {interval}.",
+      "You're {interval} down on {opponent}.",
+      "{interval} to {opponent} ahead.",
+      "Up the road it's {interval} to {opponent}.",
+      "You're {interval} behind {opponent}."
+    ],
+    "gap-rear-measured": [
+      "{opponent} is {interval} behind you.",
+      "Gap behind to {opponent}: {interval}.",
+      "You're {interval} clear of {opponent}.",
+      "{interval} to {opponent} behind.",
+      "Behind you is {opponent}. Gap {interval}.",
+      "Behind, you've got {interval} on {opponent}."
+    ],
     "pass-first": [
       "Nice one, {driver}. One place gained. You're now P{position}.",
       "Well done, {driver}. That's P{position}.",

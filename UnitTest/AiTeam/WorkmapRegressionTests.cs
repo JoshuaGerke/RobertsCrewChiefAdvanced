@@ -264,7 +264,9 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(evidence.IsCurrent(Context(gs,T.AddSeconds(.2))));
         }
         private static ThermalProfile Profile(float tyre=110,float brake=1000)
-        {return new ThermalProfile{Source="test_validated_profile",TyreCookingC=new[]{tyre,tyre,tyre,tyre},BrakeCookingC=new[]{brake,brake,brake,brake},OilLimitC=120,WaterLimitC=110};}
+        {return new ThermalProfile{Source="test_validated_profile",TyreCookingC=new[]{tyre,tyre,tyre,tyre},BrakeCookingC=new[]{brake,brake,brake,brake},
+            TyreNormalMinC=new[]{65f,65f,65f,65f},TyreNormalMaxC=new[]{100f,100f,100f,100f},
+            BrakeNormalMinC=new[]{250f,250f,250f,250f},BrakeNormalMaxC=new[]{850f,850f,850f,850f},OilLimitC=120,WaterLimitC=110};}
         private static void Temps(GameStateData gs,float front,float rear,float brake=500)
         {
             var t=gs.TyreData;
@@ -315,14 +317,21 @@ namespace UnitTest.AiTeamTests
             StringAssert.DoesNotContain("ausgefallen",call.Text);
         }
         [Test]
-        public void T26_Cooling_requires_actual_prior_playback_and_sustained_below_limit_values()
+        public void T26_Cooling_requires_actual_prior_playback_and_two_complete_valid_laps_in_operating_range()
         {
             var gs=Frame(1,false,false,true);Temps(gs,80,125);var o=new LiveWarningDispatcher();var w=new ThermalWatch(s=>Profile());
             ThermalTick(w,o,gs,0);ThermalTick(w,o,gs,1);var call=ThermalTick(w,o,gs,2);Assert.IsNotNull(call);call.MarkPlaybackStarted(T.AddSeconds(2));
             o.Observe(gs,T.AddSeconds(2));Temps(gs,80,80);
             for(int i=3;i<13;i++)Assert.IsNull(ThermalTick(w,o,gs,i));
-            var clear=ThermalTick(w,o,gs,13.1);Assert.IsNotNull(clear);StringAssert.Contains("beruhigt",clear.Text);
-            Temps(gs,80,125);gs.Now=T.AddSeconds(13.2);o.Observe(gs,gs.Now);Assert.IsFalse(clear.IsValid(gs,gs.Now));
+            gs.SessionData.PreviousLapWasValid = gs.SessionData.CurrentLapIsValid = true;
+            gs.SessionData.IsNewLap = true;
+            gs.SessionData.CompletedLaps = 2;
+            Assert.IsNull(ThermalTick(w,o,gs,13));
+            gs.SessionData.CompletedLaps = 3;
+            Assert.IsNull(ThermalTick(w,o,gs,14));
+            gs.SessionData.CompletedLaps = 4;
+            var clear=ThermalTick(w,o,gs,15);Assert.IsNotNull(clear);StringAssert.Contains("beruhigt",clear.Text);
+            Temps(gs,80,125);gs.Now=T.AddSeconds(15.2);o.Observe(gs,gs.Now);Assert.IsFalse(clear.IsValid(gs,gs.Now));
         }
         [Test]
         public void T26_Wording_variants_keep_component_and_caution_and_do_not_invent_failures()
@@ -437,6 +446,29 @@ namespace UnitTest.AiTeamTests
             raw.mCurrentSector1Times[0]=raw.mCurrentSector2Times[0]=raw.mCurrentSector3Times[0]=-1;
             Assert.AreEqual(-1,CrewChiefV4.AMS2.AMS2GameStateMapper.CurrentLapSeconds(raw,0,true));
             Assert.AreEqual(-1,CrewChiefV4.AMS2.AMS2GameStateMapper.CurrentLapSeconds(raw,0,false));
+        }
+
+        [Test]
+        public void Pmr_packet_age_never_wraps_at_a_minute_or_after_a_clock_anomaly()
+        {
+            long tick=0;var data=new CrewChiefV4.PMR.DataStore(()=>tick,1000);
+            tick=59000;Assert.AreEqual(59,data.timeSinceLastWrite());
+            tick=60000;Assert.AreEqual(60,data.timeSinceLastWrite());
+            tick=65000;Assert.AreEqual(65,data.timeSinceLastWrite());
+            data.writeTimestamp();tick=66000;Assert.AreEqual(1,data.timeSinceLastWrite());
+            tick=64000;Assert.AreEqual(int.MaxValue,data.timeSinceLastWrite());
+        }
+
+        [Test]
+        public void Pmr_unknown_short_and_wrong_version_headers_are_not_accepted_as_live_packets()
+        {
+            Assert.IsFalse(CrewChiefV4.PMR.UDPThread.SupportedHeader(null));
+            Assert.IsFalse(CrewChiefV4.PMR.UDPThread.SupportedHeader(new byte[]{0,1}));
+            Assert.IsFalse(CrewChiefV4.PMR.UDPThread.SupportedHeader(new byte[]{99,1,0}));
+            Assert.IsFalse(CrewChiefV4.PMR.UDPThread.SupportedHeader(new byte[]{2,1,0}));
+            Assert.IsTrue(CrewChiefV4.PMR.UDPThread.SupportedHeader(new byte[]{0,1,0}));
+            Assert.IsTrue(CrewChiefV4.PMR.UDPThread.SupportedHeader(new byte[]{1,1,0}));
+            Assert.IsTrue(CrewChiefV4.PMR.UDPThread.SupportedHeader(new byte[]{2,2,0}));
         }
         [Test]
         public void T15_Garage_teleport_cancels_old_pit_approach_instead_of_claiming_a_physical_entry()

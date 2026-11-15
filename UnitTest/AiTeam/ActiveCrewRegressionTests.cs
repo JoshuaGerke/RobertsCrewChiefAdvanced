@@ -82,7 +82,9 @@ namespace UnitTest.AiTeamTests
         {
             var gs=State(); var o=new SessionLapObserver();o.Observe(gs,null,T,true);gs.SessionData.CompletedLaps=1;
             o.Observe(gs,new LapRecord {LapNumber=1,LapTime=90,Valid=true},T.AddSeconds(90),true);
-            Assert.IsNull(o.Take(gs,T.AddSeconds(90),true));Assert.IsNull(o.Take(gs,T.AddSeconds(104),false));
+            Assert.IsNull(o.Take(gs,T.AddSeconds(90),true));
+            Assert.IsNotNull(o.Take(gs,T.AddSeconds(104),false,ownLapOnly:true));
+            Assert.IsNull(o.Take(gs,T.AddSeconds(109),false));
         }
 
         [Test]

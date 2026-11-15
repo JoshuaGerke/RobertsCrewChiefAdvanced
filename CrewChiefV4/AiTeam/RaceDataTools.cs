@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CrewChiefV4.GameState;
 using Newtonsoft.Json.Linq;
@@ -42,7 +43,7 @@ namespace CrewChiefV4.AiTeam
         public static readonly string[] AllToolNames =
         {
             "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
-            "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis",
+            "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis", "get_race_pace_review",
         };
 
         public static JArray BuildToolDefinitions()
@@ -55,7 +56,8 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_track_situation", "Räumliche Verkehrslage: nächste Fahrzeuge auf der Strecke, Weltkoordinaten, Abstand in Metern entlang der Runde, Überrundungsbezug und über mehrere Samples gemessene Annäherung. Keine Seitenfreigabe oder Überholgarantie."));
             tools.Add(Tool("get_tyre_status", "Reifentemperaturen (innen/mitte/außen), Drücke, Verschleiß, Reifentyp, Bremsentemperaturen, blockierende/durchdrehende Räder."));
             tools.Add(Tool("get_fuel_status", "Tankinhalt, Verbrauch pro Runde (gemessen), Reichweite, Crew-Chief-Rechnung für benötigten Sprit bis Rennende."));
-            tools.Add(Tool("get_lap_times", "Eigene letzte Rundenzeiten und Sektorzeiten, persönliche Bestzeit, Session-Bestzeit."));
+            tools.Add(Tool("get_lap_times", "Eigene abgeschlossene Sektoren der laufenden Runde, letzte Rundenzeiten, persönliche Bestzeit und Session-Bestzeit."));
+            tools.Add(Tool("get_race_pace_review", "Nach dem Rennen: Klassen-Top-Drei mit Name, sauberer Vergleichs-Rundenbasis, Durchschnitt, Streuung und belegten Sektordifferenzen."));
             tools.Add(Tool("get_opponents_nearby", "Gegner direkt vor und hinter uns: Abstand, letzte/beste Runde, Pace-Trend, Boxenstopps, Reifen. Dazu der Führende."));
             tools.Add(Tool("get_pit_info", "Boxenfenster, Pflichtstopp, eigene Stopps, Boxengasse, Gegner die gerade stoppen."));
             tools.Add(Tool("get_damage_and_engine", "Schäden (Aero, Motor, Getriebe, Aufhängung, Bremsen), Motortemperaturen und Warnungen."));
@@ -157,6 +159,7 @@ namespace CrewChiefV4.AiTeam
                     case "get_tyre_status": data = Tyres(ctx, missing); break;
                     case "get_fuel_status": data = Fuel(ctx, missing); break;
                     case "get_lap_times": data = LapTimes(ctx, missing); break;
+                    case "get_race_pace_review": data = RacePaceReview(ctx); break;
                     case "get_opponents_nearby": data = Opponents(ctx, missing); break;
                     case "get_pit_info": data = Pit(ctx, missing); break;
                     case "get_damage_and_engine": data = Damage(ctx, missing); break;
@@ -211,6 +214,8 @@ namespace CrewChiefV4.AiTeam
                 ["runden_absolviert"] = s.CompletedLaps,
                 ["runden_bedeutung"] = "Absolviert ist Vergangenheit; Restdistanz separat unter runden_verbleibend. Null ist unbekannt, nicht null Runden.",
                 ["flagge"] = s.Flag.ToString(),
+                ["disqualifikation_bestaetigt"] = s.IsDisqualified,
+                ["ausfall_bestaetigt"] = s.IsDNF,
                 ["in_boxengasse"] = gs.PitData.InPitlane,
                 ["outlap"] = gs.PitData.OnOutLap,
                 ["streckenposition"] = TrackAwareness.Player(gs),
@@ -218,6 +223,14 @@ namespace CrewChiefV4.AiTeam
                 ["restrunden_geschaetzt"] = LapWatch.LapsAreEstimated(s),
                 ["letzte_runde_geschaetzt"] = LapWatch.LapsAreEstimated(s) && LapWatch.LapsLeft(s) == 1,
             };
+            int startMode, startPhase;
+            if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
+                o["raceroom_startgruppe"] = new JObject {
+                    ["startart"] = startMode == 0 ? "stehend" : startMode == 1 ? "fliegend" : startMode == 2 ? "formation" : null,
+                    ["eigene_phase"] = startPhase == 0 ? "wartet" : startPhase == 1 ? "startkorridor" : startPhase == 2 ? "gruen" : null,
+                    ["quelle"] = "RaceRoom Shared Memory 3.6; eigene Phase nur bei eindeutigem Fahrerslot",
+                    ["hinweis"] = "Startphase der eigenen Gruppe; allgemeines Session-Gruen kann bei gestaffelten Starts frueher kommen."
+                };
             int lapsLeft = LapWatch.LapsLeft(s);
             if (s.SessionHasFixedTime)
             {
@@ -301,7 +314,7 @@ namespace CrewChiefV4.AiTeam
             var gs = ctx.GameState;
             var f = gs.FuelData;
             var o = new JObject();
-            if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft <= 0 || f.FuelLeft > 10000)
+            if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft < 0 || f.FuelLeft > 10000)
             {
                 missing.Add("tankinhalt");
                 return o;
@@ -311,12 +324,14 @@ namespace CrewChiefV4.AiTeam
             {
                 o["tankgroesse_l"] = Math.Round(f.FuelCapacity, 1);
             }
-            float perLap = ctx.Memory != null ? ctx.Memory.AverageFuelPerLap() : -1;
+            float perLap = FuelEstimate.Consumption(ctx.Memory, gs, out bool provisional, out _);
             if (Finite(perLap) && perLap > 0)
             {
                 o["verbrauch_pro_runde_l"] = Math.Round(perLap, 2);
                 o["reichweite_runden"] = Math.Round(f.FuelLeft / perLap, 1);
-                o["verbrauch_basis"] = "Mittel der letzten gemessenen Runden ohne Boxenstopp";
+                o["verbrauch_basis"] = provisional ? "Vorläufige Schätzung aus Tankdifferenz und gefahrener Strecke" :
+                    "Mittel der letzten gemessenen Runden ohne Boxenstopp";
+                o["verbrauch_vorlaeufig"] = provisional;
             }
             else
             {
@@ -338,10 +353,41 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
+        internal static JObject NativeSectorBriefing(RaceDataContext ctx)
+        {
+            var result = new JObject();
+            if (ctx.GameState == null || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > StaleAfterSeconds)
+                return result;
+            var values = ctx.GameState.Measurements;
+            foreach (string scope in new[] { "personal", "leader", "class_leader" })
+            {
+                var splits = new JArray();
+                for (int i = 1; i <= 3; i++)
+                {
+                    bool current = values.TryGetValue("timing.sector." + scope + "." + i, out var time) &&
+                        time.StatusAt(ctx.NowUtc) == "gueltig";
+                    splits.Add(current ? new JValue(Math.Round(time.Value.Value, 3)) : JValue.CreateNull());
+                }
+                if (splits.Any(t => t.Type != JTokenType.Null))
+                    result[scope + "_einzelsektoren_s"] = splits;
+            }
+            if (result.HasValues)
+                result["hinweis"] = "Native Einzelbestwerte. Führende sind Referenzen. Feld-Sektorbestzeit und vollständige Rundenzeit sind daraus nicht ableitbar.";
+            return result;
+        }
+
         private static JObject LapTimes(RaceDataContext ctx, List<string> missing)
         {
             var s = ctx.GameState.SessionData;
             var o = new JObject();
+            var refs = TelemetryMeasurementTools.Read(ctx, "timing.sector.");
+            if (refs.HasValues)
+            {
+                o["native_sektorreferenzen"] = refs;
+                o["sektorreferenzen_hinweis"] = "Führender und Klassenführender sind Referenzen. Daraus folgt kein Einzelsektorrekord des gesamten Feldes.";
+            }
+            if (ctx.GameState.Measurements.TryGetValue("timing.lap.delta_personal", out var delta))
+                o["native_live_differenz_zur_eigenen_bestzeit"] = TelemetryMeasurementTools.Describe(delta, ctx.NowUtc);
             var laps = s.PlayerLapData.Where(l => l.LapTime > 0).Skip(Math.Max(0, s.PlayerLapData.Count(l => l.LapTime > 0) - 8)).ToList();
             if (laps.Count == 0)
             {
@@ -353,7 +399,7 @@ namespace CrewChiefV4.AiTeam
                 foreach (var lap in laps)
                 {
                     var lapObj = new JObject { ["runde"] = lap.LapNumber, ["zeit_s"] = Math.Round(lap.LapTime, 3), ["gueltig"] = lap.IsValid };
-                    if (lap.SectorTimes != null && lap.SectorTimes.Length > 0 && lap.SectorTimes.All(st => st > 0))
+                    if (!s.SectorTimingEstimated && lap.SectorTimes != null && lap.SectorTimes.Length > 0 && lap.SectorTimes.All(st => st > 0))
                     {
                         lapObj["sektoren_s"] = new JArray(lap.SectorTimes.Select(st => Math.Round(st, 3)));
                     }
@@ -363,7 +409,7 @@ namespace CrewChiefV4.AiTeam
             }
             o["persoenliche_bestzeit_s"] = Num(s.PlayerLapTimeSessionBest, 3, 1, 3600, "persoenliche_bestzeit", missing);
             o["klassen_bestzeit_session_s"] = Num(s.PlayerClassSessionBestLapTime, 3, 1, 3600, "klassen_bestzeit", missing);
-            if (s.PlayerBestSector1Time > 0 && s.PlayerBestSector2Time > 0 && s.PlayerBestSector3Time > 0)
+            if (!s.SectorTimingEstimated && s.PlayerBestSector1Time > 0 && s.PlayerBestSector2Time > 0 && s.PlayerBestSector3Time > 0)
             {
                 o["beste_sektoren_s"] = new JArray(Math.Round(s.PlayerBestSector1Time, 3), Math.Round(s.PlayerBestSector2Time, 3), Math.Round(s.PlayerBestSector3Time, 3));
             }
@@ -372,8 +418,144 @@ namespace CrewChiefV4.AiTeam
                 missing.Add("beste_sektorzeiten");
             }
             o["aktuelle_runde_gueltig"] = s.CurrentLapIsValid;
-            missing.Add("bremspunkte/kurvenweise Telemetrie – nicht im Crew-Chief-Kern verfügbar");
+            var liveSectors = CurrentSectors(ctx);
+            if (liveSectors != null) o["laufende_runde"] = liveSectors;
             return o;
+        }
+
+        internal static JObject RacePaceReview(RaceDataContext ctx)
+        {
+            var gs = ctx.GameState;
+            var s = gs.SessionData;
+            var results = new JArray();
+            var review = new JObject { ["bezugsgruppe"] = "klasse",
+                ["vergleichsbasis"] = "Gleiche Rundennummern, gültige Runden nach der Startrunde, ohne Ein- und Ausrunden. Keine Angleichung von Reifen oder Verkehr.",
+                ["fahrer"] = results };
+            if (s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Finished ||
+                ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > StaleAfterSeconds ||
+                gs.carClass == null || s.ClassPosition < 1 || s.IsDNF || s.IsDisqualified)
+            {
+                review["verfuegbar"] = false;
+                return review;
+            }
+
+            review["verfuegbar"] = true;
+            var own = ComparableRaceLaps(s.PlayerLapData);
+            for (int rank = 1; rank <= 3; rank++)
+            {
+                if (rank == s.ClassPosition || (s.NumCarsInPlayerClass > 0 && rank > s.NumCarsInPlayerClass)) continue;
+                var rivals = gs.OpponentData.Values.Where(o => o != null && o.IsActive && o.ClassPosition == rank &&
+                    CarData.IsCarClassEqual(gs.carClass, o.CarClass, false)).Take(2).ToArray();
+                var comparison = new JObject { ["klassenplatz"] = rank, ["vergleichbare_runden"] = 0 };
+                results.Add(comparison);
+                if (rivals.Length != 1) continue;
+                var rival = rivals[0];
+                if (ctx.SendDriverNames && rival.CanUseName)
+                {
+                    var name = RadioPhraseCatalog.SafeRivalName(rival.DriverRawName);
+                    if (name.Length != 0) comparison["name"] = name;
+                }
+                if (ValidLap(rival.CurrentBestLapTime)) comparison["beste_runde_s"] = Math.Round(rival.CurrentBestLapTime, 3);
+                var theirs = ComparableRaceLaps(rival.OpponentLapData);
+                var matched = own.Keys.Intersect(theirs.Keys).OrderByDescending(lap => lap).Take(6).ToArray();
+                comparison["vergleichbare_runden"] = matched.Length;
+                if (matched.Length < 3) continue;
+                var ourTimes = matched.Select(lap => (double)own[lap].LapTime).ToArray();
+                var theirTimes = matched.Select(lap => (double)theirs[lap].LapTime).ToArray();
+                double ours = ourTimes.Average(), other = theirTimes.Average();
+                comparison["eigener_schnitt_s"] = Math.Round(ours, 3);
+                comparison["gegner_schnitt_s"] = Math.Round(other, 3);
+                comparison["rueckstand_s_pro_runde"] = Math.Round(ours - other, 3);
+                comparison["eigene_streuung_s"] = Spread(ourTimes, ours);
+                comparison["gegner_streuung_s"] = Spread(theirTimes, other);
+                comparison["runden"] = new JArray(matched.Reverse());
+                if (!s.SectorTimingEstimated && matched.All(lap => CoherentSectors(own[lap]) && CoherentSectors(theirs[lap])))
+                    comparison["sektorrueckstand_s"] = new JArray(Enumerable.Range(0, 3).Select(sector =>
+                        Math.Round(matched.Average(lap => own[lap].SectorTimes[sector] - theirs[lap].SectorTimes[sector]), 3)));
+            }
+            return review;
+        }
+
+        internal static string FinalLapTactic(RaceDataContext ctx)
+        {
+            var gs = ctx?.GameState;
+            if (gs == null || !LapWatch.OnLastLap(gs.SessionData) || gs.FlagData.isLocalYellow ||
+                gs.PitData.InPitlane || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+                gs.SessionData.ClassPosition <= 1) return null;
+            var rival = Neighbour(gs, true);
+            var gap = ReadGap(ctx, rival, true);
+            if (rival == null || gap.Kind != RaceGapKind.SimulatorTiming || gap.Seconds <= .05f) return null;
+            var own = ComparableRaceLaps(gs.SessionData.PlayerLapData);
+            var theirs = ComparableRaceLaps(rival.OpponentLapData);
+            var matching = own.Keys.Intersect(theirs.Keys).OrderByDescending(lap => lap).Take(3).ToArray();
+            if (matching.Length < 3) return null;
+            double gain = matching.Average(lap => theirs[lap].LapTime - own[lap].LapTime);
+            if (gain >= .2 && gap.Seconds <= Math.Min(1.2, gain + .25))
+                return "Du hast die Pace für einen Angriff. Wenn die Lücke aufgeht, nutz sie.";
+            return "Sichere deine Position bis zur Linie.";
+        }
+
+        private static Dictionary<int, LapData> ComparableRaceLaps(IEnumerable<LapData> laps) => laps
+            .Where(lap => lap != null && lap.LapNumber > 1 && lap.IsValid && !lap.InLap && !lap.OutLap && ValidLap(lap.LapTime))
+            .GroupBy(lap => lap.LapNumber).Where(group => group.Count() == 1).ToDictionary(group => group.Key, group => group.Single());
+
+        private static bool CoherentSectors(LapData lap) => lap.SectorTimes.Length == 3 && lap.SectorTimes.All(ValidLap) &&
+            Math.Abs(lap.SectorTimes.Sum() - lap.LapTime) <= .20f;
+
+        private static double Spread(double[] times, double mean) =>
+            Math.Round(Math.Sqrt(times.Average(value => (value - mean) * (value - mean))), 3);
+
+        internal static PreparedRadioDetail RacePaceRadio(RaceDataContext ctx)
+        {
+            if (ctx?.GameState == null) return null;
+            var review = RacePaceReview(ctx);
+            var reference = ((JArray)review["fahrer"]).OfType<JObject>().FirstOrDefault(row => row["rueckstand_s_pro_runde"] != null);
+            if (reference == null) return null;
+            var spoken = CultureInfo.GetCultureInfo("de-DE");
+            int rank = (int)reference["klassenplatz"];
+            string name = (string)reference["name"] ?? "Platz " + rank + " in deiner Klasse";
+            var gs = ctx.GameState;
+            var rivals = gs.OpponentData.Where(p => p.Value != null && p.Value.IsActive && p.Value.ClassPosition == rank &&
+                CarData.IsCarClassEqual(gs.carClass, p.Value.CarClass, false)).Take(2).ToArray();
+            if (rivals.Length != 1) return null;
+            var rival = rivals[0];
+            string identity = RaceReader.Identity(rival.Key, rival.Value);
+            double delta = (double)reference["rueckstand_s_pro_runde"];
+            int count = (int)reference["vergleichbare_runden"];
+            string pace = Math.Abs(delta) < .05 ? "fast genauso schnell wie du" :
+                "rund " + GermanRadioText.Interval(Math.Abs(delta)) + " pro Runde " + (delta > 0 ? "schneller" : "langsamer");
+            return new PreparedRadioDetail {
+                Text = name + " war über " + count + " vergleichbare Runden " + pace + ".",
+                StillCurrent = (live, _) => live != null && live.OpponentData.TryGetValue(rival.Key, out var current) &&
+                    current != null && current.IsActive && current.ClassPosition == rank && RaceReader.Identity(rival.Key, current) == identity
+            };
+        }
+
+        internal static JObject CurrentSectors(RaceDataContext ctx)
+        {
+            var gs = ctx.GameState;
+            DateTime source = gs.SourceTelemetryUtc == DateTime.MinValue ? ctx.LastTelemetryUtc : gs.SourceTelemetryUtc;
+            if (source == DateTime.MinValue || ctx.NowUtc < source || ctx.NowUtc - source > TimeSpan.FromSeconds(1))
+                return null;
+            var session = gs.SessionData;
+            var lap = session.PlayerLapData.LastOrDefault();
+            if (lap == null || lap.LapTime > 0 || lap.LapNumber < 1 || lap.LapNumber != session.CompletedLaps + 1 ||
+                session.SectorTimingEstimated || session.SectorNumber < 2 || session.SectorNumber > 3 || gs.PitData.InPitlane)
+                return null;
+
+            var times = lap.SectorTimes;
+            var sectors = new JArray();
+            for (int i = 0; i < session.SectorNumber - 1 && i < times.Length; i++)
+            {
+                var value = SectorValue(times[i]);
+                if (value != null) sectors.Add(new JObject { ["sektor"] = i + 1, ["zeit_s"] = value });
+            }
+            return sectors.Count == 0 ? null : new JObject {
+                ["runde"] = lap.LapNumber,
+                ["bisher_gueltig"] = lap.IsValid && session.CurrentLapIsValid,
+                ["boxenrunde"] = lap.OutLap || lap.InLap,
+                ["abgeschlossene_sektoren"] = sectors
+            };
         }
 
         private static JObject Opponents(RaceDataContext ctx, List<string> missing)
@@ -451,6 +633,13 @@ namespace CrewChiefV4.AiTeam
             {
                 d["klasse"] = op.CarClass.getClassIdentifier();
             }
+            if (ctx.Tracks != null && !ctx.Tracks.OpponentFresh(ctx, op))
+            {
+                d.Remove("letzte_runde_s");
+                d.Remove("beste_runde_s");
+                d["gegnerdaten_aktuell"] = false;
+                return d;
+            }
             // Pace-Trend: Durchschnitt der letzten 3 gültigen Runden im Vergleich zu unseren
             var theirs = op.OpponentLapData.Where(l => l.LapTime > 0 && l.IsValid && !l.InLap && !l.OutLap).Reverse().Take(3).ToList();
             var ours = s.PlayerLapData.Where(l => l.LapTime > 0 && l.IsValid && !l.InLap && !l.OutLap).Reverse().Take(3).ToList();
@@ -461,10 +650,55 @@ namespace CrewChiefV4.AiTeam
                 d["pace_hinweis"] = "positiv = er ist schneller als wir, negativ = wir sind schneller (Mittel letzte Runden)";
             }
             // Sector availability is independent of a three-lap pace comparison or our own lap count.
-            d["beste_einzelsektoren_s"] = new JArray(SectorValue(op.bestSector1Time), SectorValue(op.bestSector2Time), SectorValue(op.bestSector3Time));
-            d["sektoren_hinweis"] = "Einzelsektorzeiten in Sekunden, nicht kumulativ. Einzelbestwerte können aus verschiedenen Runden stammen; unbekannt = null. Historie ist auf drei zuletzt erfasste Runden begrenzt.";
-            d["sektorrunden"] = new JArray(op.OpponentLapData.OrderByDescending(l => l.LapNumber).Take(3).Select(DescribeSectorLap));
+            if (!s.SectorTimingEstimated)
+            {
+                d["beste_einzelsektoren_s"] = new JArray(SectorValue(op.bestSector1Time), SectorValue(op.bestSector2Time), SectorValue(op.bestSector3Time));
+                d["sektoren_hinweis"] = "Einzelsektorzeiten in Sekunden, nicht kumulativ. Einzelbestwerte können aus verschiedenen Runden stammen; unbekannt = null. Historie ist auf drei zuletzt erfasste Runden begrenzt.";
+                d["sektorrunden"] = new JArray(op.OpponentLapData.OrderByDescending(l => l.LapNumber).Take(3).Select(DescribeSectorLap));
+            }
+            var ams2 = Ams2ParticipantBestTimes(op, ctx);
+            if (ams2 != null) d["ams2_simulator_bestwerte"] = ams2;
             return d;
+        }
+
+        private static JObject Ams2ParticipantBestTimes(OpponentData opponent, RaceDataContext ctx)
+        {
+            var state = ctx?.GameState;
+            var wrapper = state?.rawGameData as CrewChiefV4.AMS2.AMS2SharedMemoryReader.AMS2StructWrapper;
+            if (wrapper == null || !wrapper.sdk14LayoutSelected || wrapper.data.mVersion != 14 || opponent == null ||
+                !opponent.IsActive || string.IsNullOrWhiteSpace(opponent.DriverRawName) || state.SourceTelemetryUtc == DateTime.MinValue ||
+                ctx.NowUtc < state.SourceTelemetryUtc || ctx.NowUtc - state.SourceTelemetryUtc > TimeSpan.FromSeconds(1)) return null;
+            var raw = wrapper.data;
+            if (raw.mParticipantData == null || raw.mNumParticipants < 1 || raw.mNumParticipants > 64 ||
+                raw.mNumParticipants > raw.mParticipantData.Length) return null;
+            int index = -1;
+            for (int i = 0; i < raw.mNumParticipants; i++)
+            {
+                var p = raw.mParticipantData[i];
+                if (!p.mIsActive || !string.Equals(CrewChiefV4.AMS2.StructHelper.getNameFromBytes(p.mName), opponent.DriverRawName, StringComparison.Ordinal)) continue;
+                if (index >= 0) return null; // Duplicate names cannot identify a unique SDK slot.
+                index = i;
+            }
+            if (index < 0 || opponent.OverallPosition <= 0 || raw.mParticipantData[index].mRacePosition != (uint)opponent.OverallPosition ||
+                string.Equals(state.SessionData.DriverRawName, opponent.DriverRawName, StringComparison.Ordinal)) return null;
+            JToken sector1 = Ams2Time(raw.mFastestSector1Times, index), sector2 = Ams2Time(raw.mFastestSector2Times, index),
+                sector3 = Ams2Time(raw.mFastestSector3Times, index), best = Ams2Time(raw.mFastestLapTimes, index), last = Ams2Time(raw.mLastLapTimes, index);
+            if (sector1.Type == JTokenType.Null && sector2.Type == JTokenType.Null && sector3.Type == JTokenType.Null &&
+                best.Type == JTokenType.Null && last.Type == JTokenType.Null) return null;
+            return new JObject {
+                ["quelle"] = "AMS2 Shared Memory SDK v14 / Teilnehmerindex",
+                ["zeitpunkt_utc"] = state.SourceTelemetryUtc.ToString("o"),
+                ["beste_einzelsektoren_s"] = new JArray(sector1, sector2, sector3),
+                ["beste_runde_s"] = best, ["letzte_runde_s"] = last,
+                ["hinweis"] = "Simulatorwerte; Einzelbestsektoren koennen aus verschiedenen Runden stammen. Gueltigkeit und Bedingungen der letzten Runde sind hier nicht belegt. Kein belegter aktueller Pace-Trend."
+            };
+        }
+
+        private static JToken Ams2Time(float[] values, int index)
+        {
+            if (values == null || index < 0 || index >= values.Length || float.IsNaN(values[index]) ||
+                float.IsInfinity(values[index]) || values[index] <= 0 || values[index] >= 3600) return JValue.CreateNull();
+            return new JValue(Math.Round(values[index], 3));
         }
 
         private static JObject DescribeSectorLap(LapData lap)
@@ -664,6 +898,20 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
+        internal static JArray RecentRaceActions(RaceDataContext ctx)
+        {
+            if (ctx?.Memory == null || ctx.GameState?.SessionData.SessionType != SessionType.Race ||
+                ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1) return new JArray();
+            return new JArray(ctx.Memory.GetEvents(TimeSpan.FromSeconds(45), ctx.NowUtc)
+                .Where(e => e.TimeUtc <= ctx.NowUtc && (e.Topic == "confirmed-on-track-pass" || e.Topic == "confirmed-position-loss"))
+                .Reverse().Take(8).Reverse().Select(e => new JObject {
+                    ["typ"] = e.Topic,
+                    ["sekunden_zurueck"] = (int)(ctx.NowUtc - e.TimeUtc).TotalSeconds,
+                    ["befund"] = ctx.SendDriverNames || e.Topic != "confirmed-on-track-pass" ? e.Text :
+                        "Ein belegter Platzgewinn auf der Strecke."
+                }));
+        }
+
         private static JObject Events(RaceDataContext ctx, List<string> missing)
         {
             var o = new JObject();
@@ -672,7 +920,8 @@ namespace CrewChiefV4.AiTeam
                 missing.Add("ereignisse");
                 return o;
             }
-            var events = ctx.Memory.GetEvents(TimeSpan.FromMinutes(5), ctx.NowUtc);
+            var events = ctx.Memory.GetEvents(TimeSpan.FromMinutes(5), ctx.NowUtc)
+                .Where(e => ctx.SendDriverNames || e.Topic != "confirmed-on-track-pass").ToList();
             o["ereignisse"] = new JArray(events.Select(e => "vor " + (int)(ctx.NowUtc - e.TimeUtc).TotalSeconds + " s: " + e.Text));
             o["strukturierte_ereignisse"]=new JArray(events.Where(e=>e.Topic!=null).Select(e=>new JObject {
                 ["typ"]=e.Topic,["gegner_id"]=e.SubjectKey,["quelle"]=e.Source,["erkannt_utc"]=e.TimeUtc.ToString("o"),["text"]=e.Text }));
@@ -696,6 +945,8 @@ namespace CrewChiefV4.AiTeam
             o["sprit"] = WithoutMeta(Execute("get_fuel_status", ctx));
             o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
+            var previousStint = DriverMemory.PreviousStint(ctx);
+            if (previousStint != null) o["vorherige_sitzung_referenz"] = previousStint;
             o["streckenlage"] = TrackAwareness.Read(ctx);
             if (ctx.Reader != null) o["rennbeobachtung"] = ctx.Reader.Read(ctx);
             var s = ctx.GameState.SessionData;
@@ -766,6 +1017,7 @@ namespace CrewChiefV4.AiTeam
         public static RaceGapMeasurement ReadGap(RaceDataContext context, OpponentData op, bool ahead)
         {
             if(context == null || context.GameState == null) return new RaceGapMeasurement();
+            if (context.Tracks != null && !context.Tracks.OpponentFresh(context, op)) return new RaceGapMeasurement();
             DateTime source=context.GameState.SourceTelemetryUtc==DateTime.MinValue ? context.LastTelemetryUtc : context.GameState.SourceTelemetryUtc;
             if(source==DateTime.MinValue || context.NowUtc<source || context.NowUtc-source>TimeSpan.FromSeconds(1))
                 return new RaceGapMeasurement();

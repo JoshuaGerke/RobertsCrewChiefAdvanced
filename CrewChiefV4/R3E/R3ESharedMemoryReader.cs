@@ -26,10 +26,12 @@ namespace CrewChiefV4.RaceRoom
         private String lastReadFileName = null;
 
         private RaceRoomData.RaceRoomShared latestData;
+        private readonly CrewChiefV4.AiTeam.TelemetrySourceClock sourceClock = new CrewChiefV4.AiTeam.TelemetrySourceClock();
 
         public class R3EStructWrapper
         {
             public long ticksWhenRead;
+            public long sourceSampleTicks;
             public RaceRoomShared data;
         }
 
@@ -101,6 +103,7 @@ namespace CrewChiefV4.RaceRoom
                         memoryMappedFile = MemoryMappedFile.OpenExisting(RaceRoomConstant.SharedMemoryName, MemoryMappedFileRights.Read);
                         sharedmemorysize = Marshal.SizeOf(typeof(RaceRoomShared));
                         sharedMemoryReadBuffer = new byte[sharedmemorysize];
+                        sourceClock.Reset();
                         initialised = true;
                         Console.WriteLine("Initialised raceroom shared memory");
                     }
@@ -143,6 +146,9 @@ namespace CrewChiefV4.RaceRoom
                     }
                     R3EStructWrapper structWrapper = new R3EStructWrapper();
                     structWrapper.ticksWhenRead = DateTime.UtcNow.Ticks;
+                    structWrapper.sourceSampleTicks = sourceClock.Observe(_raceroomapistruct.Player.GameSimulationTime,
+                        _raceroomapistruct.SessionType, _raceroomapistruct.SessionPhase, _raceroomapistruct.VehicleInfo.SlotId,
+                        structWrapper.ticksWhenRead);
                     this.latestData = _raceroomapistruct;
                     structWrapper.data = _raceroomapistruct;
                     if (!forSpotter && currentlyTracingGameData && dataToDump != null)
@@ -189,4 +195,5 @@ namespace CrewChiefV4.RaceRoom
             initialised = false;
         }
     }
+
 }

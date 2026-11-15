@@ -18,6 +18,7 @@ namespace CrewChiefV4.AiTeam
         private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
         private readonly Dictionary<string, DateTime> lastTopicUtc = new Dictionary<string, DateTime>();
         private DateTime lastSampleUtc = DateTime.MinValue;
+        private DateTime lastRoutineUtc = DateTime.MinValue;
         private DateTime lastTrafficUtc = DateTime.MinValue;
         private DateTime lastAnyInsightUtc = DateTime.MinValue;
         private int lastPaceLap = -1;
@@ -33,6 +34,7 @@ namespace CrewChiefV4.AiTeam
         public void Reset()
         {
             lastSampleUtc = DateTime.MinValue;
+            lastRoutineUtc = DateTime.MinValue;
             lastTrafficUtc = DateTime.MinValue;
             lastAnyInsightUtc = DateTime.MinValue;
             lastPaceLap = -1;
@@ -76,6 +78,20 @@ namespace CrewChiefV4.AiTeam
             {
                 lastTrafficUtc = nowUtc;
             }
+            return true;
+        }
+
+        internal bool RoutineDue(DateTime nowUtc, GameStateData previous, GameStateData current)
+        {
+            var session = current.SessionData;
+            var prior = previous?.SessionData;
+            bool boundary = prior == null || session.SessionId != prior.SessionId ||
+                session.SessionType != prior.SessionType || session.SessionPhase != prior.SessionPhase ||
+                session.CompletedLaps != prior.CompletedLaps || session.SectorNumber != prior.SectorNumber ||
+                session.Flag != prior.Flag || current.PitData.InPitlane != previous.PitData.InPitlane;
+            if (!boundary && nowUtc >= lastRoutineUtc && nowUtc - lastRoutineUtc < TimeSpan.FromMilliseconds(125))
+                return false;
+            lastRoutineUtc = nowUtc;
             return true;
         }
 

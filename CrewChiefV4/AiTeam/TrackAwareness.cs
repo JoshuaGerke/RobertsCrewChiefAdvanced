@@ -14,14 +14,19 @@ namespace CrewChiefV4.AiTeam
         public readonly int Id, OverallPosition, ClassPosition;
         public readonly string Key, Name;
         internal readonly string NativeName, NativeNumber;
+        internal readonly string NativeIdentity;
         internal readonly int NativeCarId;
         public readonly bool InPits, SameClass, ClassComparisonKnown, SpatiallyConsistent, OnInLap, OnOutLap, LapContextKnown;
         public readonly double? X, Z, LapDistanceM, RouteGapM, WorldDistanceM, SpeedMps, ClosingMps;
         public readonly int? LapOffset;
+        public readonly double? TrackIntervalSeconds;
+        internal readonly DateTime OpponentSampleUtc;
         internal TrackCarPosition(int id, string key, OpponentData car, GameStateData own, double? x, double? z,
-            double? distance, double? gap, double? worldDistance, double? closing, int? lapOffset, bool consistent)
+            double? distance, double? gap, double? worldDistance, double? closing, int? lapOffset, bool consistent,
+            DateTime opponentSampleUtc = default(DateTime), double? trackIntervalSeconds = null)
         {
-            Id=id; Key=key; NativeName=car.DriverRawName; NativeNumber=car.CarNumber; NativeCarId=car.CostId; Name=car.CanUseName ? SafeName(car.DriverRawName) : null;
+            Id=id; Key=key; NativeName=car.DriverRawName; NativeNumber=car.CarNumber; NativeCarId=car.CostId; Name=car.CanUseName ? RadioPhraseCatalog.SafeRivalName(car.DriverRawName) : null;
+            NativeIdentity=RaceReader.Identity("",car);
             OverallPosition=car.OverallPosition; ClassPosition=car.ClassPosition; InPits=car.InPits;
             LapContextKnown=car.getCurrentLapData()!=null; OnInLap=car.isEnteringPits(); OnOutLap=car.isOnOutLap();
             ClassComparisonKnown=own.carClass!=null && own.carClass.carClassEnum!=CarData.CarClassEnum.UNKNOWN_RACE &&
@@ -31,14 +36,14 @@ namespace CrewChiefV4.AiTeam
             X=x; Z=z; LapDistanceM=distance; RouteGapM=gap; WorldDistanceM=worldDistance;
             SpeedMps=TrackAwareness.InRange(car.Speed,0,180); ClosingMps=closing; LapOffset=lapOffset;
             SpatiallyConsistent=consistent;
+            OpponentSampleUtc = opponentSampleUtc;
+            TrackIntervalSeconds = trackIntervalSeconds;
         }
-        private static string SafeName(string name)
-        { return name==null ? null : new string(name.Where(c=>char.IsLetterOrDigit(c)||c==' '||c=='-'||c=='\'').Take(60).ToArray()); }
     }
 
     public sealed class TrackPositionSnapshot
     {
-        public readonly DateTime Utc;
+        public readonly DateTime Utc, SourceUtc;
         public readonly int SessionId, MappedCars;
         public readonly SessionType SessionType;
         public readonly string Track, CurrentSection, NextSection;
@@ -47,7 +52,8 @@ namespace CrewChiefV4.AiTeam
         public readonly ReadOnlyCollection<TrackCarPosition> Cars;
         internal TrackPositionSnapshot(GameStateData state, DateTime utc, List<TrackCarPosition> cars)
         {
-            Utc=utc; SessionId=state.SessionData.SessionId; SessionType=state.SessionData.SessionType;
+            Utc=utc; SourceUtc=state.SourceTelemetryUtc==DateTime.MinValue?state.Now:state.SourceTelemetryUtc;
+            SessionId=state.SessionData.SessionId; SessionType=state.SessionData.SessionType;
             IsNewSession=state.SessionData.IsNewSession;
             var track=state.SessionData.TrackDefinition;
             Track=track==null ? state.trackName : track.name;
@@ -76,6 +82,7 @@ namespace CrewChiefV4.AiTeam
         public bool IsCurrent(RaceDataContext context)
         {
             if(context==null || context.GameState==null || context.NowUtc<Utc || (context.NowUtc-Utc).TotalSeconds>1 ||
+                SourceUtc==DateTime.MinValue || context.NowUtc<SourceUtc || context.NowUtc-SourceUtc>TimeSpan.FromSeconds(1) ||
                 context.TelemetryAgeSeconds<0 || context.TelemetryAgeSeconds>1) return false;
             var s=context.GameState.SessionData;
             string track=s.TrackDefinition==null ? context.GameState.trackName : s.TrackDefinition.name;
@@ -90,36 +97,115 @@ namespace CrewChiefV4.AiTeam
     {
         public const int MaxCars=256, MaxSamples=42;
         private sealed class Sample { public DateTime Utc; public double Gap; }
+        // Track the leading car's actual passage through the following car's current position.
+        // This measures a spatially relative interval, independently of classification and lap times.
+        private sealed class PassageHistory
+        {
+            private readonly double[] distance = new double[64];
+            private readonly DateTime[] stamp = new DateTime[64];
+            private int next, count;
+
+            public void Clear() { next = count = 0; }
+
+            public void Observe(double? position, DateTime utc, double? length, bool usable)
+            {
+                if (!usable || !position.HasValue || !length.HasValue) { Clear(); return; }
+                int last = (next + stamp.Length - 1) % stamp.Length;
+                if (count > 0)
+                {
+                    double dt = (utc - stamp[last]).TotalSeconds;
+                    if (dt >= 0 && dt < .15) return;
+                    double movement = Wrap(position.Value - distance[last], length.Value);
+                    if (dt < 0 || dt > .75 || movement < .2 || movement > dt * 180 + 3) Clear();
+                }
+                stamp[next] = utc;
+                distance[next] = position.Value;
+                next = (next + 1) % stamp.Length;
+                count = Math.Min(count + 1, stamp.Length);
+            }
+
+            public double? Interval(double target, double gap, double length, DateTime utc)
+            {
+                if (count < 3 || gap < 3 || gap > 600) return null;
+                int newer = (next + stamp.Length - 1) % stamp.Length;
+                if (utc < stamp[newer] || utc - stamp[newer] > TimeSpan.FromSeconds(.35)) return null;
+                double newerOffset = Wrap(distance[newer] - target, length);
+                if (newerOffset < 0) return null;
+                for (int i = 1; i < count; i++)
+                {
+                    int older = (newer + stamp.Length - 1) % stamp.Length;
+                    double olderOffset = Wrap(distance[older] - target, length);
+                    if (utc - stamp[older] > TimeSpan.FromSeconds(10) || olderOffset > newerOffset) break;
+                    if (olderOffset <= 0 && newerOffset > olderOffset)
+                    {
+                        double fraction = -olderOffset / (newerOffset - olderOffset);
+                        double seconds = (utc - stamp[older]).TotalSeconds -
+                            fraction * (stamp[newer] - stamp[older]).TotalSeconds;
+                        return InRange(seconds, .05, 10);
+                    }
+                    newer = older;
+                    newerOffset = olderOffset;
+                }
+                return null;
+            }
+        }
+
         private sealed class History
         {
             public int Id; public string Identity; public double? LastDistance;
+            public double? X, Z, RouteDistance;
+            public int Lap, Sector;
+            public DateTime OpponentSampleUtc;
             public readonly Queue<Sample> Samples=new Queue<Sample>();
+            public readonly PassageHistory Passages=new PassageHistory();
         }
         private readonly Dictionary<string,History> history=new Dictionary<string,History>();
+        private readonly PassageHistory playerPassages = new PassageHistory();
         private TrackPositionSnapshot latest;
         private int nextId;
         public TrackPositionSnapshot Snapshot { get { return Volatile.Read(ref latest); } }
         public RaceGapTracker Gaps { get; private set; } = new RaceGapTracker();
-        public void Reset() { history.Clear(); Gaps.Reset(); nextId=0; Volatile.Write(ref latest,null); }
+        public void Reset() { history.Clear(); playerPassages.Clear(); Gaps.Reset(); nextId=0; Volatile.Write(ref latest,null); }
+
+        internal bool OpponentFresh(RaceDataContext context, OpponentData opponent)
+        {
+            var snapshot = Snapshot;
+            if (snapshot == null || !snapshot.IsCurrent(context) || opponent == null || !opponent.IsActive) return false;
+            var identity = RaceReader.Identity("", opponent);
+            var data = snapshot.Cars.FirstOrDefault(car => car.NativeIdentity == identity &&
+                context.GameState.OpponentData.TryGetValue(car.Key, out var mapped) && ReferenceEquals(mapped, opponent));
+            return data != null && data.OpponentSampleUtc != default(DateTime) &&
+                context.NowUtc >= data.OpponentSampleUtc && context.NowUtc - data.OpponentSampleUtc <= TimeSpan.FromSeconds(1);
+        }
 
         public bool Observe(GameStateData state, DateTime now)
         {
             if(state==null) {Reset();return false;}
+            // Re-reading the same source frame must not manufacture new motion evidence.
+            if(state.SourceTelemetryUtc!=DateTime.MinValue &&
+                (now<state.SourceTelemetryUtc || now-state.SourceTelemetryUtc>TimeSpan.FromSeconds(1)))
+            { Reset(); return false; }
             var prior=Snapshot; var session=state.SessionData;
             string track=session.TrackDefinition==null ? state.trackName : session.TrackDefinition.name;
             var currentLength=session.TrackDefinition==null ? null : InRange(session.TrackDefinition.trackLength,100,100000);
             if(prior!=null && (prior.SessionId!=session.SessionId || prior.SessionType!=session.SessionType || prior.Track!=track ||
                 prior.LengthM!=currentLength || (session.IsNewSession && !prior.IsNewSession) || now<prior.Utc)) Reset();
             prior=Snapshot;
+            if(prior!=null && state.SourceTelemetryUtc!=DateTime.MinValue && state.SourceTelemetryUtc<=prior.SourceUtc)return false;
             if(prior!=null && now-prior.Utc<TimeSpan.FromMilliseconds(50))return false;
-            if(prior!=null && now-prior.Utc>TimeSpan.FromSeconds(1))history.Clear();
+            if(prior!=null && now-prior.Utc>TimeSpan.FromSeconds(1)) { history.Clear(); playerPassages.Clear(); }
             Gaps.Observe(state,now);
             var length=session.TrackDefinition==null ? null : InRange(session.TrackDefinition.trackLength,100,100000);
             var ownDistance=ValidDistance(state.PositionAndMotionData.DistanceRoundTrack,length);
             double? ownX,ownZ;Horizontal(state.PositionAndMotionData.WorldPosition,out ownX,out ownZ);
             bool ownJump=prior!=null && prior.PlayerDistanceM.HasValue && ownDistance.HasValue && length.HasValue &&
                 Math.Abs(Wrap(ownDistance.Value-prior.PlayerDistanceM.Value,length.Value))>180*(now-prior.Utc).TotalSeconds+15;
-            if(ownJump)history.Clear();
+            if(ownJump) { history.Clear(); playerPassages.Clear(); }
+            bool spatialIntervals = session.SessionType == SessionType.Practice || session.SessionType == SessionType.LonePractice ||
+                session.SessionType == SessionType.Qualify || session.SessionType == SessionType.PrivateQualify || session.SessionType == SessionType.HotLap;
+            DateTime sampledUtc = state.SourceTelemetryUtc == DateTime.MinValue ? now : state.SourceTelemetryUtc;
+            playerPassages.Observe(ownDistance, sampledUtc, length, spatialIntervals && !state.PitData.InPitlane &&
+                !state.PitData.IsInGarage && state.PositionAndMotionData.CarSpeed > 5);
             var cars=new List<TrackCarPosition>();var retained=new HashSet<string>();
             foreach(var pair in state.OpponentData.Where(p=>p.Value!=null && p.Value.IsActive).Take(MaxCars))
             {
@@ -131,10 +217,19 @@ namespace CrewChiefV4.AiTeam
                 double? worldDistance=x.HasValue && ownX.HasValue && !(x==0 && z==0 && ownX==0 && ownZ==0)
                     ? (double?)Math.Sqrt(Math.Pow(x.Value-ownX.Value,2)+Math.Pow(z.Value-ownZ.Value,2)) : null;
                 bool consistent=gap.HasValue && (!worldDistance.HasValue || worldDistance<=Math.Abs(gap.Value)+20);
-                string identity=(car.DriverRawName??"")+"|"+(car.CarNumber??"")+"|"+car.CostId;
+                string identity=RaceReader.Identity("",car);
                 History h;
                 if(!history.TryGetValue(pair.Key,out h) || h.Identity!=identity)
                     history[pair.Key]=h=new History{Id=++nextId,Identity=identity};
+                // The frame can change while one opponent repeats the same position or timing data.
+                if ((distance.HasValue || x.HasValue) && (h.OpponentSampleUtc == DateTime.MinValue ||
+                    Changed(h.RouteDistance, distance) || Changed(h.X, x) || Changed(h.Z, z) ||
+                    h.Lap != car.CompletedLaps || h.Sector != car.CurrentSectorNumber))
+                {
+                    h.OpponentSampleUtc = state.SourceTelemetryUtc == DateTime.MinValue ? now : state.SourceTelemetryUtc;
+                    h.RouteDistance = distance; h.X = x; h.Z = z;
+                    h.Lap = car.CompletedLaps; h.Sector = car.CurrentSectorNumber;
+                }
                 double? closing=null;
                 if(gap.HasValue && consistent && !car.InPits && !state.PitData.InPitlane && !ownJump)
                 {
@@ -167,12 +262,24 @@ namespace CrewChiefV4.AiTeam
                 int? lapOffset=null;
                 if(gap.HasValue && session.CompletedLaps>=0 && car.CompletedLaps>=0 && session.SessionType==SessionType.Race)
                     lapOffset=(int)Math.Round(((car.CompletedLaps-session.CompletedLaps)*length.Value+distance.Value-ownDistance.Value-gap.Value)/length.Value);
-                cars.Add(new TrackCarPosition(h.Id,pair.Key,car,state,x,z,distance,gap,worldDistance,closing,lapOffset,consistent));
+                double? interval = null;
+                if (spatialIntervals)
+                {
+                    h.Passages.Observe(distance, sampledUtc, length, !car.InPits && car.Speed > 5);
+                    if (!state.PitData.InPitlane && !car.InPits && consistent && gap.HasValue &&
+                        sampledUtc - h.OpponentSampleUtc <= TimeSpan.FromSeconds(.35))
+                        interval = gap > 0 ? h.Passages.Interval(ownDistance.Value, gap.Value, length.Value, sampledUtc)
+                            : playerPassages.Interval(distance.Value, -gap.Value, length.Value, sampledUtc);
+                }
+                cars.Add(new TrackCarPosition(h.Id,pair.Key,car,state,x,z,distance,gap,worldDistance,closing,lapOffset,consistent,h.OpponentSampleUtc,interval));
             }
             foreach(string key in history.Keys.Where(k=>!retained.Contains(k)).ToArray())history.Remove(key);
             Volatile.Write(ref latest,new TrackPositionSnapshot(state,now,cars));
             return true;
         }
+
+        private static bool Changed(double? before, double? after) => before.HasValue && after.HasValue &&
+            Math.Abs(before.Value - after.Value) >= .05;
 
         private static double? VerifiedSpeed(TrackCarPosition car,double? ownSpeed)
         {
@@ -242,6 +349,8 @@ namespace CrewChiefV4.AiTeam
                     ["gleiche_klasse"]=c.ClassComparisonKnown ? (JToken)c.SameClass : null,["in_boxengasse"]=c.InPits,
                     ["welt_x_m"]=Number(c.X),["welt_z_m"]=Number(c.Z),["meter_ab_start_ziel"]=Number(c.LapDistanceM),
                     ["versatz_entlang_strecke_m"]=Number(c.SpatiallyConsistent ? c.RouteGapM : null),["luftlinie_horizontal_m"]=Number(c.WorldDistanceM),
+                    ["relativer_zeitabstand_ungefaehr_s"]=Number(c.TrackIntervalSeconds),
+                    ["relative_zeit_quelle"]=c.TrackIntervalSeconds.HasValue ? "interpolierte Passage am gleichen Streckenpunkt; keine offizielle Wertung" : null,
                     ["rundenversatz"]=c.LapOffset.HasValue ? (JToken)c.LapOffset.Value : null,
                     ["tempo_roh_m_s"]=Number(c.SpeedMps),
                     ["tempo_m_s"]=Number(VerifiedSpeed(c,s.PlayerSpeedMps)),

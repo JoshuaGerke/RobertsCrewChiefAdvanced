@@ -10,26 +10,60 @@ namespace CrewChiefV4.AiTeam
     {
         public float PerLap, LapsRemaining, AdditionalWithoutReserve, ReserveLitres;
         public bool EstimatedFromTime;
+        public bool ProvisionalConsumption;
         public string Source;
-        public static FuelEstimate From(RaceDataContext ctx)
+
+        internal static float Consumption(AiRaceMemory memory, GameStateData state, out bool provisional, out int fullLaps)
+        {
+            provisional = false;
+            fullLaps = 0;
+            if (memory == null) return -1;
+            float average = memory.AverageFuelPerLap(out fullLaps);
+            if (fullLaps > 0) return average;
+            float estimate = memory.ProvisionalFuelPerLap(state);
+            provisional = estimate > 0 && Finite(estimate);
+            return provisional ? estimate : -1;
+        }
+
+        public static FuelEstimate From(RaceDataContext ctx, int minimumMeasuredLaps = 2)
         {
             if (ctx == null || ctx.GameState == null || ctx.Memory == null) return null;
             var gs=ctx.GameState; var s=gs.SessionData;
             if (!gs.FuelData.FuelUseActive || !Finite(gs.FuelData.FuelLeft) || gs.FuelData.FuelLeft < 0 || s.SessionType!=SessionType.Race) return null;
-            var laps=ctx.Memory.GetLaps().Where(l=>l.Valid && !l.InPitLap && l.FuelUsed>0).ToList();
-            float perLap=ctx.Memory.AverageFuelPerLap();
-            if (laps.Count<2 || !Finite(perLap) || perLap<=0) return null;
-            float remaining; bool estimated=s.SessionHasFixedTime;
-            if (!estimated && s.SessionLapsRemaining>0 && s.SessionLapsRemaining<1000) remaining=s.SessionLapsRemaining;
-            else {
-                var times=laps.Where(l=>Finite(l.LapTime) && l.LapTime>10).Reverse().Take(3).ToList();
-                if (!estimated || times.Count==0 || !Finite(s.SessionTimeRemaining) || s.SessionTimeRemaining<=0) return null;
-                remaining=s.SessionTimeRemaining/times.Average(l=>l.LapTime)+1;
+            float perLap = Consumption(ctx.Memory, gs, out bool provisional, out int sampleCount);
+            if ((!provisional && sampleCount < minimumMeasuredLaps) || !Finite(perLap) || perLap <= 0) return null;
+
+            float remaining;
+            bool estimated = s.SessionHasFixedTime;
+            if (estimated)
+            {
+                var times = ctx.Memory.GetLaps().Where(l => !l.InPitLap && Finite(l.LapTime) &&
+                    l.LapTime > 10 && l.LapTime < 3600).Reverse().Take(3).ToArray();
+                if (times.Length == 0 || !Finite(s.SessionTimeRemaining) || s.SessionTimeRemaining <= 0) return null;
+                remaining = s.SessionTimeRemaining / times.Average(l => l.LapTime) + 1;
             }
-            bool crew=Finite(ctx.CrewChiefAdditionalFuelNeeded) && Math.Abs(ctx.CrewChiefAdditionalFuelNeeded)<1000;
+            else
+            {
+                if (s.SessionLapsRemaining <= 0 || s.SessionLapsRemaining >= 1000) return null;
+                remaining = s.SessionLapsRemaining;
+                float trackLength = s.TrackDefinition?.trackLength ?? 0;
+                float trackDistance = gs.PositionAndMotionData.DistanceRoundTrack;
+                if (Finite(trackLength) && trackLength > 0 && Finite(trackDistance) &&
+                    trackDistance >= 0 && trackDistance < trackLength &&
+                    s.OverallPosition == 1 && s.SessionPhase == SessionPhase.Green && !gs.PitData.InPitlane)
+                {
+                    // The mapped lap count follows the overall leader. Only our own track
+                    // progress can refine that count when we are that leader.
+                    remaining -= trackDistance / trackLength;
+                }
+            }
+            bool crew = !provisional && Finite(ctx.CrewChiefAdditionalFuelNeeded) && Math.Abs(ctx.CrewChiefAdditionalFuelNeeded)<1000;
             return new FuelEstimate { PerLap=perLap, LapsRemaining=remaining, EstimatedFromTime=estimated,
+                ProvisionalConsumption=provisional,
                 AdditionalWithoutReserve=crew?ctx.CrewChiefAdditionalFuelNeeded:remaining*perLap-gs.FuelData.FuelLeft,
-                ReserveLitres=perLap*FuelWatch.SafetyMarginLaps, Source=crew?"Crew-Chief-Bedarfsrechnung ohne Reserve":"Gemessener Verbrauch; Restdistanz bei Zeitrennen geschätzt" };
+                ReserveLitres=perLap*FuelWatch.SafetyMarginLaps,
+                Source=provisional ? "Vorläufige Schätzung aus Tankdifferenz und gefahrener Strecke" :
+                    crew ? "Crew-Chief-Bedarfsrechnung ohne Reserve" : "Gemessener Verbrauch; Restdistanz bei Zeitrennen geschätzt" };
         }
         private static bool Finite(float v) { return !float.IsNaN(v) && !float.IsInfinity(v); }
 
@@ -55,21 +89,26 @@ namespace CrewChiefV4.AiTeam
         public const float SafetyMarginLaps = 0.3f;
 
         private bool warned;
+        private bool lastWarningWasProvisional;
+        private bool lastWarningWasDeficit;
         private float lastWarnedDeficit;
         private int lastWarnedLap = -100;
 
         public void Reset()
         {
             warned = false;
+            lastWarningWasProvisional = false;
+            lastWarningWasDeficit = false;
             lastWarnedDeficit = 0;
             lastWarnedLap = -100;
         }
 
         /// <summary>
-        /// Nach jeder Runde aufrufen. Liefert den Funkspruch oder null.
+        /// Regelmäßig bei frischer Telemetrie aufrufen. Liefert den Funkspruch oder null.
         /// lapsRemaining = noch zu fahrende Runden inkl. der aktuellen (bei Zeitrennen geschätzt).
         /// </summary>
-        public string Evaluate(int completedLaps, float fuelLeft, float perLap, float lapsRemaining, bool refuellingAllowed, bool estimatedFromTime, float additionalWithoutReserve = float.MaxValue)
+        public string Evaluate(int completedLaps, float fuelLeft, float perLap, float lapsRemaining, bool refuellingAllowed, bool estimatedFromTime,
+            float additionalWithoutReserve = float.MaxValue, bool provisionalConsumption = false)
         {
             if (fuelLeft < 0 || perLap <= 0 || lapsRemaining <= 0 ||
                 float.IsNaN(fuelLeft) || float.IsInfinity(fuelLeft) ||
@@ -85,6 +124,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if (warned)
                 {
+                    if (provisionalConsumption) return null;
                     warned = false;
                     return RadioLanguage.T("Sprit passt jetzt wieder bis ins Ziel, weiter so.", "Fuel is good to the finish again, keep it up.",
                         "El combustible vuelve a llegar hasta meta, sigue así.");
@@ -92,13 +132,26 @@ namespace CrewChiefV4.AiTeam
                 return null;
             }
             bool worse = deficit > lastWarnedDeficit + perLap * 0.5f;
-            if (warned && !worse && completedLaps - lastWarnedLap < 5)
+            bool confirmed = lastWarningWasProvisional && !provisionalConsumption;
+            bool newDeficit = bareDeficit > 0 && !lastWarningWasDeficit;
+            if (warned && !worse && !confirmed && !newDeficit && completedLaps - lastWarnedLap < 5)
             {
                 return null;
             }
             warned = true;
+            lastWarningWasProvisional = provisionalConsumption;
+            lastWarningWasDeficit = bareDeficit > 0;
             lastWarnedDeficit = deficit;
             lastWarnedLap = completedLaps;
+
+            if (provisionalConsumption)
+                return bareDeficit > 0
+                    ? RadioLanguage.T("Erste Hochrechnung: Bis ins Ziel könnte der Sprit knapp werden. Ich prüfe das weiter.",
+                        "First estimate: fuel could get tight to the finish. I'll keep checking.",
+                        "Primera estimación: el combustible podría ir justo hasta meta. Lo sigo vigilando.")
+                    : RadioLanguage.T("Erste Hochrechnung: Der Sprit könnte reichen, aber die Reserve ist knapp.",
+                        "First estimate: fuel might be enough, but the reserve is tight.",
+                        "Primera estimación: el combustible podría llegar, pero la reserva va justa.");
 
             if (bareDeficit <= 0)
                 return RadioLanguage.T("Sprit reicht rechnerisch bis ins Ziel. Für unsere Reserve fehlen " + Litres(deficit) + ".",
@@ -139,7 +192,7 @@ namespace CrewChiefV4.AiTeam
             return text;
         }
 
-        private static string Litres(float litres)
+        internal static string Litres(float litres)
         {
             string unit = RadioLanguage.T(" Liter", " litres", " litros");
             return litres < 1 ? RadioLanguage.Num(litres, "0.00") + unit : RadioLanguage.Num(litres, litres < 10 ? "0.0" : "0") + unit;

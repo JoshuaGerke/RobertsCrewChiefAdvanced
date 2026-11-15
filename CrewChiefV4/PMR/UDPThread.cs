@@ -20,6 +20,7 @@ namespace CrewChiefV4.PMR
         public static UInt16 m_expectedVersion = 1;
 
         private DataStore m_dataStore = null;
+        private DateTime nextInvalidPacketWarning = DateTime.MinValue;
 
         public UDPThread(DataStore ds, string[] args)
         {
@@ -64,8 +65,18 @@ namespace CrewChiefV4.PMR
             return defaultValue;
         }
 
+        internal static bool SupportedHeader(byte[] data)
+        {
+            if (data == null || data.Length < 3) return false;
+            ushort version = BitConverter.ToUInt16(data, 1);
+            return data[0] == (byte)UDPPacketType.RaceInfo && version == UDPRaceInfo.m_expectedPacketVersion ||
+                data[0] == (byte)UDPPacketType.ParticipantRaceState && version == UDPParticipantRaceState.m_expectedPacketVersion ||
+                data[0] == (byte)UDPPacketType.ParticipantVehicleTelemetry && version == UDPVehicleTelemetry.m_expectedPacketVersion;
+        }
+
         private void decodePacket(ref byte[] data)
         {
+            if (!SupportedHeader(data)) { WarnInvalidPacket("unsupported or incomplete header"); return; }
             byte packetType = data[0];
             if (packetType == (byte)UDPPacketType.RaceInfo)
             {
@@ -86,6 +97,13 @@ namespace CrewChiefV4.PMR
             m_dataStore.writeTimestamp();
         }
 
+        private void WarnInvalidPacket(string reason)
+        {
+            if (DateTime.UtcNow < nextInvalidPacketWarning) return;
+            nextInvalidPacketWarning = DateTime.UtcNow.AddSeconds(10);
+            Console.WriteLine("PMR: telemetry packet ignored (" + reason + ").");
+        }
+
         private void doWork(object thread)
         {
             // Create an endpoint to store the sender's address
@@ -101,6 +119,10 @@ namespace CrewChiefV4.PMR
                 }
                 catch (SocketException) {
                     Console.WriteLine("UDPClient Closed");
+                }
+                catch (Exception e) when (e is ArgumentException || e is IndexOutOfRangeException || e is OverflowException)
+                {
+                    WarnInvalidPacket(e.GetType().Name);
                 }
             }
         }

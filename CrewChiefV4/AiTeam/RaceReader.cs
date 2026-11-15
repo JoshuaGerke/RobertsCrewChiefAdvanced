@@ -98,6 +98,7 @@ namespace CrewChiefV4.AiTeam
             var balance = FuelEstimate.From(context);
             data["spritprojektion"] = balance == null ? null : new JObject {
                 ["verbrauch_l_runde"] = Math.Round(balance.PerLap, 3),
+                ["verbrauch_vorlaeufig"] = balance.ProvisionalConsumption,
                 ["restrunden"] = Math.Round(balance.LapsRemaining, 2),
                 ["restrunden_geschaetzt"] = balance.EstimatedFromTime,
                 ["fehlmenge_ohne_reserve_l"] = Math.Round(balance.AdditionalWithoutReserve, 2),
@@ -196,7 +197,7 @@ namespace CrewChiefV4.AiTeam
         {
             var gs = context.GameState;
             var op = RaceDataTools.Neighbour(gs, ahead);
-            if (op == null || !op.IsActive) return null;
+            if (op == null || !op.IsActive || context.Tracks != null && !context.Tracks.OpponentFresh(context, op)) return null;
             string key = gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, op)).Key;
             if (key == null || op.CarClass == null || gs.carClass == null ||
                 !CarData.IsCarClassEqual(gs.carClass, op.CarClass, false)) return null;
@@ -261,17 +262,23 @@ namespace CrewChiefV4.AiTeam
             string group = (ahead ? "pace-front-" : "pace-rear-") + (advantage.Value > 0 ? "faster" : "slower");
             string name = context.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
             if (!variants.TryGetValue(topic, out var cursor)) variants[topic] = cursor = new RadioVariantCursor();
-            string text = name.Length > 0 ? RadioPhraseCatalog.Current.Format(group, cursor.Heard, amount, name) :
+            int index = cursor.Select(group, RadioPhraseCatalog.Current.Count(group));
+            string text = name.Length > 0 ? RadioPhraseCatalog.Current.Format(group, index, amount, name) :
                 advantage.Value > 0 ? "Unser Rundenschnitt ist " + amount + " Sekunden schneller als beim Klassenrivalen " + (ahead ? "vor" : "hinter") + " dir." :
                 "Der Klassenrivale " + (ahead ? "vor" : "hinter") + " dir fährt im Schnitt " + amount + " Sekunden schneller.";
             pending = new ObservedRaceCall { Topic = topic, Text = text, VariantCursor = cursor,
-                FieldNamesAllowed = name.Length > 0, ReferenceTemplate = "RRCA/" + group,
+                FieldNamesAllowed = name.Length > 0, ReferenceTemplate = "RRCA/anonymous-" + group,
                 Member = TeamMember.Mik, Priority = 3, Position = -1, SessionId = session, SessionType = type,
                 CompletedLaps = lap, DetectedUtc = context.NowUtc, ExpiresUtc = context.NowUtc.AddSeconds(10),
                 Evidence = "three_valid_consecutive_laps_same_identified_class_rival;mean_difference=" + advantage.Value.ToString("F3", CultureInfo.InvariantCulture),
                 AdditionalValidity = live => live.OpponentData.TryGetValue(key, out var current) && Identity(key, current) == identity &&
                     !current.InPits && current.IsActive && (RaceDataTools.Neighbour(live, ahead) == current) &&
                     current.OpponentLapData.Where(l => Good(l.LapTime, 10, 3600)).Select(l => l.LapNumber).DefaultIfEmpty(-1).Max() == opponentLap };
+            if (name.Length > 0) pending.BindVariant(cursor, group, index);
+            if (context.Tracks != null)
+                pending.TimedValidity = (live, at) => context.Tracks.OpponentFresh(new RaceDataContext { GameState=live, NowUtc=at,
+                    LastTelemetryUtc=live.SourceTelemetryUtc == DateTime.MinValue ? live.Now : live.SourceTelemetryUtc },
+                    RaceDataTools.Neighbour(live, ahead));
             LiveDiagnostics.Decision(topic, "detected", pending.Evidence);
         }
 
@@ -356,7 +363,7 @@ namespace CrewChiefV4.AiTeam
             return copy;
         }
 
-        internal static string Identity(string key, OpponentData op) => key + "|" + op.DriverRawName + "|" + op.CarNumber + "|" + op.CostId;
+        internal static string Identity(string key, OpponentData op) => key + "|" + op.DriverRawName + "|" + op.CarNumber + "|" + op.CostId + "|" + op.r3eUserId + "|" + op.r3eSlotId;
         private static bool KnownTyre(TyreType tyre) => tyre != TyreType.Unknown_Race && tyre != TyreType.Uninitialized;
         private static bool Good(double value, double low, double high) => !double.IsNaN(value) && !double.IsInfinity(value) && value >= low && value <= high;
         private static JToken Number(double? value) => value.HasValue ? (JToken)Math.Round(value.Value, 3) : null;

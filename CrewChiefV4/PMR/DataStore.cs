@@ -7,11 +7,22 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Diagnostics;
 
 namespace CrewChiefV4.PMR
 {
     public class DataStore
     {
+        private readonly Func<long> monotonicClock;
+        private readonly long monotonicFrequency;
+        private readonly Dictionary<int,long> raceStateTicks = new Dictionary<int,long>();
+        private readonly Dictionary<int,long> telemetryTicks = new Dictionary<int,long>();
+        public DataStore() : this(Stopwatch.GetTimestamp, Stopwatch.Frequency) { }
+        internal DataStore(Func<long> clock, long frequency)
+        {
+            if (clock == null || frequency <= 0) throw new ArgumentException("Invalid monotonic clock.");
+            monotonicClock = clock; monotonicFrequency = frequency; m_writeTimestamp = clock();
+        }
         public void writeRaceInfo(UDPRaceInfo raceInfo)
         {
             lock (m_lock)
@@ -19,6 +30,7 @@ namespace CrewChiefV4.PMR
                 m_raceInfo = raceInfo;
                 if (m_raceInfo.m_numParticipants == 0)
                 {
+                    raceStateTicks.Clear(); telemetryTicks.Clear();
                     m_raceStates.Clear();
                     m_statusUpdates.Clear();
                     m_telemetry.Clear();
@@ -34,6 +46,7 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
+                raceStateTicks[raceState.m_vehicleId] = monotonicClock();
                 bool stateFound = false;
                 for (int i = 0; i < m_raceStates.Count; i++)
                 {
@@ -58,6 +71,7 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
+                telemetryTicks[telemetry.m_vehicleId] = monotonicClock();
                 for (int i = 0; i < m_telemetry.Count; i++)
                 {
                     if (m_telemetry[i].m_vehicleId == telemetry.m_vehicleId)
@@ -93,6 +107,7 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
+                raceStateTicks.Clear(); telemetryTicks.Clear();
                 m_raceInfo = null;
                 m_raceInfoString = string.Empty;
 
@@ -239,7 +254,7 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
-                m_writeTimestamp = DateTime.Now;
+                m_writeTimestamp = monotonicClock();
             }
         }
 
@@ -247,7 +262,10 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
-                return (DateTime.Now - m_writeTimestamp).Seconds;
+                long current = monotonicClock();
+                if (current < m_writeTimestamp) return int.MaxValue;
+                double seconds = ((double)current - m_writeTimestamp) / monotonicFrequency;
+                return seconds >= int.MaxValue ? int.MaxValue : (int)seconds;
             }
         }
 
@@ -267,6 +285,34 @@ namespace CrewChiefV4.PMR
             }
         }
 
+        // Main mapper snapshot only. The native spotter keeps its independent reader path.
+        internal PMRUDPReader.PMRStructWrapper FreshSnapshot()
+        {
+            lock(m_lock)
+            {
+                long clock=monotonicClock(), utc=DateTime.UtcNow.Ticks;
+                var states=m_raceStates.Where(s=>PacketAge(raceStateTicks,s.m_vehicleId,clock)<=5).ToList();
+                var telemetry=m_telemetry.Where(t=>PacketAge(telemetryTicks,t.m_vehicleId,clock)<=5).ToList();
+                states.Sort();
+                var players=states.Where(s=>s.m_isPlayer).Take(2).ToArray();
+                var player=players.Length==1?players[0]:null;
+                var own=player==null?null:telemetry.FirstOrDefault(t=>t.m_vehicleId==player.m_vehicleId);
+                long source=0;
+                if(own!=null)
+                {
+                    double age=Math.Max(PacketAge(raceStateTicks,player.m_vehicleId,clock),PacketAge(telemetryTicks,player.m_vehicleId,clock));
+                    source=utc-(long)(age*TimeSpan.TicksPerSecond);
+                }
+                return new PMRUDPReader.PMRStructWrapper {ticksWhenRead=utc,sourceSampleTicks=source,
+                    RaceInfo=m_raceInfo,Leaderboard=states,AllTelemetry=telemetry,PlayerRaceState=player,PlayerTelemetry=own};
+            }
+        }
+        private double PacketAge(Dictionary<int,long> received,int id,long now)
+        {
+            long at;
+            return received.TryGetValue(id,out at) && now>=at ? ((double)now-at)/monotonicFrequency : double.PositiveInfinity;
+        }
+
         private object m_lock = new object();
 
         private UDPRaceInfo m_raceInfo = null;
@@ -278,7 +324,7 @@ namespace CrewChiefV4.PMR
         private List<UDPParticipantRaceState> m_prevRaceStates = null;
         private List<UDPParticipantRaceState> m_leaderboardEntries = new List<UDPParticipantRaceState>();
 
-        private DateTime m_writeTimestamp = DateTime.Now;
+        private long m_writeTimestamp;
         public string m_raceInfoString = string.Empty;
         public List<string> m_statusUpdates = new List<string>();
     }

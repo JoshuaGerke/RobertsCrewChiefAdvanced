@@ -47,6 +47,21 @@ namespace UnitTest.AiTeamTests
             s.OpponentData["rival"].Speed=0;s.OpponentData["rival"].DriverRawName="Someone else";Assert.IsFalse(call.IsValid(s,T));
         }
         [Test]
+        public void Native_stopped_car_names_the_unique_driver_when_permitted()
+        {
+            var state = State();
+            Publish(state);
+            var named = Tick(state, new LiveWarningDispatcher(), 0);
+            Assert.AreEqual("Das ist Nick Heidfeld.", named.OpponentNameClip);
+            state.OpponentData["rival"].r3eSlotId = 19;
+            Assert.IsFalse(named.IsValid(state, T));
+            watch.Reset();
+            Publish(state);
+            var output = new LiveWarningDispatcher();
+            watch.Observe(state, T, output, null, false);
+            Assert.IsNull(output.Take(state, T, false, _ => true).OpponentNameClip);
+        }
+        [Test]
         public void Pit_car_inactive_car_same_landmark_and_stale_source_do_not_create_ahead_warnings()
         {
             var s=State();var car=s.OpponentData["rival"];car.InPits=true;Assert.IsFalse(NativeIncidentWatch.IsAhead(s,"rival",car.DriverRawName,"turn_4",T));

@@ -77,6 +77,7 @@ namespace CrewChiefV4.AMS2
         private DateTime nextDebugCheckeredToFinishMessageTime = DateTime.MinValue;
 
         private static int lastGuessAtPlayerIndex = -1;
+        private static string lastPlayingDriverName;
 
         Dictionary<string, DateTime> lastActiveTimeForOpponents = new Dictionary<string, DateTime>();
         DateTime nextOpponentCleanupTime = DateTime.MinValue;
@@ -145,6 +146,8 @@ namespace CrewChiefV4.AMS2
 
         public static int getPlayerIndex(ams2APIStruct ams2APIStruct)
         {
+            if (!ValidParticipantIndex(ams2APIStruct, ams2APIStruct.mViewedParticipantIndex))
+                return -1;
             // we have no idea where in the participants array the local player is. No idea at all. And there's no way to work it out.
             // Offline it's generally 0. Online it can be anything. We can't use mViewedParticipantIndex here because monitoring other
             // cars will fck up the internal state. mViewedParticipantIndex is random and wrong when you first enter a session so we 
@@ -154,6 +157,7 @@ namespace CrewChiefV4.AMS2
             if (ams2APIStruct.mGameState == (uint)eGameState.GAME_INGAME_PLAYING)
             {
                 lastGuessAtPlayerIndex = ams2APIStruct.mViewedParticipantIndex;
+                lastPlayingDriverName = StructHelper.getNameFromBytes(ams2APIStruct.mParticipantData[lastGuessAtPlayerIndex].mName);
                 //Console.WriteLine("Playing, updating player index guess to " + ams2APIStruct.mViewedParticipantIndex + 
                 //    " player name " + StructHelper.getNameFromBytes(ams2APIStruct.mParticipantData[lastGuessAtPlayerIndex].mName));                
             }
@@ -163,7 +167,18 @@ namespace CrewChiefV4.AMS2
                 // all we can do here is report what the game tells us, even though it'll be wrong
                 return ams2APIStruct.mViewedParticipantIndex;
             }
+            if (!ValidParticipantIndex(ams2APIStruct, lastGuessAtPlayerIndex)) return -1;
+            // A slot can be reassigned while the user stays in the menu. Never inherit that driver's telemetry.
+            if (!string.IsNullOrEmpty(lastPlayingDriverName) && !string.Equals(lastPlayingDriverName,
+                StructHelper.getNameFromBytes(ams2APIStruct.mParticipantData[lastGuessAtPlayerIndex].mName), StringComparison.Ordinal)) return -1;
             return lastGuessAtPlayerIndex;
+        }
+
+        internal static bool ValidParticipantIndex(ams2APIStruct data, int index)
+        {
+            return data.mParticipantData != null && data.mNumParticipants > 0 && data.mNumParticipants <= 64 &&
+                data.mNumParticipants <= data.mParticipantData.Length && index >= 0 && index < data.mNumParticipants &&
+                data.mParticipantData[index].mIsActive;
         }
 
         /// <summary>MMF publishes the live lap timer directly. UDP has only per-sector timers;
@@ -210,7 +225,7 @@ namespace CrewChiefV4.AMS2
                 CrewChief.trackName = StructHelper.getNameFromBytes(shared.mTrackLocation) + ":" + StructHelper.getNameFromBytes(shared.mTrackVariation);
                 CrewChief.carClass = CarData.getCarClassForClassNameOrCarName(StructHelper.getNameFromBytes(shared.mCarClassName)).carClassEnum;
                 CrewChief.viewingReplay = true;
-                if (shared.mViewedParticipantIndex != -1)
+                if (ValidParticipantIndex(shared, shared.mViewedParticipantIndex))
                 {
                     CrewChief.distanceRoundTrack = shared.mParticipantData[shared.mViewedParticipantIndex].mCurrentLapDistance;
                 }
@@ -371,6 +386,7 @@ namespace CrewChiefV4.AMS2
                 )
             {
                 lastGuessAtPlayerIndex = -1;
+                lastPlayingDriverName = null;
                 lastActiveTimeForOpponents.Clear();
                 nextOpponentCleanupTime = currentGameState.Now + opponentCleanupInterval;
                 Console.WriteLine("New session, trigger...");

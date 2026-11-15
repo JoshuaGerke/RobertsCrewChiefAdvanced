@@ -8,7 +8,7 @@ namespace CrewChiefV4.Events
 {
     /// <summary>
     /// Verbindet das KI-Team (Ben, Mik, Sara) mit dem Crew-Chief-Eventsystem. Liest nur, schreibt nichts
-    /// in den GameState und spielt selbst nichts ab – alles Schwere läuft asynchron im <see cref="AiTeamService"/>.
+    /// in den GameState und übergibt die Zustandskanten synchron an <see cref="AiTeamService"/>.
     /// </summary>
     public class AiTeamEvent : AbstractEvent
     {
@@ -18,15 +18,19 @@ namespace CrewChiefV4.Events
             AiTeamService.Instance.Attach(audioPlayer);
         }
 
-        public override List<SessionType> applicableSessionTypes
+        private static readonly List<SessionType> SupportedTypes = new List<SessionType>
         {
-            get { return new List<SessionType> { SessionType.Practice, SessionType.Qualify, SessionType.PrivateQualify, SessionType.Race, SessionType.HotLap, SessionType.LonePractice }; }
-        }
+            SessionType.Practice, SessionType.Qualify, SessionType.PrivateQualify, SessionType.Race, SessionType.HotLap, SessionType.LonePractice
+        };
 
-        public override List<SessionPhase> applicableSessionPhases
+        private static readonly List<SessionPhase> SupportedPhases = new List<SessionPhase>
         {
-            get { return new List<SessionPhase> { SessionPhase.Garage, SessionPhase.Gridwalk, SessionPhase.Formation, SessionPhase.Countdown, SessionPhase.Green, SessionPhase.FullCourseYellow, SessionPhase.Checkered, SessionPhase.Finished }; }
-        }
+            SessionPhase.Garage, SessionPhase.Gridwalk, SessionPhase.Formation, SessionPhase.Countdown,
+            SessionPhase.Green, SessionPhase.FullCourseYellow, SessionPhase.Checkered, SessionPhase.Finished
+        };
+
+        public override List<SessionType> applicableSessionTypes => SupportedTypes;
+        public override List<SessionPhase> applicableSessionPhases => SupportedPhases;
 
         public override void clearState()
         {

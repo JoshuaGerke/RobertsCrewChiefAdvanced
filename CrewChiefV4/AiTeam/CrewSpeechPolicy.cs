@@ -8,11 +8,14 @@ namespace CrewChiefV4.AiTeam
     /// This is preparation only; the existing audio queue still gives Sara exclusive safety priority.</summary>
     public sealed class RadioRenderGate
     {
-        private int regular,urgent,preparedRoutine;
+        private int regular,urgent,preparedRoutine,result;
         public bool PreparedRoutineBusy => Volatile.Read(ref preparedRoutine) != 0;
         public bool TryHoldRoutine() => Interlocked.CompareExchange(ref preparedRoutine, 1, 0) == 0;
         public void ReleaseRoutine() => Interlocked.Exchange(ref preparedRoutine, 0);
         public bool Busy {get{return Volatile.Read(ref regular)!=0 || Volatile.Read(ref urgent)!=0;}}
+        public bool ResultBusy => Volatile.Read(ref result) != 0;
+        public bool TryEnterResult() => !UrgentBusy && Interlocked.CompareExchange(ref result, 1, 0) == 0;
+        public void ExitResult() => Interlocked.Exchange(ref result, 0);
         public bool UrgentBusy {get{return Volatile.Read(ref urgent)!=0;}}
         public bool TryEnter(bool urgentCall)
         {
@@ -32,7 +35,7 @@ namespace CrewChiefV4.AiTeam
     {
         private static readonly string[] FirstTrackLimitPhrasesDe = {
             "Pass auf die Streckenbegrenzung auf.",
-            "Die Simulation meldet Tracklimits. Lass etwas Platz zum Rand.",
+            "Die Rennkommissare melden Tracklimits. Lass etwas Platz zum Rand.",
             "Achte auf die Limits. Bleib innerhalb der Begrenzung."
         };
         private static readonly string[] FirstTrackLimitPhrasesEn = {
@@ -48,7 +51,7 @@ namespace CrewChiefV4.AiTeam
         public static string[] FirstTrackLimitPhrases => RadioLanguage.Pick(FirstTrackLimitPhrasesDe, FirstTrackLimitPhrasesEn, FirstTrackLimitPhrasesEs);
         private static readonly string[] RepeatedTrackLimitPhrasesDe = {
             "Wieder außerhalb der Limits. Lass etwas mehr Platz zum Rand.",
-            "Noch eine Tracklimit-Meldung. Nimm am Rand etwas mehr Reserve.",
+            "Wieder Tracklimits von den Rennkommissaren. Lass etwas mehr Reserve.",
             "Schon wieder über den Limits. Bleib sauber auf der Strecke."
         };
         private static readonly string[] RepeatedTrackLimitPhrasesEn = {
@@ -297,6 +300,15 @@ namespace CrewChiefV4.AiTeam
         public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
         { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
 
+        internal static bool CanInterruptForResult(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority)
+        { return currentIsAi && !currentIsSpotter && !currentIsBleep && currentPriority < 4; }
+
+        internal static DateTime EngineerPlaybackDeadline(DateTime deadline, DateTime queued, bool safetyRadio, bool engineerCritical)
+        {
+            DateTime spare = queued.AddMilliseconds(500);
+            return safetyRadio && engineerCritical && spare < deadline ? spare : deadline;
+        }
+
         public static bool HasSpokenText(string text)
         { return text != null && text.Any(char.IsLetterOrDigit); }
 
@@ -313,8 +325,11 @@ namespace CrewChiefV4.AiTeam
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
-                member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase) ||
-                member == TeamMember.Ben && (TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) || TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) || RaceTrafficWatch.PreparedPhrases.Contains(text) || NativeIncidentWatch.Phrases.Contains(text));
+                member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase || text == SessionLapObserver.TimedLapApproachPhrase) ||
+                member == TeamMember.Ben && (text == TrackSituationWatch.ClosingAheadPhrase || text == IncidentWatch.DamagePitAdvicePhrase ||
+                    TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) ||
+                    TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) ||
+                    RaceTrafficWatch.PreparedPhrases.Contains(text) || NativeIncidentWatch.Phrases.Contains(text));
         }
 
         public static bool CacheOnly(bool automatic, int priority, TeamMember member)

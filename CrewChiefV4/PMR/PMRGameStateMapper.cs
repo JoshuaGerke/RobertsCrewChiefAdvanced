@@ -149,6 +149,8 @@ namespace CrewChiefV4.PMR
             // Create the game state and attach the raw UDP data object for trace / debug
             GameStateData currentGameState = new GameStateData(ticksWhenRead);
             currentGameState.rawGameData = wrapper;
+            if(wrapper.sourceSampleTicks>0 && wrapper.sourceSampleTicks<=ticksWhenRead)
+                currentGameState.SourceTelemetryUtc=new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc);
             var sData = currentGameState.SessionData;
             var pm = currentGameState.PositionAndMotionData;
             var pitData = currentGameState.PitData;

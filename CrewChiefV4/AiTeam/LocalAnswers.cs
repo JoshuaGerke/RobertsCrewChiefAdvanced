@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -22,6 +23,196 @@ namespace CrewChiefV4.AiTeam
         private static readonly char[] trimChars = { ' ', '?', '.', '!', '¿', '¡' };
 
         private static bool AnyOf(string q, params string[] parts) => parts.Any(q.Contains);
+        private static readonly CultureInfo de = CultureInfo.GetCultureInfo("de-DE");
+        internal static bool AsksAboutRecentRaceAction(string question) => Regex.IsMatch(question ?? "",
+            @"\b(?:überholt|überholen|vorbeigegangen|vorbeigekommen|platzgewinn|positionswechsel)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        internal static string RecentOwnPass(string question, RaceDataContext ctx)
+        {
+            if (!AsksAboutRecentRaceAction(question) || ctx?.Memory == null ||
+                ctx.GameState?.SessionData.SessionType != SessionType.Race || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+                !Regex.IsMatch(question, @"\b(?:ich\s+hab(?:e)?|hab(?:e)?\s+ich|ich\s+bin|bin\s+ich)\b", RegexOptions.IgnoreCase))
+                return null;
+            var gs = ctx.GameState;
+            var requested = RaceFieldTools.NamedInQuestion(question, gs);
+            if (requested.Count > 1 || requested.Count > 0 && !ctx.SendDriverNames) return null;
+            string key = requested.Count == 1 ? gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, requested[0])).Key : null;
+            if (requested.Count == 1 && key == null) return null;
+            var events = ctx.Memory.GetEvents(TimeSpan.FromSeconds(45), ctx.NowUtc)
+                .Where(e => e.TimeUtc <= ctx.NowUtc && e.Topic == "confirmed-on-track-pass" && (key == null || e.SubjectKey == key))
+                .ToArray();
+            if (events.Length == 0 || key == null && events.Length > 1) return null;
+            string rank = gs.SessionData.ClassPosition > 0 ? " Jetzt " + RaceRadioLanguage.Rank(gs.SessionData, gs.SessionData.ClassPosition) + "." : "";
+            return "Ja. " + (ctx.SendDriverNames ? events.Last().Text : "Du bist auf der Strecke an einem Klassengegner vorbeigegangen.") + rank;
+        }
+
+        internal static string FuelToFinish(string question, RaceDataContext ctx)
+        {
+            string q = DriverRadioPreferences.Normalize(question);
+            bool fuel = Regex.IsMatch(q, @"\b(?:sprit|tank|kraftstoff|verbrauch|reichweite|liter)\b");
+            bool range = Regex.IsMatch(q, @"\b(?:reicht|reichen|reicht's|hin|auskommen|schaff\w*|ziel|rennende|durchkommen|reichweite)\b");
+            if (!fuel || !range || ctx?.GameState?.SessionData.SessionType != SessionType.Race ||
+                Regex.IsMatch(q, @"\b(?:merke|speicher\w*|wunsch|strategie|undercut|overcut)\b")) return null;
+            if (ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1) return "Für die Spritrechnung fehlen frische Daten.";
+            var gs = ctx.GameState;
+            var f = gs.FuelData;
+            if (!f.FuelUseActive || !TrackAwareness.InRange(f.FuelLeft, 0, 10000).HasValue)
+                return "Ich habe gerade keinen verlässlichen Tankstand.";
+            float consumption = FuelEstimate.Consumption(ctx.Memory, gs, out bool provisional, out _);
+            if (!(consumption > 0)) return "Noch " + FuelWatch.Litres(f.FuelLeft) + ". Für die Reichweite fehlt ein gemessener Verbrauch.";
+            int requestedLaps = 0;
+            var explicitLaps = Regex.Match(q, @"\bfuer (\d{1,3}) runden\b");
+            if (explicitLaps.Success) int.TryParse(explicitLaps.Groups[1].Value, out requestedLaps);
+            var estimate = FuelEstimate.From(ctx, minimumMeasuredLaps: 1);
+            string basis = provisional ? "Hochgerechnet etwa " : "Rechnerisch etwa ";
+            string rangeText = basis + (f.FuelLeft / consumption).ToString("0.0", de) + " Runden Sprit.";
+            if (requestedLaps <= 0 && estimate == null) return rangeText + " Die Restdistanz bis ins Ziel ist noch offen.";
+            float balance = requestedLaps > 0 ? f.FuelLeft - requestedLaps * consumption : -estimate.AdditionalWithoutReserve;
+            float reserve = requestedLaps > 0 ? consumption * FuelWatch.SafetyMarginLaps : estimate.ReserveLitres;
+            string distance = requestedLaps > 0 ? "für " + requestedLaps + " Runden" : "bis ins Ziel";
+            if (balance < 0) return "Nach aktueller Rechnung fehlen " + FuelWatch.Litres(-balance) + " " + distance + ".";
+            if (balance < reserve) return "Der Sprit reicht rechnerisch " + distance + ". Die Reserve ist knapp.";
+            return "Der Sprit reicht rechnerisch " + distance + ". Etwa " + FuelWatch.Litres(balance) + " bleiben übrig.";
+        }
+
+        internal static string PreviousStintFuel(string question, RaceDataContext ctx)
+        {
+            if (ctx?.GameState == null || string.IsNullOrWhiteSpace(question) ||
+                !Regex.IsMatch(question,@"\b(?:verbrauch|verbrauch\w*|liter pro runde|sprit pro runde)\b",RegexOptions.IgnoreCase) ||
+                complexMarkers.Any(question.ToLowerInvariant().Contains) ||
+                Regex.IsMatch(question,@"\b(?:gegner|vordermann|hintermann)\b",RegexOptions.IgnoreCase) ||
+                RaceFieldTools.NamedInQuestion(question,ctx.GameState).Count != 0) return null;
+            var stint = DriverMemory.PreviousStint(ctx);
+            double? litres = (double?)stint?["gemessener_sprit_pro_runde_l"];
+            return litres.HasValue ? "Aus dieser Sitzung fehlt mir noch eine stabile Messung. Beim letzten Stint hier waren es " +
+                litres.Value.ToString("0.0",de) + " Liter pro Runde." : null;
+        }
+        private static readonly Regex TrackNeighbourQuestion = new Regex(
+            @"^(?:wer (?:ist|liegt|fährt)|(?:fährt|ist|liegt) (?:aktuell |gerade |noch )?(?:jemand|ein (?:auto|wagen|fahrzeug))|wie weit (?:ist|liegt)|wie (?:groß|knapp) ist der abstand|abstand|wie viel (?:abstand|zeit))\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex PresenceQuestion = new Regex(@"^(?:fährt|ist|liegt) (?:aktuell |gerade |noch )?(?:jemand|ein (?:auto|wagen|fahrzeug))\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex Ahead = new Regex(@"\b(?:vor mir|vor uns|nach vorn(?:e)?|vordermann|vorne)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex Behind = new Regex(@"\b(?:hinter mir|hinter uns|nach hinten|hintermann|hinten)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        internal static bool NeighbourReplyStillCurrent((string Text, string Evidence) original, (string Text, string Evidence) live)
+        {
+            if (original.Equals(live)) return true;
+            if (original.Evidence == null || original.Evidence != live.Evidence || live.Text == null) return false;
+            const string interval = @"(?<v>\d+,\d+) Sekunden";
+            var a = Regex.Matches(original.Text, interval);
+            var b = Regex.Matches(live.Text, interval);
+            if (a.Count == 0 || a.Count != b.Count || Regex.Replace(original.Text, interval, "") != Regex.Replace(live.Text, interval, ""))
+                return false;
+            for (int i = 0; i < a.Count; i++)
+                if (Math.Abs(double.Parse(a[i].Groups["v"].Value, de) - double.Parse(b[i].Groups["v"].Value, de)) > .4)
+                    return false;
+            return true;
+        }
+
+        internal static string TrackNeighbour(string question, RaceDataContext ctx) => TrackNeighbour(question, ctx, out _);
+
+        internal static string TrackNeighbour(string question, RaceDataContext ctx, out string evidence)
+        {
+            evidence = null;
+            if (string.IsNullOrWhiteSpace(question) || !TrackNeighbourQuestion.IsMatch(question.Trim()) ||
+                complexMarkers.Any(marker => question.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                Regex.IsMatch(question, @"\bbox\w*\b|\b(?:stopp|reifen|sektor|unfall|überrund)\w*\b", RegexOptions.IgnoreCase))
+                return null;
+            bool ahead = Ahead.IsMatch(question), behind = Behind.IsMatch(question);
+            if (!ahead && !behind) return null;
+            if (ctx?.GameState == null) return "Ich habe gerade keine aktuellen Verkehrsdaten.";
+            var gs = ctx.GameState;
+            DateTime source = gs.SourceTelemetryUtc == DateTime.MinValue ? gs.Now : gs.SourceTelemetryUtc;
+            if (source == DateTime.MinValue || ctx.NowUtc < source || ctx.NowUtc - source > TimeSpan.FromSeconds(1))
+                return "Ich habe gerade keine aktuellen Verkehrsdaten.";
+
+            bool physical = gs.SessionData.SessionType != SessionType.Race ||
+                PresenceQuestion.IsMatch(question.Trim()) ||
+                question.IndexOf("auf der strecke", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                question.IndexOf("in metern", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool presence = PresenceQuestion.IsMatch(question.Trim());
+            bool metresOnly = question.IndexOf("in metern", StringComparison.OrdinalIgnoreCase) >= 0;
+            string result = NeighbourAnswer(ctx, ahead, physical, presence, metresOnly, out evidence);
+            if (!ahead || !behind) return result;
+            string rear = NeighbourAnswer(ctx, false, physical, presence, metresOnly, out var rearEvidence);
+            evidence = evidence + "|" + rearEvidence;
+            return result + " " + rear;
+        }
+
+        private static string NeighbourAnswer(RaceDataContext ctx, bool ahead, bool physical, bool presence, bool metresOnly, out string evidence)
+        {
+            evidence = null;
+            var gs = ctx.GameState;
+            string direction = ahead ? "vor dir" : "hinter dir";
+            if (physical)
+            {
+                var snapshot = ctx.Tracks?.Snapshot;
+                var car = snapshot != null && snapshot.IsCurrent(ctx)
+                    ? snapshot.Cars.Where(c => !c.InPits && c.SpatiallyConsistent &&
+                        (ahead ? c.RouteGapM > 0 : c.RouteGapM < 0) &&
+                        gs.OpponentData.TryGetValue(c.Key, out var live) && live != null && live.IsActive && !live.InPits &&
+                        RaceReader.Identity("", live) == c.NativeIdentity)
+                        .OrderBy(c => Math.Abs(c.RouteGapM.Value)).FirstOrDefault()
+                    : null;
+                if (car == null) return "Ich kann das nächste Auto " + direction + " auf der Strecke gerade nicht sicher zuordnen.";
+                evidence = car.NativeIdentity;
+                string name = ctx.SendDriverNames ? car.Name : null;
+                if (presence) return (string.IsNullOrWhiteSpace(name) ? "Da fährt ein Wagen" : name + " fährt") + " " + direction + ".";
+                if (!metresOnly && car.TrackIntervalSeconds.HasValue)
+                    return (string.IsNullOrWhiteSpace(name) ? "Ein Wagen" : name) + " ist auf der Strecke ungefähr " +
+                        car.TrackIntervalSeconds.Value.ToString("0.0", de) + " Sekunden " + direction + ".";
+                double distance = Math.Round(Math.Abs(car.RouteGapM.Value) / 5) * 5;
+                return (string.IsNullOrWhiteSpace(name) ? "Ein Wagen" : name) +
+                    " ist auf der Strecke " + (distance < 5 ? "direkt " : "etwa " + distance.ToString("0", de) + " Meter ") + direction + ".";
+            }
+
+            var rival = RaceDataTools.Neighbour(gs, ahead);
+            if (rival == null) return "Ich kann den Nachbarn " + direction + " in der Wertung gerade nicht sicher zuordnen.";
+            evidence = RaceReader.Identity(ahead ? gs.SessionData.OpponentKeyInFront : gs.SessionData.OpponentKeyBehind, rival);
+            string who = ctx.SendDriverNames && rival.CanUseName ? RadioPhraseCatalog.SafeRivalName(rival.DriverRawName) : "";
+            var gap = RaceDataTools.ReadGap(ctx, rival, ahead);
+            string basis = RaceRadioLanguage.SeparateClass(gs.SessionData) ? "In deiner Klasse " : "In der Wertung ";
+            if (!gap.IsRaceGap || gap.Kind == RaceGapKind.TrackDistanceEstimate)
+                return basis + "liegt " + (string.IsNullOrWhiteSpace(who) ? "ein Gegner" : who) + " " + direction +
+                    ". Einen Zeitabstand habe ich gerade nicht sicher.";
+            string interval = (gap.IsEstimated ? "etwa " : "") + gap.Seconds.ToString("0.0", de) + " Sekunden";
+            return RaceRadioLanguage.MeasuredGap(ahead, who, interval, RaceRadioLanguage.SeparateClass(gs.SessionData));
+        }
+
+        internal static string CompareRivalLap(string question, RaceDataContext ctx)
+        {
+            if (ctx?.GameState == null || string.IsNullOrWhiteSpace(question) || ctx.TelemetryAgeSeconds < 0 ||
+                ctx.TelemetryAgeSeconds > 1 || !Regex.IsMatch(question, @"\b(rundenzeitvergleich|rundenzeit(en)?|bestzeit(en)?|letzte runde)\b",
+                    RegexOptions.IgnoreCase) || !Regex.IsMatch(question, @"\b(vergleich\w*|schneller|langsamer|rundenzeitvergleich|gegen|unterschied|differenz)\b",
+                    RegexOptions.IgnoreCase)) return null;
+            var gs = ctx.GameState;
+            var matches = RaceFieldTools.NamedInQuestion(question, gs);
+            if (matches.Count > 0 && !ctx.SendDriverNames) return "Die Namensfreigabe ist ausgeschaltet.";
+            if (matches.Count > 1) return "Welche Startnummer meinst du?";
+            bool ahead = Ahead.IsMatch(question), behind = Behind.IsMatch(question);
+            var car = matches.Count == 1 ? matches[0] : ahead != behind && gs.SessionData.SessionType == SessionType.Race ?
+                RaceDataTools.Neighbour(gs, ahead) : null;
+            if (car == null || !car.IsActive || car.InPits) return null;
+            if (ctx.Tracks != null && !ctx.Tracks.OpponentFresh(ctx, car))
+                return "Für den Vergleich fehlen mir gerade frische Daten zu diesem Fahrer.";
+            bool best = Regex.IsMatch(question, @"\bbestzeit(en)?\b", RegexOptions.IgnoreCase);
+            float own = best ? gs.SessionData.PlayerLapTimeSessionBest : gs.SessionData.LapTimePrevious;
+            float rival = best ? car.CurrentBestLapTime : car.LastLapTime;
+            if (!best && (!gs.SessionData.PreviousLapWasValid || !car.LastLapValid) ||
+                !TrackAwareness.InRange(own, 10, 3600).HasValue || !TrackAwareness.InRange(rival, 10, 3600).HasValue)
+                return "Für den Rundenzeitvergleich fehlen gültige Zeiten.";
+            string name = ctx.SendDriverNames && car.CanUseName ? RadioPhraseCatalog.SafeRivalName(car.DriverRawName) : "";
+            if (name.Length == 0) name = "Der Gegner";
+            double delta = rival - own;
+            if (Math.Abs(delta) < .05) return (best ? "Eure Bestzeiten" : "Eure letzten gültigen Runden") + " liegen fast gleichauf.";
+            return (best ? "Bei der Bestzeit liegt " + name + " " + GermanRadioText.Interval(Math.Abs(delta)) +
+                (delta < 0 ? " vorn." : " hinter dir.") : "Letzte Runde war " + name + " " +
+                GermanRadioText.Interval(Math.Abs(delta)) + (delta < 0 ? " schneller." : " langsamer."));
+        }
 
         public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory, bool allowDriverNames = true)
         {
@@ -80,13 +271,13 @@ namespace CrewChiefV4.AiTeam
                     return RadioLanguage.T("Gerade kein verlässlicher Tankstand.", "No reliable fuel reading right now.", "Ahora mismo no hay un nivel de combustible fiable.");
                 }
                 string litres = RadioLanguage.Num(gs.FuelData.FuelLeft, "0");
-                float perLap = memory != null ? memory.AverageFuelPerLap() : -1;
+                float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out _);
                 if (perLap > 0)
                 {
                     int laps = (int)Math.Floor(gs.FuelData.FuelLeft / perLap);
-                    return RadioLanguage.T("Noch " + litres + " Liter, das reicht für etwa " + laps + (laps == 1 ? " Runde." : " Runden."),
-                        litres + " litres left, good for about " + laps + (laps == 1 ? " lap." : " laps."),
-                        "Quedan " + litres + " litros, dan para " + (laps == 1 ? "más o menos una vuelta." : "unas " + laps + " vueltas."));
+                    return RadioLanguage.T("Noch " + litres + " Liter. " + (provisional ? "Erste Schätzung: etwa " : "Das reicht für etwa ") + laps + (laps == 1 ? " Runde." : " Runden."),
+                        litres + " litres left. " + (provisional ? "First estimate: about " : "Good for about ") + laps + (laps == 1 ? " lap." : " laps."),
+                        "Quedan " + litres + " litros. " + (provisional ? "Primera estimación: unas " : "Dan para unas ") + laps + (laps == 1 ? " vuelta." : " vueltas."));
                 }
                 return RadioLanguage.T("Noch " + litres + " Liter im Tank. Den Verbrauch hab ich noch nicht sauber gemessen.",
                     litres + " litres in the tank. I haven't measured consumption cleanly yet.",

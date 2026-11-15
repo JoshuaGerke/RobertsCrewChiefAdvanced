@@ -54,8 +54,9 @@ namespace UnitTest.AiTeamTests
                     if (web.CoreWebView2 == null) throw new TimeoutException("WebView2 was not initialized within 25 seconds.");
                     if (!liveRefreshRequested)
                     {
-                        string ready = await web.CoreWebView2.ExecuteScriptAsync("!!document.querySelector('#rrca-diag-status')");
+                        string ready = await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-save')?.disabled === false");
                         if (ready != "true" && DateTime.UtcNow < timeout) { timer.Start(); return; }
+                        Assert.AreEqual("true", ready, "The host did not complete the settings handshake.");
                         await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-diag-status').textContent='STALE'");
                         GameDataConnectionStatus.Record("RaceRoom", DateTime.UtcNow);
                         typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
@@ -89,9 +90,7 @@ namespace UnitTest.AiTeamTests
                         Assert.IsNotEmpty(dataRoot, "This UI test must be isolated from the real driver profile.");
                         Assert.IsTrue(System.IO.Directory.GetFiles(dataRoot, "*.json", System.IO.SearchOption.AllDirectories)
                             .Any(path => System.IO.File.ReadAllText(path).Contains("Robert Gerke")), "Driver name was not persisted to the isolated profile.");
-                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-setting=driverNickname]').value=''; " +
-                            "document.querySelector('#rrca-auto').checked=false");
-                        typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-auto').click()");
                         profileStage = 3; timer.Start(); return;
                     }
                     if (profileStage == 3)
@@ -100,8 +99,8 @@ namespace UnitTest.AiTeamTests
                         if ((hint == null || hint == "null") && DateTime.UtcNow < timeout) { timer.Start(); return; }
                         TestContext.WriteLine(await web.CoreWebView2.ExecuteScriptAsync("JSON.stringify({url:location.href,ready:document.readyState,found:!!document.getElementById('rrca-sub'),text:document.getElementById('rrca-sub')?.textContent})"));
                         StringAssert.Contains("Start drücken", hint, "Disabled auto detection must not claim that the crew starts by itself.");
-                        // Restore the default switch value for the existing fresh-profile assertions.
-                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-auto').checked=true");
+                        // Restore the default using the same WebView command as a real click.
+                        await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#rrca-auto').click()");
                         string preset=await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-page=settings]').click(); " +
                             "document.querySelector('[data-topic=weather] [data-part=seconds]').value=45; " +
                             "document.querySelector('[data-topic=weather] [data-part=on]').checked=false; " +
@@ -155,6 +154,9 @@ namespace UnitTest.AiTeamTests
                         // Freeze only this isolated form's polling for a controlled UI fixture, not the app engine.
                         var liveTimer=(Timer)typeof(RrcaForm).GetField("live",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(form);
                         liveTimer.Stop();
+                        GameDataConnectionStatus.Clear();
+                        typeof(RrcaForm).GetMethod("PushLive", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(form, null);
+                        await System.Threading.Tasks.Task.Delay(100);
                         web.CoreWebView2.PostWebMessageAsJson(new Newtonsoft.Json.Linq.JObject {
                             ["type"]="live",["connected"]=false,["running"]=false,
                             ["radio"]=new Newtonsoft.Json.Linq.JArray(new Newtonsoft.Json.Linq.JObject {

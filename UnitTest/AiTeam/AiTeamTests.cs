@@ -106,13 +106,45 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Sara_Abstand_nach_hinten_aus_Telemetrie()
+        public void Lokaler_Rennabstand_nennt_zugeordneten_Hintermann_und_verwirft_alte_Zahlen()
         {
             var gs = new GameStateData(1);
+            gs.Now = gs.SourceTelemetryUtc = now;
+            gs.SessionData.SessionType = SessionType.Race;
+            gs.SessionData.ClassPosition = 2;
+            gs.SessionData.OpponentKeyBehind = "rear";
+            gs.SessionData.LapsDeltaBehind = 0;
             gs.SessionData.TimeDeltaBehind = 0.84f;
-            Assert.AreEqual("Hinter dir 0,8 Sekunden.", SaraLocal.TryAnswer("wie weit ist der hinter mir weg", SpotterSnapshot.None, gs, now));
+            gs.carClass = new CrewChiefV4.CarData.CarClass { carClassEnum = CrewChiefV4.CarData.CarClassEnum.GT3 };
+            gs.OpponentData["rear"] = new OpponentData { DriverRawName = "Alex Wurz", IsActive = true, ClassPosition = 3, CarClass = gs.carClass };
+            var ctx = Ctx(gs);
+            ctx.SendDriverNames = true;
+            string answer = LocalAnswers.TrackNeighbour("wie weit ist der hinter mir weg", ctx);
+            StringAssert.Contains("Alex Wurz", answer);
+            StringAssert.Contains("0,8 Sekunden", answer);
+            ctx.SendDriverNames = false;
+            StringAssert.DoesNotContain("Wurz", LocalAnswers.TrackNeighbour("wer ist hinter mir", ctx));
             gs.SessionData.TimeDeltaBehind = -1;
-            StringAssert.Contains("liefert die Simulation gerade nicht", SaraLocal.TryAnswer("wer ist hinter mir", SpotterSnapshot.None, gs, now));
+            StringAssert.Contains("Zeitabstand habe ich gerade nicht sicher", LocalAnswers.TrackNeighbour("wer ist hinter mir", ctx));
+            ctx.NowUtc = now.AddSeconds(2);
+            StringAssert.DoesNotContain("Wurz", LocalAnswers.TrackNeighbour("wer ist hinter mir", ctx));
+        }
+
+        [Test]
+        public void Sektorzeiten_erscheinen_vor_der_ersten_Ziellinie()
+        {
+            var gs = new GameStateData(now.Ticks);
+            gs.SourceTelemetryUtc = now;
+            gs.SessionData.SessionType = SessionType.Qualify;
+            gs.SessionData.playerStartNewLap(1, 1, false, 100);
+            gs.SessionData.playerAddCumulativeSectorData(1, 1, 34.25f, 134.25f, true, false, 33, 25);
+            gs.SessionData.SectorNumber = 2;
+            var ctx = Ctx(gs);
+            var times = RaceDataTools.Execute("get_lap_times", ctx);
+            Assert.AreEqual(34.25, (double)times["laufende_runde"]["abgeschlossene_sektoren"][0]["zeit_s"]);
+            Assert.IsNull(times["letzte_runden"]);
+            gs.SessionData.CompletedLaps = 1;
+            Assert.IsNull(RaceDataTools.Execute("get_lap_times", ctx)["laufende_runde"]);
         }
 
         // ---------- Datenwahrheit (Test 6, Kapitel 7.5) ----------

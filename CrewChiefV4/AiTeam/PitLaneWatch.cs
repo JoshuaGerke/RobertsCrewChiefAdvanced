@@ -168,11 +168,12 @@ namespace CrewChiefV4.AiTeam
         private ObservedRaceCall Call(GameStateData gs,DateTime now,string topic,string text,int priority,Func<GameStateData,bool> valid,string evidence)
         {
             int callEpoch=epoch;
-            LiveDiagnostics.Decision(topic,"detected",evidence,text);
-            return new ObservedRaceCall {Topic=topic,Text=text,Evidence=evidence,Member=TeamMember.Mik,Priority=priority,
+            var call = new ObservedRaceCall {Topic=topic,Text=text,Evidence=evidence,Member=TeamMember.Mik,Priority=priority,
                 Position=-1,SessionId=gs.SessionData.SessionId,SessionType=gs.SessionData.SessionType,DetectedUtc=now,
                 ExpiresUtc=now.AddSeconds(priority>=7?5:10),AllowPitlane=true,AdditionalValidity=valid,
                 TimedValidity=(live,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && utc>=lastProgress && utc-lastProgress<=TimeSpan.FromSeconds(1.5)};
+            LiveDiagnostics.Decision(topic,"detected",evidence,text,call.EventId);
+            return call;
         }
         public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,int minimumPriority=0)
         {

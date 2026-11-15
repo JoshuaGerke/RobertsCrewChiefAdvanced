@@ -37,15 +37,7 @@ namespace CrewChiefV4.Audio
             float volume = GlobalBehaviourSettings.racingType == CrewChief.RacingType.Circuit
                 ? UserSettings.GetUserSettings().getFloat("background_volume")
                 : 0.0f;  // No background noise in Rally mode.
-            if (volume > 1)
-            {
-                volume = 1;
-            }
-            if (volume < 0)
-            {
-                volume = 0;
-            }
-            return volume;
+            return RadioGainSampleProvider.Clamp(volume);
         }
     }
 }

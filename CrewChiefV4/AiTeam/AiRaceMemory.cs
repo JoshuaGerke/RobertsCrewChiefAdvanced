@@ -10,6 +10,7 @@ namespace CrewChiefV4.AiTeam
         public int LapNumber;
         public float LapTime = -1;
         public bool Valid;
+        internal bool Green;
         public int Position;
         public float FuelAtEnd = -1;
         public float FuelUsed = -1;          // -1 = unbekannt (z. B. nachgetankt)
@@ -47,8 +48,14 @@ namespace CrewChiefV4.AiTeam
         private readonly List<RaceEventRecord> events = new List<RaceEventRecord>();
         private readonly List<RaceEventRecord> radio = new List<RaceEventRecord>();
         private float fuelAtLapStart = -1;
+        private float previousFuel = -1;
+        private int fuelStartLap = -1;
+        private float segmentStartFuel = -1;
+        private float segmentMetres;
+        private DateTime segmentLastStamp;
         private bool pitDuringLap;
         private bool invalidDuringLap;
+        private bool greenDuringLap;
         private SessionType lastSessionType = SessionType.Unavailable;
         private int lastRecordedLap = -1;
 
@@ -68,8 +75,13 @@ namespace CrewChiefV4.AiTeam
                 lastRecordedLap = -1;
                 RecordedInvalidLaps = 0;
                 fuelAtLapStart = -1;
+                previousFuel = -1;
+                fuelStartLap = -1;
+                segmentStartFuel = -1;
+                segmentMetres = 0;
                 pitDuringLap = false;
                 invalidDuringLap = false;
+                greenDuringLap = false;
             }
         }
 
@@ -80,10 +92,11 @@ namespace CrewChiefV4.AiTeam
             {
                 return false;
             }
-            LastTickUtc = current.SourceTelemetryUtc==DateTime.MinValue?nowUtc:current.SourceTelemetryUtc;
             bool lapCompleted = false;
             lock (sync)
             {
+                var priorSample = LastTickUtc;
+                LastTickUtc = current.SourceTelemetryUtc == DateTime.MinValue ? nowUtc : current.SourceTelemetryUtc;
                 bool newSession = current.SessionData.SessionId != SessionId || current.SessionData.SessionType != lastSessionType ||
                     (current.SessionData.IsNewSession && (previous == null || !previous.SessionData.IsNewSession));
                 if (newSession)
@@ -97,13 +110,34 @@ namespace CrewChiefV4.AiTeam
                     RecordedInvalidLaps = 0;
                     // erst ab der ersten Überfahrt messen, sonst zählen Einführungsrunde und Startaufstellung mit
                     fuelAtLapStart = -1;
+                    previousFuel = -1;
+                    fuelStartLap = -1;
                     pitDuringLap = false;
-                invalidDuringLap = false;
+                    invalidDuringLap = false;
+                    greenDuringLap = false;
                 }
-                if (current.PitData.InPitlane)
+                bool inPit = current.PitData.InPitlane || current.PitData.IsInGarage;
+                bool green = current.SessionData.SessionPhase == SessionPhase.Green && !current.FlagData.isLocalYellow &&
+                    !inPit && !current.PitData.OnInLap && !current.PitData.OnOutLap &&
+                    LastTickUtc <= nowUtc && nowUtc-LastTickUtc <= TimeSpan.FromSeconds(1);
+                if (!green || priorSample != DateTime.MinValue &&
+                    (LastTickUtc < priorSample || LastTickUtc-priorSample > TimeSpan.FromSeconds(2))) greenDuringLap = false;
+                if (inPit)
                 {
                     pitDuringLap = true;
                 }
+                float fuel = current.FuelData.FuelLeft;
+                bool fuelAvailable = current.FuelData.FuelUseActive && fuel >= 0 &&
+                    !float.IsInfinity(fuel) && fuel <= 10000;
+                // A rise can mark a refuel or reset even if the final tank level is below
+                // the start level. This interval is no longer a measured full lap.
+                if (!fuelAvailable || inPit || (previousFuel >= 0 && fuel > previousFuel) ||
+                    (previous != null && current.SessionData.CompletedLaps < previous.SessionData.CompletedLaps))
+                {
+                    fuelAtLapStart = -1;
+                }
+                ObserveFuelSegment(newSession ? null : previous, current, nowUtc, fuelAvailable && !inPit);
+                previousFuel = fuelAvailable ? fuel : -1;
                 if (previous != null && !newSession)
                 {
                     TrackEvents(previous, current, nowUtc);
@@ -117,6 +151,7 @@ namespace CrewChiefV4.AiTeam
                         LapNumber = current.SessionData.CompletedLaps,
                         LapTime = current.SessionData.LapTimePrevious,
                         Valid = current.SessionData.PreviousLapWasValid && !invalidDuringLap,
+                        Green = greenDuringLap,
                         Position = current.SessionData.ClassPosition,
                         GapAhead = front == null ? current.SessionData.TimeDeltaFront : front.IsRaceGap ? front.Seconds : -1,
                         GapBehind = rear == null ? current.SessionData.TimeDeltaBehind : rear.IsRaceGap ? rear.Seconds : -1,
@@ -131,16 +166,16 @@ namespace CrewChiefV4.AiTeam
                     if (rearCar != null) record.BehindIdentity = RaceReader.Identity(current.OpponentData.First(p => ReferenceEquals(p.Value, rearCar)).Key, rearCar);
                     var sectors = current.SessionData.PlayerLapData.LastOrDefault(l => l.LapNumber == record.LapNumber &&
                         l.IsValid && l.LapTime > 0 && Math.Abs(l.LapTime - record.LapTime) < .1f && !l.hasMissingSectors);
-                    if (sectors != null && sectors.SectorTimes.Length == 3 && sectors.SectorTimes.All(v => v > 0 && v < 3600))
+                    if (!current.SessionData.SectorTimingEstimated && sectors != null &&
+                        sectors.SectorTimes.Length == 3 && sectors.SectorTimes.All(v => v > 0 && v < 3600))
                         record.SectorTimes = (float[])sectors.SectorTimes.Clone();
-                    if (current.FuelData.FuelUseActive && current.FuelData.FuelLeft > 0)
+                    if (fuelAvailable)
                     {
-                        record.FuelAtEnd = current.FuelData.FuelLeft;
-                        if (fuelAtLapStart > 0 && fuelAtLapStart >= current.FuelData.FuelLeft && !pitDuringLap)
+                        record.FuelAtEnd = fuel;
+                        if (fuelAtLapStart > fuel && fuelStartLap == record.LapNumber - 1 && !pitDuringLap)
                         {
-                            record.FuelUsed = fuelAtLapStart - current.FuelData.FuelLeft;
+                            record.FuelUsed = fuelAtLapStart - fuel;
                         }
-                        fuelAtLapStart = current.FuelData.FuelLeft;
                     }
                     var t = current.TyreData;
                     if (t.TyreWearActive)
@@ -158,7 +193,7 @@ namespace CrewChiefV4.AiTeam
                     {
                         laps.RemoveAt(0);
                     }
-                    pitDuringLap = current.PitData.InPitlane;
+                    pitDuringLap = inPit;
                     invalidDuringLap = false;
                 }
                 // A start-line crossing may START the first timed lap without completing
@@ -166,14 +201,74 @@ namespace CrewChiefV4.AiTeam
                 if (current.SessionData.IsNewLap && (previous == null || !previous.SessionData.IsNewLap ||
                     current.SessionData.CompletedLaps != previous.SessionData.CompletedLaps))
                 {
-                    pitDuringLap = current.PitData.InPitlane;
+                    pitDuringLap = inPit;
                     invalidDuringLap = false;
-                    fuelAtLapStart = current.FuelData.FuelUseActive && current.FuelData.FuelLeft > 0
-                        ? current.FuelData.FuelLeft : -1;
+                    greenDuringLap = green;
+                    fuelAtLapStart = fuelAvailable && !inPit ? fuel : -1;
+                    fuelStartLap = current.SessionData.CompletedLaps;
                 }
                 if (!current.SessionData.CurrentLapIsValid) invalidDuringLap = true;
             }
             return lapCompleted;
+        }
+
+        // Only continuous forward track progress supports a provisional consumption rate.
+        private void ObserveFuelSegment(GameStateData previous, GameStateData current, DateTime now, bool onTrack)
+        {
+            var session = current.SessionData;
+            bool movingSession = session.SessionPhase == SessionPhase.Green;
+            DateTime stamp = current.SourceTelemetryUtc == DateTime.MinValue ? current.Now : current.SourceTelemetryUtc;
+            segmentLastStamp = stamp;
+            bool fresh = stamp != DateTime.MinValue && now >= stamp && now - stamp <= TimeSpan.FromSeconds(1);
+            float trackLength = session.TrackDefinition?.trackLength ?? 0;
+            float distance = current.PositionAndMotionData.DistanceRoundTrack;
+            float speed = current.PositionAndMotionData.CarSpeed;
+            bool good = onTrack && movingSession && fresh && trackLength > 0 && !float.IsInfinity(trackLength) &&
+                current.SessionData.CurrentLapIsValid &&
+                distance >= 0 && distance < trackLength && speed > 3 && speed <= 150;
+            if (!good)
+            {
+                segmentStartFuel = -1;
+                segmentMetres = 0;
+                return;
+            }
+
+            float fuel = current.FuelData.FuelLeft;
+            if (previous != null && segmentStartFuel >= 0 && previousFuel >= fuel &&
+                previous.SessionData.CompletedLaps == session.CompletedLaps &&
+                string.Equals(previous.carName, current.carName, StringComparison.Ordinal) &&
+                string.Equals(previous.SessionData.TrackDefinition?.name, session.TrackDefinition?.name, StringComparison.Ordinal))
+            {
+                DateTime previousStamp = previous.SourceTelemetryUtc == DateTime.MinValue ? previous.Now : previous.SourceTelemetryUtc;
+                double seconds = (stamp - previousStamp).TotalSeconds;
+                float delta = distance - previous.PositionAndMotionData.DistanceRoundTrack;
+                if (seconds == 0 && delta == 0 && previousFuel == fuel) return;
+                float maxSpeed = Math.Max(speed, previous.PositionAndMotionData.CarSpeed);
+                if (seconds > 0 && seconds <= 1 && delta >= 0 && delta <= maxSpeed * seconds * 1.5 + 5)
+                {
+                    segmentMetres += delta;
+                    return;
+                }
+            }
+            segmentStartFuel = fuel;
+            segmentMetres = 0;
+        }
+
+        internal float ProvisionalFuelPerLap(GameStateData state)
+        {
+            lock (sync)
+            {
+                if (!state.FuelData.FuelUseActive || state.PitData.InPitlane || state.PitData.IsInGarage) return -1;
+                DateTime stamp = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc;
+                if (state.SessionData.SessionId != SessionId || state.SessionData.SessionType != lastSessionType ||
+                    stamp != segmentLastStamp || segmentStartFuel < 0 || segmentMetres <= 0)
+                    return -1;
+
+                float trackLength = state.SessionData.TrackDefinition?.trackLength ?? 0;
+                float used = segmentStartFuel - state.FuelData.FuelLeft;
+                if (segmentMetres < Math.Max(500, trackLength * 0.25f) || !(used >= 0.2f)) return -1;
+                return used / segmentMetres * trackLength;
+            }
         }
 
         private void TrackEvents(GameStateData previous, GameStateData current, DateTime nowUtc)
@@ -254,6 +349,19 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        public bool HasRadioSince(TimeSpan maxAge, DateTime nowUtc)
+        {
+            lock (sync)
+            {
+                for (int i = radio.Count - 1; i >= 0; i--)
+                {
+                    var timestamp = radio[i].TimeUtc;
+                    if (timestamp <= nowUtc && nowUtc - timestamp <= maxAge) return true;
+                }
+                return false;
+            }
+        }
+
         public List<RaceEventRecord> GetRadio(TimeSpan maxAge, DateTime nowUtc)
         {
             lock (sync)
@@ -262,13 +370,28 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        /// <summary>Durchschnittsverbrauch der letzten gültigen Runden ohne Boxenstopp, -1 wenn unbekannt.</summary>
+        /// <summary>Durchschnitt aus vollständigen Tankmessungen, unabhängig von der Zeitnahmegültigkeit.</summary>
         public float AverageFuelPerLap(int lastLaps = 5)
+        {
+            return AverageFuelPerLap(out _, lastLaps);
+        }
+
+        internal float AverageFuelPerLap(out int sampleCount, int lastLaps = 5)
         {
             lock (sync)
             {
-                var usable = laps.Where(l => l.Valid && l.FuelUsed > 0 && !float.IsNaN(l.FuelUsed) && !float.IsInfinity(l.FuelUsed) && !l.InPitLap).Reverse().Take(lastLaps).ToList();
-                return usable.Count == 0 ? -1 : usable.Average(l => l.FuelUsed);
+                float total = 0;
+                sampleCount = 0;
+                for (int i = laps.Count - 1; i >= 0 && sampleCount < lastLaps; i--)
+                {
+                    var lap = laps[i];
+                    if (!lap.InPitLap && lap.FuelUsed > 0 && !float.IsInfinity(lap.FuelUsed))
+                    {
+                        total += lap.FuelUsed;
+                        sampleCount++;
+                    }
+                }
+                return sampleCount == 0 ? -1 : total / sampleCount;
             }
         }
 

@@ -39,6 +39,8 @@ namespace CrewChiefV4.assetto
 
 
         private Boolean initialised = false;
+        private readonly CrewChiefV4.AiTeam.TelemetrySourceClock graphicsClock = new CrewChiefV4.AiTeam.TelemetrySourceClock();
+        private readonly CrewChiefV4.AiTeam.TelemetrySourceClock physicsClock = new CrewChiefV4.AiTeam.TelemetrySourceClock();
         private List<ACSStructWrapper> dataToDump;
         private ACSStructWrapper[] dataReadFromFile = null;
         private int dataReadFromFileIndex = 0;
@@ -47,6 +49,7 @@ namespace CrewChiefV4.assetto
         public class ACSStructWrapper
         {
             public long ticksWhenRead;
+            public long sourceSampleTicks;
             public AssettoCorsaShared data;
 
         }
@@ -136,6 +139,16 @@ namespace CrewChiefV4.assetto
         {
             return Encoding.Unicode.GetString(name);
         }
+        internal long ObserveSourceProgress(AssettoCorsaShared data, long received)
+        {
+            int session=(int)data.acsGraphic.session, status=(int)data.acsGraphic.status;
+            int vehicle=data.acsChief.focusVehicle;
+            long graphics=graphicsClock.Observe(unchecked((uint)data.acsGraphic.packetId),session,status,vehicle,received);
+            long physics=physicsClock.Observe(unchecked((uint)data.acsPhysics.packetId),session,status,vehicle,received);
+            // The oldest channel controls freshness; one updating page cannot refresh the other.
+            // This does not establish freshness of individual opponents in the separate CC plugin.
+            return Math.Min(graphics,physics);
+        }
         public override Object ReadGameData(Boolean forSpotter)
         {
             lock (this)
@@ -188,6 +201,7 @@ namespace CrewChiefV4.assetto
 
                     ACSStructWrapper structWrapper = new ACSStructWrapper();
                     structWrapper.ticksWhenRead = DateTime.UtcNow.Ticks;
+                    structWrapper.sourceSampleTicks = ObserveSourceProgress(acsShared,structWrapper.ticksWhenRead);
                     structWrapper.data = acsShared;
 
                     if (!forSpotter && currentlyTracingGameData && dataToDump != null)
@@ -259,6 +273,8 @@ namespace CrewChiefV4.assetto
                 catch (Exception e) {Log.Exception(e);}
             }
             initialised = false;
+            graphicsClock.Reset();
+            physicsClock.Reset();
         }
     }
 }

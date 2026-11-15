@@ -76,6 +76,9 @@ namespace CrewChiefV4.AiTeam
         internal static string MeasuredGap(bool ahead, string name, string interval, bool separateClass, int variant = 0)
         {
             bool named = !string.IsNullOrWhiteSpace(name);
+            if (named)
+                return (separateClass ? RadioLanguage.T("In deiner Klasse: ", "In your class: ", "En tu clase: ") : "") + RadioPhraseCatalog.Current.Format(
+                    ahead ? "gap-front-measured" : "gap-rear-measured", variant, interval, name);
             if (RadioLanguage.Current == RadioLanguage.English)
             {
                 if (separateClass)
@@ -139,7 +142,9 @@ namespace CrewChiefV4.AiTeam
             }
             string group = s.ClassPosition > 0 && s.ClassPosition <= 3 ? "finish-podium" : "finish-other";
             var catalog = RadioPhraseCatalog.Current;
-            return text + " " + Select(group, Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i)).ToArray());
+            var variants = Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i))
+                .Where(line => !line.StartsWith("Im Ziel", StringComparison.OrdinalIgnoreCase)).ToArray();
+            return variants.Length == 0 ? text : text + " " + Select(group, variants);
         }
 
         /// <summary>Use only after a same-rival on-track pass has been confirmed.</summary>

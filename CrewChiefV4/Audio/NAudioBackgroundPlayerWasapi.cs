@@ -1,4 +1,4 @@
-﻿using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,42 +11,37 @@ namespace CrewChiefV4.Audio
 {
     class NAudioBackgroundPlayerWasapi : BackgroundPlayer
     {
-        private SynchronizationContext mainThreadContext = null;
-
         private Boolean playing = false;
 
         // will be re-used and only disposed when we stop the app or switch background sounds
         private NAudio.Wave.WaveFileReader reader = null;
-        private NAudio.Wave.WasapiOut wasapiOut = null;
-        AutoResetEvent playWaitHandle = new AutoResetEvent(false);
+        private NAudio.Wave.WasapiOut wasapiOut;
+        private MMDevice device;
         private int deviceIdWhenCached = 0;
-        private float volumeWhenCached = 0;
-        private NAudio.Wave.SampleProviders.SampleChannel volumeChannel;
+        private volatile float volumeWhenCached;
+        private NAudioLoopStream loop;
         public override void refreshVolume()
         {
             lock (this)
             {
                 volumeWhenCached = getBackgroundVolume();
-                if (volumeChannel != null) volumeChannel.Volume = volumeWhenCached;
             }
         }
 
         private TimeSpan backgroundLength = TimeSpan.Zero;
-        EventHandler<NAudio.Wave.StoppedEventArgs> eventHandler;
 
         public NAudioBackgroundPlayerWasapi(SynchronizationContext mainThreadContext, String backgroundFilesPath, String defaultBackgroundSound)
         {
-            this.mainThreadContext = mainThreadContext;
             this.backgroundFilesPath = backgroundFilesPath;
             this.defaultBackgroundSound = defaultBackgroundSound;
         }
 
         public override void mute(bool doMute)
         {
-            this.muted = doMute;
-            if (playing && doMute)
+            lock (this)
             {
-                stop();
+                muted = doMute;
+                if (playing && doMute) stop();
             }
         }
 
@@ -66,7 +61,7 @@ namespace CrewChiefV4.Audio
                 }
 
                 playing = true;
-                int backgroundOffset = Utilities.random.Next(0, (int)backgroundLength.TotalSeconds - backgroundLeadout);
+                int backgroundOffset = Utilities.random.Next(0, Math.Max(1, (int)backgroundLength.TotalSeconds - backgroundLeadout));
                 this.reader.CurrentTime = TimeSpan.FromSeconds(backgroundOffset);
                 this.wasapiOut.Play();
             }
@@ -103,72 +98,76 @@ namespace CrewChiefV4.Audio
 
             this.volumeWhenCached = getBackgroundVolume();
             this.deviceIdWhenCached = AudioPlayer.naudioBackgroundPlaybackDeviceId;
-            this.wasapiOut = new NAudio.Wave.WasapiOut(new MMDeviceEnumerator().GetDevice(AudioPlayer.naudioBackgroundPlaybackDeviceGuid), AudioClientShareMode.Shared, false, 10);
-            volumeChannel = new NAudio.Wave.SampleProviders.SampleChannel(new NAudioLoopStream(reader));
-            volumeChannel.Volume = this.volumeWhenCached;
-            this.wasapiOut.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(volumeChannel));
+            using (var enumerator = new MMDeviceEnumerator())
+                device = enumerator.GetDevice(AudioPlayer.naudioBackgroundPlaybackDeviceGuid);
+            wasapiOut = new NAudio.Wave.WasapiOut(device, AudioClientShareMode.Shared, false, 10);
+            loop = new NAudioLoopStream(reader);
+            this.wasapiOut.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(BuildSamples(loop)));
         }
 
-        public override void initialise(String initialBackgroundSound)
-        {
-            if (!this.initialised)
-            {
-                lock (this)
-                {
-                    initReader(initialBackgroundSound);
-                    initWasapiOut();
-                    initialised = true;
-                }
-            }
-        }
+        private NAudio.Wave.ISampleProvider BuildSamples(NAudio.Wave.WaveStream source) =>
+            new RadioGainSampleProvider(new NAudio.Wave.SampleProviders.SampleChannel(source), () => volumeWhenCached);
 
-        public override void setBackgroundSound(String backgroundSoundName)
+        public override void initialise(string initialBackgroundSound)
         {
             lock (this)
             {
-                if (this.wasapiOut != null)
-                {
-                    this.wasapiOut.Stop();
-                }
-                initReader(backgroundSoundName);
-                initWasapiOut();
-                initialised = true;
+                if (!initialised) LoadBackground(initialBackgroundSound);
             }
         }
 
-        private void playbackStopped(object sender, NAudio.Wave.StoppedEventArgs e)
+        public override void setBackgroundSound(string backgroundSoundName)
         {
-            this.playWaitHandle.Set();
+            lock (this) LoadBackground(backgroundSoundName);
+        }
+
+        private void LoadBackground(string name)
+        {
+            ReleaseBackground();
+            try
+            {
+                initReader(name);
+                initWasapiOut();
+                initialised = true;
+            }
+            catch
+            {
+                ReleaseBackground();
+                throw;
+            }
+        }
+
+        private void ReleaseBackground()
+        {
+            playing = false;
+            initialised = false;
+            var output = wasapiOut;
+            wasapiOut = null;
+            try
+            {
+                if (output != null)
+                {
+                    try { output.Stop(); }
+                    finally { output.Dispose(); }
+                }
+            }
+            finally
+            {
+                device?.Dispose();
+                device = null;
+                loop?.Dispose();
+                loop = null;
+                reader?.Dispose();
+                reader = null;
+            }
         }
 
         public override void dispose()
         {
             lock (this)
             {
-                try
-                {
-                    if (reader != null)
-                    {
-                        reader.Dispose();
-                    }
-                    if (wasapiOut != null)
-                    {
-                        wasapiOut.Stop();
-
-                        lock (MainWindow.instanceLock)
-                        {
-                            if (MainWindow.instance != null)
-                            {
-                                this.mainThreadContext.Post(delegate
-                                {
-                                    wasapiOut.Dispose();
-                                }, null);
-                           }
-                        }
-                    }
-                }
-                catch (Exception e) {Log.Exception(e);}
-                base.dispose();
+                try { ReleaseBackground(); }
+                catch (Exception e) { Log.Exception(e); }
             }
         }
     }

@@ -53,6 +53,21 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void First_pit_greeting_leaves_speed_limit_to_dedicated_pit_radio()
+        {
+            var context = GreetingContext();
+            context.GameState.PitData.PitSpeedLimit = 80f / 3.6f;
+            var call = new SessionGreetingDirector().CreateCall(context, T.AddSeconds(30), "Rob", TeamMember.Ben);
+            Assert.IsNotNull(call);
+            StringAssert.Contains("Monza", call.Text);
+            StringAssert.DoesNotContain("Pitlimiter", call.Text);
+            StringAssert.DoesNotContain("80 Kilometer pro Stunde", call.Text);
+            Assert.IsTrue(call.IsValid(context.GameState, T));
+            context.GameState.PitData.PitSpeedLimit = 60f / 3.6f;
+            Assert.IsTrue(call.IsValid(context.GameState, T));
+        }
+
+        [Test]
         public void Greeting_audio_discard_retries_once_then_stops_after_backend_start()
         {
             var c = GreetingContext(); var call = new SessionGreetingDirector().CreateCall(c, T.AddSeconds(40), "Robert", TeamMember.Ben);
@@ -103,7 +118,7 @@ namespace UnitTest.AiTeamTests
             c.NowUtc = c.LastTelemetryUtc = DateTime.UtcNow;
             c.GameState.Conditions.UpdateLiveSample(c.NowUtc,0,1,20,30,.4f,0,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
             var call = director.CreateCall(c,c.NowUtc.AddSeconds(40),"Robert",TeamMember.Mik);
-            StringAssert.Contains("Luft 20 Grad", call.Text); StringAssert.Contains("Regen wird gemeldet", call.Text);
+            StringAssert.Contains("Strecke 30 Grad", call.Text); StringAssert.Contains("Regen wird gemeldet", call.Text);
             Assert.IsTrue(call.IsValid(c.GameState,c.NowUtc));
             c.GameState.Conditions.UpdateLiveSample(c.NowUtc,0,1,20,30,0,0,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
             Assert.IsFalse(call.IsValid(c.GameState,c.NowUtc));
@@ -249,6 +264,93 @@ namespace UnitTest.AiTeamTests
             var call = observer.Take(gs, T.AddSeconds(91), false);
             Assert.AreEqual(expected, call != null);
             if (expected) StringAssert.Contains("0,20", call.Text);
+        }
+
+        [Test]
+        public void A_confirmed_sector_best_can_be_called_even_when_the_whole_lap_is_slower()
+        {
+            var gs = State();
+            gs.SessionData.PlayerLapTimeSessionBest = 90;
+            var watch = new SessionLapObserver();
+            watch.Observe(gs, null, T, false);
+            gs.SessionData.IsNewLap = true;
+            gs.SessionData.CompletedLaps = 1;
+            watch.Observe(gs, new LapRecord { LapNumber=1, LapTime=90, Valid=true,
+                SectorTimes=new[] { 30f, 30f, 30f } }, T.AddSeconds(90), false);
+            gs.SessionData.CompletedLaps = 2;
+            var now = T.AddSeconds(181);
+            watch.Observe(gs, new LapRecord { LapNumber=2, LapTime=91, Valid=true,
+                SectorTimes=new[] { 29.5f, 30.5f, 31f } }, now, false);
+            var call = watch.Take(gs, now, false);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("sector-best", call.Topic);
+            StringAssert.Contains("Sektor 1", call.Text);
+            StringAssert.Contains("29,5", call.Text);
+            StringAssert.DoesNotContain("Feldbestzeit", call.Text);
+        }
+
+        [TestCase(29.4f, 0.8, true, true)]
+        [TestCase(28.6f, 0.8, true, false)]
+        [TestCase(29.4f, 3.5, true, false)]
+        [TestCase(29.4f, 0.8, false, false)]
+        public void Confirmed_live_personal_sector_best_requires_the_new_native_best_to_match_our_split(
+            float nativeTime, double previousAge, bool enabled, bool expected)
+        {
+            var before = State(SessionType.Race);
+            var present = State(SessionType.Race);
+            var now = T.AddSeconds(32);
+            before.SourceTelemetryUtc = now.AddSeconds(-previousAge);
+            present.SourceTelemetryUtc = now;
+            before.SessionData.CompletedLaps = present.SessionData.CompletedLaps = 2;
+            before.SessionData.SectorNumber = 1;
+            present.SessionData.SectorNumber = 2;
+            present.SessionData.CurrentLapIsValid = true;
+            present.SessionData.PlayerLapData.Add(new LapData { LapNumber = 3, IsValid = true, SectorTimes = new[] { 29.4f, -1f, -1f } });
+            TelemetryMeasurements.Put(before, "timing.sector.personal.1", 30, "R3E.API", "BestIndividualSectorTimeSelf",
+                "sektor1", "s", before.SourceTelemetryUtc, 1, 3600);
+            TelemetryMeasurements.Put(present, "timing.sector.personal.1", nativeTime, "R3E.API", "BestIndividualSectorTimeSelf",
+                "sektor1", "s", now, 1, 3600);
+            var watch = new SessionLapObserver();
+            watch.Observe(before, null, before.SourceTelemetryUtc, false);
+            watch.Observe(present, null, now, false, before, enabled);
+            var call = watch.Take(present, now, false);
+            Assert.AreEqual(expected, call != null);
+            if (!expected) return;
+            Assert.AreEqual("sector-best", call.Topic);
+            StringAssert.Contains("29,4", call.Text);
+            Assert.IsTrue(call.IsValid(present, now));
+            present.FlagData.isLocalYellow = true;
+            Assert.IsFalse(call.IsValid(present, now));
+        }
+
+        [TestCase(true, SessionType.Practice, true)]
+        [TestCase(true, SessionType.Race, false)]
+        [TestCase(false, SessionType.Practice, false)]
+        public void Live_best_pace_compares_the_first_two_splits_with_one_measured_best_lap(bool coherent, SessionType type, bool expected)
+        {
+            var before = State(type);
+            var present = State(type);
+            var now = T.AddSeconds(65);
+            before.SourceTelemetryUtc = now.AddMilliseconds(-30);
+            present.SourceTelemetryUtc = now;
+            before.SessionData.CompletedLaps = present.SessionData.CompletedLaps = 2;
+            before.SessionData.PlayerLapTimeSessionBest = present.SessionData.PlayerLapTimeSessionBest = 90;
+            before.SessionData.SectorNumber = 2;
+            present.SessionData.SectorNumber = 3;
+            present.SessionData.CurrentLapIsValid = true;
+            present.SessionData.PlayerLapData.Add(new LapData { LapNumber = 2, IsValid = true, LapTime = 90,
+                SectorTimes = new[] { 30f, 30f, coherent ? 30f : 31f } });
+            present.SessionData.PlayerLapData.Add(new LapData { LapNumber = 3, IsValid = true, SectorTimes = new[] { 30f, 29.7f, -1f } });
+            var watch = new SessionLapObserver();
+            watch.Observe(before, null, before.SourceTelemetryUtc, false);
+            watch.Observe(present, null, now, false, before);
+            var call = watch.Take(present, now, false);
+            Assert.AreEqual(expected, call != null);
+            if (!expected) return;
+            Assert.AreEqual("own-best-pace", call.Topic);
+            StringAssert.Contains("Bestzeit", call.Text);
+            present.SessionData.CurrentLapIsValid = false;
+            Assert.IsFalse(call.IsValid(present, now));
         }
 
         [Test]

@@ -55,25 +55,6 @@ namespace CrewChiefV4.AiTeam
                 return AllClear;
             }
 
-            if (gs != null && (q.Contains("hinter mir") || q.Contains("hinter uns") || q.Contains("von hinten") || q.Contains("abstand hinten") ||
-                q.Contains("behind me") || q.Contains("behind us") || q.Contains("from behind") || q.Contains("gap behind") || q.Contains("car behind") ||
-                q.Contains("detrás") || q.Contains("detras") || q.Contains("atrás") || q.Contains("atras")))
-            {
-                float gap = gs.SessionData.TimeDeltaBehind;
-                return gap > 0 && gap < 600 ? RadioLanguage.T("Hinter dir ", "Gap behind ", "Detrás, a ") + Seconds(gap) + "." :
-                    RadioLanguage.T("Den Abstand nach hinten liefert die Simulation gerade nicht.", "The sim isn't giving the gap behind right now.",
-                        "El simulador no da ahora mismo la distancia por detrás.");
-            }
-            if (gs != null && (q.Contains("vor mir") || q.Contains("vor uns") || q.Contains("abstand vorne") ||
-                q.Contains("ahead of me") || q.Contains("ahead of us") || q.Contains("in front of me") || q.Contains("in front of us") ||
-                q.Contains("gap ahead") || q.Contains("gap in front") || q.Contains("car ahead") || q.Contains("car in front") ||
-                q.Contains("delante") || q.Contains("adelante")))
-            {
-                float gap = gs.SessionData.TimeDeltaFront;
-                return gap > 0 && gap < 600 ? RadioLanguage.T("Vor dir ", "Gap ahead ", "Delante, a ") + Seconds(gap) + "." :
-                    RadioLanguage.T("Den Abstand nach vorne liefert die Simulation gerade nicht.", "The sim isn't giving the gap ahead right now.",
-                        "El simulador no da ahora mismo la distancia por delante.");
-            }
             return null;
         }
 

@@ -16,6 +16,30 @@ namespace CrewChiefV4.RaceRoom
 {
     public class R3EGameStateMapper : GameStateMapper
     {
+        internal static int FindPlayerIndex(RaceRoomShared shared)
+        {
+            if(shared.DriverData==null || shared.NumCars<1 || shared.NumCars>shared.DriverData.Length || shared.VehicleInfo.SlotId<0)return -1;
+            int found=-1;
+            for(int i=0;i<shared.NumCars;i++)
+                if(shared.DriverData[i].DriverInfo.SlotId==shared.VehicleInfo.SlotId)
+                {if(found>=0)return -1;found=i;}
+            return found;
+        }
+
+        internal static bool SameOpponentIdentity(OpponentData previous, DriverData current) => previous != null &&
+            previous.r3eSlotId == current.DriverInfo.SlotId && previous.r3eUserId == current.DriverInfo.UserId &&
+            previous.CarNumber == current.DriverInfo.CarNumber.ToString();
+
+        internal static void ApplyRaceFinishStatus(SessionData session, int finishStatus)
+        {
+            if (session.SessionType != SessionType.Race) return;
+            var status = (RaceRoomConstant.FinishStatus)finishStatus;
+            session.IsDisqualified = status == RaceRoomConstant.FinishStatus.DQ;
+            session.IsDNF = status == RaceRoomConstant.FinishStatus.DNF;
+            if (session.IsDisqualified || session.IsDNF || status == RaceRoomConstant.FinishStatus.Finished)
+                session.SessionPhase = SessionPhase.Finished;
+        }
+
         private Boolean versionChecked = false;
         // this is set when we first join a practice or qual session (or when the session first starts). All participants
         // car classes are recalculated every tick for 5 seconds
@@ -96,6 +120,31 @@ namespace CrewChiefV4.RaceRoom
             }
         }
 
+        private static readonly string[] personalSectorKeys = { "timing.sector.personal.1", "timing.sector.personal.2", "timing.sector.personal.3" };
+        private static readonly string[] leaderSectorKeys = { "timing.sector.leader.1", "timing.sector.leader.2", "timing.sector.leader.3" };
+        private static readonly string[] classLeaderSectorKeys = { "timing.sector.class_leader.1", "timing.sector.class_leader.2", "timing.sector.class_leader.3" };
+
+        internal static void MapNativeSectorReferences(GameStateData state, RaceRoomShared shared)
+        {
+            var utc = state.SourceTelemetryUtc;
+            if (utc == DateTime.MinValue) return;
+            PutSectorReference(state, shared.BestIndividualSectorTimeSelf, personalSectorKeys,
+                "BestIndividualSectorTimeSelf", utc);
+            PutSectorReference(state, shared.BestIndividualSectorTimeLeader, leaderSectorKeys,
+                "BestIndividualSectorTimeLeader", utc);
+            PutSectorReference(state, shared.BestIndividualSectorTimeLeaderClass, classLeaderSectorKeys,
+                "BestIndividualSectorTimeLeaderClass", utc);
+            TelemetryMeasurements.Put(state, "timing.lap.delta_personal", shared.TimeDeltaBestSelf,
+                "R3E.API", "TimeDeltaBestSelf", "runde", "s", utc, -180, 180, shared.TimeDeltaBestSelf != -1000);
+        }
+
+        private static void PutSectorReference(GameStateData state, Sectors<float> times, string[] keys, string field, DateTime utc)
+        {
+            TelemetryMeasurements.Put(state, keys[0], times.Sector1, "R3E.API", field, "sektor1", "s", utc, 1, 3600, times.Sector1 != -1);
+            TelemetryMeasurements.Put(state, keys[1], times.Sector2, "R3E.API", field, "sektor2", "s", utc, 1, 3600, times.Sector2 != -1);
+            TelemetryMeasurements.Put(state, keys[2], times.Sector3, "R3E.API", field, "sektor3", "s", utc, 1, 3600, times.Sector3 != -1);
+        }
+
         public R3EGameStateMapper()
         {
             tyreWearThresholds.Add(new CornerData.EnumWithThresholds(TyreCondition.NEW, -10000, scrubbedTyreWearPercent));
@@ -143,6 +192,8 @@ namespace CrewChiefV4.RaceRoom
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
             RaceRoomData.RaceRoomShared shared = wrapper.data;
             currentGameState.rawGameData = wrapper;
+            if(wrapper.sourceSampleTicks>0 && wrapper.sourceSampleTicks<=wrapper.ticksWhenRead)
+                currentGameState.SourceTelemetryUtc=new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc);
             useImprovisedBlueFlagDetection = shared.Flags.Blue == -1;
             currentGameState.FlagData.useImprovisedIncidentCalling = shared.Flags.Yellow == -1;
 
@@ -155,11 +206,14 @@ namespace CrewChiefV4.RaceRoom
                 CrewChief.raceroomTrackId = shared.LayoutId;
             }
 
-            if (shared.Player.GameSimulationTime <= 0 || shared.VehicleInfo.SlotId < 0 ||
+            if (double.IsNaN(shared.Player.GameSimulationTime) || double.IsInfinity(shared.Player.GameSimulationTime) ||
+                shared.Player.GameSimulationTime <= 0 || shared.VehicleInfo.SlotId < 0 ||
                 shared.ControlType == (int)RaceRoomConstant.Control.Remote || shared.ControlType == (int)RaceRoomConstant.Control.Replay)
             {
                 return previousGameState;
             }
+            int playerDriverDataIndex = FindPlayerIndex(shared);
+            if(playerDriverDataIndex<0)return previousGameState;
             Boolean isCarRunning = CheckIsCarRunning(shared);
             SessionPhase lastSessionPhase = SessionPhase.Unavailable;
             float lastSessionRunningTime = 0;
@@ -218,20 +272,14 @@ namespace CrewChiefV4.RaceRoom
             // in some cases, the session start trigger gets missed and we don't have a driver name
             currentGameState.SessionData.DriverRawName = getNameFromBytes(shared.PlayerName);
 
-            DriverData playerDriverData = new DriverData();
-            int playerDriverDataIndex = 0;
+            DriverData playerDriverData = shared.DriverData[playerDriverDataIndex];
             // In hotlap/leaderboard challenge, this contains duplicate entries.  Do we want this?
-            string[] driverNames = new string[shared.DriverData.Length];
-            for (int i = 0; i < shared.DriverData.Length; i++)
+            string[] driverNames = new string[shared.NumCars];
+            for (int i = 0; i < shared.NumCars; i++)
             {
                 DriverData participantStruct = shared.DriverData[i];
                 String driverName = getNameFromBytes(participantStruct.DriverInfo.Name).Trim();
                 driverNames[i] = driverName;
-                if (driverName.Equals(currentGameState.SessionData.DriverRawName))
-                {
-                    playerDriverData = participantStruct;
-                    playerDriverDataIndex = i;
-                }
             }
             if (!R3ERatings.gotPlayerRating)
             {
@@ -239,17 +287,11 @@ namespace CrewChiefV4.RaceRoom
             }
             currentGameState.PositionAndMotionData.WorldPosition = new float[] { (float)playerDriverData.Position.X, (float)playerDriverData.Position.Y, (float)playerDriverData.Position.Z };
             int previousLapsCompleted = previousGameState == null ? 0 : previousGameState.SessionData.CompletedLaps;
+            int nativePhase = TimedSessionPhase(currentGameState.SessionData.SessionType, previousGameState?.SessionData,
+                shared.SessionPhase, shared.SessionTimeRemaining);
             currentGameState.SessionData.SessionPhase = mapToSessionPhase(lastSessionPhase, currentGameState.SessionData.SessionType, lastSessionRunningTime,
-                currentGameState.SessionData.SessionRunningTime, shared.SessionPhase, currentGameState.ControlData.ControlType,
+                currentGameState.SessionData.SessionRunningTime, nativePhase, currentGameState.ControlData.ControlType,
                 previousLapsCompleted, shared.CompletedLaps, isCarRunning, chequeredFlagShownInThisSession, shared.StartLights);
-
-            // yuk, another session end hack. Catch the tick when q and p session timer reaches zero (but not when it's reset to zero as a result of quitting the session)
-            if ((currentGameState.SessionData.SessionType == SessionType.Qualify || currentGameState.SessionData.SessionType == SessionType.Practice)
-                && previousGameState != null && previousGameState.SessionData.SessionPhase != SessionPhase.Finished
-                && previousGameState.SessionData.SessionTimeRemaining > 0 && previousGameState.SessionData.SessionTimeRemaining < 0.2)
-            {
-                currentGameState.SessionData.SessionPhase = SessionPhase.Finished;
-            }
 
             if ((lastSessionPhase != currentGameState.SessionData.SessionPhase && (lastSessionPhase == SessionPhase.Unavailable || lastSessionPhase == SessionPhase.Finished)) ||
                 ((lastSessionPhase == SessionPhase.Checkered || lastSessionPhase == SessionPhase.Finished || lastSessionPhase == SessionPhase.Green || lastSessionPhase == SessionPhase.FullCourseYellow) &&
@@ -333,7 +375,7 @@ namespace CrewChiefV4.RaceRoom
 
                 lastTimeEngineWasRunning = DateTime.MaxValue;
                 opponentDriverNamesProcessedForThisTick.Clear();
-                for (int i = 0; i < shared.DriverData.Length; i++)
+                for (int i = 0; i < shared.NumCars; i++)
                 {
                     DriverData participantStruct = shared.DriverData[i];
                     String driverName = driverNames[i];
@@ -696,8 +738,10 @@ namespace CrewChiefV4.RaceRoom
             currentGameState.SessionData.TimeDeltaBehind = shared.TimeDeltaBehind;
             currentGameState.SessionData.TimeDeltaFront = shared.TimeDeltaFront;
 
+            ApplyRaceFinishStatus(currentGameState.SessionData, playerDriverData.FinishStatus);
             currentGameState.SessionData.SessionFastestLapTimeFromGame = shared.LapTimeBestLeader;
             currentGameState.SessionData.SessionFastestLapTimeFromGamePlayerClass = shared.LapTimeBestLeaderClass;
+            MapNativeSectorReferences(currentGameState, shared);
             if (currentGameState.SessionData.OverallSessionBestLapTime == -1 ||
                 currentGameState.SessionData.OverallSessionBestLapTime > shared.LapTimeBestLeader)
             {
@@ -721,7 +765,7 @@ namespace CrewChiefV4.RaceRoom
 
             currentGameState.SessionData.CurrentIncidentCount = shared.IncidentPoints;
 
-            foreach (DriverData participantStruct in shared.DriverData)
+            foreach (DriverData participantStruct in shared.DriverData.Take(shared.NumCars))
             {
                 if (participantStruct.DriverInfo.SlotId == shared.VehicleInfo.SlotId)
                 {
@@ -754,11 +798,12 @@ namespace CrewChiefV4.RaceRoom
                     if (currentGameState.SessionData.IsNewLap)
                     {
                         currentGameState.readLandmarksForThisLap = false;
-                        currentGameState.SessionData.PreviousLapWasValid = currentGameState.SessionData.CurrentLapIsValid && !approachingFirstFlyingLap;
+                        currentGameState.SessionData.PreviousLapWasValid = PreviousLapValidity(shared, previousLapsCompleted,
+                            currentGameState.SessionData.CurrentLapIsValid, approachingFirstFlyingLap);
                         currentGameState.SessionData.CurrentLapIsValid = true;
 
                         currentGameState.SessionData.playerCompleteLapWithProvidedLapTime(currentGameState.SessionData.OverallPosition, currentGameState.SessionData.SessionRunningTime,
-                            shared.LapTimePreviousSelf, currentGameState.SessionData.CurrentLapIsValid, currentGameState.PitData.InPitlane, false,
+                            shared.LapTimePreviousSelf, currentGameState.SessionData.PreviousLapWasValid, currentGameState.PitData.InPitlane, false,
                             30, 25, currentGameState.SessionData.SessionHasFixedTime, currentGameState.SessionData.SessionTimeRemaining, 3, currentGameState.TimingData, null, null);
                         currentGameState.SessionData.playerStartNewLap(currentGameState.SessionData.CompletedLaps + 1,
                             currentGameState.SessionData.OverallPosition, currentGameState.PitData.InPitlane, currentGameState.SessionData.SessionRunningTime);
@@ -842,7 +887,7 @@ namespace CrewChiefV4.RaceRoom
             opponentDriverNamesProcessedForThisTick.Add(currentGameState.SessionData.DriverRawName);
             positionsFilledForThisTick.Clear();
             positionsFilledForThisTick.Add(currentGameState.SessionData.OverallPosition);
-            for (int i = 0; i < shared.DriverData.Length; i++)
+            for (int i = 0; i < shared.NumCars; i++)
             {
                 if (i == playerDriverDataIndex)
                 {
@@ -889,6 +934,9 @@ namespace CrewChiefV4.RaceRoom
                 positionsFilledForThisTick.Add(participantStruct.Place);
                 opponentDriverNamesProcessedForThisTick.Add(driverName);
                 OpponentData currentOpponentData = null;
+                if (currentGameState.OpponentData.TryGetValue(driverName, out currentOpponentData) &&
+                    !SameOpponentIdentity(currentOpponentData, participantStruct))
+                    currentGameState.OpponentData.Remove(driverName);
                 if (currentGameState.OpponentData.TryGetValue(driverName, out currentOpponentData))
                 {
                     if (previousGameState != null)
@@ -903,7 +951,8 @@ namespace CrewChiefV4.RaceRoom
                         float previousOpponentSpeed = 0;
                         float previousDistanceRoundTrack = 0;
                         Boolean previousOpponentInPits = false;
-                        if (previousGameState.OpponentData.TryGetValue(driverName, out previousOpponentData))
+                        if (previousGameState.OpponentData.TryGetValue(driverName, out previousOpponentData) &&
+                            SameOpponentIdentity(previousOpponentData, participantStruct))
                         {
                             previousOpponentSectorNumber = previousOpponentData.CurrentSectorNumber;
                             previousOpponentCompletedLaps = previousOpponentData.CompletedLaps;
@@ -1583,6 +1632,28 @@ namespace CrewChiefV4.RaceRoom
          * Gets the current session phase. If the transition is valid this is returned, otherwise the
          * previous phase is returned
          */
+        internal static int TimedSessionPhase(SessionType type, SessionData previous, int nativePhase, float remaining)
+        {
+            bool timedPracticeOrQualifying = type == SessionType.Qualify || type == SessionType.Practice;
+            if (!timedPracticeOrQualifying || previous == null || previous.SessionType != type || !previous.SessionHasFixedTime ||
+                nativePhase != (int)RaceRoomConstant.SessionPhase.Green || remaining != 0) return nativePhase;
+            if (previous.SessionPhase == SessionPhase.Checkered || previous.SessionPhase == SessionPhase.Finished ||
+                previous.SessionPhase == SessionPhase.Green && previous.SessionTimeRemaining > 0 && previous.SessionTimeRemaining <= .5f)
+                return (int)RaceRoomConstant.SessionPhase.Checkered;
+            return nativePhase;
+        }
+
+        internal static bool PreviousLapValidity(RaceRoomData.RaceRoomShared shared, int previousLapsCompleted,
+            bool currentLapValidity, bool approachingFirstFlyingLap)
+        {
+            if (approachingFirstFlyingLap) return false;
+            // The current-lap flag can already describe the next lap on the crossing tick.
+            bool nativeValidity = shared.VersionMajor == 3 && shared.VersionMinor >= 5 &&
+                shared.CompletedLaps == previousLapsCompleted + 1 && (shared.PrevLapValid == 0 || shared.PrevLapValid == 1) &&
+                shared.LapTimePreviousSelf > 0;
+            return nativeValidity ? shared.PrevLapValid == 1 : currentLapValidity;
+        }
+
         private SessionPhase mapToSessionPhase(SessionPhase lastSessionPhase, SessionType currentSessionType, float lastSessionRunningTime, float thisSessionRunningTime,
             int r3eSessionPhase, ControlType controlType, int previousLapsCompleted, int currentLapsCompleted, Boolean isCarRunning, Boolean chequeredFlagShownInThisSession,
             int lights)
@@ -1982,6 +2053,7 @@ namespace CrewChiefV4.RaceRoom
                 opponentData.CarClass.getClassIdentifier() + " (class ID " + participantStruct.DriverInfo.ClassId + ") with tyres " + opponentData.CurrentTyres);
             opponentData.TyreChangesByLap[0] = opponentData.CurrentTyres;
             opponentData.r3eUserId = participantStruct.DriverInfo.UserId;
+            opponentData.r3eSlotId = participantStruct.DriverInfo.SlotId;
             return opponentData;
         }
 
@@ -2001,7 +2073,9 @@ namespace CrewChiefV4.RaceRoom
 
         public static String getNameFromBytes(byte[] name)
         {
+            if (name == null || name.Length == 0) return string.Empty;
             int count = Array.IndexOf(name, (byte)0);
+            if (count < 0) count = name.Length;
             return Encoding.UTF8.GetString(name, 0, count);
         }
 

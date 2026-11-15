@@ -80,6 +80,8 @@ namespace CrewChiefV4.iRacing
             CrewChiefV4.iRacing.iRacingSharedMemoryReader.iRacingStructWrapper wrapper = (CrewChiefV4.iRacing.iRacingSharedMemoryReader.iRacingStructWrapper)memoryMappedFileStruct;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
             currentGameState.rawGameData = wrapper;
+            if(wrapper.sourceSampleTicks>0 && wrapper.sourceSampleTicks<=wrapper.ticksWhenRead)
+                currentGameState.SourceTelemetryUtc=new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc);
             Sim shared = wrapper.data;
 
             if (shared.Telemetry.IsReplayPlaying)

@@ -24,6 +24,7 @@ namespace CrewChiefV4.PMR
             /// Tick timestamp (DateTime.UtcNow.Ticks) when this snapshot was taken.
             /// </summary>
             public long ticksWhenRead;
+            public long sourceSampleTicks;
 
             /// <summary>
             /// Overall race/session metadata (track, weather, session type, etc.).
@@ -185,6 +186,7 @@ namespace CrewChiefV4.PMR
                 wrapper.PlayerRaceState = playerState;
                 wrapper.PlayerTelemetry = playerTelemetry;
                 wrapper.AllTelemetry = dataStore.getAllTelemetry();
+                if(!forSpotter) wrapper = dataStore.FreshSnapshot();
 
                 // Only dump "full" samples, i.e. we at least know the track.
                 if (!forSpotter && currentlyTracingGameData && dataToDump != null)

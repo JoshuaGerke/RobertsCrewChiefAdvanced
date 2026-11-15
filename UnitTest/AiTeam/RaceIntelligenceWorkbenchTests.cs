@@ -62,6 +62,21 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void A_reused_vehicle_slot_invalidates_the_confirmed_pass_before_audio()
+        {
+            var gs = State(); var observer = new ActiveRaceObserver();
+            observer.Observe(gs, T, "Rob", 0);
+            Pass(gs);
+            Confirm(observer, gs);
+            var call = Take(observer, gs);
+            Assert.IsNotNull(call);
+            Assert.IsTrue(call.ConfirmedPass);
+            Assert.IsTrue(call.IsValid(gs, T.AddMilliseconds(400)));
+            gs.OpponentData["rival"].r3eSlotId++;
+            Assert.IsFalse(call.IsValid(gs, T.AddMilliseconds(450)));
+        }
+
+        [Test]
         public void Already_invalid_lap_and_old_cut_do_not_suppress_a_later_clean_pass()
         {
             var gs = State(); gs.SessionData.CurrentLapIsValid = false; gs.PenaltiesData.CutTrackWarnings = 2;
@@ -148,6 +163,66 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("race-start", call.Topic); Assert.IsTrue(call.IsValid(after, T.AddMilliseconds(100)));
             Assert.IsFalse(call.IsValid(after, T.AddSeconds(7)));
             after.SessionData.SessionPhase = SessionPhase.Formation; Assert.IsFalse(call.IsValid(after, T.AddSeconds(1)));
+        }
+
+        private static void RaceRoomStart(GameStateData gs, DateTime at, int mode, int phase, bool duplicate = false)
+        {
+            var driver = new CrewChiefV4.RaceRoom.RaceRoomData.DriverData {
+                DriverInfo = new CrewChiefV4.RaceRoom.RaceRoomData.DriverInfo { SlotId=7 },
+                Unused2 = BitConverter.ToSingle(BitConverter.GetBytes(phase),0)
+            };
+            var raw = new CrewChiefV4.RaceRoom.RaceRoomData.RaceRoomShared {
+                VersionMajor=3,VersionMinor=6,EventUnused1=BitConverter.ToSingle(BitConverter.GetBytes(mode),0),
+                AllDriversOffset=System.Runtime.InteropServices.Marshal.OffsetOf(typeof(CrewChiefV4.RaceRoom.RaceRoomData.RaceRoomShared),"NumCars").ToInt32(),
+                DriverDataSize=System.Runtime.InteropServices.Marshal.SizeOf(typeof(CrewChiefV4.RaceRoom.RaceRoomData.DriverData)),
+                VehicleInfo=new CrewChiefV4.RaceRoom.RaceRoomData.DriverInfo { SlotId=7 },
+                DriverData=duplicate?new[]{driver,driver}:new[]{driver},NumCars=duplicate?2:1
+            };
+            gs.rawGameData=new CrewChiefV4.RaceRoom.R3ESharedMemoryReader.R3EStructWrapper { ticksWhenRead=at.Ticks,data=raw };
+        }
+
+        [Test]
+        public void RaceRoom_staggered_start_waits_for_the_drivers_own_green_and_rechecks_before_speech()
+        {
+            var before=State(SessionPhase.Formation);var waiting=State(SessionPhase.Green);var green=State(SessionPhase.Green);
+            RaceRoomStart(before,T,1,0);RaceRoomStart(waiting,T.AddMilliseconds(100),1,0);RaceRoomStart(green,T.AddMilliseconds(200),1,2);
+            var watch=new RaceSituationWatch();
+            var formation=watch.Evaluate(before,waiting,T.AddMilliseconds(100)).Single(c=>c.Topic=="formation");
+            Assert.IsTrue(formation.IsValid(waiting,T.AddMilliseconds(150)));
+            Assert.IsFalse(formation.IsValid(green,T.AddMilliseconds(250)));
+            var ctx=new RaceDataContext {GameState=waiting,NowUtc=T.AddMilliseconds(150),LastTelemetryUtc=T.AddMilliseconds(100)};
+            var state=RaceDataTools.Execute("get_race_state",ctx);
+            Assert.AreEqual("fliegend",(string)state["raceroom_startgruppe"]["startart"]);
+            Assert.AreEqual("wartet",(string)state["raceroom_startgruppe"]["eigene_phase"]);
+            var start=watch.Evaluate(waiting,green,T.AddMilliseconds(200)).Single(c=>c.Topic=="race-start");
+            Assert.AreEqual("raceroom_3_6_own_start_group_green",start.Evidence);
+            Assert.IsTrue(start.IsValid(green,T.AddMilliseconds(250)));
+            RaceRoomStart(green,T.AddMilliseconds(300),1,0);
+            Assert.IsFalse(start.IsValid(green,T.AddMilliseconds(300)),"Never say green after the current group has returned to waiting.");
+        }
+
+        [Test]
+        public void RaceRoom_ambiguous_own_start_group_does_not_claim_green_or_hide_engine_warnings()
+        {
+            var before=State(SessionPhase.Formation);var after=State(SessionPhase.Green);
+            RaceRoomStart(before,T,1,0);RaceRoomStart(after,T,1,2,duplicate:true);
+            after.EngineData.EngineWaterTempWarning=true;
+            var calls=new RaceSituationWatch().Evaluate(before,after,T);
+            Assert.IsFalse(calls.Any(c=>c.Topic=="race-start"));
+            Assert.IsTrue(calls.Any(c=>c.Topic=="engine-water"));
+        }
+
+        [Test]
+        public void RaceRoom_changed_layout_must_not_supply_start_group_information()
+        {
+            var before=State(SessionPhase.Formation);var after=State(SessionPhase.Green);
+            RaceRoomStart(before,T,1,0);RaceRoomStart(after,T,1,2);
+            var wrapper=(CrewChiefV4.RaceRoom.R3ESharedMemoryReader.R3EStructWrapper)after.rawGameData;
+            var raw=wrapper.data;raw.DriverDataSize++;wrapper.data=raw;
+            var calls=new RaceSituationWatch().Evaluate(before,after,T);
+            Assert.IsFalse(calls.Any(c=>c.Topic=="race-start"));
+            var ctx=new RaceDataContext {GameState=after,NowUtc=T,LastTelemetryUtc=T};
+            Assert.IsNull(RaceDataTools.Execute("get_race_state",ctx)["raceroom_startgruppe"]);
         }
 
         [Test]

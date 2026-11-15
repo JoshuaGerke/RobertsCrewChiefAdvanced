@@ -94,8 +94,11 @@ namespace CrewChiefV4.AiTeam
             if (gs == null || context.TelemetryAgeSeconds < 0 || context.TelemetryAgeSeconds > 1 ||
                 context.NowUtc > windowEnd || !SafeToGreet(gs.SessionData.SessionType, gs.SessionData.SessionPhase,
                     gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed)) return null;
+            if (gs.SessionData.SessionType == SessionType.Race && gs.SessionData.SessionPhase == SessionPhase.Countdown)
+                return null;
             string track = gs.SessionData.TrackDefinition == null ? null : gs.SessionData.TrackDefinition.name;
             if (string.IsNullOrWhiteSpace(track)) return null;
+            string trackForRadio = track.Split(':')[0].Replace('_', ' ').Trim();
             string name = string.IsNullOrWhiteSpace(driverName) ? "Rob" : driverName.Trim();
             string opening = Openings[NextVariant()].Replace("Rob", name).Replace("Ben", TeamRouter.DisplayName(speaker));
             var type = gs.SessionData.SessionType;
@@ -105,15 +108,20 @@ namespace CrewChiefV4.AiTeam
                 " We're at " + SpokenTrack(track) + " for " + (race ? "the race" : qualifying ? "qualifying" : "practice") + ". ",
                 " Estamos en " + SpokenTrack(track) + " para " + (race ? "la carrera" : qualifying ? "la clasificación" : "los libres") + ". ");
             string weather = GreetingWeather(context);
+            string start = race && gs.SessionData.ClassPosition > 0 ? (RadioLanguage.IsGerman ? "Startplatz " + gs.SessionData.ClassPosition +
+                (RaceRadioLanguage.SeparateClass(gs.SessionData) ? " in deiner Klasse. " : ". ") :
+                RadioLanguage.T("", "Starting ", "Sales ") + RaceRadioLanguage.Rank(gs.SessionData, gs.SessionData.ClassPosition) + ". ") : "";
             string encouragement = race ? RadioLanguage.T("Ruhig bleiben, sauber durch die erste Kurve.", "Stay calm, clean through turn one.", "Tranquilo, limpio en la primera curva.") :
                 qualifying ? RadioLanguage.T("Finde deinen Rhythmus, dann setzen wir eine saubere Zeit.", "Find your rhythm, then we'll set a clean time.", "Encuentra tu ritmo y luego marcamos un tiempo limpio.") :
                 RadioLanguage.T("Komm in Ruhe auf Tempo.", "Build up to speed at your own pace.", "Coge ritmo con calma.");
             return new ObservedRaceCall {
-                Topic = "greeting", Text = opening + place + weather + encouragement,
-                Evidence = "confirmed_track_and_session; weather_only_when_fresh", Member = speaker, Priority = 2,
+                Topic = "greeting", Text = opening + place + weather + start + encouragement,
+                Evidence = "confirmed_track_and_session; weather_only_when_fresh", Member = speaker, Priority = 3,
                 SessionId = gs.SessionData.SessionId, SessionType = type, Position = -1, AllowPitlane = true,
                 DetectedUtc = context.NowUtc, ExpiresUtc = windowEnd,
                 AdditionalValidity = live => live.SessionData.TrackDefinition != null && live.SessionData.TrackDefinition.name == track &&
+                    (type != SessionType.Race || live.SessionData.SessionPhase != SessionPhase.Countdown) &&
+                    (start.Length == 0 || live.SessionData.ClassPosition == gs.SessionData.ClassPosition) &&
                     (weather.Length == 0 || weather == GreetingWeather(new RaceDataContext { GameState = live, NowUtc = DateTime.UtcNow }))
             };
         }
@@ -123,11 +131,14 @@ namespace CrewChiefV4.AiTeam
             var c = context.GameState.Conditions.LatestConditions;
             if (c == null || !WeatherWatch.Fresh(context.NowUtc, c.Time)) return "";
             var parts = new System.Collections.Generic.List<string>();
-            if (!float.IsNaN(c.AmbientTemperature) && c.AmbientTemperature >= -30 && c.AmbientTemperature <= 60)
-                parts.Add(RadioLanguage.T("Luft ", "air ", "aire ") + Math.Round(c.AmbientTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
-            if (!float.IsNaN(c.TrackTemperature) && c.TrackTemperature >= -30 && c.TrackTemperature <= 85)
+            if (TrackAwareness.InRange(c.TrackTemperature, -30, 85).HasValue)
                 parts.Add(RadioLanguage.T("Strecke ", "track ", "pista ") + Math.Round(c.TrackTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
             if (c.RainDensity >= .01 && c.RainDensity <= 1) parts.Add(RadioLanguage.T("Regen wird gemeldet", "rain reported", "se informa de lluvia"));
+            if (TrackAwareness.InRange(c.WindSpeed, .5, 150).HasValue)
+                parts.Add(RadioLanguage.T("Wind ", "wind ", "viento ") + Math.Round(c.WindSpeed * 3.6).ToString(RadioLanguage.Culture) +
+                    RadioLanguage.T(" Kilometer pro Stunde", " kilometres per hour", " kilómetros por hora"));
+            if (parts.Count == 0 && TrackAwareness.InRange(c.AmbientTemperature, -30, 60).HasValue)
+                parts.Add(RadioLanguage.T("Luft ", "air ", "aire ") + Math.Round(c.AmbientTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
             // Zero rain does not establish sunshine, cloud cover or a dry track.
             if (parts.Count == 0) return "";
             string text = string.Join(", ", parts) + ". ";

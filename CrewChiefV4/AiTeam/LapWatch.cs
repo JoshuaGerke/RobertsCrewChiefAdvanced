@@ -13,6 +13,11 @@ namespace CrewChiefV4.AiTeam
         private int pendingLap = -1;
         private float pendingSince;
         private bool finishCalled, timedClockCalled;
+        private int lastLapVariant;
+        private static string[] LastLapMotivation => RadioLanguage.Pick(
+            new[] { "Sauber ins Ziel.", "Konzentration bis zur Linie.", "Bring ihn sicher heim." },
+            new[] { "Clean to the flag.", "Focus all the way to the line.", "Bring it home safely." },
+            new[] { "Limpio hasta meta.", "Concentración hasta la línea.", "Llévalo a casa con seguridad." });
         private readonly RaceRadioLanguage language = new RaceRadioLanguage();
 
         public void Reset()
@@ -58,10 +63,15 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Ein Telemetrie-Tick. gapAhead/gapBehind in Sekunden, &lt;= 0 = unbekannt. Liefert den Funkspruch oder null.</summary>
         internal string ReferenceTemplate { get; private set; }
+        internal bool IncludesFrontGap { get; private set; }
+        internal string CoreCall { get; private set; }
 
-        public string Evaluate(GameStateData previous, GameStateData current, float gapAhead, float gapBehind, bool minimalMode)
+        public string Evaluate(GameStateData previous, GameStateData current, float gapAhead, float gapBehind, bool minimalMode,
+            bool preciseFront = true, string rivalName = null, string finalTactic = null, string driverName = null)
         {
             ReferenceTemplate = null;
+            IncludesFrontGap = false;
+            CoreCall = null;
             if (previous == null || current == null || current.SessionData.SessionType != SessionType.Race)
             {
                 return null;
@@ -82,7 +92,7 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T("Zielflagge ist draußen, bring die Runde sauber zu Ende.", "Chequered flag is out, bring the lap home clean.", "Bandera a cuadros, termina la vuelta limpio.") +
                     (s.ClassPosition == 1 ? (separate ? RadioLanguage.T(" Du führst deine Klasse.", " You're leading your class.", " Lideras tu clase.") :
                         RadioLanguage.T(" Du führst, jetzt konzentriert nach Hause bringen.", " You're leading, bring it home focused.", " Vas líder, llévalo a casa concentrado.")) :
-                    rank.Length > 0 ? " " + rank : "") + duel;
+                    rank.Length > 0 ? " " + rank : "") + (finalTactic == null ? duel : " " + finalTactic);
             }
             if (!timedClockCalled && s.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane && TimedClockElapsed(s))
             {
@@ -90,6 +100,12 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T("Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.", "Race time is up. Watch for the chequered flag.", "Se acabó el tiempo de carrera. Atento a la bandera a cuadros.");
             }
             if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)
+            {
+                pendingLap = s.CompletedLaps;
+                pendingSince = s.SessionRunningTime;
+            }
+            if (s.IsLastLap && s.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane &&
+                !ps.IsLastLap && lastCalledLap != s.CompletedLaps)
             {
                 pendingLap = s.CompletedLaps;
                 pendingSince = s.SessionRunningTime;
@@ -105,24 +121,45 @@ namespace CrewChiefV4.AiTeam
                 return null;
             }
             pendingLap = -1;
-            if (left == 1)
+            if (left == 1 && !LapsAreEstimated(s))
             {
                 lastCalledLap = s.CompletedLaps;
-                string focus = RadioLanguage.T("Bleib konzentriert.", "Stay focused.", "Mantén la concentración.");
-                return (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich letzte Runde! ", "Probably the last lap! ", "¡Probablemente última vuelta! ") :
+                string front = FrontChase(current, preciseFront, gapAhead, rivalName);
+                IncludesFrontGap = front != null;
+                CoreCall = (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich letzte Runde! ", "Probably the last lap! ", "¡Probablemente última vuelta! ") :
                         RadioLanguage.T("Letzte Runde! ", "Last lap! ", "¡Última vuelta! ")) +
                     (s.ClassPosition == 1 ? (separate ? RadioLanguage.T("Du führst deine Klasse. Bring es sauber nach Hause.", "You're leading your class. Bring it home clean.", "Lideras tu clase. Llévalo a casa limpio.") :
                         RadioLanguage.T("Du führst. Bleib ruhig, bring es sauber nach Hause.", "You're leading. Stay calm, bring it home clean.", "Vas líder. Tranquilo, llévalo a casa limpio.")) :
-                        rank.Length > 0 ? rank + " " + focus : focus) + duel;
+                        rank.Length > 0 ? rank : "");
+                string name = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
+                if (name.Length != 0) CoreCall = name + ", " + char.ToLower(CoreCall[0], RadioLanguage.Culture) + CoreCall.Substring(1);
+                if (s.ClassPosition != 1 && finalTactic == null)
+                    CoreCall += name.Length == 0 ? " " + RadioLanguage.T("Bleib konzentriert.", "Stay focused.", "Mantén la concentración.") :
+                        " " + LastLapMotivation[(lastLapVariant++) % LastLapMotivation.Length];
+                return CoreCall + (finalTactic == null ? front ?? duel : " " + finalTactic);
             }
             if (!minimalMode && left == 2)
             {
                 lastCalledLap = s.CompletedLaps;
-                return (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich noch zwei Runden", "Probably two laps to go", "Probablemente quedan dos vueltas") :
+                string front = FrontChase(current, preciseFront, gapAhead, rivalName);
+                IncludesFrontGap = front != null;
+                CoreCall = (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich noch zwei Runden", "Probably two laps to go", "Probablemente quedan dos vueltas") :
                         RadioLanguage.T("Noch zwei Runden", "Two laps to go", "Quedan dos vueltas")) +
                     (rank.Length > 0 ? ", " + rank : ".");
+                return CoreCall + front;
             }
             return null;
+        }
+
+        private static string FrontChase(GameStateData current, bool precise, float gap, string rivalName)
+        {
+            if (!precise || current.SessionData.ClassPosition <= 1 || !(gap > .05f && gap <= 3f) || current.FlagData.isLocalYellow)
+                return null;
+            return string.IsNullOrWhiteSpace(rivalName)
+                ? RadioLanguage.T(" Nach vorn ", " Gap ahead ", " Por delante ") + GermanRadioText.Interval(gap) + RadioLanguage.T(". Bleib dran.", ". Stay with it.", ". Sigue ahí.")
+                : " " + RadioLanguage.T(rivalName + " liegt " + GermanRadioText.Interval(gap) + " vor dir. Bleib dran.",
+                    rivalName + " is " + GermanRadioText.Interval(gap) + " ahead. Stay with it.",
+                    rivalName + " está a " + GermanRadioText.Interval(gap) + " por delante. Sigue ahí.");
         }
 
         private static string Duel(float gapAhead, float gapBehind)

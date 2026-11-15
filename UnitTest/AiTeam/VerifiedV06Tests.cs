@@ -67,17 +67,85 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Ungueltige_Runde_verfaelscht_Verbrauch_nicht()
+        public void Spa_Verbrauch_und_Warnung_auch_ohne_gueltige_Zeiten()
         {
             var memory = new AiRaceMemory();
-            var a = State(1, false, 50);
-            var b = State(2, false, 47.5f);
-            var c = State(3, false, 37.5f);
-            c.SessionData.PreviousLapWasValid = false;
-            memory.Update(null, a, T);
-            memory.Update(a, b, T.AddSeconds(90));
-            memory.Update(b, c, T.AddSeconds(180));
-            Assert.AreEqual(2.5f, memory.AverageFuelPerLap(), 0.001);
+            float[] tanks = { 21.80567f, 18.11577f, 14.42947f, 10.68381f, 7.01713f };
+            GameStateData previous = null;
+            for (int i = 0; i < tanks.Length; i++)
+            {
+                var frame = State(i + 1, false, tanks[i]);
+                frame.SessionData.SessionType = SessionType.Race;
+                frame.SessionData.PreviousLapWasValid = false;
+                frame.SessionData.SessionLapsRemaining = 2;
+                memory.Update(previous, frame, T.AddSeconds(i * 140));
+                previous = frame;
+            }
+
+            Assert.IsTrue(memory.GetLaps().All(lap => !lap.Valid));
+            Assert.AreEqual(3.697135f, memory.AverageFuelPerLap(), 0.0001);
+            var estimate = FuelEstimate.From(new RaceDataContext { GameState = previous, Memory = memory });
+            Assert.IsNotNull(estimate);
+            Assert.AreEqual(0.37714f, estimate.AdditionalWithoutReserve, 0.0001);
+            Assert.IsNotNull(new FuelWatch().Evaluate(5, previous.FuelData.FuelLeft, estimate.PerLap,
+                estimate.LapsRemaining, true, estimate.EstimatedFromTime, estimate.AdditionalWithoutReserve));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Messluecke_oder_Nachtanken_zwischen_Ziellinien_verwirft_Verbrauch(bool refuel)
+        {
+            var memory = new AiRaceMemory();
+            var start = State(1, false, 50);
+            var interruption = State(1, false, refuel ? 51 : 48);
+            interruption.SessionData.IsNewLap = false;
+            interruption.FuelData.FuelUseActive = refuel;
+            var finish = State(2, false, 46);
+            memory.Update(null, start, T);
+            memory.Update(start, interruption, T.AddSeconds(40));
+            memory.Update(interruption, finish, T.AddSeconds(90));
+
+            Assert.AreEqual(-1, memory.AverageFuelPerLap());
+        }
+
+        [Test]
+        public void Frische_Tankmessung_und_Strecke_erlauben_vorlaeufige_Prognose_vor_Rundenschluss()
+        {
+            var memory = new AiRaceMemory();
+            var track = new TrackDefinition("Fuel measurement", 4000f);
+            GameStateData frame = null;
+            for (int tick = 0; tick <= 50; tick++)
+            {
+                var next = State(0, false, 7.0f - tick * 0.02f);
+                next.Now = T.AddSeconds(tick * 0.5);
+                next.SourceTelemetryUtc = next.Now;
+                next.SessionData.SessionType = SessionType.Race;
+                next.SessionData.SessionPhase = SessionPhase.Green;
+                next.SessionData.SessionLapsRemaining = 2;
+                next.SessionData.TrackDefinition = track;
+                next.PositionAndMotionData.DistanceRoundTrack = tick * 20;
+                next.PositionAndMotionData.CarSpeed = 40;
+                memory.Update(frame, next, next.Now);
+                frame = next;
+                if (tick == 49) Assert.IsNull(FuelEstimate.From(new RaceDataContext { GameState = frame, Memory = memory }));
+            }
+
+            var estimate = FuelEstimate.From(new RaceDataContext { GameState = frame, Memory = memory });
+            Assert.IsNotNull(estimate);
+            Assert.IsTrue(estimate.ProvisionalConsumption);
+            Assert.AreEqual(4, estimate.PerLap, 0.001);
+            StringAssert.Contains("Erste Schätzung", LocalAnswers.TryAnswer("wie viel Sprit haben wir noch?", frame, memory));
+            var jump = State(0, false, 5.5f);
+            jump.Now = frame.Now.AddSeconds(0.5);
+            jump.SourceTelemetryUtc = jump.Now;
+            jump.SessionData.SessionType = SessionType.Race;
+            jump.SessionData.SessionPhase = SessionPhase.Green;
+            jump.SessionData.TrackDefinition = track;
+            jump.SessionData.SessionLapsRemaining = 2;
+            jump.PositionAndMotionData.DistanceRoundTrack = 3200;
+            jump.PositionAndMotionData.CarSpeed = 40;
+            memory.Update(frame, jump, jump.Now);
+            Assert.IsNull(FuelEstimate.From(new RaceDataContext { GameState = jump, Memory = memory }));
         }
 
         [TestCase(float.NaN, 2.5f, 10f)]

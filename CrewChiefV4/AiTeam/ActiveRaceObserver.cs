@@ -10,20 +10,22 @@ namespace CrewChiefV4.AiTeam
     internal sealed class PitGainEvidence
     {
         public readonly string Key, Name, Number;
+        public readonly string Identity;
         public readonly int CarId, FormerRank;
         public readonly DateTime EnteredUtc;
 
         public PitGainEvidence(string key, OpponentData rival, int formerRank, DateTime entered)
         {
             Key = key; Name = rival.DriverRawName; Number = rival.CarNumber; CarId = rival.CostId;
+            Identity = RaceReader.Identity(key, rival);
             FormerRank = formerRank; EnteredUtc = entered;
         }
 
         public bool Matches(NativeFieldFact fact) => fact != null && fact.Kind == "pit" && fact.Key == Key &&
-            fact.Name == Name && fact.CarNumber == Number && fact.CarId == CarId && Math.Abs((fact.Utc - EnteredUtc).TotalSeconds) <= 3;
+            fact.Identity == Identity && Math.Abs((fact.Utc - EnteredUtc).TotalSeconds) <= 3;
 
         public bool StillInPits(GameStateData gs) => gs != null && gs.OpponentData.TryGetValue(Key, out var rival) &&
-            rival != null && rival.IsActive && rival.InPits && rival.DriverRawName == Name && rival.CarNumber == Number && rival.CostId == CarId &&
+            rival != null && rival.IsActive && rival.InPits && RaceReader.Identity(Key, rival) == Identity &&
             gs.carClass != null && rival.CarClass != null && CarData.IsCarClassEqual(gs.carClass, rival.CarClass, false);
     }
 
@@ -36,7 +38,8 @@ namespace CrewChiefV4.AiTeam
     public sealed class ObservedRaceCall
     {
         public string Topic, Text, Evidence;
-        public readonly string EventId = Guid.NewGuid().ToString("N");
+        internal string OpponentNameClip;
+        public string EventId { get; internal set; } = Guid.NewGuid().ToString("N");
         public Func<GameStateData,DateTime,PreparedRadioDetail> PreparedDetail;
 
         /// <summary>Optional numeric detail is cache-only. A miss always retains the immediate generic warning.
@@ -52,6 +55,16 @@ namespace CrewChiefV4.AiTeam
         }
         internal bool ConfirmedPass;
         internal RadioVariantCursor VariantCursor, AdditionalVariantCursor;
+        internal Action<DateTime> PlaybackCompleted;
+        internal string VariantGroup;
+        internal int VariantIndex = -1;
+        internal void BindVariant(RadioVariantCursor cursor, string group, int index)
+        {
+            VariantCursor = cursor;
+            VariantGroup = group;
+            VariantIndex = index;
+            ReferenceTemplate = RadioPhraseCatalog.Current.ReferenceFor(group, index);
+        }
         internal string ReferenceTemplate;
         internal PitGainEvidence PitGain;
         internal bool FieldNamesAllowed;
@@ -70,8 +83,31 @@ namespace CrewChiefV4.AiTeam
                 string pitRivalName = context.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(PitGain.Name) : "";
                 string position = Position.ToString(CultureInfo.InvariantCulture) + (RaceRadioLanguage.SeparateClass(context.GameState.SessionData) ? RadioLanguage.T(" in deiner Klasse", " in your class", " en tu clase") : "");
                 detailIsCurrent = (live, now) => PitGain.StillInPits(live);
-                return RadioPhraseCatalog.Current.Format("pit-gain", VariantCursor.Heard,
+                const string group = "pit-gain";
+                var catalog = RadioPhraseCatalog.Current;
+                int index = VariantCursor.Select(group, catalog.Count(group));
+                BindVariant(VariantCursor, group, index);
+                return catalog.Format(group, index,
                     pitRivalName.Length == 0 ? RadioLanguage.T("Der Vordermann", "The car ahead", "Tu rival de delante") : pitRivalName, position);
+            }
+            if (RaceStatus && Volatile.Read(ref attempts) == 1 && context?.GameState?.SessionData.SessionType == SessionType.Race)
+            {
+                var stateForStatus = context.GameState;
+                var front = RaceDataTools.Neighbour(stateForStatus, true);
+                var gap = RaceDataTools.ReadGap(context, front, true);
+                string statusRivalName = context.SendDriverNames && front?.CanUseName == true ?
+                    RadioPhraseCatalog.SafeRivalName(front.DriverRawName) : "";
+                if (statusRivalName.Length > 0 && gap.Kind == RaceGapKind.SimulatorTiming && gap.Seconds >= .1f && gap.Seconds <= 2.5f)
+                {
+                    string frontKey = stateForStatus.SessionData.OpponentKeyInFront;
+                    string statusRivalIdentity = RaceReader.Identity(frontKey, front);
+                    detailIsCurrent = (live, at) => live.SessionData.OpponentKeyInFront == frontKey &&
+                        RaceDataTools.Neighbour(live, true) is OpponentData currentFront &&
+                        RaceReader.Identity(frontKey, currentFront) == statusRivalIdentity &&
+                        RaceDataTools.ReadGap(live, currentFront, true) is RaceGapMeasurement refreshed &&
+                        refreshed.Kind == gap.Kind && Math.Abs(refreshed.Seconds - gap.Seconds) <= .4f;
+                    return Text + " Auf " + statusRivalName + " fehlen " + GermanRadioText.Interval(gap.Seconds) + ".";
+                }
             }
             // If the optional detail expires during rendering, the ordinary retry can still report the pass.
             if (!ConfirmedPass || Volatile.Read(ref attempts) != 1 || context == null || !context.SendDriverNames)
@@ -83,15 +119,15 @@ namespace CrewChiefV4.AiTeam
 
             string key = state.SessionData.OpponentKeyInFront;
             string name = rival.DriverRawName;
-            string number = rival.CarNumber;
-            string spokenName = new string((name ?? "").Where(c => char.IsLetter(c) || c == ' ' || c == '-' || c == '\'').Take(60).ToArray()).Trim();
+            string identity = RaceReader.Identity("",rival);
+            string spokenName = rival.CanUseName ? RadioPhraseCatalog.SafeRivalName(name) : "";
             if (spokenName.Length == 0) return Text;
 
             var tracks = context.Tracks;
             detailIsCurrent = (live, now) => {
                 if (live == null || live.SessionData.OpponentKeyInFront != key) return false;
                 var front = RaceDataTools.Neighbour(live, true);
-                return front != null && front.DriverRawName == name && front.CarNumber == number &&
+                return front != null && RaceReader.Identity("",front) == identity &&
                     CloseRaceRival(new RaceDataContext { GameState = live, NowUtc = now,
                         LastTelemetryUtc = live.Now, Tracks = tracks }, front);
             };
@@ -116,7 +152,7 @@ namespace CrewChiefV4.AiTeam
         public TeamMember Member = TeamMember.Ben;
         public int CompletedLaps = -1;
         public string AheadName, BehindName;
-        private string aheadKey,behindKey,aheadNumber,behindNumber;
+        private string aheadKey,behindKey,aheadIdentity,behindIdentity;
         private bool aheadIdentityBound,behindIdentityBound;
         private RaceGapKind aheadKind,behindKind;
         private Func<GameStateData,bool,DateTime,RaceGapMeasurement> timedGapReader;
@@ -127,6 +163,34 @@ namespace CrewChiefV4.AiTeam
         // Only a just-completed practice/qualifying lap can outlive the timed session phase.
         public bool AllowLapFinish;
         public bool AllowPitlane;
+        internal bool RaceStatus;
+        internal Func<RaceDataContext, string> RefreshText;
+        internal Func<RaceDataContext, float> RefreshGapS;
+        internal float SpokenGapS = -1;
+        internal bool CanRefresh => RaceStatus || RefreshText != null;
+        internal bool WasDeferred { get; private set; }
+        internal bool RefreshBeforeSpeak(RaceDataContext context)
+        {
+            if (!CanRefresh) return true;
+            var live = context.GameState;
+            if (live == null || context.NowUtc > ExpiresUtc || live.SessionData.SessionId != SessionId ||
+                live.SessionData.SessionType != SessionType || live.SessionData.SessionPhase != SessionPhase.Green ||
+                live.FlagData.isLocalYellow || live.PitData.InPitlane) return false;
+            string current = RaceStatus ? AiRadioSchedule.Compose("status", context) : RefreshText(context);
+            if (string.IsNullOrWhiteSpace(current)) return false;
+            Text = current;
+            if (RefreshGapS != null) SpokenGapS = RefreshGapS(context);
+            if (RaceStatus)
+            {
+                var snapshot = live.SessionData;
+                Position = snapshot.ClassPosition;
+                int overall = snapshot.OverallPosition;
+                bool separate = RaceRadioLanguage.SeparateClass(snapshot);
+                AdditionalValidity = state => !state.FlagData.isLocalYellow &&
+                    (!separate || state.SessionData.OverallPosition == overall);
+            }
+            return true;
+        }
         public DateTime DetectedUtc, ExpiresUtc;
         private int deliveryState, attempts;
         private long playbackStartedTicks, retryNotBeforeTicks,playbackEndedTicks;
@@ -134,7 +198,21 @@ namespace CrewChiefV4.AiTeam
         public bool PlaybackInterrupted {get{return Volatile.Read(ref playbackInterrupted)!=0;}}
         public DateTime PlaybackEndedUtc {get{long t=Interlocked.Read(ref playbackEndedTicks);return t>0?new DateTime(t,DateTimeKind.Utc):DateTime.MinValue;}}
         public void MarkPlaybackFinished(DateTime now,bool interrupted)
-        {if(interrupted)Interlocked.Exchange(ref playbackInterrupted,1);Interlocked.Exchange(ref playbackEndedTicks,now.Ticks);}
+        {
+            DateTime started=DeliveryStartedUtc;
+            if(started==DateTime.MinValue || now<started || Interlocked.CompareExchange(ref playbackEndedTicks,now.Ticks,0)!=0) return;
+            if(interrupted)Interlocked.Exchange(ref playbackInterrupted,1);
+            else
+            {
+                if (PitGain == null || Volatile.Read(ref pitGainSpoken) != 0) VariantCursor?.OnPlaybackCompleted(VariantGroup, VariantIndex);
+                AdditionalVariantCursor?.OnPlaybackCompleted();
+                PlaybackCompleted?.Invoke(now);
+                if (ReferenceTemplate != null) LiveDiagnostics.Decision(Topic, "template_completed", ReferenceTemplate);
+            }
+            if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_completed",LiveDiagnostics.Data("topic",Topic,
+                "duration_ms",(now-started).TotalMilliseconds,"template",ReferenceTemplate,
+                "result",interrupted?"interrupted":"backend_finished_not_audibility_proof"),EventId);
+        }
         public const int MaximumDeliveryAttempts = 2;
         public DateTime DeliveryStartedUtc
         {
@@ -150,8 +228,8 @@ namespace CrewChiefV4.AiTeam
         {
             if (!CanReserve(now) || Interlocked.CompareExchange(ref deliveryState, 1, 0) != 0) return false;
             Interlocked.Increment(ref attempts);
-            LiveDiagnostics.Decision(Topic, "reserved", "awaiting_playback", Evidence);
-            if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_reserved",LiveDiagnostics.Data("topic",Topic,"text",Text,"reason",Evidence),EventId);
+            LiveDiagnostics.Decision(Topic, "reserved", "awaiting_playback", Evidence, EventId);
+            if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_reserved",LiveDiagnostics.Data("topic",Topic,"text",Text,"reason",Evidence,"template",ReferenceTemplate),EventId);
             return true;
         }
         // Called from the audio callback. Observers consume this state on their own telemetry thread.
@@ -162,41 +240,61 @@ namespace CrewChiefV4.AiTeam
             Volatile.Write(ref pitGainSpoken, spokePitGain ? 1 : 0);
             if (Interlocked.CompareExchange(ref deliveryState, 2, 1) == 1)
             {
-                if (PitGain == null || spokePitGain) VariantCursor?.OnPlaybackStarted();
-                AdditionalVariantCursor?.OnPlaybackStarted();
-                LiveDiagnostics.Decision(Topic, "delivered", "playback_started", Evidence);
-                if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_delivered",LiveDiagnostics.Data("topic",Topic,"reason",Evidence),EventId);
-                if (ReferenceTemplate != null) LiveDiagnostics.Decision(Topic, "template_played", ReferenceTemplate);
+                LiveDiagnostics.Decision(Topic, "delivered", "playback_started", Evidence, EventId);
+                if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_delivered",LiveDiagnostics.Data("topic",Topic,"reason",Evidence,"template",ReferenceTemplate,
+                    "duration_ms",(now-DetectedUtc).TotalMilliseconds,"measurement","detection_to_audio_backend_start"),EventId);
+                if (ReferenceTemplate != null) LiveDiagnostics.Decision(Topic, "template_started", ReferenceTemplate);
             }
         }
         public void ReleaseForRetry(DateTime now, string reason = "delivery_failed")
         {
             bool terminal = now > ExpiresUtc || Volatile.Read(ref attempts) >= MaximumDeliveryAttempts;
-            Interlocked.Exchange(ref retryNotBeforeTicks, now.AddSeconds(1).Ticks);
+            bool immediateTraffic = Topic == "race-hazard-ahead" || Topic == "race-traffic-rear";
+            Interlocked.Exchange(ref retryNotBeforeTicks, now.AddMilliseconds(immediateTraffic ? 100 : 1000).Ticks);
             if (Interlocked.CompareExchange(ref deliveryState, terminal ? 3 : 0, 1) == 1)
-                LiveDiagnostics.Decision(Topic, terminal ? "suppressed" : "deferred", reason, Evidence);
+            {
+                LiveDiagnostics.Decision(Topic, terminal ? "suppressed" : "deferred", reason, Evidence, EventId);
+                if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_retry",LiveDiagnostics.Data("topic",Topic,
+                    "reason",reason,"status",terminal?"suppressed":"deferred"),EventId);
+            }
+        }
+        internal void DeferDelivery(DateTime now, string reason)
+        {
+            if (!CanRefresh || now > ExpiresUtc) { ReleaseForRetry(now, reason); return; }
+            if (Interlocked.CompareExchange(ref deliveryState, 4, 1) != 1) return;
+            Interlocked.Decrement(ref attempts);
+            Interlocked.Exchange(ref retryNotBeforeTicks, now.AddMilliseconds(400).Ticks);
+            WasDeferred = true;
+            Volatile.Write(ref deliveryState, 0);
+            LiveDiagnostics.Decision(Topic, "deferred", reason, Evidence, EventId);
         }
         public bool IsValid(GameStateData gs, DateTime now)
         {
             if (gs == null || DeliveryFailed || now < DetectedUtc || now > ExpiresUtc) return false;
+            if (gs.SourceTelemetryUtc != DateTime.MinValue &&
+                (now < gs.SourceTelemetryUtc || now - gs.SourceTelemetryUtc > TimeSpan.FromSeconds(1))) return false;
             var s = gs.SessionData;
             bool weather = AllowPitlane && (Topic ?? "").StartsWith("weather-", StringComparison.Ordinal);
             bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed");
             bool greeting = AllowPitlane && Topic == "greeting" && SessionGreetingDirector.SafeToGreet(
                 s.SessionType, s.SessionPhase, gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed);
             if (Topic == "greeting" && !greeting) return false;
-            // Formation support is only valid during a confirmed formation, never after green.
-            bool formation = Topic == "formation" && s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Formation;
+            // R3E 3.6 can keep a later start group in formation after global green.
+            bool formation = Topic == "formation" && RaceSituationWatch.InFormation(gs, now);
             if (Topic == "formation" && !formation) return false;
-            bool qualifyingResult = Topic == "qualifying-result" && s.SessionType == SessionType.Qualify && AllowLapFinish &&
+            bool qualifyingResult = Topic == "qualifying-result" && QualifyingResultWatch.Supported(s.SessionType) && AllowLapFinish &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
+            bool pitFinish = Topic == "pit-finish" && s.SessionType == SessionType.Race &&
+                s.SessionPhase == SessionPhase.Finished && gs.PitData.InPitlane;
+            bool qualifyingLast = Topic == "qualifying-last" && QualifyingResultWatch.Supported(s.SessionType) &&
+                (s.SessionPhase == SessionPhase.Green || s.SessionPhase == SessionPhase.Checkered);
             bool liveWarning=(Topic??"").StartsWith("warning-",StringComparison.Ordinal) &&
                 (s.SessionPhase==SessionPhase.Green || s.SessionPhase==SessionPhase.FullCourseYellow);
-            bool phaseValid = liveWarning || qualifyingResult || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            bool phaseValid = liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                (!gs.PitData.InPitlane || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
+                (!gs.PitData.InPitlane || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, now, true, AheadName, AheadGap) && GapStillValid(gs, now, false, BehindName, BehindGap);
         }
@@ -211,7 +309,7 @@ namespace CrewChiefV4.AiTeam
             bool bound=ahead?aheadIdentityBound:behindIdentityBound;
             return opponent != null && opponent.DriverRawName == name &&
                 (!bound || key!=null && gs.OpponentData.TryGetValue(key,out original) && ReferenceEquals(original,opponent) &&
-                    opponent.CarNumber==(ahead?aheadNumber:behindNumber)) &&
+                    RaceReader.Identity("",opponent)==(ahead?aheadIdentity:behindIdentity)) &&
                 gap > 0 && Math.Abs(gap - oldGap) <= .5f;
         }
         public void IncludeNeighbour(RaceDataContext ctx, bool ahead, bool appendText)
@@ -229,9 +327,9 @@ namespace CrewChiefV4.AiTeam
             },RaceDataTools.Neighbour(live,direction),direction);
             string key=ctx.GameState.OpponentData.FirstOrDefault(p=>ReferenceEquals(p.Value,op)).Key;
             if (ahead) { AheadName = op.DriverRawName; AheadGap = RaceDataTools.ReadGap(ctx, op, true).Seconds;
-                aheadKey=key;aheadNumber=op.CarNumber;aheadKind=RaceDataTools.ReadGap(ctx,op,true).Kind;aheadIdentityBound=true; }
+                aheadKey=key;aheadIdentity=RaceReader.Identity("",op);aheadKind=RaceDataTools.ReadGap(ctx,op,true).Kind;aheadIdentityBound=true; }
             else { BehindName = op.DriverRawName; BehindGap = RaceDataTools.ReadGap(ctx, op, false).Seconds;
-                behindKey=key;behindNumber=op.CarNumber;behindKind=RaceDataTools.ReadGap(ctx,op,false).Kind;behindIdentityBound=true; }
+                behindKey=key;behindIdentity=RaceReader.Identity("",op);behindKind=RaceDataTools.ReadGap(ctx,op,false).Kind;behindIdentityBound=true; }
         }
     }
 
@@ -244,19 +342,31 @@ namespace CrewChiefV4.AiTeam
     {
         private sealed class Car
         {
-            public int Position, Laps, CarId;
+            public int Position;
             public bool Pit, Active;
-            public string Name, Number;
-            public float Distance, Speed;
+            public string Identity;
+            public float Speed;
         }
         private readonly Dictionary<string, Car> previousCars = new Dictionary<string, Car>();
         private readonly List<ObservedRaceCall> pending = new List<ObservedRaceCall>();
         private int stablePosition, candidatePosition, candidateSamples, session = int.MinValue, lastEndLap = -1;
+        private int lossFrom;
+        private DateTime lossStarted;
+        private ObservedRaceCall lossCall;
+        private readonly RadioVariantCursor lossVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor pressureVariants = new RadioVariantCursor();
+        private string pressureRival, reportedPressureRival, pendingPressureRival;
+        private ObservedRaceCall pressureCall;
+        private float pressureBaseline;
+        private RaceGapKind pressureKind;
+        private DateTime pressureAt, reportedPressureAt;
         private DateTime candidateSince, lastTick, lastCall = DateTime.MinValue, nextSummary;
         private bool candidatePass, candidatePit, previousInPits;
+        private string candidatePassKey, candidatePassIdentity;
         private RadioVariantCursor passVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor firstPassVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor pitGainVariants = new RadioVariantCursor();
+        private readonly RadioVariantCursor lastLapVariants = new RadioVariantCursor(), closingLapVariants = new RadioVariantCursor();
         private string previousFrontKey;
         private PitGainEvidence recentFrontPit, spokenPitGain;
         private DateTime spokenPitGainUtc;
@@ -288,12 +398,16 @@ namespace CrewChiefV4.AiTeam
         public void Enqueue(ObservedRaceCall call)
         {
             if(pending.Count>=8) pending.RemoveAt(0);
-            pending.Add(call); LiveDiagnostics.Decision(call.Topic,"detected",call.Evidence,call.Text);
+            pending.Add(call);
         }
 
         public void Reset()
         {
             previousCars.Clear(); pending.Clear(); stablePosition = candidatePosition = candidateSamples = startPosition = 0;
+            lossFrom = 0; lossStarted = DateTime.MinValue; lossCall = null;
+            pressureRival = reportedPressureRival = null;
+            pressureCall = null; pendingPressureRival = null;
+            pressureAt = reportedPressureAt = DateTime.MinValue;
             passVariants = new RadioVariantCursor();
             previousFrontKey = null;
             recentFrontPit = spokenPitGain = null;
@@ -302,7 +416,8 @@ namespace CrewChiefV4.AiTeam
             lastEndLap = -1; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false; startVerdictDone = false;
         }
 
-        public void Observe(GameStateData gs, DateTime now, string driverName, int intervalSeconds)
+        public void Observe(GameStateData gs, DateTime now, string driverName, int intervalSeconds,
+            AiRaceMemory memory = null, bool names = false)
         {
             if (gs == null) return;
             var s = gs.SessionData;
@@ -323,7 +438,7 @@ namespace CrewChiefV4.AiTeam
             if (green && wasGreen && !previousInPits && !gs.PitData.InPitlane && stablePosition > 1 && previousFrontKey != null &&
                 previousCars.TryGetValue(previousFrontKey, out var oldFront) && oldFront.Position == stablePosition - 1 && oldFront.Active && !oldFront.Pit &&
                 gs.OpponentData.TryGetValue(previousFrontKey, out var entering) && entering != null && entering.IsActive && entering.InPits &&
-                entering.DriverRawName == oldFront.Name && entering.CarNumber == oldFront.Number && entering.CostId == oldFront.CarId &&
+                RaceReader.Identity(previousFrontKey, entering) == oldFront.Identity &&
                 gs.carClass != null && entering.CarClass != null && CarData.IsCarClassEqual(gs.carClass, entering.CarClass, false))
                 recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
             if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
@@ -340,8 +455,9 @@ namespace CrewChiefV4.AiTeam
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
                 stablePosition = s.ClassPosition; candidatePosition = 0;
+                lossFrom = 0; lossCall = null;
                 // Keep a deferred formation call across formation samples so it can retry delivery.
-                pending.RemoveAll(c => c.Topic != "formation" || s.SessionPhase != SessionPhase.Formation || s.SessionType != SessionType.Race || gs.PitData.InPitlane);
+                pending.RemoveAll(c => c.Topic != "formation" || !RaceSituationWatch.InFormation(gs, now) || gs.PitData.InPitlane);
             }
             else if (stablePosition <= 0) stablePosition = s.ClassPosition;
             else if (s.ClassPosition == stablePosition) candidatePosition = 0;
@@ -350,22 +466,32 @@ namespace CrewChiefV4.AiTeam
                 if (candidatePosition != s.ClassPosition)
                 {
                     candidatePosition = s.ClassPosition; candidateSince = now; candidateSamples = 1;
-                    candidatePass = false; candidatePit = false;
+                    candidatePass = false; candidatePit = false; candidatePassKey = candidatePassIdentity = null;
                     if (candidatePosition == stablePosition - 1 && wasGreen)
                     {
                         foreach (var pair in gs.OpponentData)
                         {
                             Car before;
                             var rival = pair.Value;
-                            if (!previousCars.TryGetValue(pair.Key, out before) || before.Position != candidatePosition || rival.ClassPosition != stablePosition ||
+                            if (rival == null || !previousCars.TryGetValue(pair.Key, out before) || before.Identity != RaceReader.Identity(pair.Key, rival) ||
+                                before.Position != candidatePosition || rival.ClassPosition != stablePosition ||
                                 rival.CarClass == null || gs.carClass == null || rival.CarClass.getClassIdentifier() != gs.carClass.getClassIdentifier()) continue;
                             candidatePit |= before.Pit || rival.InPits;
                             float delta = (s.CompletedLaps - rival.CompletedLaps) * (s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength) +
                                 gs.PositionAndMotionData.DistanceRoundTrack - rival.DistanceRoundTrack;
                             // Exclude stopped/spinning cars, lap corrections and unmeasured order changes from praise.
-                            candidatePass |= !before.Pit && !rival.InPits && before.Active && rival.IsActive &&
+                            bool crossing = !before.Pit && !rival.InPits && before.Active && rival.IsActive &&
                                 before.Speed > 10 && rival.Speed > 10 && gs.PositionAndMotionData.CarSpeed > 10 &&
                                 s.TrackDefinition != null && s.TrackDefinition.trackLength > 100 && delta >= 0 && delta < 150;
+                            if (!crossing) continue;
+                            if (candidatePassKey != null)
+                            {
+                                candidatePass = false;
+                                break;
+                            }
+                            candidatePassKey = pair.Key;
+                            candidatePassIdentity = before.Identity;
+                            candidatePass = true;
                         }
                     }
                 }
@@ -382,9 +508,15 @@ namespace CrewChiefV4.AiTeam
                     if (gain > 0)
                     {
                         string text;
+                        bool firstPass = passVariants.Heard == 0;
+                        string passGroup = firstPass ? "pass-first" : "pass-repeat";
+                        var passCursor = firstPass ? firstPassVariants : passVariants;
+                        int passIndex = 0;
                         if (candidatePass && !candidatePit)
                         {
-                            text = RaceRadioLanguage.Overtake(passVariants.Heard + 1, candidatePosition, driverName, RaceRadioLanguage.SeparateClass(s), firstPassVariants.Heard);
+                            passIndex = passCursor.Select(passGroup, RadioPhraseCatalog.Current.Count(passGroup));
+                            text = RaceRadioLanguage.Overtake(firstPass ? 1 : passIndex + 2, candidatePosition, driverName,
+                                RaceRadioLanguage.SeparateClass(s), passIndex);
                         }
                         else text = RaceRadioLanguage.SeparateClass(s) ? RadioLanguage.T("Wir sind vorgerückt. Jetzt ", "We've moved up. Now ", "Hemos subido. Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + "." :
                             RadioLanguage.T("Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".",
@@ -392,7 +524,7 @@ namespace CrewChiefV4.AiTeam
                         var pitGain = gain == 1 && !conductUncertain && recentFrontPit != null && recentFrontPit.FormerRank == candidatePosition &&
                             now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
                             gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;
-                        Add("position", text, gs, now, 8, 3,
+                        Add("position", text, gs, now, 9, candidatePass && !candidatePit ? 5 : 3,
                             pitGain != null ? "same_class_front_rival_entered_pit_before_rank_gain" :
                             candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
                         if (pitGain != null)
@@ -405,42 +537,186 @@ namespace CrewChiefV4.AiTeam
                         {
                             int cuts = gs.PenaltiesData.CutTrackWarnings, lap = s.CompletedLaps;
                             bool validLap = s.CurrentLapIsValid;
+                            string passedKey = candidatePassKey, passedIdentity = candidatePassIdentity;
                             // Delayed cut/invalidity flags can arrive after the rank changed, before speech starts.
                             var passCall = pending.Last();
                             passCall.ConfirmedPass = true;
-                            passCall.VariantCursor = passVariants;
-                            if(passVariants.Heard==0)passCall.AdditionalVariantCursor=firstPassVariants;
-                            passCall.AdditionalValidity = live => !live.PenaltiesData.IsOffRacingSurface &&
+                            if (memory != null && passedKey != null && gs.OpponentData.TryGetValue(passedKey, out var passedCar) &&
+                                RaceReader.Identity(passedKey, passedCar) == passedIdentity)
+                            {
+                                string passedName = names && passedCar.CanUseName ?
+                                    RadioPhraseCatalog.SafeRivalName(passedCar.DriverRawName) : "";
+                                string confirmed = (passedName.Length == 0 ? "Auf der Strecke an einem Klassengegner vorbeigegangen." :
+                                    "Auf der Strecke an " + passedName + " vorbeigegangen.") +
+                                    " Von Platz " + stablePosition + " auf " + candidatePosition + ".";
+                                memory.AddObservation(confirmed, now, "confirmed-on-track-pass", passedKey, passCall.Evidence);
+                            }
+                            passCall.BindVariant(passCursor, passGroup, passIndex);
+                            if(firstPass)passCall.AdditionalVariantCursor=passVariants;
+                            passCall.AdditionalValidity = live => !live.FlagData.isLocalYellow && !live.PenaltiesData.IsOffRacingSurface &&
                                 live.PenaltiesData.CutTrackWarnings <= cuts &&
-                                !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid);
+                                !(validLap && live.SessionData.CompletedLaps == lap && !live.SessionData.CurrentLapIsValid) &&
+                                passedKey != null && live.OpponentData.TryGetValue(passedKey, out var passed) && passed != null &&
+                                passed.IsActive && !passed.InPits && passed.ClassPosition > live.SessionData.ClassPosition &&
+                                RaceReader.Identity(passedKey, passed) == passedIdentity;
                         }
                     }
-                    else Add("position", RadioLanguage.T("Jetzt ", "Now ", "Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + RadioLanguage.T(". Bleib dran.", ". Stay with it.", ". Sigue ahí."), gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    else if (lossFrom == 0 && (-gain >= 3 || gs.PositionAndMotionData.CarSpeed > 0 && gs.PositionAndMotionData.CarSpeed < 12))
+                    {
+                        lossFrom = stablePosition;
+                        lossStarted = now;
+                    }
+                    else if (lossFrom == 0)
+                        Add("position", RadioLanguage.T("Jetzt ", "Now ", "Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + RadioLanguage.T(". Bleib dran.", ". Stay with it.", ". Sigue ahí."), gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    if (gain < 0)
+                        memory?.AddObservation("Zurückgefallen von Platz " + stablePosition + " auf " + candidatePosition + ".",
+                            now, "confirmed-position-loss", null, "stable_classification");
                     stablePosition = candidatePosition; candidatePosition = 0;
                 }
             }
+            ObservePositionLoss(gs, now, green);
             if (green && wasGreen && !gs.PitData.InPitlane && !s.SessionHasFixedTime && s.SessionNumberOfLaps > 0 &&
                 s.SessionLapsRemaining > 0 && s.SessionLapsRemaining <= 3 && s.SessionLapsRemaining != lastEndLap)
             {
                 lastEndLap = s.SessionLapsRemaining;
-                bool leading = s.ClassPosition == 1;
-                string text = lastEndLap == 1
-                    ? RadioLanguage.T("Letzte Runde, ", "Last lap, ", "Última vuelta, ") + SafeName(driverName) + (leading
-                        ? RadioLanguage.T(". Du führst. Sauber nach Hause bringen.", ". You're leading. Bring it home clean.", ". Vas líder. Llévalo a casa limpio.")
-                        : RadioLanguage.T(". Bleib konzentriert.", ". Stay focused.", ". Mantén la concentración."))
-                    : RadioLanguage.T("Noch " + lastEndLap + " Runden, ", lastEndLap + " laps to go, ", "Quedan " + lastEndLap + " vueltas, ") + SafeName(driverName) + (leading
-                        ? RadioLanguage.T(". Du führst. Bleib bei deinem Rhythmus.", ". You're leading. Keep your rhythm.", ". Vas líder. Mantén tu ritmo.")
-                        : RadioLanguage.T(". Bleib bei deinem Rhythmus.", ". Keep your rhythm.", ". Mantén tu ritmo."));
+                string group=lastEndLap==1?"race-last":"race-closing";
+                var cursor=lastEndLap==1?lastLapVariants:closingLapVariants;
+                var catalog=RadioPhraseCatalog.Current;
+                int variant=cursor.Select(group,catalog.Count(group));
+                string text=lastEndLap==1?catalog.Format(group,variant,SafeName(driverName)):
+                    catalog.Format(group,variant,lastEndLap.ToString(CultureInfo.InvariantCulture),SafeName(driverName));
+                bool separateClass=RaceRadioLanguage.SeparateClass(s);
+                if(s.ClassPosition==1)text+=separateClass?RadioLanguage.T(" Du führst in deiner Klasse."," You're leading your class."," Lideras tu clase."):
+                    RadioLanguage.T(" Du führst."," You're leading."," Vas líder.");
                 Add("race-end", text, gs, now, 12, 4, "fixed_lap_race_remaining_from_adapter");
                 pending.Last().LapsRemaining = lastEndLap;
+                pending.Last().BindVariant(cursor,group,variant);
+                pending.Last().AdditionalValidity=live=>RaceRadioLanguage.SeparateClass(live.SessionData)==separateClass;
             }
             previousCars.Clear();
             foreach (var pair in gs.OpponentData)
-                previousCars[pair.Key] = new Car { Position = pair.Value.ClassPosition, Laps = pair.Value.CompletedLaps,
-                    Pit = pair.Value.InPits, Active = pair.Value.IsActive, Distance = pair.Value.DistanceRoundTrack, Speed = pair.Value.Speed,
-                    Name = pair.Value.DriverRawName, Number = pair.Value.CarNumber, CarId = pair.Value.CostId };
+                if (pair.Value != null)
+                    previousCars[pair.Key] = new Car { Position = pair.Value.ClassPosition,
+                        Pit = pair.Value.InPits, Active = pair.Value.IsActive, Speed = pair.Value.Speed,
+                        Identity = RaceReader.Identity(pair.Key, pair.Value) };
             previousFrontKey = s.OpponentKeyInFront;
             previousInPits = gs.PitData.InPitlane; wasGreen = green;
+        }
+
+        private void ObservePositionLoss(GameStateData state, DateTime now, bool green)
+        {
+            if (lossFrom == 0 || !green) return;
+            int position = state.SessionData.ClassPosition;
+            if (lossCall?.DeliveryStartedUtc > DateTime.MinValue || now - lossStarted > TimeSpan.FromSeconds(30) ||
+                position <= lossFrom && candidatePosition == 0)
+            {
+                lossFrom = 0;
+                lossCall = null;
+                return;
+            }
+            if (position != stablePosition || candidatePosition != 0 || position - lossFrom < 2 ||
+                lossCall != null && lossCall.IsValid(state, now) ||
+                now - candidateSince < TimeSpan.FromSeconds(2) ||
+                state.PositionAndMotionData.CarSpeed < 12 && now - candidateSince < TimeSpan.FromSeconds(5)) return;
+
+            pending.RemoveAll(call => call.Topic == "position" || call.Topic == "position-loss");
+            bool separateClass = RaceRadioLanguage.SeparateClass(state.SessionData);
+            const string group = "race-position-loss";
+            var catalog = RadioPhraseCatalog.Current;
+            int variant = lossVariants.Select(group, catalog.Count(group));
+            int from = lossFrom;
+            string text = catalog.Format(group, variant,
+                lossFrom.ToString(CultureInfo.InvariantCulture), position.ToString(CultureInfo.InvariantCulture)) +
+                (separateClass ? " In deiner Klasse." : "");
+            Add("position-loss", text, state, now, 12, 4, "confirmed_grouped_class_position_loss");
+            lossCall = pending.Last();
+            var positionCall = lossCall;
+            positionCall.BindVariant(lossVariants, group, variant);
+            positionCall.RefreshText = ctx => {
+                var snapshot = ctx.GameState.SessionData;
+                int rank = snapshot.ClassPosition;
+                if (rank < from + 2 || rank != Volatile.Read(ref stablePosition)) return null;
+                positionCall.Position = rank;
+                return catalog.Format(group, variant, from.ToString(CultureInfo.InvariantCulture),
+                    rank.ToString(CultureInfo.InvariantCulture)) + (RaceRadioLanguage.SeparateClass(snapshot) ? " In deiner Klasse." : "");
+            };
+        }
+
+        internal void ObserveRearPressure(RaceDataContext context, RaceGapMeasurement gap)
+        {
+            var state = context.GameState;
+            var s = state.SessionData;
+            var now = context.NowUtc;
+            if (pressureCall?.DeliveryStartedUtc > DateTime.MinValue)
+            {
+                reportedPressureRival = pendingPressureRival;
+                reportedPressureAt = pressureCall.DeliveryStartedUtc;
+                pressureCall = null;
+            }
+            var rival = RaceDataTools.Neighbour(state, false);
+            if (s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green || state.PitData.InPitlane ||
+                s.CompletedLaps < 1 || state.FlagData.isLocalYellow || rival == null || rival.InPits ||
+                !(gap.Kind == RaceGapKind.SimulatorTiming || gap.Kind == RaceGapKind.InterpolatedTiming) ||
+                !(gap.Seconds > .1f && gap.Seconds < 8))
+            {
+                pressureRival = null;
+                return;
+            }
+            string identity = RaceReader.Identity(s.OpponentKeyBehind, rival);
+            if (pressureRival != identity || pressureKind != gap.Kind || now < pressureAt ||
+                gap.Seconds > pressureBaseline + .2f || now - pressureAt > TimeSpan.FromSeconds(15))
+            {
+                pressureRival = identity;
+                pressureKind = gap.Kind;
+                pressureBaseline = gap.Seconds;
+                pressureAt = now;
+                return;
+            }
+            if ((gap.Seconds > 2.2f && pressureBaseline - gap.Seconds < .9f) ||
+                gap.Seconds > 2.6f || pressureBaseline - gap.Seconds < (gap.Seconds > 1.2f ? .30f : .45f) ||
+                now - pressureAt < TimeSpan.FromSeconds(1.5) ||
+                identity == reportedPressureRival && now - reportedPressureAt < TimeSpan.FromSeconds(45) ||
+                pending.Any(call => call.Topic == "rear-pressure" && call.IsValid(state, now))) return;
+
+            string name = context.SendDriverNames && rival.CanUseName ? RadioPhraseCatalog.SafeRivalName(rival.DriverRawName) : "";
+            var catalog = RadioPhraseCatalog.Current;
+            const string group = "race-rear-pressure";
+            int variant = pressureVariants.Select(group, catalog.Count(group));
+            string interval = (gap.IsEstimated ? RadioLanguage.T("etwa ", "about ", "unos ") : "") + RadioLanguage.Num(gap.Seconds, "0.0") + RadioLanguage.T(" Sekunden", " seconds", " segundos");
+            string text = catalog.Format(group, variant, name.Length > 0 ? name : RadioLanguage.T("Der Hintermann", "The car behind", "El coche de detrás"), interval);
+            Add("rear-pressure", text, state, now, 10, 4, "same_class_rival_interval_shrinking_into_attack_range");
+            var warning = pending.Last();
+            warning.FieldNamesAllowed = name.Length != 0;
+            warning.BindVariant(pressureVariants, group, variant);
+            warning.AdditionalValidity = live => !live.FlagData.isLocalYellow &&
+                RaceDataTools.Neighbour(live, false) is OpponentData current && !current.InPits && !current.isEnteringPits() &&
+                RaceReader.Identity(live.SessionData.OpponentKeyBehind, current) == identity;
+            RaceGapMeasurement ReadCurrent(RaceDataContext ctx) =>
+                RaceDataTools.ReadGap(ctx, RaceDataTools.Neighbour(ctx.GameState, false), false);
+            bool HasThreat(RaceGapMeasurement fresh) => fresh.Kind == gap.Kind && fresh.Seconds > .05f && fresh.Seconds <= 3f;
+            warning.TimedValidity = (live, at) => HasThreat(ReadCurrent(new RaceDataContext { GameState=live, NowUtc=at,
+                Tracks=context.Tracks, LastTelemetryUtc=live.SourceTelemetryUtc != DateTime.MinValue ? live.SourceTelemetryUtc :
+                    context.Tracks != null ? live.Now : context.LastTelemetryUtc }));
+            warning.RefreshGapS = ctx => ReadCurrent(ctx).Seconds;
+            warning.RefreshText = ctx => {
+                if (!warning.AdditionalValidity(ctx.GameState)) return null;
+                var fresh = ReadCurrent(ctx);
+                if (!HasThreat(fresh)) return null;
+                string duration = (fresh.IsEstimated ? "etwa " : "") + GermanRadioText.Interval(fresh.Seconds);
+                return catalog.Format(group, variant, name.Length > 0 ? name : "Der Hintermann", duration);
+            };
+            pressureCall = warning;
+            pendingPressureRival = identity;
+        }
+
+        internal bool RearPressureActive(GameStateData state, DateTime now)
+        {
+            if (pressureCall == null && reportedPressureRival == null) return false;
+            var rival = RaceDataTools.Neighbour(state, false);
+            if (rival == null) return false;
+            string identity = RaceReader.Identity(state.SessionData.OpponentKeyBehind, rival);
+            return pendingPressureRival == identity && pressureCall != null && pressureCall.IsValid(state, now) ||
+                identity == pressureRival && identity == reportedPressureRival;
         }
 
         public ObservedRaceCall Take(GameStateData gs, DateTime now, bool overlap, bool busy, bool minimal,
@@ -454,14 +730,18 @@ namespace CrewChiefV4.AiTeam
             }
             foreach (var expired in pending.Where(c => !c.IsValid(gs, now)).ToArray())
             {
-                LiveDiagnostics.Decision(expired.Topic, "suppressed", "expired_or_state_changed", expired.Evidence);
+                LiveDiagnostics.Decision(expired.Topic, "suppressed", now > expired.ExpiresUtc ? "expired" :
+                    expired.DeliveryFailed ? "delivery_attempts_exhausted" :
+                    expired.Position > 0 && gs?.SessionData.ClassPosition != expired.Position ? "position_changed" : "race_facts_changed",
+                    expired.Evidence, expired.EventId);
                 pending.Remove(expired);
             }
             if (minimal) pending.RemoveAll(c=>c.Priority<6);
-            if (positionCooldownSeconds == 0) pending.RemoveAll(c => c.Topic == "position");
+            if (positionCooldownSeconds == 0) pending.RemoveAll(c => c.Topic == "position" || c.Topic == "position-loss");
             if (overlap || busy) return null;
             var next = pending.Where(c => c.CanReserve(now)).OrderByDescending(c => c.Priority).FirstOrDefault();
-            if ((next==null || next.Priority<6) && now-lastCall<TimeSpan.FromSeconds(Math.Max(1,positionCooldownSeconds)))return null;
+            if ((next==null || next.Priority<6 && next.Topic!="formation") &&
+                now-lastCall<TimeSpan.FromSeconds(Math.Max(1,positionCooldownSeconds))) return null;
             if (next == null && pending.Count == 0 && summarySeconds > 0 && now >= nextSummary && now - lastCall >= TimeSpan.FromSeconds(quietSeconds) &&
                 gs != null && gs.SessionData.SessionType == SessionType.Race && gs.SessionData.SessionPhase == SessionPhase.Green &&
                 gs.SessionData.CompletedLaps > 0 && !gs.PitData.InPitlane && gs.SessionData.ClassPosition > 0)
@@ -470,7 +750,7 @@ namespace CrewChiefV4.AiTeam
                 next = pending.Last(); nextSummary = now.AddSeconds(summarySeconds);
             }
             if (next == null || !next.TryReserve(now)) return null;
-            LiveDiagnostics.Decision(next.Topic, "selected", next.Evidence, next.Text);
+            LiveDiagnostics.Decision(next.Topic, "selected", next.Evidence, next.Text, next.EventId);
             return next;
         }
 
@@ -479,7 +759,7 @@ namespace CrewChiefV4.AiTeam
             if (pending.Count >= 8) pending.RemoveAt(0);
             pending.Add(new ObservedRaceCall { Topic = topic, Text = text, Evidence = evidence, Position = gs.SessionData.ClassPosition,
                 SessionId = gs.SessionData.SessionId, DetectedUtc = now, ExpiresUtc = now.AddSeconds(seconds), Priority = priority });
-            LiveDiagnostics.Decision(topic, "detected", evidence, text);
+            LiveDiagnostics.Decision(topic, "detected", evidence, text, pending.Last().EventId);
         }
 
         internal static string StartVerdict(SessionData s, int start, string name)

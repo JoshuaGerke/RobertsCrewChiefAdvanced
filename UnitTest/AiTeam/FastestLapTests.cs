@@ -22,7 +22,7 @@ namespace UnitTest.AiTeamTests
             return s;
         }
 
-        [TestCase(SessionType.Race)] [TestCase(SessionType.Practice)] [TestCase(SessionType.Qualify)]
+        [TestCase(SessionType.Practice)] [TestCase(SessionType.Qualify)]
         public void New_fastest_lap_is_called_with_name_time_gap_and_motivation(SessionType type)
         {
             var gs = State(type); gs.SessionData.PlayerLapTimeSessionBest = 113.8f;

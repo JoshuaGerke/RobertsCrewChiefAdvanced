@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,8 +10,6 @@ namespace CrewChiefV4.Audio
 {
     class NAudioBackgroundPlayerWaveOut : BackgroundPlayer
     {
-        private SynchronizationContext mainThreadContext = null;
-
         private Boolean playing = false;
 
         // will be re-used and only disposed when we stop the app or switch background sounds
@@ -19,14 +17,13 @@ namespace CrewChiefV4.Audio
         private NAudio.Wave.WaveOutEvent waveOut = null;
 
         private int deviceIdWhenCached = 0;
-        private float volumeWhenCached = 0;
-        private NAudio.Wave.SampleProviders.SampleChannel volumeChannel;
+        private volatile float volumeWhenCached;
+        private NAudioLoopStream loop;
         public override void refreshVolume()
         {
             lock (this)
             {
                 volumeWhenCached = getBackgroundVolume();
-                if (volumeChannel != null) volumeChannel.Volume = volumeWhenCached;
             }
         }
 
@@ -34,17 +31,16 @@ namespace CrewChiefV4.Audio
 
         public NAudioBackgroundPlayerWaveOut(SynchronizationContext mainThreadContext, String backgroundFilesPath, String defaultBackgroundSound)
         {
-            this.mainThreadContext = mainThreadContext;
             this.backgroundFilesPath = backgroundFilesPath;
             this.defaultBackgroundSound = defaultBackgroundSound;
         }
 
         public override void mute(bool doMute)
         {
-            this.muted = doMute;
-            if (playing && doMute)
+            lock (this)
             {
-                stop();
+                muted = doMute;
+                if (playing && doMute) stop();
             }
         }
 
@@ -63,7 +59,7 @@ namespace CrewChiefV4.Audio
                     initialise(this.defaultBackgroundSound);
                 }
                 playing = true;
-                int backgroundOffset = Utilities.random.Next(0, (int)backgroundLength.TotalSeconds - backgroundLeadout);
+                int backgroundOffset = Utilities.random.Next(0, Math.Max(1, (int)backgroundLength.TotalSeconds - backgroundLeadout));
                 this.reader.CurrentTime = TimeSpan.FromSeconds(backgroundOffset);
                 this.waveOut.Play();
             }
@@ -101,35 +97,62 @@ namespace CrewChiefV4.Audio
             this.deviceIdWhenCached = AudioPlayer.naudioBackgroundPlaybackDeviceId;
             this.waveOut = new NAudio.Wave.WaveOutEvent();
             this.waveOut.DeviceNumber = this.deviceIdWhenCached;
-            volumeChannel = new NAudio.Wave.SampleProviders.SampleChannel(new NAudioLoopStream(reader));
-            volumeChannel.Volume = this.volumeWhenCached;
-            this.waveOut.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(volumeChannel));
+            loop = new NAudioLoopStream(reader);
+            this.waveOut.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(BuildSamples(loop)));
         }
 
-        public override void initialise(String initialBackgroundSound)
-        {
-            if (!this.initialised)
-            {
-                lock (this)
-                {
-                    initReader(initialBackgroundSound);
-                    initWaveOut();
-                    initialised = true;
-                }
-            }
-        }
+        private NAudio.Wave.ISampleProvider BuildSamples(NAudio.Wave.WaveStream source) =>
+            new RadioGainSampleProvider(new NAudio.Wave.SampleProviders.SampleChannel(source), () => volumeWhenCached);
 
-        public override void setBackgroundSound(String backgroundSoundName)
+        public override void initialise(string initialBackgroundSound)
         {
             lock (this)
             {
-                if (this.waveOut != null)
-                {
-                    this.waveOut.Stop();
-                }
-                initReader(backgroundSoundName);
+                if (!initialised) LoadBackground(initialBackgroundSound);
+            }
+        }
+
+        public override void setBackgroundSound(string backgroundSoundName)
+        {
+            lock (this) LoadBackground(backgroundSoundName);
+        }
+
+        private void LoadBackground(string name)
+        {
+            ReleaseBackground();
+            try
+            {
+                initReader(name);
                 initWaveOut();
                 initialised = true;
+            }
+            catch
+            {
+                ReleaseBackground();
+                throw;
+            }
+        }
+
+        private void ReleaseBackground()
+        {
+            playing = false;
+            initialised = false;
+            var output = waveOut;
+            waveOut = null;
+            try
+            {
+                if (output != null)
+                {
+                    try { output.Stop(); }
+                    finally { output.Dispose(); }
+                }
+            }
+            finally
+            {
+                loop?.Dispose();
+                loop = null;
+                reader?.Dispose();
+                reader = null;
             }
         }
 
@@ -137,28 +160,8 @@ namespace CrewChiefV4.Audio
         {
             lock (this)
             {
-                try
-                {
-                    if (reader != null)
-                    {
-                        reader.Dispose();
-                    }
-                    if (waveOut != null)
-                    {
-                        lock (MainWindow.instanceLock)
-                        {
-                            if (MainWindow.instance != null)
-                            {
-                                this.mainThreadContext.Post(delegate
-                                {
-                                    waveOut.Dispose();
-                                }, null);
-                           }
-                        }
-                    }
-                }
-                catch (Exception e) {Log.Exception(e);}
-                base.dispose();
+                try { ReleaseBackground(); }
+                catch (Exception e) { Log.Exception(e); }
             }
         }
     }

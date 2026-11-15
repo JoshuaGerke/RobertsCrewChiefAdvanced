@@ -128,6 +128,29 @@ namespace UnitTest.AiTeamTests
             finally { message.Dispose(); background.Dispose(); }
         }
 
+        [Test]
+        public void Radio_gain_bounds_invalid_level_and_soft_limits_both_peaks()
+        {
+            Assert.AreEqual(0f, CrewChiefV4.Audio.RadioGainSampleProvider.Clamp(float.NaN));
+            Assert.AreEqual(0f, CrewChiefV4.Audio.RadioGainSampleProvider.Clamp(-1));
+            Assert.AreEqual(1f, CrewChiefV4.Audio.RadioGainSampleProvider.Clamp(3));
+            Assert.AreEqual(.5f, CrewChiefV4.Audio.RadioGainSampleProvider.Limit(.5f));
+            var peak = CrewChiefV4.Audio.RadioGainSampleProvider.Limit(2f);
+            Assert.That(peak, Is.GreaterThan(.9f).And.LessThan(1f));
+            Assert.AreEqual(-peak, CrewChiefV4.Audio.RadioGainSampleProvider.Limit(-2f));
+        }
+
+        [Test]
+        public void Critical_engineer_wait_is_bounded_without_cutting_Sara()
+        {
+            DateTime queued = new DateTime(2026, 11, 15, 13, 0, 0, DateTimeKind.Utc);
+            DateTime ordinary = queued.AddSeconds(6);
+            Assert.AreEqual(queued.AddMilliseconds(500), CrewSpeechPolicy.EngineerPlaybackDeadline(ordinary, queued, true, true));
+            Assert.AreEqual(ordinary, CrewSpeechPolicy.EngineerPlaybackDeadline(ordinary, queued, false, true));
+            Assert.AreEqual(ordinary, CrewSpeechPolicy.EngineerPlaybackDeadline(ordinary, queued, true, false));
+            Assert.IsFalse(CrewSpeechPolicy.CanInterruptForHazard(true, true, false, 20, 7));
+        }
+
         [TestCase("NAudioBackgroundPlayerWaveOut", 0f)] [TestCase("NAudioBackgroundPlayerWaveOut", .4f)]
         [TestCase("NAudioBackgroundPlayerWasapi", 0f)] [TestCase("NAudioBackgroundPlayerWasapi", .4f)]
         public void Running_background_sample_channel_applies_new_gain_without_restarting(string backend, float level)
@@ -143,15 +166,13 @@ namespace UnitTest.AiTeamTests
                 new object[] { new System.IO.MemoryStream(AiAudio.PcmToWav(pcm, 24000)) });
             try
             {
-                var channelType = audioAsm.GetType("NAudio.Wave.SampleProviders.SampleChannel");
-                var channel = Activator.CreateInstance(channelType, new object[] { reader, false });
                 var backendType = asm.GetType("CrewChiefV4.Audio." + backend);
                 var player = Activator.CreateInstance(backendType, new object[] { new SynchronizationContext(), "", "" });
-                backendType.GetField("volumeChannel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(player, channel);
                 backendType.GetMethod("refreshVolume").Invoke(player, null);
-                Assert.AreEqual(level, (float)channelType.GetProperty("Volume").GetValue(channel), .001);
+                var channel = backendType.GetMethod("BuildSamples", System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance).Invoke(player, new object[] { reader });
                 var samples = new float[20];
-                int count = (int)channelType.GetMethod("Read").Invoke(channel, new object[] { samples, 0, samples.Length });
+                int count = (int)channel.GetType().GetMethod("Read").Invoke(channel, new object[] { samples, 0, samples.Length });
                 Assert.Greater(count, 0); Assert.AreEqual(.5f * level, samples[0], .001, "Real sample gain, no audio hardware or playback.");
             }
             finally { reader.Dispose(); global.SetValue(null, previous); }

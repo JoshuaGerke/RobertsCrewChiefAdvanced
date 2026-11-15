@@ -66,6 +66,7 @@ namespace CrewChiefV4.AMS2
             CrewChiefV4.AMS2.AMS2SharedMemoryReader.AMS2StructWrapper currentWrapper = (CrewChiefV4.AMS2.AMS2SharedMemoryReader.AMS2StructWrapper)currentStateObj;
             ams2APIStruct latestRawData = currentWrapper.data;
             int playerIndex = AMS2GameStateMapper.getPlayerIndex(latestRawData);
+            if (playerIndex < 0) return new Tuple<GridSide, Dictionary<int, GridSide>>(GridSide.UNKNOWN, new Dictionary<int, GridSide>());
             ams2APIParticipantStruct playerData = latestRawData.mParticipantData[playerIndex];
             float playerRotation = latestRawData.mOrientation[1];
             if (playerRotation < 0)
@@ -146,7 +147,7 @@ namespace CrewChiefV4.AMS2
                 (enableSpotterInTimetrial || currentState.mSessionState != (uint)eSessionState.SESSION_TIME_ATTACK))
             {
                 int playerIndex = AMS2GameStateMapper.getPlayerIndex(currentState);
-                if (playerIndex != currentState.mViewedParticipantIndex)
+                if (playerIndex < 0 || playerIndex != currentState.mViewedParticipantIndex)
                 {
                     return;
                 }

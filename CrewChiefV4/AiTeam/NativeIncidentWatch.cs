@@ -10,7 +10,7 @@ namespace CrewChiefV4.AiTeam
     /// <summary>Copies an existing native stopped-in-landmark decision; does not infer a collision.</summary>
     public sealed class NativeIncidentWatch
     {
-        private sealed class Subject {public string Key,Name;}
+        private sealed class Subject {public string Key,Name,Identity;public bool CanUseName;}
         private sealed class Detection {public int Session;public SessionType Type;public DateTime Utc;public string Corner;public Subject[] Cars;}
         private static readonly string[] PhrasesDe={"Vorsicht, Vorfall voraus. Dort steht oder rollt ein Wagen.",
             "Sehr langsames Fahrzeug beim Vorfall voraus. Bleib aufmerksam.","Achtung, stehender oder sehr langsamer Wagen voraus."};
@@ -28,8 +28,10 @@ namespace CrewChiefV4.AiTeam
         public static void Publish(GameStateData gs,string corner,IEnumerable<OpponentData> opponents)
         {
             if(!Enabled || gs==null || string.IsNullOrWhiteSpace(corner))return;
-            var cars=(opponents??Enumerable.Empty<OpponentData>()).Where(o=>o!=null).Take(16).Select(o=>new Subject {
-                Key=gs.OpponentData.Where(p=>p.Value==o).Select(p=>p.Key).FirstOrDefault(),Name=o.DriverRawName}).Where(c=>c.Key!=null).ToArray();
+            var cars=(opponents??Enumerable.Empty<OpponentData>()).Where(o=>o!=null).Take(16).Select(o=>{
+                string key=gs.OpponentData.Where(p=>p.Value==o).Select(p=>p.Key).FirstOrDefault();
+                return new Subject {Key=key,Name=o.DriverRawName,Identity=RaceReader.Identity(key,o),CanUseName=o.CanUseName};
+            }).Where(c=>c.Key!=null).ToArray();
             if(cars.Length==0)return;
             incoming.Enqueue(new Detection {Session=gs.SessionData.SessionId,Type=gs.SessionData.SessionType,Utc=gs.Now,Corner=corner,Cars=cars});
             Detection unused;while(incoming.Count>32)incoming.TryDequeue(out unused);
@@ -63,11 +65,13 @@ namespace CrewChiefV4.AiTeam
                 if(active.Count>=16)active.RemoveAt(0);active.Add(d);
                 foreach(var car in d.Cars)
                 {
-                    string id=car.Key+"|"+d.Corner;
+                    if (!SameCar(gs, car)) continue;
+                    string id=car.Identity+"|"+d.Corner;
                     if(recorded.ContainsKey(id))continue;
                     if(recorded.Count>=128)recorded.Remove(recorded.OrderBy(p=>p.Value).First().Key);
                     recorded[id]=now;
-                    string who=names?new string((car.Name??"").Where(c=>char.IsLetterOrDigit(c)||c==' '||c=='-').Take(60).ToArray()):"Ein Gegner";
+                    string safeName = names && car.CanUseName ? RadioPhraseCatalog.SafeRivalName(car.Name) : "";
+                    string who = safeName.Length > 0 ? safeName : "Ein Gegner";
                     if(memory!=null)memory.AddObservation(who+": Crew Chief hat einen Stillstand im Streckenabschnitt erkannt.",now,"native-stopped-landmark",car.Key,"FlagsMonitor;heuristic_not_collision");
                 }
             }
@@ -76,16 +80,22 @@ namespace CrewChiefV4.AiTeam
             foreach(var item in active)foreach(var car in item.Cars)
             {
                 var captured=car;var location=item.Corner;int session=item.Session;var type=item.Type;DateTime deadline=item.Utc.AddSeconds(15);
-                if(!IsAhead(gs,car.Key,car.Name,location,now))continue;
+                if(!SameCar(gs,car) || !IsAhead(gs,car.Key,car.Name,location,now))continue;
+                string name = names && item.Cars.Length == 1 && car.CanUseName ? RadioPhraseCatalog.SafeRivalName(car.Name) : "";
                 keys.Add(car.Key);
                 warnings.Offer("warning-native-incident-"+car.Key,Phrases[variant++%Phrases.Length],TeamMember.Ben,7,gs,now,
                     live=>live.SessionData.SessionId==session && live.SessionData.SessionType==type &&
-                        live.OpponentData.ContainsKey(captured.Key) && live.OpponentData[captured.Key].DriverRawName==captured.Name &&
+                        SameCar(live,captured) &&
                         !live.OpponentData[captured.Key].InPits && live.OpponentData[captured.Key].stoppedInLandmark==location,
                     "FlagsMonitor_stopped_in_landmark;not_proven_collision",-1,
-                    (live,utc)=>utc<=deadline && IsAhead(live,captured.Key,captured.Name,location,utc));
+                    (live,utc)=>utc<=deadline && IsAhead(live,captured.Key,captured.Name,location,utc),
+                    opponentNameClip:name.Length > 0 ? RaceTrafficWatch.NameClipText(name) : null);
             }
             Volatile.Write(ref covered,keys.Distinct().ToArray());
         }
+
+        private static bool SameCar(GameStateData gs, Subject subject) =>
+            gs.OpponentData.TryGetValue(subject.Key, out var car) && car != null && car.IsActive &&
+            RaceReader.Identity(subject.Key, car) == subject.Identity;
     }
 }

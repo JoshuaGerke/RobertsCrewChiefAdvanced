@@ -1055,6 +1055,8 @@ namespace CrewChiefV4.GameState
 
         // 0 means we don't know what sector we're in. This is 1-indexed
         public int SectorNumber;
+        // Equal-distance fallback sectors do not establish the simulator's timing lines.
+        public bool SectorTimingEstimated;
 
         public Boolean IsNewSector;
 
@@ -1681,6 +1683,7 @@ namespace CrewChiefV4.GameState
         public Boolean IsStartLapInserted = false;
 
         public int r3eUserId = -1;
+        public int r3eSlotId = -1;
 
         private List<LapData> _OpponentLapData;
         public List<LapData> OpponentLapData

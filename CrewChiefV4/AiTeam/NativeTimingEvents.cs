@@ -15,7 +15,7 @@ namespace CrewChiefV4.AiTeam
     public sealed class NativeTimingFact
     {
         public const string Source = "Timings.native_gap_decision";
-        public readonly string Key, Name, CarNumber, PlayerClass, OpponentClass, Track;
+        public readonly string Key, Name, CarNumber, PlayerClass, OpponentClass, Track, Identity;
         public readonly int Session, PlayerLap, OpponentLap, SignedLapDelta, PlayerPosition, OpponentPosition, CostId;
         public readonly SessionType Type;
         public readonly DateTime Utc, SourceUtc, SessionStart;
@@ -23,6 +23,7 @@ namespace CrewChiefV4.AiTeam
         public readonly NativeTimingTrend Trend;
         public readonly float NativeSeconds;
         public readonly bool PlayerInPits, OpponentInPits, OpponentEnteringPits, PlayerOnOutLap, OpponentOnOutLap;
+        public readonly bool CanUseName;
         public string Topic { get { return Relation == NativeTimingRelation.ClassAhead ? "native-gap-front" :
             Relation == NativeTimingRelation.ClassBehind ? "native-gap-behind" : "native-gap-track"; } }
 
@@ -30,6 +31,8 @@ namespace CrewChiefV4.AiTeam
             NativeTimingTrend trend, float seconds, int lapDelta)
         {
             Key = key; Name = op.DriverRawName; CarNumber = op.CarNumber; CostId = op.CostId;
+            CanUseName = op.CanUseName;
+            Identity = RaceReader.Identity(key, op);
             PlayerClass = ClassId(gs.carClass); OpponentClass = ClassId(op.CarClass);
             Track = gs.SessionData.TrackDefinition == null ? gs.trackName : gs.SessionData.TrackDefinition.name;
             Session = gs.SessionData.SessionId; Type = gs.SessionData.SessionType; SessionStart = gs.SessionData.SessionStartTime;
@@ -123,7 +126,7 @@ namespace CrewChiefV4.AiTeam
                 (s.TrackDefinition == null ? gs.trackName : s.TrackDefinition.name) != fact.Track) return false;
             OpponentData op;
             if (!gs.OpponentData.TryGetValue(fact.Key, out op) || op == null || !op.IsActive ||
-                op.DriverRawName != fact.Name || op.CarNumber != fact.CarNumber || op.CostId != fact.CostId ||
+                RaceReader.Identity(fact.Key, op) != fact.Identity ||
                 op.ClassPosition != fact.OpponentPosition || op.CompletedLaps != fact.OpponentLap ||
                 op.InPits || op.isEnteringPits() || op.isOnOutLap() != fact.OpponentOnOutLap ||
                 NativeTimingFact.ClassId(op.CarClass) != fact.OpponentClass ||
@@ -195,20 +198,29 @@ namespace CrewChiefV4.AiTeam
                 if (entry.Call == null)
                 {
                     NativeTimingFact fact = entry.Fact;
+                    if (context.Tracks != null && (!gs.OpponentData.TryGetValue(fact.Key, out var opponent) ||
+                        !context.Tracks.OpponentFresh(context, opponent))) { pending.Remove(entry); continue; }
                     RaceGapMeasurement measurement = ReadMeasurement(context, fact);
                     if (fact.Trend == NativeTimingTrend.Steady && !measurement.HasValue) { pending.Remove(entry); continue; }
                     var cursor = variants[(int)fact.Relation, (int)fact.Trend];
-                    string text = Text(fact, entry.Names, cursor.Heard, measurement, RaceRadioLanguage.SeparateClass(gs.SessionData));
+                    string group = null;
+                    int index = -1;
+                    string text = Text(fact, entry.Names, cursor.Heard, measurement, RaceRadioLanguage.SeparateClass(gs.SessionData), name => {
+                        group = name;
+                        return index = cursor.Select(name, RadioPhraseCatalog.Current.Count(name));
+                    });
                     if (text == null) { pending.Remove(entry); continue; }
                     TrackAwareness tracks = context.Tracks;
                     entry.Call = new ObservedRaceCall {
                         Topic = fact.Topic, Text = text, Evidence = NativeTimingFact.Source + ";opponent=" + fact.Key + ";relation=" + fact.Relation + ";trend=" + fact.Trend,
                         SessionId = fact.Session, SessionType = fact.Type, CompletedLaps = fact.PlayerLap,
                         Position = fact.PlayerPosition, Member = TeamMember.Ben, Priority = 3, VariantCursor = cursor,
+                        FieldNamesAllowed = entry.Names && fact.CanUseName && SafeName(fact.Name).Length > 0,
                         DetectedUtc = fact.Utc, ExpiresUtc = fact.Utc.Add(DecisionLifetime),
                         TimedValidity = (live, when) => StillCurrent(fact, live, when) && !AiRadioSchedule.BusyForRoutine(live) &&
                             MeasurementStillCurrent(fact, measurement, live, when, tracks)
                     };
+                    if (group != null) entry.Call.BindVariant(cursor,group,index);
                 }
                 if (entry.Call.IsValid(gs, now) && entry.Call.TryReserve(now)) return entry.Call;
             }
@@ -226,13 +238,17 @@ namespace CrewChiefV4.AiTeam
         }
         private static bool MeasurementStillCurrent(NativeTimingFact fact, RaceGapMeasurement original, GameStateData gs, DateTime now, TrackAwareness tracks)
         {
+            if (tracks != null && (!gs.OpponentData.TryGetValue(fact.Key, out var opponent) ||
+                !tracks.OpponentFresh(new RaceDataContext { GameState=gs, NowUtc=now,
+                    LastTelemetryUtc=gs.SourceTelemetryUtc == DateTime.MinValue ? gs.Now : gs.SourceTelemetryUtc }, opponent))) return false;
             if (!original.HasValue) return true; // Qualitative native trend does not claim a number.
             var live = ReadMeasurement(new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = gs.Now, Tracks = tracks }, fact);
             return live.HasValue && live.Kind == original.Kind && Math.Abs(live.Seconds - original.Seconds) <= .5f;
         }
-        private static string Text(NativeTimingFact fact, bool names, int variant, RaceGapMeasurement measurement, bool separateClass = false)
+        private static string Text(NativeTimingFact fact, bool names, int variant, RaceGapMeasurement measurement,
+            bool separateClass = false, Func<string,int> selectVariant = null)
         {
-            string name = names ? SafeName(fact.Name) : "";
+            string name = names && fact.CanUseName ? SafeName(fact.Name) : "";
             bool ahead = fact.Relation == NativeTimingRelation.ClassAhead;
             string text;
             if (fact.Relation == NativeTimingRelation.BehindOnTrack)
@@ -243,10 +259,22 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.Num(measurement.Seconds, "0.0") + RadioLanguage.T(" Sekunden", " seconds", " segundos") : null;
             bool gapDiffers = measurement.HasValue && fact.NativeSeconds > .05f &&
                 Math.Abs(measurement.Seconds - fact.NativeSeconds) > Math.Max(.25f, measurement.Seconds * .20f);
+            string measuredGroup = ahead ? "gap-front-measured" : "gap-rear-measured";
             // The native trend may describe a different timing source. Never combine it with
             // a conflicting passage interval or call a distant class car "dicht dran".
-            if (separateClass || gapDiffers || fact.Trend == NativeTimingTrend.Close && measurement.HasValue && measurement.Seconds > 2)
-                return interval == null ? null : RaceRadioLanguage.MeasuredGap(ahead, name, interval, separateClass, variant);
+            if (gapDiffers || fact.Trend == NativeTimingTrend.Close && measurement.HasValue && measurement.Seconds > 2)
+                return interval == null ? null : RaceRadioLanguage.MeasuredGap(ahead, name, interval, separateClass,
+                    name.Length > 0 && selectVariant != null ? selectVariant(measuredGroup) : variant);
+            if (separateClass && interval != null)
+            {
+                string measured = RaceRadioLanguage.MeasuredGap(ahead, name, interval, true,
+                    name.Length > 0 && selectVariant != null ? selectVariant(measuredGroup) : variant);
+                return fact.Trend == NativeTimingTrend.Decreasing ? measured + (ahead ? RadioLanguage.T(" Du holst auf.", " You're closing in.", " Estás recortando.") :
+                        RadioLanguage.T(" Der Abstand schrumpft.", " The gap is shrinking.", " La distancia se reduce.")) :
+                    fact.Trend == NativeTimingTrend.Increasing ? measured + (ahead ? RadioLanguage.T(" Die Lücke wächst.", " The gap is growing.", " El hueco crece.") :
+                        RadioLanguage.T(" Du setzt dich ab.", " You're pulling away.", " Te estás escapando.")) : measured;
+            }
+            if (separateClass) return null;
             string group = (ahead ? "gap-front-" : "gap-rear-") + fact.Trend.ToString().ToLowerInvariant();
             string subject = name.Length > 0 ? name : ahead ? RadioLanguage.T("Der Vordermann", "The car ahead", "Tu rival de delante") :
                 RadioLanguage.T("Der Hintermann", "The car behind", "Tu rival de detrás");
@@ -254,7 +282,7 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.T("dem Hintermann", "the car behind", "tu rival de detrás");
             string target = name.Length > 0 ? name : ahead ? RadioLanguage.T("den Vordermann", "the car ahead", "tu rival de delante") :
                 RadioLanguage.T("den Hintermann", "the car behind", "tu rival de detrás");
-            text = RadioPhraseCatalog.Current.Format(group, variant, subject, dative, target);
+            text = RadioPhraseCatalog.Current.Format(group, selectVariant == null ? variant : selectVariant(group), subject, dative, target);
             if (text.Length > 0) text = char.ToUpper(text[0], RadioLanguage.Culture) + text.Substring(1);
             if (interval != null)
                 text = (ahead ? RadioLanguage.T("Nach vorn ", "Gap ahead ", "Por delante ") : RadioLanguage.T("Nach hinten ", "Gap behind ", "Por detrás ")) + interval + ". " + text;

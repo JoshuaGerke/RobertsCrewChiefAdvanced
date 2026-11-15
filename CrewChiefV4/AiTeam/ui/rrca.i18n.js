@@ -9,6 +9,11 @@
   // Ohne gespeicherte Wahl: Sprache von Windows übernehmen (DE/EN/ES), sonst Englisch
   let language = 'en';
   try { for (const l of (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language])) { const c = String(l || '').slice(0, 2).toLowerCase(); if (['de','en','es'].includes(c)) { language = c; break; } } } catch (_) { }
+  Object.assign(words, {
+    'Sara: Seitenwarnungen aus': ['Sara: side alerts off', 'Sara: avisos laterales desactivados'],
+    'Sara: Seitenwarnungen aktiv': ['Sara: side alerts active', 'Sara: avisos laterales activos'],
+    'Sara: Warte auf aktuelle Seitendaten': ['Sara: waiting for live side data', 'Sara: esperando datos laterales en directo']
+  });
   try { const saved = localStorage.getItem('rrca.uiLanguage'); if (['de','en','es'].includes(saved)) language=saved; } catch (_) { }
   const records=[], attributes=[], seen=new WeakSet();
   const pick = (de,en,es) => language==='en'?en:language==='es'?es:de;
@@ -19,6 +24,10 @@
     [/^Runde (\d+)( · Uhr abgelaufen)?$/, (n,end)=>pick('Runde '+n+(end||''),'Lap '+n+(end?' · clock expired':''),'Vuelta '+n+(end?' · tiempo agotado':''))],
     [/^(\d+) Runden verbleibend$/, n=>pick(n+' Runden verbleibend',n+' laps remaining',n+' vueltas restantes')],
     [/^(.*): Datenquelle erreichbar$/, sim=>pick(sim+': Datenquelle erreichbar',sim+': data source reachable',sim+': fuente de datos accesible')],
+    [/^Controller-Aktion „KI-Team anfunken“(?: oder Taste (.*))?$/, key=>pick(
+      'Controller-Aktion „KI-Team anfunken“'+(key?' oder Taste '+key:''),
+      'Controller action “Call AI team”'+(key?' or key '+key:''),
+      'Acción del mando «Llamar al equipo IA»'+(key?' o tecla '+key:''))],
     [/^Letzte Runde (.*)$/, time=>pick('Letzte Runde '+time,'Last lap '+time,'Última vuelta '+time)],
     [/^hinterlegt (.*)$/, mask=>pick('hinterlegt '+mask,'stored '+mask,'guardada '+mask)],
     [/^(.*) · funkt gerade$/, name=>pick(name+' · funkt gerade',name+' · on the radio',name+' · hablando')],
@@ -31,9 +40,9 @@
   ];
   function t(text) {
     if (typeof text!=='string') return text;
-    const s=text.trim(), row=words[s];
-    if (row) return text.replace(s,pick(s,row[0],row[1]));
-    for (const [rx,format] of patterns) { const m=s.match(rx); if(m) return text.replace(s,format(...m.slice(1))); }
+    const s=text.trim(), row=Object.prototype.hasOwnProperty.call(words,s) ? words[s] : null;
+    if (row) return text.replace(s,()=>pick(s,row[0] || s,row[1] || row[0] || s));
+    for (const [rx,format] of patterns) { const m=s.match(rx); if(m) return text.replace(s,()=>format(...m.slice(1))); }
     return text;
   }
   function scan(root) {
@@ -61,6 +70,7 @@
     for(const r of attributes) if(r.el.isConnected) r.el.setAttribute(r.key,t(r.de));
     document.querySelectorAll('[data-help]').forEach(b=>{
       const topic=help[b.dataset.help];
+      if (!topic) return;
       b.setAttribute('aria-label',t('Hilfe')+': '+t(topic.title));
       b.title=t('Hilfe')+': '+t(topic.title);
     });
@@ -127,7 +137,7 @@
   const note=document.createElement('p');note.className='note language-note';note.textContent='Die Sprachwahl übersetzt die Oberfläche und Hilfen. Die Sprache des Funks stellst du unter KI & Funk ein.';document.querySelector('.top').after(note);
   const fields={
     '#rrca-game':'game','#rrca-auto':'game','#rrca-ben-volume':'memberVolume','#rrca-mik-volume':'memberVolume','#rrca-sara-volume':'memberVolume','#rrca-messages-volume':'volume','#rrca-background-volume':'volume',
-    '[data-member]':'roles','[data-voice-select]':'voices','[data-cmd=prepareVoices]':'clips','[data-cmd=saraPack]':'voices',
+    '[data-member]':'roles','[data-voice-select]':'voices','#rrca-spotter-mode':'spotterMode','[data-cmd=prepareVoices]':'clips','[data-cmd=saraPack]':'voices',
     '#rrca-phrase-situation':'phrases','#rrca-phrase-variant':'phrases','#rrca-mik-numbers':'numbers',
     '#rrca-mic':'mic','#rrca-ptt':'mic','#rrca-radio-effect':'filter','#rrca-spotter-mode':'spotterMode','#rrca-keys summary':'keys',
     '[data-setting=driverName]':'name','[data-setting=driverNickname]':'name','[data-setting=radioMode]':'mode','[data-setting=radioLanguage]':'radioLanguage',

@@ -50,7 +50,8 @@ namespace CrewChiefV4.AiTeam
         public static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
         private static readonly string[] SlowPhrasesDe = {
             "Achtung, sehr langsames Fahrzeug voraus.", "Vor dir fährt ein Wagen deutlich langsamer. Bleib aufmerksam.",
-            "Vorsicht, langsamer Verkehr direkt voraus."
+            "Vorsicht, langsamer Verkehr direkt voraus.", "Pass auf, der Wagen vor dir ist sehr langsam.",
+            "Achtung voraus, du läufst auf einen sehr langsamen Wagen auf."
         };
         private static readonly string[] SlowPhrasesEn = {
             "Watch out, very slow car ahead.", "Car ahead is going much slower. Stay alert.",
@@ -63,7 +64,9 @@ namespace CrewChiefV4.AiTeam
         public static string[] SlowPhrases => RadioLanguage.Pick(SlowPhrasesDe, SlowPhrasesEn, SlowPhrasesEs);
         private static readonly string[] RearPhrasesDe = {
             "Schnelleres Fahrzeug von hinten. Bleib berechenbar.", "Von hinten kommt schneller Verkehr. Behalte deine Linie bei.",
-            "Ein schnellerer Wagen läuft von hinten auf. Bleib berechenbar."
+            "Ein schnellerer Wagen läuft von hinten auf. Bleib berechenbar.",
+            "Schneller Verkehr kommt näher. Bleib auf einer berechenbaren Linie.",
+            "Achte auf den Spiegel, ein schnellerer Wagen kommt von hinten."
         };
         private static readonly string[] RearPhrasesEn = {
             "Faster car from behind. Stay predictable.", "Fast traffic coming from behind. Hold your line.",
@@ -157,11 +160,15 @@ namespace CrewChiefV4.AiTeam
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
+                if (!group && !string.IsNullOrWhiteSpace(car.Name))
+                    pending.OpponentNameClip = NameClipText(car.Name);
                 if(!rear) pending.PreparedDetail=(live,at)=>generation==epoch?DistanceDetail(live,at,opponentKey,id,stopped):null;
-                pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text); break;
+                pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();
         }
+        internal static string NameClipText(string name) => RadioLanguage.T("Das ist ", "That's ", "Es ") + name + ".";
+
         private PreparedRadioDetail DistanceDetail(GameStateData gs,DateTime now,string key,int id,bool stopped)
         {
             if(!ValidNow(gs,now,key,id,stopped,false))return null;
@@ -215,7 +222,7 @@ namespace CrewChiefV4.AiTeam
                 current.Epoch!=epoch || current.Session!=s.SessionId || now<current.Utc || now-current.Utc>TimeSpan.FromSeconds(1)) return false;
             var car=current.Cars.FirstOrDefault(c=>c.Id==id && c.Key==key);
             OpponentData live;
-            return car!=null && gs.OpponentData.TryGetValue(key,out live) && live.IsActive && !live.InPits && live.DriverRawName==car.NativeName && live.CarNumber==car.NativeNumber && live.CostId==car.NativeCarId &&
+            return car!=null && gs.OpponentData.TryGetValue(key,out live) && live.IsActive && !live.InPits && RaceReader.Identity("",live)==car.NativeIdentity &&
                 (!stopped || live.Speed<=1 && car.SpeedMps<=1) && (!group || current.Cars.Count(c=>c.RouteGapM<0)>1);
         }
         public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,bool memberEnabled)

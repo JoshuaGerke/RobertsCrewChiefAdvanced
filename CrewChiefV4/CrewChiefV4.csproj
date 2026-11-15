@@ -244,6 +244,7 @@
     <Compile Include="Audio\NAudioBackgroundPlayerWaveOut.cs" />
     <Compile Include="Audio\NAudioLoopStream.cs" />
     <Compile Include="Audio\NAudioOut.cs" />
+    <Compile Include="Audio\RadioGainSampleProvider.cs" />
     <Compile Include="Audio\PlaybackModerator.cs" />
     <Compile Include="Audio\SoundPackVersionsHelper.cs" />
     <Compile Include="Audio\Sounds.cs" />
@@ -252,9 +253,11 @@
     <Compile Include="AiTeam\RaceReader.cs" />
     <Compile Include="AiTeam\GameDataConnectionStatus.cs" />
     <Compile Include="AiTeam\DriverMemory.cs" />
+    <Compile Include="AiTeam\DriverRadioPreferences.cs" />
     <Compile Include="AiTeam\WeatherWatch.cs" />
     <Compile Include="AiTeam\PitLaneWatch.cs" />
     <Compile Include="AiTeam\TelemetryCapabilities.cs" />
+    <Compile Include="AiTeam\TelemetrySourceClock.cs" />
     <Compile Include="AiTeam\TelemetryMeasurementTools.cs" />
     <Compile Include="GameState\TelemetryMeasurement.cs" />
     <Compile Include="AiTeam\AiPersonas.cs" />
@@ -303,6 +306,10 @@
     <Compile Include="AiTeam\QualifyingResultWatch.cs" />
     <Compile Include="AiTeam\RaceGapTracker.cs" />
     <Compile Include="AiTeam\ActiveRaceObserver.cs" />
+    <Compile Include="AiTeam\RaceFeedbackWatch.cs" />
+    <Compile Include="AiTeam\StintReferenceStore.cs" />
+    <Compile Include="AiTeam\StintRadioMemory.cs" />
+    <Compile Include="AiTeam\PitCycleWatch.cs" />
     <Compile Include="AiTeam\RaceSituationWatch.cs" />
     <Compile Include="AiTeam\AiRadioSchedule.cs" />
     <Compile Include="AiTeam\AiModelsPanel.cs" />

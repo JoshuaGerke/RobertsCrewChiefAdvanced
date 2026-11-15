@@ -41,7 +41,16 @@ namespace CrewChiefV4.AiTeam
             minus[id]=Math.Max(0,Math.Min(bound,earlier)); plus[id]=Math.Max(0,Math.Min(bound,later));
         }
         public int NextDelaySeconds(string id, Random random)
-        { return seconds[id]==0?0:seconds[id]+random.Next(-minus[id],plus[id]+1); }
+        {
+            if(seconds[id]==0)return 0;
+            int delay=seconds[id]+random.Next(-minus[id],plus[id]+1);
+            return ApplyDriverScale(id,delay,DriverMemory.RoutineIntervalScale(id));
+        }
+        internal static int ApplyDriverScale(string id,int delay,double scale)
+        {
+            if(delay==0 || double.IsNaN(scale) || double.IsInfinity(scale) || scale<=0 || scale==1)return delay;
+            return (int)Math.Max(Options.Single(o=>o.Id==id).Minimum,Math.Min(3600,Math.Round(delay*scale)));
+        }
         public int this[string id] { get { return seconds[id]; } }
         public void Set(string id, int value)
         {
@@ -83,6 +92,10 @@ namespace CrewChiefV4.AiTeam
         private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
+        private string lastFuelMeasurement;
+        private string outstandingFuelMeasurement;
+        private readonly StintRadioMemory facts = new StintRadioMemory();
+        private StintRadioMemory.Report outstandingFacts;
         public static bool OnConfirmedQualifyingPushLap(GameStateData gs)
         {
             return gs!=null && gs.SessionData.SessionType==SessionType.Qualify && gs.SessionData.CompletedLaps>0 &&
@@ -102,13 +115,15 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; interruptionHandled=false; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
             foreach (var option in AiRadioPreferences.Options)
                 if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(prefs.NextDelaySeconds(option.Id, random));
         }
+        internal bool StatusIsOverdue(DateTime now, AiRadioPreferences prefs) => prefs["status"] > 0 &&
+            (outstanding?.Topic == "status" || due.TryGetValue("status", out var next) && now - next >= TimeSpan.FromSeconds(20));
         public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true,string busyReason = null)
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
@@ -116,17 +131,24 @@ namespace CrewChiefV4.AiTeam
             {
                 due[lastRoutine.Topic]=now.AddSeconds(30);
                 lastDeliveredText.Remove(lastRoutine.Topic);lastDeliveredUtc.Remove(lastRoutine.Topic);
+                facts.Forget(lastRoutine.Topic);
+                if (lastRoutine.Topic == "fuel") lastFuelMeasurement = null;
                 interruptionHandled=true;
                 LiveDiagnostics.Decision(lastRoutine.Topic,"deferred","routine_interrupted_recompose_after_30s");
             }
             if (outstanding != null)
             {
+                if (outstanding.RaceStatus && outstanding.WasDeferred && !outstanding.IsReserved && !outstanding.DeliveryFailed &&
+                    outstanding.DeliveryStartedUtc == DateTime.MinValue)
+                    outstanding.RefreshBeforeSpeak(ctx);
                 if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
                 {
                     lastRoutine=outstanding;interruptionHandled=false;
                     lastReport = outstanding.DeliveryStartedUtc;
                     lastDeliveredText[outstanding.Topic]=outstanding.Text;
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
+                    facts.Remember(outstanding.Topic, outstandingFacts, outstanding.DeliveryStartedUtc);
+                    if (outstanding.Topic == "fuel") lastFuelMeasurement = outstandingFuelMeasurement;
                     due[outstanding.Topic] = lastReport.AddSeconds(prefs.NextDelaySeconds(outstanding.Topic, random));
                     outstanding = null;
                 }
@@ -135,14 +157,16 @@ namespace CrewChiefV4.AiTeam
                 {
                     LiveDiagnostics.Decision(outstanding.Topic,"suppressed","report_expired_or_disabled",outstanding.Evidence);
                     // Retry with a fresh snapshot later, without a tight TTS-error loop.
-                    due[outstanding.Topic] = now.AddSeconds(30);
+                    due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" ? 5 : 30);
                     outstanding = null;
                 }
             }
-            bool recentRadio = ctx.Memory != null && ctx.Memory.GetRadio(TimeSpan.FromSeconds(QuietAfterRadioSeconds), now).Any(r => r.TimeUtc <= now);
+            bool statusOverdue = gs?.SessionData.SessionType == SessionType.Race && StatusIsOverdue(now, prefs);
+            int quietSeconds = statusOverdue ? 4 : QuietAfterRadioSeconds;
+            bool recentRadio = ctx.Memory != null && ctx.Memory.HasRadioSince(TimeSpan.FromSeconds(quietSeconds), now);
             if (gs == null || busy || recentRadio || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
-                now - lastReport < TimeSpan.FromSeconds(RoutineSeparationSeconds))
+                now - lastReport < TimeSpan.FromSeconds(statusOverdue ? 8 : RoutineSeparationSeconds))
             {
                 if(due.Any(p=>prefs[p.Key]>0 && p.Value<=now) && now-lastDeferral>=TimeSpan.FromSeconds(15))
                 {
@@ -158,33 +182,76 @@ namespace CrewChiefV4.AiTeam
                 return null;
             }
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
-            foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now)
-                .OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
+            foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now && (!statusOverdue || kv.Key == "status"))
+                .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
+                .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
                 due[topic] = now.AddSeconds(prefs.NextDelaySeconds(topic, random));
                 TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
                 var cursor = topic == "fuel" ? fuelVariants : topic == "ahead" ? aheadVariants : topic == "behind" ? behindVariants : null;
-                string text = Compose(topic, ctx, cursor?.Heard ?? 0, out var template);
+                string gapGroup = topic == "ahead" ? "gap-front-measured" : topic == "behind" ? "gap-rear-measured" : null;
+                int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
+                string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
+                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : gapVariant;
+                string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
-                if(filterUnchanged && UnchangedRoutine(topic,text,now)) { LiveDiagnostics.Decision(topic,"suppressed","unchanged_routine_since_last_delivery"); continue; }
+                string fuelMeasurement = topic == "fuel" ? FuelMeasurementKey(ctx) : null;
+                if (fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
+                    lastDeliveredUtc.TryGetValue(topic, out var lastFuel) && now - lastFuel < TimeSpan.FromMinutes(10) &&
+                    FuelUnchangedAcrossLaps(ctx))
+                {
+                    LiveDiagnostics.Decision(topic, "suppressed", "unchanged_fuel_measurement");
+                    continue;
+                }
+                var measurement = StintRadioMemory.Capture(topic, ctx);
+                if (filterUnchanged && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
+                {
+                    LiveDiagnostics.Decision(topic, "suppressed", "unchanged_routine_since_last_delivery");
+                    continue;
+                }
+                string trend = facts.Trend(topic, measurement, now);
+                if (trend != null) text += " " + trend;
+                outstandingFacts = measurement;
+                outstandingFuelMeasurement = fuelMeasurement;
                 int overall = gs.SessionData.OverallPosition;
-                bool overallSpoken = topic == "status" && gs.SessionData.SessionType == SessionType.Race &&
-                    RaceRadioLanguage.SeparateClass(gs.SessionData) && overall > 0;
-                outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=1, VariantCursor=cursor,
-                    ReferenceTemplate=template,
+                bool raceStatus = topic == "status" && gs.SessionData.SessionType == SessionType.Race;
+                bool overallSpoken = raceStatus && RaceRadioLanguage.SeparateClass(gs.SessionData) &&
+                    overall > 0 && overall != gs.SessionData.ClassPosition;
+                outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=raceStatus ? 3 : 1, VariantCursor=cursor,
+                    ReferenceTemplate=template, RaceStatus=raceStatus,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
-                    AdditionalValidity=live=>!BusyForRoutine(live) && (!overallSpoken || live.SessionData.OverallPosition == overall),
+                    AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !BusyForRoutine(live)) &&
+                        (!overallSpoken || live.SessionData.OverallPosition == overall),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
-                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(6) };
+                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(raceStatus ? 10 : 6) };
                 if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))
                     outstanding.IncludeNeighbour(ctx, topic == "ahead", false);
-                LiveDiagnostics.Decision(topic,"detected",outstanding.Evidence,text);
+                if (variantGroup != null && template != null) outstanding.BindVariant(cursor, variantGroup, index);
+                LiveDiagnostics.Decision(topic,"detected",outstanding.Evidence,text,outstanding.EventId);
                 return outstanding.TryReserve(now) ? outstanding : null;
             }
             return null;
         }
         public void NoteRadio(DateTime now) { lastReport = now; }
+
+        private static string FuelMeasurementKey(RaceDataContext context)
+        {
+            float perLap = context.Memory?.AverageFuelPerLap() ?? -1;
+            float litres = context.GameState.FuelData.FuelLeft;
+            return Number(litres) + (Good(perLap, .1, 100) ? "|" + Number(litres / perLap) : "");
+        }
+        private static string FuelGroup(RaceDataContext ctx) =>
+            Good(ctx.Memory?.AverageFuelPerLap() ?? -1, .1, 100) ? "fuel-range" : "fuel-tank";
+
+        private static bool FuelUnchangedAcrossLaps(RaceDataContext context)
+        {
+            var laps = context.Memory?.GetLaps(3);
+            float litres = context.GameState.FuelData.FuelLeft;
+            return laps?.Count == 3 && laps[2].LapNumber == context.GameState.SessionData.CompletedLaps &&
+                laps[0].LapNumber == laps[2].LapNumber - 2 &&
+                laps.All(lap => lap.Valid && !lap.InPitLap && Math.Abs(lap.FuelAtEnd - litres) < .05f);
+        }
         // Telemetry thread only, after a native report actually starts. Detection alone never postpones a routine.
         public void NoteRelatedReport(string topic,DateTime delivered,AiRadioPreferences prefs)
         {
@@ -230,20 +297,24 @@ namespace CrewChiefV4.AiTeam
                 bool ahead = topic == "ahead"; var op = RaceDataTools.Neighbour(gs, ahead);
                 if (gs.SessionData.SessionType != SessionType.Race)
                 {
-                    if (op == null || !op.IsActive || !Good(op.CurrentBestLapTime,10,3600) || !Good(gs.SessionData.PlayerLapTimeSessionBest,10,3600)) return null;
+                    if (op == null || !op.IsActive || ctx.Tracks != null && !ctx.Tracks.OpponentFresh(ctx, op) ||
+                        !Good(op.CurrentBestLapTime,10,3600) || !Good(gs.SessionData.PlayerLapTimeSessionBest,10,3600)) return null;
                     float difference = Math.Abs(op.CurrentBestLapTime-gs.SessionData.PlayerLapTimeSessionBest);
-                    return RadioLanguage.T("In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: ",
+                    string qualifyingName = ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
+                    return (qualifyingName.Length == 0 ? RadioLanguage.T("In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: ",
                             (ahead ? "Ahead of you" : "Behind you") + " on the timesheet: ",
-                            (ahead ? "Por delante" : "Por detrás") + " en la tabla de tiempos: ") + LocalAnswers.LapTime(op.CurrentBestLapTime) +
+                            (ahead ? "Por delante" : "Por detrás") + " en la tabla de tiempos: ") : qualifyingName + ": ") + LocalAnswers.LapTime(op.CurrentBestLapTime) +
                         RadioLanguage.T(". Die Bestzeiten liegen ", ". Best laps are ", ". Los mejores tiempos están a ") + Number(difference) +
                         RadioLanguage.T(" Sekunden auseinander.", " seconds apart.", " segundos.");
                 }
                 var measurement = RaceDataTools.ReadGap(ctx, op, ahead);
                 float gap = measurement.Seconds;
                 if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
-                string name = ctx.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
+                string name = ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
                 string duration = (measurement.IsEstimated ? RadioLanguage.T("ungefähr ", "about ", "unos ") : "") + Number(gap) + RadioLanguage.T(" Sekunden", " seconds", " segundos");
                 bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
+                if (!string.IsNullOrWhiteSpace(name)) template = RadioPhraseCatalog.Current.ReferenceFor(
+                    ahead ? "gap-front-measured" : "gap-rear-measured", variant / 2);
                 return RaceRadioLanguage.MeasuredGap(ahead, name, duration, separate, variant / 2);
             }
             if (topic == "weather")
@@ -261,8 +332,13 @@ namespace CrewChiefV4.AiTeam
                 float perLap = ctx.Memory == null ? -1 : ctx.Memory.AverageFuelPerLap();
                 string litres = Number(gs.FuelData.FuelLeft);
                 var catalog = RadioPhraseCatalog.Current;
-                if (!Good(perLap, .1, 100)) return catalog.Format("fuel-tank", variant, litres);
+                if (!Good(perLap, .1, 100))
+                {
+                    template=catalog.ReferenceFor("fuel-tank",variant);
+                    return catalog.Format("fuel-tank", variant, litres);
+                }
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
+                template=catalog.ReferenceFor("fuel-range",variant);
                 string verdict = FuelEstimate.From(ctx)?.Verdict();
                 return catalog.Format("fuel-range", variant, litres, laps) + (verdict == null ? "" : " " + verdict);
             }
@@ -289,7 +365,21 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T(". Die Runden liegen innerhalb von ", ". All within ", ". Todas dentro de ") + Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime)) + RadioLanguage.T(" Sekunden.", " seconds.", " segundos.");
             }
             if (topic == "status") {
-                if (gs.SessionData.SessionType == SessionType.Race) return ActiveRaceObserver.Summary(gs,ctx.Memory==null?null:ctx.Memory.GetLaps(3),gs.SessionData.SessionStartClassPosition,ctx.DriverName);
+                if (gs.SessionData.SessionType == SessionType.Race)
+                {
+                    var session = gs.SessionData;
+                    if (session.ClassPosition <= 0) return null;
+                    string rank = RaceRadioLanguage.Rank(session, session.ClassPosition);
+                    if (RaceRadioLanguage.SeparateClass(session) && session.OverallPosition > 0 && session.OverallPosition != session.ClassPosition)
+                        rank += RadioLanguage.T(", gesamt Platz " + session.OverallPosition, ", P" + session.OverallPosition + " overall", ", P" + session.OverallPosition + " en la general");
+                    int start = session.SessionStartClassPosition;
+                    int change = start > 0 ? start - session.ClassPosition : 0;
+                    if (change == 0) return rank + ". " + Compose("progress", ctx);
+                    int count = Math.Abs(change);
+                    return rank + RadioLanguage.T(". Seit dem Start " + count + (count == 1 ? " Platz" : " Plätze") + (change > 0 ? " gutgemacht." : " verloren."),
+                        ". " + count + (count == 1 ? " place " : " places ") + (change > 0 ? "gained" : "lost") + " since the start.",
+                        ". " + count + (count == 1 ? " posición " : " posiciones ") + (change > 0 ? (count == 1 ? "ganada" : "ganadas") : (count == 1 ? "perdida" : "perdidas")) + " desde la salida.");
+                }
                 var s=gs.SessionData;
                 return Good(s.PlayerLapTimeSessionBest,10,3600) ? RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + LocalAnswers.LapTime(s.PlayerLapTimeSessionBest) + "." +
                     (s.ClassPosition>0 ? RadioLanguage.T(" Aktuell Platz "+s.ClassPosition+" in der Zeitenliste.", " Currently P"+s.ClassPosition+" on the timesheet.", " Ahora mismo P"+s.ClassPosition+" en la tabla de tiempos.") : "") : null;

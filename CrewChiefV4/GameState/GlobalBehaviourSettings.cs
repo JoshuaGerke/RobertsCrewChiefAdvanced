@@ -191,10 +191,11 @@ namespace CrewChiefV4.GameState
                 }
                 else
                 {
-                    if (!realisticMode)
+                    if (!realisticMode || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse)
                     {
                         spotterEnabled = true;
-                        Log.Commentary("Spotter enabled on road circuit because Realistic Mode is not checked");
+                        Log.Commentary(realisticMode ? "RRCA Sara enabled on road circuit by the explicit crew setting" :
+                            "Spotter enabled on road circuit because Realistic Mode is not checked");
                     }
                     else
                     {
