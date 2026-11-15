@@ -263,7 +263,8 @@ namespace CrewChiefV4.AiTeam
                 var catalog = RadioPhraseCatalog.Current;
                 if (!Good(perLap, .1, 100)) return catalog.Format("fuel-tank", variant, litres);
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
-                return catalog.Format("fuel-range", variant, litres, laps);
+                string verdict = FuelEstimate.From(ctx)?.Verdict();
+                return catalog.Format("fuel-range", variant, litres, laps) + (verdict == null ? "" : " " + verdict);
             }
             if (topic == "tyres")
             {

@@ -79,6 +79,41 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Start_verdict_after_a_third_of_lap_one_names_gain_loss_or_hold()
+        {
+            var s = State(SessionType.Race).SessionData; s.OverallPosition = s.ClassPosition = 11;
+            Assert.AreEqual("Rob, guter Start! 3 Plätze gewonnen, jetzt Platz 11.", ActiveRaceObserver.StartVerdict(s, 14, "Rob"));
+            StringAssert.StartsWith("Rob, am Start einen Platz verloren, jetzt Platz 11.", ActiveRaceObserver.StartVerdict(s, 10, "Rob"));
+            Assert.AreEqual("Rob, sauberer Start, Platz 11 gehalten.", ActiveRaceObserver.StartVerdict(s, 11, "Rob"));
+
+            var gs = State(SessionType.Race); gs.SessionData.CompletedLaps = 0; gs.SessionData.SessionStartClassPosition = 14;
+            gs.SessionData.ClassPosition = gs.SessionData.OverallPosition = 12;
+            gs.SessionData.TrackDefinition = new TrackDefinition("Algarve", 4600f);
+            var observer = new ActiveRaceObserver();
+            gs.PositionAndMotionData.DistanceRoundTrack = 900; observer.Observe(gs, T, "Rob", 120);
+            Assert.AreEqual(0, observer.PendingCount, "noch vor dem ersten Drittel");
+            gs.PositionAndMotionData.DistanceRoundTrack = 1600; observer.Observe(gs, T.AddSeconds(1), "Rob", 120);
+            gs.PositionAndMotionData.DistanceRoundTrack = 1700; observer.Observe(gs, T.AddSeconds(2), "Rob", 120);
+            Assert.AreEqual(1, observer.PendingCount, "genau einmal");
+        }
+
+        [TestCase(1, "Du führst.")] [TestCase(3, "Podiumsplatz")] [TestCase(6, "vorderen Feld")] [TestCase(14, "Mittelfeld")] [TestCase(24, "hinteren Feld")]
+        public void Position_is_assessed_not_just_named(int position, string expected)
+        {
+            var s = State(SessionType.Race).SessionData; s.ClassPosition = s.OverallPosition = position;
+            StringAssert.Contains(expected, ActiveRaceObserver.Assess(s));
+        }
+
+        [Test]
+        public void Fuel_report_says_whether_it_lasts_to_the_finish()
+        {
+            Assert.AreEqual("Das reicht bis ins Ziel.", new FuelEstimate { PerLap = 1.7f, AdditionalWithoutReserve = -3f, ReserveLitres = .5f }.Verdict());
+            Assert.AreEqual("Bis ins Ziel wird es knapp.", new FuelEstimate { PerLap = 1.7f, AdditionalWithoutReserve = -.2f, ReserveLitres = .5f }.Verdict());
+            Assert.AreEqual("So reicht es nicht bis ins Ziel.", new FuelEstimate { PerLap = 1.7f, AdditionalWithoutReserve = 2f, ReserveLitres = .5f }.Verdict());
+            StringAssert.StartsWith("Nach aktueller Pace", new FuelEstimate { PerLap = 1.7f, AdditionalWithoutReserve = -3f, ReserveLitres = .5f, EstimatedFromTime = true }.Verdict());
+        }
+
+        [Test]
         public void Hazard_warnings_of_the_same_kind_count_as_one()
         {
             var a = new ObservedRaceCall { Topic = "race-hazard-ahead", Text = RaceTrafficWatch.DistancePhrase(80, true) };

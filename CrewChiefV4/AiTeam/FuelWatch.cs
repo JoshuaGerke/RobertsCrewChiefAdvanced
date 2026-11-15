@@ -32,6 +32,18 @@ namespace CrewChiefV4.AiTeam
                 ReserveLitres=perLap*FuelWatch.SafetyMarginLaps, Source=crew?"Crew-Chief-Bedarfsrechnung ohne Reserve":"Gemessener Verbrauch; Restdistanz bei Zeitrennen geschätzt" };
         }
         private static bool Finite(float v) { return !float.IsNaN(v) && !float.IsInfinity(v); }
+
+        /// <summary>Kurzes Urteil für den regelmäßigen Spritbericht. Die ausführliche Warnung mit Sparziel kommt von FuelWatch.</summary>
+        public string Verdict()
+        {
+            if (!Finite(PerLap) || PerLap <= 0 || !Finite(AdditionalWithoutReserve)) return null;
+            if (AdditionalWithoutReserve + ReserveLitres <= 0)
+                return EstimatedFromTime ? RadioLanguage.T("Nach aktueller Pace reicht das bis ins Ziel.", "At the current pace that gets us to the finish.", "Al ritmo actual llegamos a meta.")
+                    : RadioLanguage.T("Das reicht bis ins Ziel.", "That gets us to the finish.", "Con eso llegamos a meta.");
+            if (AdditionalWithoutReserve <= 0)
+                return RadioLanguage.T("Bis ins Ziel wird es knapp.", "It's going to be tight to the finish.", "Hasta meta va a ir justo.");
+            return RadioLanguage.T("So reicht es nicht bis ins Ziel.", "That won't get us to the finish.", "Así no llegamos a meta.");
+        }
     }
     /// <summary>
     /// Feste Sprit-Warnung für Mik, ohne KI: Reicht der Tank laut gemessenem Verbrauch nicht bis ins Ziel,
@@ -105,9 +117,9 @@ namespace CrewChiefV4.AiTeam
             // mehr als ~8 % sparen ist kaum realistisch, dann lieber stoppen
             if (savePerLap <= perLap * 0.08f)
             {
-                text += RadioLanguage.T("Wir brauchen rund " + Litres(savePerLap) + " Einsparung pro Runde. Früher schalten und mehr rollen lassen.",
-                    "We need to save around " + Litres(savePerLap) + " per lap. Shift earlier and coast more.",
-                    "Necesitamos ahorrar unos " + Litres(savePerLap) + " por vuelta. Cambia antes y deja rodar más.");
+                text += RadioLanguage.T("Wir brauchen rund " + Litres(savePerLap) + " Einsparung pro Runde. Windschatten nutzen, früher vom Gas, in die Kurven rollen lassen und etwas früher schalten.",
+                    "We need to save around " + Litres(savePerLap) + " per lap. Use the slipstream, lift earlier, coast into the corners and shift a bit earlier.",
+                    "Necesitamos ahorrar unos " + Litres(savePerLap) + " por vuelta. Aprovecha el rebufo, levanta antes, deja rodar en las curvas y cambia un poco antes.");
             }
             else if (refuellingAllowed)
             {

@@ -279,7 +279,7 @@ namespace CrewChiefV4.AiTeam
                 spokenPitGainUtc = call.DeliveryStartedUtc;
             }
         }
-        private bool wasGreen;
+        private bool wasGreen, startVerdictDone;
         private int startPosition;
         private int lastCutWarnings, lastCompletedLaps;
         private bool lastLapValid;
@@ -299,7 +299,7 @@ namespace CrewChiefV4.AiTeam
             recentFrontPit = spokenPitGain = null;
             spokenPitGainUtc = DateTime.MinValue;
             lastCutWarnings = lastCompletedLaps = 0; lastLapValid = false; lastConductIssue = DateTime.MinValue;
-            lastEndLap = -1; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false;
+            lastEndLap = -1; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false; startVerdictDone = false;
         }
 
         public void Observe(GameStateData gs, DateTime now, string driverName, int intervalSeconds)
@@ -328,6 +328,15 @@ namespace CrewChiefV4.AiTeam
                 recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
             if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
             if (startPosition == 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
+            // Kurzes Startfazit nach etwa einem Drittel der ersten Runde (Robs Wunsch), einmal pro Rennen
+            float trackLength = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
+            float lapDistance = gs.PositionAndMotionData.DistanceRoundTrack;
+            if (green && !startVerdictDone && startPosition > 0 && s.CompletedLaps == 0 && s.ClassPosition > 0 && !gs.PitData.InPitlane &&
+                trackLength > 500 && lapDistance >= trackLength / 3 && lapDistance < trackLength * .8f)
+            {
+                startVerdictDone = true;
+                Add("start-verdict", StartVerdict(s, startPosition, driverName), gs, now, 8, 5, "class_position_at_third_of_lap_one");
+            }
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
                 stablePosition = s.ClassPosition; candidatePosition = 0;
@@ -473,6 +482,32 @@ namespace CrewChiefV4.AiTeam
             LiveDiagnostics.Decision(topic, "detected", evidence, text);
         }
 
+        internal static string StartVerdict(SessionData s, int start, string name)
+        {
+            int pos = s.ClassPosition, gained = start - pos;
+            string rank = RaceRadioLanguage.Rank(s, pos);
+            if (gained > 0) return SafeName(name) + RadioLanguage.T(", guter Start! " + (gained == 1 ? "Einen Platz" : gained + " Plätze") + " gewonnen, jetzt " + rank + ".",
+                ", good start! Gained " + gained + (gained == 1 ? " place" : " places") + ", now " + rank + ".",
+                ", ¡buena salida! " + (gained == 1 ? "Una posición ganada" : gained + " posiciones ganadas") + ", ahora " + rank + ".");
+            if (gained < 0) return SafeName(name) + RadioLanguage.T(", am Start " + (-gained == 1 ? "einen Platz" : -gained + " Plätze") + " verloren, jetzt " + rank + ". Ruhig bleiben, das Rennen ist noch lang.",
+                ", lost " + -gained + (-gained == 1 ? " place" : " places") + " at the start, now " + rank + ". Stay calm, it's a long race.",
+                ", " + (-gained == 1 ? "una posición perdida" : -gained + " posiciones perdidas") + " en la salida, ahora " + rank + ". Tranquilo, la carrera es larga.");
+            return SafeName(name) + RadioLanguage.T(", sauberer Start, " + rank + " gehalten.", ", clean start, holding " + rank + ".", ", salida limpia, mantienes " + rank + ".");
+        }
+
+        /// <summary>Ordnet den Platz im Feld ein, statt ihn nur zu nennen.</summary>
+        internal static string Assess(SessionData s)
+        {
+            int pos = s.ClassPosition;
+            int cars = RaceRadioLanguage.SeparateClass(s) ? s.NumCarsInPlayerClass : Math.Max(s.NumCarsOverall, s.NumCarsInPlayerClass);
+            if (pos == 1) return RadioLanguage.T("Du führst. ", "You're leading. ", "Vas líder. ");
+            if (pos <= 3) return RadioLanguage.T("Das ist ein Podiumsplatz. ", "That's a podium place. ", "Es puesto de podio. ");
+            if (cars < 6) return "";
+            if (pos <= Math.Max(4, cars / 3)) return RadioLanguage.T("Damit bist du im vorderen Feld. ", "That's the front part of the field. ", "Estás en la parte delantera. ");
+            if (pos <= cars * 2 / 3) return RadioLanguage.T("Das ist Mittelfeld, da geht noch was. ", "That's midfield, there's more to come. ", "Es zona media, aún hay margen. ");
+            return RadioLanguage.T("Wir sind im hinteren Feld, Platz für Platz nach vorn. ", "We're towards the back, one place at a time. ", "Vamos atrás, posición a posición hacia delante. ");
+        }
+
         public static string Summary(GameStateData gs, IReadOnlyList<LapRecord> laps, int start, string name)
         {
             int pos = gs.SessionData.ClassPosition;
@@ -480,6 +515,7 @@ namespace CrewChiefV4.AiTeam
             bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
             string text = separate ? SafeName(name) + ", " + RaceRadioLanguage.RaceRanks(gs.SessionData) + ". " :
                 SafeName(name) + RadioLanguage.T(", wir liegen auf Position " + pos + ". ", ", we're running P" + pos + ". ", ", vamos P" + pos + ". ");
+            text += Assess(gs.SessionData);
             int gained = start - pos, lost = pos - start;
             if (start > pos) text += RadioLanguage.T(
                 "Seit dem Start " + gained + (gained == 1 ? " Platz" : " Plätze") + (separate ? " in deiner Klasse gewonnen. " : " gewonnen. "),

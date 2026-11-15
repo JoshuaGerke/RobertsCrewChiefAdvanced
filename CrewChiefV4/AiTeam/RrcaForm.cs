@@ -753,13 +753,17 @@ namespace CrewChiefV4.AiTeam
         }
 
         private RrcaUpdater.Release pendingUpdate;
+        // Beim Programmstart einmal nachfragen, danach bleibt nur der Knopf
+        private static bool updateAsked;
 
         private async void CheckForUpdate()
         {
             var release = await RrcaUpdater.CheckAsync();
             if (release == null || IsDisposed) return;
             pendingUpdate = release;
-            Post(new JObject { ["type"] = "update", ["version"] = release.Tag });
+            bool ask = !updateAsked && !(MainWindow.instance?.crewChief?.running ?? false);
+            updateAsked = true;
+            Post(new JObject { ["type"] = "update", ["version"] = release.Tag, ["ask"] = ask });
         }
 
         private async void InstallUpdate(string uiLanguage)
@@ -770,7 +774,11 @@ namespace CrewChiefV4.AiTeam
             if (!RrcaUpdater.CanWriteProgramFolder())
             {
                 // Programmordner ohne Schreibrecht (z. B. unter Programme): dann nur die Download-Seite öffnen
-                System.Diagnostics.Process.Start(RrcaUpdater.ReleasesPage);
+                if (MessageBox.Show(this, L("RRCA " + release.Tag + " ist verfügbar. Download-Seite öffnen?",
+                        "RRCA " + release.Tag + " is available. Open the download page?",
+                        "RRCA " + release.Tag + " está disponible. ¿Abrir la página de descarga?"),
+                        "RRCA", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK)
+                    System.Diagnostics.Process.Start(RrcaUpdater.ReleasesPage);
                 return;
             }
             if (MessageBox.Show(this, L("RRCA " + release.Tag + " jetzt installieren? RRCA wird dafür beendet und startet danach neu. Schlüssel, Profile und Gedächtnis bleiben erhalten.",
