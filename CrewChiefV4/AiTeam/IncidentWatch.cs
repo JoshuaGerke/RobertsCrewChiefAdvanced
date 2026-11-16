@@ -269,7 +269,8 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
         public static string DamageReport(CarDamageData d, bool brief = false, bool includeAdvice = true)
         {
-            var numeric = NumericDamageWatch.Report(d);
+            // Im kurzen Routinebericht nur Werte ab 1 Prozent; die ausführliche Auskunft nennt weiter alles ab 0,05.
+            var numeric = brief ? NumericDamageWatch.Report(d, 1f) : NumericDamageWatch.Report(d);
             if (!d.DamageEnabled) return numeric;
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));

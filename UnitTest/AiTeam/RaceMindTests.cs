@@ -557,5 +557,15 @@ namespace UnitTest.AiTeamTests
             gs.TyreData.FrontLeftTyreType = TyreType.Wet;
             Assert.IsFalse(TyreGripWatch.IsRaceSlick(gs.TyreData.FrontLeftTyreType));
         }
+
+        [Test]
+        public void Routine_damage_report_skips_trace_values()
+        {
+            var d = new CarDamageData { EngineDamagePercent = .1f, BrakeDamagePercent = new[] { .3f, .3f, .1f, .1f } };
+            StringAssert.Contains("Bremse vorne links-Schadenswert 0,3", NumericDamageWatch.Report(d), "ausführlich weiter alles");
+            Assert.AreEqual("Nur kleine Gebrauchsspuren, kein nennenswerter Schaden.", NumericDamageWatch.Report(d, 1f));
+            d.BrakeDamagePercent = new[] { 2.4f, .3f, .1f, .1f };
+            Assert.AreEqual("Bremse vorne links-Schadenswert 2,4 Prozent.", NumericDamageWatch.Report(d, 1f));
+        }
     }
 }
