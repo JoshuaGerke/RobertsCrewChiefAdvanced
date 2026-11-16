@@ -107,7 +107,7 @@ namespace CrewChiefV4.AiTeam
                     new[] { "Letzte schnelle Runde. Hol raus, was geht.", "Letzte Chance. Sauber durchziehen.", "Eine Runde noch, volle Konzentration." },
                     new[] { "Last flying lap. Get everything out of it.", "Last chance. Make it clean.", "One more lap, full focus." },
                     new[] { "Última vuelta rápida. Sácale todo.", "Última oportunidad. Hazla limpia.", "Una vuelta más, concentración total." });
-                var last = Add(gs, now, "qualifying-last", name + ", " + push[qualiLastVariation.Next(push.Length)],
+                var last = Add(gs, now, "qualifying-last", RadioPhraseCatalog.Address(push[qualiLastVariation.Next(push.Length)], name),
                     "confirmed_final_qualifying_lap", 5);
                 last.Member = TeamMember.Ben;
                 last.AdditionalValidity = live => !live.PitData.OnOutLap && live.SessionData.CurrentLapIsValid &&
@@ -345,7 +345,8 @@ namespace CrewChiefV4.AiTeam
             else
             {
                 double over = time - reference;
-                if (over < 0 || over > .15 || now - lastSectorTimeCall < TimeSpan.FromMinutes(3)) return false;
+                // Rob 16.11. (Mosport): „0,000 Sekunden über deiner Bestmarke“ – gleiche Zeit ist keine Nachricht.
+                if (over < .001 || over > .15 || now - lastSectorTimeCall < TimeSpan.FromMinutes(3)) return false;
                 string d = over < .1 ? RadioLanguage.Num(over, "0.000") + RadioLanguage.T(" Sekunden", " seconds", " segundos") : GermanRadioText.Interval(over);
                 switch (v % 3)
                 {

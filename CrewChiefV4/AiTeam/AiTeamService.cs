@@ -56,6 +56,8 @@ namespace CrewChiefV4.AiTeam
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
         /// <summary>Renningenieur-Kopf: führt die Rennlage zusammen und entscheidet, welche Info-Meldung jetzt wichtig ist.</summary>
         private readonly RaceMind raceMind = new RaceMind();
+        private readonly TyreGripWatch tyreGrip = new TyreGripWatch();
+        private readonly QualiFuelWatch qualiFuel = new QualiFuelWatch();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
@@ -281,6 +283,8 @@ namespace CrewChiefV4.AiTeam
                 raceSummary.Reset();
                 gapTrend.Reset();
                 raceMind.Reset();
+                tyreGrip.Reset();
+                qualiFuel.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -555,6 +559,8 @@ namespace CrewChiefV4.AiTeam
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
             gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
             OpponentStopLog.Observe(current);
+            tyreGrip.Observe(current, now);
+            qualiFuel.Observe(current, Memory, settings.RadioName, now);
             MaybePreparePitLimit(current,now);
             MaybePrepareOpponentName(current, now);
             bool weatherBusy = !settings.IsMemberEnabled(TeamMember.Mik) || Spotter().HasOverlap ||
@@ -581,6 +587,8 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,pitBusy,7);
             if (raceCall == null) raceCall = incidentPoints.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Mik));
             if (raceCall == null) raceCall = raceTraffic.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Ben));
+            // Rob 16.11.: Reifen-Grip (heiß, im Fenster, dreckig) – Mik, sobald der Funk frei ist.
+            if (raceCall == null) raceCall = tyreGrip.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Mik));
             var damageAdvice = Interlocked.Exchange(ref pendingDamageAdvice, null);
             if (damageAdvice != null && damageAdvice.IsValid(current, now)) activeRace.Enqueue(damageAdvice);
             bool ownLapBusy = settings.RadioMode == AiRadioMode.MINIMAL ||
@@ -592,6 +600,7 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = TakePitFinish(current, now);
             if (raceCall == null) raceCall = TakeSessionBriefing(current, now);
             if (raceCall == null) raceCall = qualifyingResults.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null) raceCall = qualiFuel.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = raceSummary.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
                     !AllowsRadioNow(false), settings.IsMemberEnabled(TeamMember.Ben)); // keine Bremszone, keine Kurvenlast

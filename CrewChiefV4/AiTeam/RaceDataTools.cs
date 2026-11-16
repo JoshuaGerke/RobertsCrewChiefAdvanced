@@ -281,6 +281,17 @@ namespace CrewChiefV4.AiTeam
             {
                 o["temperatur_hinweis"] = "Je Reifen [links, mitte, rechts] aus Fahrersicht, °C";
             }
+            // Rob 16.11.: „welche Temperatur meine Reifen am besten haben“ – Crew Chief kennt Grenzwerte je Klasse/Reifentyp.
+            if (TyreGripWatch.Window(ctx.GameState, out float windowLow, out float windowHigh))
+                o["temperaturfenster_c"] = new JObject { ["von"] = Math.Round(windowLow), ["bis"] = Math.Round(windowHigh),
+                    ["quelle"] = "Crew-Chief-Richtwert für Klasse und Reifentyp (Spitzentemperatur), kein Herstellerwert" };
+            else missing.Add("temperaturfenster_fuer_diesen_reifentyp");
+            var hotCorners = TyreGripWatch.HotCorners(TyreGripWatch.Temps(ctx.GameState), windowHigh);
+            if (hotCorners.Count > 0)
+                o["ueberhitzt"] = new JObject { ["ecken"] = TyreGripWatch.Corners(hotCorners),
+                    ["folge"] = "Weniger Grip und Traktion an diesen Ecken, bis sie abkühlen; Grund: über dem Fenster oder mindestens 12 °C heißer als die anderen." };
+            if (t.DirtPickupEmulationActive && t.TyreDirtPickupStatus.hasValueAtLevel(TyreDirtPickupState.MAJOR))
+                o["schmutz"] = "Das Spiel meldet deutlich Schmutz auf den Reifen: weniger Grip, bis sie sauber sind.";
             float[] pressures = { t.FrontLeftPressure, t.FrontRightPressure, t.RearLeftPressure, t.RearRightPressure };
             if (pressures.All(p => p > 50 && p < 500))
             {

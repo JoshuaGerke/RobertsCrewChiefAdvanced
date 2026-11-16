@@ -298,7 +298,14 @@ namespace CrewChiefV4.AiTeam
             if (parts.Count == 0)
             {
                 if(d.OverallAeroDamage==DamageLevel.UNKNOWN || d.OverallEngineDamage==DamageLevel.UNKNOWN || d.OverallTransmissionDamage==DamageLevel.UNKNOWN)
-                    return RadioLanguage.T("Für eine vollständige Schadensbewertung fehlen Messwerte.", "Missing data for a full damage assessment.", "Faltan datos para valorar los daños por completo.");
+                    // Rob 16.11.: „fehlen Messwerte“ half nicht weiter. Gemeldetes sagen, Fehlendes ehrlich und mit Handlungshinweis.
+                    return d.OverallAeroDamage == DamageLevel.NONE || d.OverallEngineDamage == DamageLevel.NONE || d.OverallTransmissionDamage == DamageLevel.NONE
+                        ? RadioLanguage.T("Das Spiel meldet keinen Schaden, soweit es Werte liefert. Fühlt sich das Auto komisch an, sag Bescheid.",
+                            "The game reports no damage as far as it gives data. If the car feels odd, tell me.",
+                            "El juego no indica daños hasta donde da datos. Si notas algo raro, dímelo.")
+                        : RadioLanguage.T("Schadenswerte liefert das Spiel hier nicht. Fühlt sich das Auto komisch an, sag Bescheid.",
+                            "The game doesn't give damage values here. If the car feels odd, tell me.",
+                            "El juego no da valores de daño aquí. Si notas algo raro, dímelo.");
                 return brief ? RadioLanguage.T("Aero, Motor und Getriebe laut Meldung unauffällig.", "Aero, engine and gearbox reported clear.", "Aerodinámica, motor y caja de cambios sin incidencias según los datos.") :
                     RadioLanguage.T("Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.",
                         "No significant damage reported to aero, engine or gearbox. Brakes and suspension can only be judged as far as the game reports them.",

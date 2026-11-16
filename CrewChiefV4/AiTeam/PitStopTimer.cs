@@ -39,7 +39,8 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private bool inLane, stopped, wasStopped;
         private float laneStart, stopStart, stopEnd, fuelAtEntry = -1;
-        private float stillSince = -1;
+        private float stillSince = -1, onTrackSince = -1;
+        private bool cameFromTrack;
         private int variant;
         private ObservedRaceCall call;
 
@@ -47,7 +48,7 @@ namespace CrewChiefV4.AiTeam
 
         internal void Reset()
         {
-            session = int.MinValue; inLane = stopped = wasStopped = false; stillSince = -1; call = null; Last = null;
+            session = int.MinValue; inLane = stopped = wasStopped = cameFromTrack = false; stillSince = onTrackSince = -1; call = null; Last = null;
         }
 
         internal void Observe(GameStateData gs, DateTime now)
@@ -59,8 +60,14 @@ namespace CrewChiefV4.AiTeam
             if (float.IsNaN(t) || float.IsInfinity(t) || t < 0) return;
             bool lane = gs.PitData.InPitlane && !gs.PitData.IsInGarage && !gs.PitData.JumpedToPits;
             float speed = gs.PositionAndMotionData.CarSpeed;
+            // Rob 16.11. (Mosport): Die Ausfahrt aus der Garage zu Sitzungsbeginn ist kein Boxenstopp. Gemessen wird nur,
+            // wenn wir vorher mindestens 5 s auf der Strecke gefahren sind.
+            if (!lane && speed > 15) { if (onTrackSince < 0) onTrackSince = t; }
+            else if (!lane && speed < 3) onTrackSince = -1;
             if (lane && !inLane)
             {
+                cameFromTrack = onTrackSince >= 0 && t - onTrackSince >= 5;
+                onTrackSince = -1;
                 inLane = true; stopped = wasStopped = false; stillSince = -1;
                 laneStart = t;
                 fuelAtEntry = FuelOf(gs);
@@ -69,7 +76,7 @@ namespace CrewChiefV4.AiTeam
             if (!lane && inLane)
             {
                 inLane = false;
-                if (gs.PitData.IsInGarage || gs.PitData.JumpedToPits) return; // Garage/Zurücksetzen ist kein Boxenstopp
+                if (gs.PitData.IsInGarage || gs.PitData.JumpedToPits || !cameFromTrack) return; // Garage/Zurücksetzen/Sitzungsbeginn ist kein Boxenstopp
                 var m = new Measurement { SessionId = s.SessionId, FinishedUtc = now, Stopped = stopped, TotalSeconds = t - laneStart };
                 float fuelNow = FuelOf(gs);
                 // Nur ein deutlicher Anstieg ist Nachtanken; der Verbrauch in der Boxengasse ist dagegen klein.

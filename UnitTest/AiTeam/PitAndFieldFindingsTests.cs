@@ -27,7 +27,7 @@ namespace UnitTest.AiTeamTests
             RadioLanguage.Current = RadioLanguage.German;
             var timer = new PitStopTimer();
             float t = 100;
-            timer.Observe(State(t, false, 40), T);
+            for (int i = 0; i <= 60; i++) timer.Observe(State(t - 6 + i * .1f, false, 40), T.AddSeconds(-6 + i * .1)); // vorher auf der Strecke
             for (int i = 0; i < 184; i++) { t += .1f; timer.Observe(State(t, true, 20), T.AddSeconds(t - 100)); }   // 18,4 s Einfahrt
             for (int i = 0; i < 121; i++) { t += .1f; timer.Observe(State(t, true, 0), T.AddSeconds(t - 100)); }    // 12,1 s Stand
             for (int i = 0; i < 150; i++) { t += .1f; timer.Observe(State(t, true, 20), T.AddSeconds(t - 100)); }   // 15,0 s Ausfahrt
@@ -49,7 +49,7 @@ namespace UnitTest.AiTeamTests
         public void Drive_through_and_garage_are_handled_honestly()
         {
             var timer = new PitStopTimer();
-            timer.Observe(State(100, false, 40), T);
+            for (int i = 0; i <= 60; i++) timer.Observe(State(94 + i * .1f, false, 40), T.AddSeconds(-6 + i * .1));
             for (int i = 1; i <= 200; i++) timer.Observe(State(100 + i * .1f, true, 20), T.AddSeconds(i * .1));
             var outside = State(120.1f, false, 30);
             timer.Observe(outside, T.AddSeconds(20.1));
@@ -61,6 +61,14 @@ namespace UnitTest.AiTeamTests
             var reset = State(130, false, 0); reset.PitData.IsInGarage = true;
             garage.Observe(reset, T.AddSeconds(30));
             Assert.IsNull(garage.Last);
+
+            // Rob 16.11. (Mosport): Aus der Garage zu Sitzungsbeginn losfahren ist kein Boxenstopp.
+            var start = new PitStopTimer();
+            for (int i = 0; i <= 120; i++) start.Observe(State(10 + i * .1f, true, i < 60 ? 0 : 20), T.AddSeconds(i * .1));
+            var onTrack = State(22.2f, false, 30);
+            start.Observe(onTrack, T.AddSeconds(12.2));
+            Assert.IsNull(start.Last);
+            Assert.IsNull(start.Take(onTrack, T.AddSeconds(12.2), false, true));
         }
 
         [Test]

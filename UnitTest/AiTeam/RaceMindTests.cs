@@ -404,5 +404,69 @@ namespace UnitTest.AiTeamTests
             Assert.IsTrue(repeats.Count(t => t.StartsWith("Rob, ")) >= 2, "mehrfaches Überholen auch mit Namen");
             Assert.IsTrue(repeats.Count(t => !t.StartsWith("Rob, ")) >= 2, "aber nicht jedes Mal");
         }
+
+        // ---------- Mosport-Erkenntnisse 16.11.2026 ----------
+
+        private static void SetTemps(GameStateData gs, float fl, float fr, float rl, float rr)
+        {
+            var t = gs.TyreData;
+            t.FrontLeft_LeftTemp = t.FrontLeft_CenterTemp = t.FrontLeft_RightTemp = fl;
+            t.FrontRight_LeftTemp = t.FrontRight_CenterTemp = t.FrontRight_RightTemp = fr;
+            t.RearLeft_LeftTemp = t.RearLeft_CenterTemp = t.RearLeft_RightTemp = rl;
+            t.RearRight_LeftTemp = t.RearRight_CenterTemp = t.RearRight_RightTemp = rr;
+        }
+
+        [Test]
+        public void Hot_tyre_is_explained_with_grip_and_cool_down_advice()
+        {
+            Assert.AreEqual(new[] { 2 }, TyreGripWatch.HotCorners(new[] { 80f, 81f, 96f, 82f }, -1).ToArray(), "deutlich heißer als die anderen");
+            Assert.AreEqual(0, TyreGripWatch.HotCorners(new[] { 80f, 81f, 88f, 82f }, -1).Count, "kleiner Unterschied ist normal");
+            Assert.AreEqual(new[] { 2, 3 }, TyreGripWatch.HotCorners(new[] { 90f, 90f, 104f, 105f }, 100).ToArray(), "über dem Fenster");
+            string text = TyreGripWatch.HotText(new System.Collections.Generic.List<int> { 2 }, new[] { 80f, 81f, 96f, 82f }, -1, 0);
+            StringAssert.Contains("Hinten links", text); StringAssert.Contains("Traktion und Grip", text); StringAssert.Contains("96", text);
+            StringAssert.Contains("beide Hinterreifen", TyreGripWatch.HotText(new System.Collections.Generic.List<int> { 2, 3 }, new[] { 90f, 90f, 104f, 105f }, 100, 1));
+
+            var gs = Race(); var watch = new TyreGripWatch();
+            SetTemps(gs, 80, 81, 96, 82);
+            watch.Observe(gs, T);
+            Assert.IsNull(watch.Take(gs, T, false, true), "erst nach 4 s Dauer");
+            watch.Observe(gs, T.AddSeconds(5));
+            var call = watch.Take(gs, T.AddSeconds(5), false, true);
+            Assert.IsNotNull(call); Assert.AreEqual("tyre-hot", call.Topic); Assert.AreEqual(TeamMember.Mik, call.Member);
+        }
+
+        [Test]
+        public void Dirty_tyres_are_reported_measured_or_explicitly_as_assumption()
+        {
+            StringAssert.Contains("vermutlich", TyreGripWatch.DirtText(null, false, 0));
+            StringAssert.DoesNotContain("vermutlich", TyreGripWatch.DirtText(new System.Collections.Generic.List<int> { 2, 3 }, true, 0));
+            var gs = Race(); var watch = new TyreGripWatch();
+            gs.PenaltiesData.IsOffRacingSurface = true;
+            for (int i = 0; i <= 20; i++) watch.Observe(gs, T.AddMilliseconds(i * 100));
+            gs.PenaltiesData.IsOffRacingSurface = false;
+            for (int i = 21; i <= 60; i++) watch.Observe(gs, T.AddMilliseconds(i * 100));
+            var call = watch.Take(gs, T.AddSeconds(6), false, true);
+            Assert.IsNotNull(call); Assert.AreEqual("tyre-dirt", call.Topic); StringAssert.Contains("vermutlich", call.Text);
+        }
+
+        [Test]
+        public void Too_much_fuel_in_qualifying_is_pointed_out_once()
+        {
+            string text = QualiFuelWatch.Advice(19.4f, 1.93f, 240, 78, "Rob");
+            StringAssert.Contains("10 Runden", text); StringAssert.Contains("Rob", text); StringAssert.Contains("leichter", text);
+            Assert.IsNull(QualiFuelWatch.Advice(9f, 1.9f, 240, 78, "Rob"), "passt ungefähr");
+        }
+
+        [Test]
+        public void After_a_spin_position_losses_settle_and_status_does_not_repeat()
+        {
+            var mind = new RaceMind();
+            var loss = Call("position", 2);
+            Assert.AreEqual(MindVerdict.Hold, mind.Judge(loss, T.AddSeconds(1), out _), "kurz warten, bis die Wertung steht");
+            Assert.AreEqual(MindVerdict.Admit, mind.Judge(loss, T.AddSeconds(3), out _));
+            Assert.AreEqual(MindVerdict.Drop, mind.Judge(Call("status"), T.AddSeconds(10), out _), "Status direkt danach entfällt");
+            Assert.AreEqual(MindVerdict.Admit, mind.Judge(Call("status"), T.AddSeconds(25), out _));
+            Assert.AreEqual(MindVerdict.Admit, mind.Judge(Call("position", 5), T.AddSeconds(1), out _), "Überholen sofort");
+        }
     }
 }

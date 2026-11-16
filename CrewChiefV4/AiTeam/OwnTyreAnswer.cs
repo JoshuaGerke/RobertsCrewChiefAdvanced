@@ -74,6 +74,10 @@ namespace CrewChiefV4.AiTeam
             string minTemp = Math.Round(temps.Min()).ToString(CultureInfo.InvariantCulture), maxTemp = Math.Round(temps.Max()).ToString(CultureInfo.InvariantCulture);
             string tempText = temperaturesKnown ? RadioLanguage.T("Temperaturen " + minTemp + " bis " + maxTemp + " Grad.",
                 "Temperatures " + minTemp + " to " + maxTemp + " degrees.", "Temperaturas de " + minTemp + " a " + maxTemp + " grados.") : null;
+            // Rob 16.11.: das Fenster dazusagen, wenn Crew Chief für Klasse und Reifentyp einen engen Richtwert kennt.
+            if (tempText != null && TyreGripWatch.Window(gs, out float low, out float high))
+                tempText += RadioLanguage.T(" Richtwert-Fenster " + Math.Round(low) + " bis " + Math.Round(high) + " Grad.",
+                    " Guide window " + Math.Round(low) + " to " + Math.Round(high) + " degrees.", " Ventana orientativa " + Math.Round(low) + " a " + Math.Round(high) + " grados.");
             if (wearKnown)
             {
                 int worst = Array.IndexOf(wear, wear.Max());

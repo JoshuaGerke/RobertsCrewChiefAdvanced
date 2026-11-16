@@ -129,7 +129,7 @@ namespace CrewChiefV4.AiTeam
 
         internal void Reset()
         {
-            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = DateTime.MinValue; fuelShort = false; lastSummary = null;
+            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null;
             Front.Id = Rear.Id = null; Front.Clear(); Rear.Clear();
             Volatile.Write(ref latest, null);
         }
@@ -286,7 +286,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Eigene Tempo-Motivation (Sektorbestzeit, nahe an der Bestzeit): passt fast immer, nur nicht mitten im Zweikampf oder unter Gelb.</summary>
-        internal static bool OwnPace(string t) => t == "sector-best" || t == "near-best" || t == "own-best-pace";
+        internal static bool OwnPace(string t) => t == "sector-best" || t == "near-best" || t == "own-best-pace" || t == "tyre-warm";
 
         /// <summary>
         /// Zentrale Freigabe. Nur bekannte Informations-Meldungen werden gesteuert; alles andere (Platzwechsel, eigene Runden,
@@ -328,6 +328,25 @@ namespace CrewChiefV4.AiTeam
             return MindVerdict.Admit;
         }
 
-        internal MindVerdict Judge(ObservedRaceCall call, DateTime now, out string reason) => Judge(Latest, call, now, out reason);
+        private DateTime lastPositionNews = DateTime.MinValue;
+
+        /// <summary>
+        /// Zentrale Freigabe mit Gedächtnis (Rob 16.11., Mosport: nach dem Dreher kamen „Platz 5“, „Platz 6“, „Platz 7“, „von 7 auf 9“
+        /// und „Platz 9, seit dem Start 3 verloren“ in wenigen Sekunden):
+        ///  - ein einzelner Platzverlust wartet kurz, bis die Wertung steht – rasche Folgeverluste ersetzen ihn;
+        ///  - Status/Zusammenfassung direkt nach einer Platzmeldung entfällt.
+        /// </summary>
+        internal MindVerdict Judge(ObservedRaceCall call, DateTime now, out string reason)
+        {
+            var verdict = Judge(Latest, call, now, out reason);
+            if (verdict != MindVerdict.Admit || call == null || call.SessionType != SessionType.Race) return verdict;
+            string t = call.Topic ?? "";
+            if (t == "position" && call.Priority <= 2 && now - call.DetectedUtc < TimeSpan.FromSeconds(2.5))
+            { reason = "position_loss_settling"; return MindVerdict.Hold; }
+            if ((t == "status" || t == "summary") && now - lastPositionNews < TimeSpan.FromSeconds(20))
+            { reason = "position_just_reported"; return MindVerdict.Drop; }
+            if (t == "position" || t == "position-loss") lastPositionNews = now;
+            return verdict;
+        }
     }
 }
