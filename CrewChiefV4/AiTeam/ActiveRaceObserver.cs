@@ -681,8 +681,12 @@ namespace CrewChiefV4.AiTeam
                 pressureCall = null;
             }
             var rival = RaceDataTools.Neighbour(state, false);
+            // P3 (Rob 16.11.): Duelle schon in Runde 1 – nach dem Startgetümmel (ab 40 % der ersten Runde), mit am selben Punkt gemessenem Abstand.
+            float firstLapLength = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
+            bool afterStartScrum = s.CompletedLaps >= 1 || firstLapLength > 500 && state.PositionAndMotionData.DistanceRoundTrack >= firstLapLength * .4f &&
+                state.PositionAndMotionData.DistanceRoundTrack < firstLapLength * .85f; // der Startplatz liegt oft kurz vor der Linie
             if (s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green || state.PitData.InPitlane ||
-                s.CompletedLaps < 1 || state.FlagData.isLocalYellow || rival == null || rival.InPits ||
+                !afterStartScrum || state.FlagData.isLocalYellow || rival == null || rival.InPits ||
                 !(gap.Kind == RaceGapKind.SimulatorTiming || gap.Kind == RaceGapKind.InterpolatedTiming) ||
                 !(gap.Seconds > .1f && gap.Seconds < 8))
             {

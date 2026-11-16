@@ -1043,9 +1043,18 @@ namespace CrewChiefV4.AiTeam
             if(source==DateTime.MinValue || context.NowUtc<source || context.NowUtc-source>TimeSpan.FromSeconds(1))
                 return new RaceGapMeasurement();
             var value=ReadGap(context.GameState,op,ahead);
-            if(context.Tracks != null && context.GameState != null && context.GameState.SessionData.SessionType == SessionType.Race &&
-                (ahead ? context.GameState.SessionData.TimeDeltaFrontIsDerived : context.GameState.SessionData.TimeDeltaBehindIsDerived))
-                return context.Tracks.Gaps.Read(context.GameState,op,ahead,context.NowUtc);
+            if(context.Tracks != null && context.GameState != null && context.GameState.SessionData.SessionType == SessionType.Race)
+            {
+                if (ahead ? context.GameState.SessionData.TimeDeltaFrontIsDerived : context.GameState.SessionData.TimeDeltaBehindIsDerived)
+                    return context.Tracks.Gaps.Read(context.GameState,op,ahead,context.NowUtc);
+                // P3 (Rob 16.11.): Liefert das Spiel keinen Zeitabstand (RaceRoom oft in Runde 1), zählt die Zeitdifferenz beider Autos
+                // am selben Streckenpunkt – gemessen ab den ersten Metern – vor der groben Schätzung aus Streckenmetern und eigenem Tempo.
+                if (!value.HasValue || value.Kind == RaceGapKind.TrackDistanceEstimate)
+                {
+                    var tracked = context.Tracks.Gaps.Read(context.GameState,op,ahead,context.NowUtc);
+                    if (tracked.HasValue) return tracked;
+                }
+            }
             return value;
         }
 
