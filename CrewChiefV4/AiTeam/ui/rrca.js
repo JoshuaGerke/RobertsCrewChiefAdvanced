@@ -125,6 +125,7 @@
     $('#rrca-diag-status').textContent = t(d.recorderStatus);
     if (typeof d.probe === 'boolean') $('#rrca-probe').checked = d.probe;
     if (d.probeStatus != null) $('#rrca-probe-status').textContent = t(d.probeStatus);
+    applyRecords(d);
     $('#key-openrouter').textContent = t(d.keys.openrouter || 'kein Schlüssel hinterlegt');
     $('#key-elevenlabs').textContent = t(d.keys.elevenlabs || 'kein Schlüssel hinterlegt');
     if (!d.keys.openrouter || !d.keys.elevenlabs) $('#rrca-keys').open = true;
@@ -141,8 +142,47 @@
     $('#rrca-save').disabled = false;
   }
 
+  // Bestzeiten-Datenbank: je Simulation getrennt, Schalter, Übersicht und Bereinigen mit Sicherheitsabfrage.
+  let recordSims = [];
+  function renderRecords() {
+    const status = $('#rrca-records-status');
+    if (!status) return;
+    status.textContent = recordSims.length === 0 ? t('Noch keine Bestzeiten gespeichert.')
+      : t('Gespeichert') + ': ' + recordSims.map(s => s.game + ' · ' + s.count + ' ' + t(s.count === 1 ? 'Kombination' : 'Kombinationen')).join(' | ');
+    const scope = $('#rrca-records-scope'), current = scope.value;
+    scope.innerHTML = '';
+    const all = document.createElement('option'); all.value = ''; all.textContent = t('Alle Simulationen'); scope.appendChild(all);
+    recordSims.forEach(s => { const o = document.createElement('option'); o.value = s.game; o.textContent = s.game; scope.appendChild(o); });
+    scope.value = recordSims.some(s => s.game === current) ? current : '';
+    $('#rrca-records-clear').disabled = recordSims.length === 0;
+  }
+  function applyRecords(d) {
+    if (typeof d.records === 'boolean') $('#rrca-records').checked = d.records;
+    if (Array.isArray(d.recordSims)) { recordSims = d.recordSims; renderRecords(); }
+  }
+  let confirmDialog = null;
+  function confirmClearRecords() {
+    const game = $('#rrca-records-scope').value;
+    if (!confirmDialog) {
+      confirmDialog = document.createElement('dialog'); confirmDialog.className = 'help-dialog'; confirmDialog.id = 'rrca-records-confirm';
+      confirmDialog.innerHTML = '<h2></h2><p></p><div class="row" style="justify-content:flex-end;gap:10px"><button type="button" class="button" data-answer="no"></button><button type="button" class="button primary" data-answer="yes"></button></div>';
+      document.body.appendChild(confirmDialog);
+      confirmDialog.querySelector('[data-answer=no]').addEventListener('click', () => confirmDialog.close());
+      confirmDialog.querySelector('[data-answer=yes]').addEventListener('click', () => { send('clearRecords', { game: confirmDialog.dataset.game || null }); confirmDialog.close(); });
+    }
+    confirmDialog.dataset.game = game;
+    confirmDialog.querySelector('h2').textContent = t('Bestzeiten löschen');
+    confirmDialog.querySelector('p').textContent = (game ? t('Sicher alle Bestzeiten dieser Simulation löschen?') + ' (' + game + ')' : t('Sicher alle Daten löschen? Alle Bestzeiten aller Simulationen werden entfernt.')) +
+      ' ' + t('Das kann nicht rückgängig gemacht werden.');
+    confirmDialog.querySelector('[data-answer=no]').textContent = t('Abbrechen');
+    confirmDialog.querySelector('[data-answer=yes]').textContent = t('Ja, löschen');
+    confirmDialog.showModal(); confirmDialog.querySelector('[data-answer=no]').focus(); // sicherer Standard: Abbrechen
+  }
+  document.addEventListener('rrca-language-changed', renderRecords);
+
   function applyLive(d) {
     lastLive=d;
+    applyRecords(d);
     if (typeof d.autoDetect === 'boolean') $('#rrca-auto').checked = d.autoDetect;
     syncAudioLevels(d.audioLevels);
     state.voiceReadiness = d.voiceReadiness;
@@ -261,6 +301,8 @@
   $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
   $('#rrca-probe').addEventListener('change', e => send('setProbe', { on: e.target.checked }));
+  $('#rrca-records').addEventListener('change', e => send('setRecords', { on: e.target.checked }));
+  $('#rrca-records-clear').addEventListener('click', confirmClearRecords);
   $$('[data-key-save]').forEach(b => b.addEventListener('click', () => {
     const input = $('#key-' + b.dataset.keySave + '-input'); const key = input.value.trim();
     if (!key) { notify('Erst den Schlüssel einfügen.'); return; }
@@ -291,6 +333,7 @@
       if (d.type === 'handshake') send('ready', { navigation: d.navigation });
       else if (d.type === 'init') applyInit(d);
       else if (d.type === 'live') applyLive(d);
+      else if (d.type === 'records') applyRecords(d);
       else if (d.type === 'audioLevels') syncAudioLevels(d.audioLevels);
       else if (d.type === 'voices') fillVoices(d.list, d.current);
       else if (d.type === 'notice') notify(d.text);

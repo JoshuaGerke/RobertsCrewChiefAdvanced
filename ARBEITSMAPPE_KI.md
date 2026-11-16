@@ -148,3 +148,20 @@ Robs Funk-Anmerkungen an die KI (Live-Diagnose ausgewertet):
 - Fehler behoben: „Sektor 1 nur 0,000 Sekunden über deiner Bestmarke“ (gleiche Zeit wird nicht gemeldet); „Rob, Eine Runde noch“ (Namensanrede mit richtiger Kleinschreibung); Ausfahrt aus der Garage zu Sitzungsbeginn wurde als Boxenstopp gemeldet (jetzt nur nach mindestens 5 s auf der Strecke); „Für eine vollständige Schadensbewertung fehlen Messwerte“ ersetzt durch eine ehrliche Aussage mit Handlungshinweis.
 - Nach dem Dreher kamen „Platz 5“, „Platz 6“, „Platz 7“, „von 7 auf 9“ und „Platz 9, seit dem Start 3 verloren“ in Sekunden → Rennkopf: einzelner Platzverlust wartet 2,5 s, bis die Wertung steht (Folgeverluste ersetzen ihn); Status/Zusammenfassung innerhalb 20 s nach einer Platzmeldung entfällt.
 - Tests: RaceMindTests (Reifen heiß/dreckig, Quali-Sprit, Platzmeldungen nach Dreher), PitAndFieldFindingsTests (Garagenausfahrt).
+
+## Claude – Bestzeiten-Datenbank und Übergabe (Stand 16.11.2026, 18:25, Pause wegen Credits)
+
+Neu (noch NICHT gebaut/getestet – erster Schritt nach der Pause: Build starten und Fehler beheben):
+- **PersonalBestStore** (AiTeam/PersonalBestStore.cs): je Simulation eine eigene Datei `Fahrergedaechtnis\Bestzeiten\<Simulation>.json` (Rob: „für alle Simulationen eine Datenbank, nicht verwechseln“). Je Auto/Strecke/Layout die Allzeit-Bestzeit mit Sektoren, Sprit beim Rundenstart, Reifen, Strecken-/Lufttemperatur, Regen, Sitzung, Datum. Einträge anderer Simulationen werden nie übernommen oder geschrieben. Schalter `PersonalBestStore.Enabled` liegt in `Bestzeiten\einstellungen.json` (Crew-Chief-Einstellungen sind während der Fahrt gesperrt). `Clear(game|null)`, `OverviewCached()`.
+- **PersonalBestWatch** (Mik): einmal je Training/Quali nach 8 s Fahrt „deine Bestzeit hier liegt bei … gefahren mit … Litern, Reifen …, … Grad Strecke und … Grad Luft“ + Vergleich mit heute (Sprit ±5 l, Strecke ±4 °C) + 6 wechselnde Schlusssätze; neue Allzeit-Bestzeit (alle Sitzungen, 3 Varianten); „knapp dran“ ≤0,3 s einmal je Sitzung. KI-Anfragen bekommen `allzeit_bestzeit_hier`.
+- **App (rrca.html/js/i18n, RrcaForm.cs)**: neuer Abschnitt „Bestzeiten-Datenbank“ (+) mit Schalter, Übersicht je Simulation, Auswahl „Bereinigen für“ (alle/eine Simulation), Ordner-Knopf, „Bestzeiten löschen …“ mit eigener Sicherheitsabfrage („Sicher alle Daten löschen? … nicht rückgängig“, Standardfokus Abbrechen). Fragezeichen-Hilfen DE/EN/ES für Schalter, Löschen und jetzt auch die Telemetrie-Messung. Befehle: setRecords, clearRecords, openRecords; Nachrichtentyp „records“.
+- Commit-Stand davor: 4bc6d52 (Mosport-Erkenntnisse, Build 43917194546 lief) – Ergebnis prüfen.
+
+Offene Aufgaben (Reihenfolge):
+1. Build für Bestzeiten-Datenbank + UI prüfen; UnitTests für PersonalBestStore/Watch ergänzen (Simulation getrennt, Offer nur besser, Clear, Briefing-Text, Vergleich).
+2. UI kurz per Playwright prüfen (Skript im Scratchpad: Stub window.chrome.webview, Seite „settings“, Abschnitt öffnen, Löschen-Dialog).
+3. „Auto neben der Strecke voraus“ (Mosport: AMS2-Wagen mit räumlich inkonsistenter Position wurde bewusst ignoriert) – sichere Erkennung aus Weltposition + Fahrtrichtung.
+4. Fragen „Ist die Runde gut oder schlecht?“ zu Gegnerzeiten: Einordnung im Feld (Rang der Zeit, Abstand zur Klassenbestzeit) in die KI-Daten.
+5. Startphase: viele Platzmeldungen in den ersten Sekunden bündeln (wie nach dem Dreher).
+6. Masterprompt-Punkte weiter: P2 Rohdatenpfad, P3 Live-Karte, P6 Rennkopf verfeinern (Gefahren/Chancen in Antworten nutzen), Sprachvarianten weiter ausbauen.
+7. Nach jedem Paket: ARBEITSMAPPE, Commit, Push auf claude/p1-telemetrie-messung, Build, Link an Rob. main/Releases nur mit Robs Freigabe.

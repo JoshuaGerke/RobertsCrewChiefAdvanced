@@ -58,6 +58,9 @@ namespace CrewChiefV4.AiTeam
         private readonly RaceMind raceMind = new RaceMind();
         private readonly TyreGripWatch tyreGrip = new TyreGripWatch();
         private readonly QualiFuelWatch qualiFuel = new QualiFuelWatch();
+        /// <summary>Robs Bestzeiten-Datenbank: Allzeit-Bestzeiten je Auto/Strecke mit Bedingungen, Kommentare in Training und Quali.</summary>
+        private readonly PersonalBestWatch personalBest = new PersonalBestWatch();
+        private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
@@ -285,6 +288,7 @@ namespace CrewChiefV4.AiTeam
                 raceMind.Reset();
                 tyreGrip.Reset();
                 qualiFuel.Reset();
+                personalBest.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -492,6 +496,9 @@ namespace CrewChiefV4.AiTeam
             }
             sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous,
                 DriverMemory.QualifyingSectorRadioEnabled, Tracks, settings.RadioName, Memory);
+            var bestStore = DriverMemory.Enabled ? PersonalBestStore.For(GameName) : null;
+            if (lapCompleted) personalBest.ObserveLap(current, Memory.GetLaps(1).LastOrDefault(), bestStore, GameName, settings.RadioName, now);
+            personalBest.Observe(current, bestStore, GameName, settings.RadioName, now);
             var radioPrefs = settings.RadioPreferences;
             activeRace.Observe(current, now, settings.RadioName, 0, Memory, settings.SendDriverNames);
             if (settings.RadioMode != AiRadioMode.MINIMAL && settings.IsMemberEnabled(TeamMember.Mik))
@@ -598,6 +605,8 @@ namespace CrewChiefV4.AiTeam
                 raceCall = lapWatch.TakeDisqualification(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy, settings.RadioName);
             if (raceCall == null) raceCall = sessionLaps.Take(current, now, ownLapBusy, ownLapOnly: true);
             if (raceCall == null) raceCall = TakePitFinish(current, now);
+            if (raceCall == null) raceCall = personalBest.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,
+                settings.IsMemberEnabled(TeamMember.Mik) && settings.RadioMode != AiRadioMode.MINIMAL);
             if (raceCall == null) raceCall = TakeSessionBriefing(current, now);
             if (raceCall == null) raceCall = qualifyingResults.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null) raceCall = qualiFuel.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
@@ -1224,6 +1233,13 @@ namespace CrewChiefV4.AiTeam
             if (mind != null && gs != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(DateTime.UtcNow)) liveFacts["rennkopf"] = mind.Describe();
             // P4: Während der Fahrt beantwortet das schnelle Modell einfache Fragen in einer einzigen Anfrage.
             bool singleShot = !longAllowed && model == settings.FastModel && !NeedsTools(routed.Question, gs);
+            // Robs Bestzeiten-Datenbank: Allzeit-Bestzeit für dieses Auto auf dieser Strecke mit den Bedingungen von damals.
+            if (gs != null && DriverMemory.Enabled)
+            {
+                var factCtx = RaceFactContext.FromGameState(GameName, gs, DateTime.UtcNow);
+                var pb = factCtx.IdentityKnown ? PersonalBestStore.For(GameName)?.Find(factCtx.Game, factCtx.Car, factCtx.Track, factCtx.Layout) : null;
+                if (pb != null) liveFacts["allzeit_bestzeit_hier"] = pb.ToJson();
+            }
             if (routed.Question.IndexOf("sektor", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 routed.Question.IndexOf("bestzeit", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 routed.Question.IndexOf("split", StringComparison.OrdinalIgnoreCase) >= 0)

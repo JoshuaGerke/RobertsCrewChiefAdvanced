@@ -284,6 +284,24 @@ namespace CrewChiefV4.AiTeam
                 case "setProbe":
                     if ((bool)m["on"]) Notice(Probe.TelemetryProbe.Start()); else { Probe.TelemetryProbe.Stop(); Notice("Telemetrie-Messung gestoppt; Bericht wird geschrieben."); }
                     break;
+                case "setRecords":
+                    PersonalBestStore.Enabled = (bool)m["on"];
+                    Notice(PersonalBestStore.Enabled ? "Bestzeiten-Datenbank eingeschaltet." : "Bestzeiten-Datenbank ausgeschaltet. Gespeicherte Zeiten bleiben erhalten.");
+                    Post(RecordsState(new JObject { ["type"] = "records" }));
+                    break;
+                case "clearRecords":
+                {
+                    // Die Sicherheitsabfrage („Sicher alle Daten löschen?“) zeigt die Oberfläche vor diesem Befehl.
+                    string game = (string)m["game"];
+                    int removed = PersonalBestStore.Clear(string.IsNullOrWhiteSpace(game) ? null : game);
+                    Notice(removed == 0 ? "Keine gespeicherten Bestzeiten gefunden." : string.IsNullOrWhiteSpace(game) ? "Alle Bestzeiten gelöscht." : "Bestzeiten gelöscht: " + game);
+                    Post(RecordsState(new JObject { ["type"] = "records" }));
+                    break;
+                }
+                case "openRecords":
+                    Directory.CreateDirectory(PersonalBestStore.Folder);
+                    System.Diagnostics.Process.Start("explorer.exe", "\"" + PersonalBestStore.Folder + "\"");
+                    break;
                 case "openProbe":
                     Directory.CreateDirectory(Probe.TelemetryProbe.Folder);
                     System.Diagnostics.Process.Start("explorer.exe", "\"" + Probe.TelemetryProbe.Folder + "\"");
@@ -425,6 +443,8 @@ namespace CrewChiefV4.AiTeam
                 ["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status,
                 ["probe"] = Probe.TelemetryProbe.Enabled,
                 ["probeStatus"] = Probe.TelemetryProbe.Status,
+                ["records"] = PersonalBestStore.Enabled,
+                ["recordSims"] = RecordSims(),
                 ["keys"] = new JObject
                 {
                     ["openrouter"] = string.IsNullOrEmpty(openRouter) ? null : "hinterlegt " + AiSecretStore.Mask(openRouter),
@@ -560,6 +580,7 @@ namespace CrewChiefV4.AiTeam
             o["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status;
             o["probe"] = Probe.TelemetryProbe.Enabled;
             o["probeStatus"] = Probe.TelemetryProbe.Status;
+            RecordsState(o);
             if (JToken.DeepEquals(lastLive, o)) return;
             lastLive = o;
             Post(o);
@@ -782,6 +803,16 @@ namespace CrewChiefV4.AiTeam
                 : member == TeamMember.Sara ? "Sara hier. Ich hab die Seiten im Blick."
                 : "Mik hier. Funk steht, ich hab das Auto im Blick.";
             Run(service.SpeakAsync(member, text, true, CancellationToken.None).ContinueWith(t => t.Exception == null ? null : t.Exception.GetBaseException().Message));
+        }
+
+        private static JArray RecordSims() =>
+            new JArray(PersonalBestStore.OverviewCached().Select(p => new JObject { ["game"] = p.Key, ["count"] = p.Value }));
+
+        private static JObject RecordsState(JObject o)
+        {
+            o["records"] = PersonalBestStore.Enabled;
+            o["recordSims"] = RecordSims();
+            return o;
         }
 
         private void SaveProperty(string name, object value)
