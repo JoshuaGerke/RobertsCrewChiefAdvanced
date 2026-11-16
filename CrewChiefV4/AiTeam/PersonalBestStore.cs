@@ -22,8 +22,8 @@ namespace CrewChiefV4.AiTeam
         public DateTime DateUtc;
         public int Improvements;
 
-        internal string Key => Key(Game, Car, Track, Layout);
-        internal static string Key(string game, string car, string track, string layout) =>
+        internal string Key => MakeKey(Game, Car, Track, Layout);
+        internal static string MakeKey(string game, string car, string track, string layout) =>
             (game ?? "") + "|" + (car ?? "") + "|" + (track ?? "") + "|" + (layout ?? "");
 
         internal JObject ToJson() => new JObject
@@ -215,7 +215,7 @@ namespace CrewChiefV4.AiTeam
         internal PersonalBest Find(string game, string car, string track, string layout)
         {
             if (!string.Equals(RaceFactContext.Label(game), RaceFactContext.Label(Game), StringComparison.Ordinal)) return null;
-            lock (sync) return bests.TryGetValue(PersonalBest.Key(game, car, track, layout), out var b) ? b : null;
+            lock (sync) return bests.TryGetValue(PersonalBest.MakeKey(game, car, track, layout), out var b) ? b : null;
         }
 
         internal int Count { get { lock (sync) return bests.Count; } }
