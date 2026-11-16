@@ -268,6 +268,7 @@
     <Compile Include="AiTeam\QualiFuelWatch.cs" />
     <Compile Include="AiTeam\PersonalBestStore.cs" />
     <Compile Include="AiTeam\PersonalBestWatch.cs" />
+    <Compile Include="AiTeam\FocusBriefWatch.cs" />
     <Compile Include="AiTeam\Probe\PackedLayout.cs" />
     <Compile Include="AiTeam\Probe\ProbeStatistics.cs" />
     <Compile Include="AiTeam\Probe\ProbeAnalyzer.cs" />

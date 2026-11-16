@@ -567,5 +567,41 @@ namespace UnitTest.AiTeamTests
             d.BrakeDamagePercent = new[] { 2.4f, .3f, .1f, .1f };
             Assert.AreEqual("Bremse vorne links-Schadenswert 2,4 Prozent.", NumericDamageWatch.Report(d, 1f));
         }
+
+        // ---------- Renningenieur liest das Rennen: Lagewechsel ----------
+
+        [Test]
+        public void Focus_change_is_explained_with_measured_facts()
+        {
+            var x = Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Attack);
+            x.GapAhead = 1.4f; x.FrontRate = .3f; x.FrontLapsToCatch = 2; x.GapBehind = 6f;
+            string attack = FocusBriefWatch.Compose(x, RaceFocus.Attack, RaceFocus.Rhythm, "Keller", null, "Rob", 0);
+            StringAssert.StartsWith("Rob, jetzt geht's nach vorn: Keller liegt 1,4 Sekunden vor dir", attack);
+            StringAssert.Contains("3 Zehntel pro Runde schneller", attack); StringAssert.Contains("in etwa 2 Runden", attack);
+            Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => FocusBriefWatch.Compose(x, RaceFocus.Attack, RaceFocus.Rhythm, "Keller", null, "Rob", v)).Distinct().Count());
+
+            x.GapBehind = .9f; x.RearRate = .4f;
+            string defend = FocusBriefWatch.Compose(x, RaceFocus.Defend, RaceFocus.Rhythm, null, "Wurz", "Rob", 1);
+            StringAssert.Contains("verteidigen", defend); StringAssert.Contains("Wurz", defend); StringAssert.Contains("4 Zehntel", defend);
+
+            string calm = FocusBriefWatch.Compose(x, RaceFocus.Rhythm, RaceFocus.Defend, null, null, "Rob", 0);
+            StringAssert.StartsWith("Der Druck von hinten ist weg.", calm);
+            Assert.IsNull(FocusBriefWatch.Compose(new RaceSituation(), RaceFocus.Attack, RaceFocus.Rhythm, null, null, "Rob", 0), "ohne Abstand keine Angriffsansage");
+        }
+
+        [Test]
+        public void Focus_brief_waits_for_a_stable_change_and_not_the_first_focus()
+        {
+            var gs = Race(); var watch = new FocusBriefWatch();
+            RaceSituation At(RaceFocus f, double s) { var x = Situation(RacePhase.Middle, RaceAttention.Open, f); x.Utc = T.AddSeconds(s); x.GapAhead = 1.3f; x.GapBehind = 5f; return x; }
+            void Tick(RaceFocus f, double s) => watch.Observe(gs, At(f, s), "Keller", null, "Rob", T.AddSeconds(s));
+            for (int i = 0; i <= 20; i++) Tick(RaceFocus.Rhythm, i);
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(20), false, true), "erste Lage nach dem Start wird nicht erklärt");
+            for (int i = 21; i <= 30; i++) Tick(RaceFocus.Attack, i);
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(30), false, true), "erst nach 15 s stabil");
+            for (int i = 31; i <= 40; i++) Tick(RaceFocus.Attack, i);
+            var call = watch.Take(gs, T.AddSeconds(40), false, true);
+            Assert.IsNotNull(call); Assert.AreEqual("focus-brief", call.Topic); Assert.AreEqual(TeamMember.Ben, call.Member);
+        }
     }
 }

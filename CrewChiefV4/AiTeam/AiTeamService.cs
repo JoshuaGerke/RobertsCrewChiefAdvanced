@@ -60,6 +60,8 @@ namespace CrewChiefV4.AiTeam
         private readonly QualiFuelWatch qualiFuel = new QualiFuelWatch();
         /// <summary>Robs Bestzeiten-Datenbank: Allzeit-Bestzeiten je Auto/Strecke mit Bedingungen, Kommentare in Training und Quali.</summary>
         private readonly PersonalBestWatch personalBest = new PersonalBestWatch();
+        /// <summary>Der Renningenieur erklärt dauerhafte Lagewechsel (Angriff, Verteidigung, sicher, Schlussphase, Ruhe).</summary>
+        private readonly FocusBriefWatch focusBrief = new FocusBriefWatch();
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -289,6 +291,7 @@ namespace CrewChiefV4.AiTeam
                 tyreGrip.Reset();
                 qualiFuel.Reset();
                 personalBest.Reset();
+                focusBrief.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -565,6 +568,12 @@ namespace CrewChiefV4.AiTeam
             incidentPoints.Observe(current,now);
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
             gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
+            {
+                var frontCar = RaceDataTools.Neighbour(current, true); var rearCar = RaceDataTools.Neighbour(current, false);
+                string frontName = settings.SendDriverNames && frontCar != null && frontCar.CanUseName ? RadioPhraseCatalog.SafeRivalName(frontCar.DriverRawName) : null;
+                string rearName = settings.SendDriverNames && rearCar != null && rearCar.CanUseName ? RadioPhraseCatalog.SafeRivalName(rearCar.DriverRawName) : null;
+                focusBrief.Observe(current, RaceMind.Latest, frontName, rearName, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now);
+            }
             OpponentStopLog.Observe(current);
             tyreGrip.Observe(current, now);
             qualiFuel.Observe(current, Memory, settings.RadioName, now);
@@ -613,6 +622,9 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = raceSummary.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
                     !AllowsRadioNow(false), settings.IsMemberEnabled(TeamMember.Ben)); // keine Bremszone, keine Kurvenlast
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = focusBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
+                    settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));

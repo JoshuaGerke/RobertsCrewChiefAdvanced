@@ -318,6 +318,13 @@ namespace CrewChiefV4.AiTeam
                 if (x.Attention != RaceAttention.Calm) { reason = "summary_needs_calm_moment"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
+            if (t == "focus-brief")
+            {
+                // Lagewechsel erklären: nicht mitten im Zweikampf, unter Gelb, in der Box oder in der Startrunde – dann wartet es kurz.
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (driverBusy || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start) { reason = "busy_brief_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
             if (t == "gap-trend")
             {
                 if (lastLaps) { reason = "last_lap_no_projection"; return MindVerdict.Drop; }
