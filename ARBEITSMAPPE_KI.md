@@ -165,3 +165,4 @@ Offene Aufgaben (Reihenfolge):
 5. Startphase: viele Platzmeldungen in den ersten Sekunden bündeln (wie nach dem Dreher).
 6. Masterprompt-Punkte weiter: P2 Rohdatenpfad, P3 Live-Karte, P6 Rennkopf verfeinern (Gefahren/Chancen in Antworten nutzen), Sprachvarianten weiter ausbauen.
 7. Nach jedem Paket: ARBEITSMAPPE, Commit, Push auf claude/p1-telemetrie-messung, Build, Link an Rob. main/Releases nur mit Robs Freigabe.
+- Hinweis: Build 43917194546 (4bc6d52, Mosport-Paket) ist fehlgeschlagen – Ursache im Log prüfen (`gh run view 43917194546 --log | grep -v MSTEST | grep -E "error CS|  Failed "`) und zuerst beheben.
