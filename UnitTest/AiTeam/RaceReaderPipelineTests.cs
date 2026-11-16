@@ -210,6 +210,128 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Pit_handover_waits_for_the_radio_pause_and_rechecks_its_evidence()
+        {
+            var state = State();
+            var director = new RaceRadioDirector();
+            bool forecast = true;
+            director.OfferPitHandover(state, T, (_, at) => forecast);
+            Assert.IsTrue(director.PitHandoverPending(T));
+            Assert.IsNull(director.TakePitHandover(state, T.AddSeconds(1)));
+            state.SourceTelemetryUtc = T.AddSeconds(2);
+            var call = director.TakePitHandover(state, state.SourceTelemetryUtc);
+            Assert.IsNotNull(call);
+            Assert.AreEqual(TeamMember.Ben, call.Member);
+            forecast = false;
+            Assert.IsFalse(call.IsValid(state,state.SourceTelemetryUtc));
+            Assert.IsNull(director.TakePitHandover(state,state.SourceTelemetryUtc));
+            Assert.IsFalse(director.PitHandoverPending(state.SourceTelemetryUtc));
+        }
+
+        [TestCase(1500, 2, "traffic")]
+        [TestCase(2200, 2, "clear")]
+        [TestCase(2200, 4, "unknown")]
+        public void Pit_exit_forecast_uses_the_route_and_requires_full_coverage_to_report_space(float rivalDistance, int fieldSize, string expected)
+        {
+            var state = State();
+            state.SessionData.NumCarsOverall = fieldSize;
+            state.SessionData.CompletedLaps = 4;
+            state.PositionAndMotionData.DistanceRoundTrack = 1800;
+            var rival = new OpponentData {
+                DriverRawName="Lara", IsActive=true, Speed=50, NativePositionUtc=T,
+                DistanceRoundTrack=rivalDistance, CarClass=state.carClass, CompletedLaps=4 };
+            rival.OpponentLapData.Add(new LapData { LapNumber=3, LapTime=100 });
+            rival.OpponentLapData.Add(new LapData { LapNumber=4, LapTime=100 });
+            state.OpponentData["rival"] = rival;
+            var tracks = new TrackAwareness();
+            var ctx = Context(state, null, T);
+            Assert.IsTrue(tracks.Observe(state,T));
+            Assert.AreEqual(expected, RaceTrafficWatch.ForecastMerge(ctx, tracks.Snapshot, 2500, 20, out int covered));
+            Assert.AreEqual(1, covered);
+            ctx.NowUtc = T.AddSeconds(2);
+            Assert.AreEqual("unknown", RaceTrafficWatch.ForecastMerge(ctx, tracks.Snapshot, 2500, 20, out _));
+        }
+
+        [Test]
+        public void Class_pace_uses_the_same_laps_from_the_same_class_leaders()
+        {
+            var state = State();
+            state.SessionData.NumCarsInPlayerClass = 8;
+            foreach (int rank in new[] { 1, 2, 4, 5 })
+            {
+                var rival = new OpponentData { ClassPosition=rank, IsActive=true, CarClass=state.carClass };
+                rival.OpponentLapData.Add(new LapData { LapNumber=3, LapTime=95, SectorTimes=new[] { 32f, 32f, 31f } });
+                rival.OpponentLapData.Add(new LapData { LapNumber=4, LapTime=94, SectorTimes=new[] { 32f, 31f, 31f } });
+                state.OpponentData[rank.ToString()] = rival;
+            }
+            var own = new[] { new LapRecord { LapNumber=3, LapTime=96, Green=true },
+                new LapRecord { LapNumber=4, LapTime=96.5f, Green=true } };
+            var evidence = RaceFieldTools.TopClassPace(state, own);
+            Assert.AreEqual(4, (int)evidence["andere_fahrer_aus_klassen_top5"]);
+            Assert.AreEqual(-1, (double)evidence["delta_klasse_s"], .001);
+            Assert.AreEqual(1.5, (double)evidence["delta_eigen_relativ_zur_klasse_s"], .001);
+            Assert.IsFalse((bool)evidence["ursache_bestaetigt"]);
+            state.OpponentData["5"].OpponentLapData[1].OutLap = true;
+            Assert.IsNull(RaceFieldTools.TopClassPace(state, own));
+        }
+
+        [Test]
+        public void Final_laps_suppress_background_statistics_until_the_race_is_restarted()
+        {
+            var state = State();
+            state.SessionData.SessionLapsRemaining = 2;
+            var context = Context(state, null, T);
+            Assert.IsTrue(RaceRadioDirector.SuppressBackgroundStatistics(context));
+            state.SessionData.SessionLapsRemaining = 3;
+            Assert.IsFalse(RaceRadioDirector.SuppressBackgroundStatistics(context));
+            state.SessionData.SessionLapsRemaining = 2;
+            state.SessionData.SessionType = SessionType.Qualify;
+            Assert.IsFalse(RaceRadioDirector.SuppressBackgroundStatistics(context));
+        }
+
+        [Test]
+        public void Sector_loss_requires_a_fresh_split_and_three_consecutive_comparable_laps()
+        {
+            var rival = new OpponentData();
+            for (int i = 1; i <= 3; i++)
+                rival.OpponentLapData.Add(new LapData { LapNumber=i, LapTime=90, SectorTimes=new[] { 30f, 30f, 30f } });
+            var split = new LapData { LapNumber=4, SectorTimes=new[] { 30.75f, -1f, -1f },
+                GameTimeAtSectorEnd=new[] { 300.75f, -1f, -1f } };
+            rival.OpponentLapData.Add(split);
+            Assert.IsTrue(RaceReader.TryRecentSectorLoss(rival, 301, out var lap, out int sector, out double loss));
+            Assert.AreSame(split, lap);
+            Assert.AreEqual(1, sector);
+            Assert.AreEqual(.75, loss, .001);
+            Assert.IsFalse(RaceReader.TryRecentSectorLoss(rival, 305, out _, out _, out _));
+            split.SectorTimes[0] = 30.5f;
+            Assert.IsFalse(RaceReader.TryRecentSectorLoss(rival, 301, out _, out _, out _));
+            split.SectorTimes[0] = 32;
+            rival.OpponentLapData[1].InLap = true;
+            Assert.IsFalse(RaceReader.TryRecentSectorLoss(rival, 301, out _, out _, out _));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void A_five_lap_gap_history_stops_at_rival_or_timing_source_changes(bool ahead)
+        {
+            var car = new OpponentData { DriverRawName = "Lara", CarNumber = "18" };
+            string key = "rival";
+            string identity = RaceReader.Identity(key, car);
+            var samples = Enumerable.Range(1, 5).Select(i => new LapRecord {
+                LapNumber = i, FrontIdentity = identity, BehindIdentity = identity, GapAhead = 6 - i, GapBehind = i,
+                GapAheadKind = RaceGapKind.SimulatorTiming, GapBehindKind = RaceGapKind.SimulatorTiming
+            }).ToArray();
+            var trend = RaceReader.GapHistory(samples, key, car, ahead);
+            Assert.AreEqual(5, (int)trend["runden"]);
+            Assert.AreEqual(ahead ? "schrumpft" : "waechst", (string)trend["typ"]);
+            samples[1].FrontIdentity = samples[1].BehindIdentity = "previous car";
+            trend = RaceReader.GapHistory(samples, key, car, ahead);
+            Assert.AreEqual(3, (int)trend["runden"]);
+            samples[3].GapAheadKind = samples[3].GapBehindKind = RaceGapKind.InterpolatedTiming;
+            Assert.IsNull(RaceReader.GapHistory(samples, key, car, ahead));
+        }
+
+        [Test]
         public void Wear_regression_never_infers_a_grip_cliff_or_fits_across_new_tyres()
         {
             var laps = Enumerable.Range(1, 5).Select(i => new LapRecord { LapNumber = i, LapTime = 90,

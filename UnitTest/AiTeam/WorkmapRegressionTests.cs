@@ -288,6 +288,28 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(7,call.Priority);StringAssert.DoesNotContain("Dreher",call.Text);
             Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,call.Text));
         }
+        [Test]
+        public void Thermal_race_context_requires_both_sustained_heat_and_measured_race_evidence()
+        {
+            var state = Frame(1,false,false,true);
+            state.SessionData.SessionType = SessionType.Race;
+            state.SessionData.CurrentLapIsValid = true;
+            Temps(state,80,125);
+            var output = new LiveWarningDispatcher();
+            var watch = new ThermalWatch(_ => Profile());
+            var rear = Newtonsoft.Json.Linq.JObject.Parse("{\"abstandsverlauf\":{\"typ\":\"schrumpft\"},\"abstand\":{\"sekunden\":1.3}}");
+            ThermalTick(watch,output,state,0);
+            Assert.IsNull(RaceReader.ThermalContext(FreshContext(state,T), new LapRecord[0], rear, watch));
+            ThermalTick(watch,output,state,1);
+            ThermalTick(watch,output,state,2.1);
+            var context = FreshContext(state,T.AddSeconds(2.1));
+            Assert.IsNull(RaceReader.ThermalContext(context,new LapRecord[0],null,watch));
+            var evidence = RaceReader.ThermalContext(context,new LapRecord[0],rear,watch);
+            Assert.IsTrue((bool)evidence["reifen_an_warnschwelle"]);
+            Assert.IsTrue((bool)evidence["hintermann_holt_auf"]);
+            Assert.IsFalse((bool)evidence["ursache_bestaetigt"]);
+        }
+
         [TestCase(95,true)] [TestCase(150,false)]
         public void T24_Identical_temperature_has_different_meaning_with_different_tyre_profiles(float limit,bool warns)
         {

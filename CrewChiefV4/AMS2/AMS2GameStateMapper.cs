@@ -645,6 +645,9 @@ namespace CrewChiefV4.AMS2
             currentGameState.ControlData.BrakePedal = shared.mBrake;
             currentGameState.ControlData.HandBrake = shared.mHandBrake;
             currentGameState.ControlData.SteeringWheelAngle = shared.mSteering;
+            if (wrapper.sourceSampleTicks > 0)
+                TelemetryMeasurements.Pedals(currentGameState, "AMS2.SharedMemory", currentGameState.SourceTelemetryUtc,
+                    "mThrottle", "mBrake", "mClutch");
 
             //------------------- Variable session data ---------------------------
             if (currentGameState.SessionData.SessionHasFixedTime)

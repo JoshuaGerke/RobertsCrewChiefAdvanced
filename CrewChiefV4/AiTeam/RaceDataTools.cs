@@ -25,6 +25,7 @@ namespace CrewChiefV4.AiTeam
         public CornerCoach Corners;
         public TrackAwareness Tracks;
         public RaceReader Reader;
+        internal PitCycleWatch.MergeForecast PitForecast;
 
         public double TelemetryAgeSeconds
         {
@@ -759,7 +760,8 @@ namespace CrewChiefV4.AiTeam
             {
                 o["mindeststandzeit_s"] = Math.Round(p.MandatoryPitMinDurationTotal, 1);
             }
-            missing.Add("zeitverlust_boxenstopp (muss aus der Strecke geschätzt werden – nicht gemessen)");
+            if (ctx.PitForecast != null) o["boxenausfahrt_prognose"] = ctx.PitForecast.Describe();
+            else missing.Add("boxenausfahrt_prognose (keine frische Messgrundlage)");
             return o;
         }
 

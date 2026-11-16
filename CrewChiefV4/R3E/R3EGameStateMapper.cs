@@ -659,6 +659,8 @@ namespace CrewChiefV4.RaceRoom
             currentGameState.ControlData.ThrottlePedal = shared.Throttle;
             currentGameState.ControlData.ClutchPedal = shared.Clutch;
             currentGameState.ControlData.BrakePedal = shared.Brake;
+            if (currentGameState.SourceTelemetryUtc != DateTime.MinValue)
+                TelemetryMeasurements.Pedals(currentGameState, "R3E.API", currentGameState.SourceTelemetryUtc, "Throttle", "Brake", "Clutch");
             currentGameState.ControlData.BrakeBias = shared.BrakeBias;
             currentGameState.TransmissionData.Gear = shared.Gear;
 

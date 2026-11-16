@@ -149,6 +149,12 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     public sealed class RaceFactStore : IDisposable
     {
+        internal static JArray DescribeLiveLaps(IEnumerable<LapRecord> laps) => new JArray(laps.Select(lap =>
+            new JObject { ["runde"] = lap.LapNumber, ["zeit_s"] = Math.Round(lap.LapTime, 3),
+                ["gruene_runde"] = lap.Green, ["gemessen_utc"] = lap.RecordedUtc == DateTime.MinValue ? null : lap.RecordedUtc.ToString("o"),
+                ["verbrauch_l"] = lap.FuelUsed > 0 && RaceFactContext.Finite(lap.FuelUsed) ?
+                    (JToken)Math.Round(lap.FuelUsed, 3) : null }));
+
         public const int SchemaVersion = 1;
         public const int MaxFacts = 256;
         public const int MaxFileBytes = 1024 * 1024;

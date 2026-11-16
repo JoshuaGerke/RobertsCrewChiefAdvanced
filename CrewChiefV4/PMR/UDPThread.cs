@@ -11,12 +11,9 @@ namespace CrewChiefV4.PMR
 {
     internal class UDPThread
     {
-        static IPEndPoint m_endPoint = null;
-        static IPAddress m_multicastGroup = null;
-        static UdpClient m_udpClient = null;
-        static bool m_multiCast = true;
-        static int m_defaultPort = 7576;
-        static string m_defaultMulticastGroup = "224.0.0.150";
+        private readonly UdpClient m_udpClient;
+        private const int DefaultPort = 7576;
+        private const string DefaultMulticastGroup = "224.0.0.150";
         public static UInt16 m_expectedVersion = 1;
 
         private DataStore m_dataStore = null;
@@ -26,21 +23,23 @@ namespace CrewChiefV4.PMR
         {
             m_dataStore = ds;
 
-            m_multiCast = getOptionValue<bool>(args, "multicast", true);
-            int port = getOptionValue<int>(args, "port", m_defaultPort);
-            string multicastGroup = getOptionValue<string>(args, "multicast_group", m_defaultMulticastGroup);
-
-            if (m_multiCast)
+            bool multicast = getOptionValue<bool>(args, "multicast", true);
+            int port = getOptionValue<int>(args, "port", DefaultPort);
+            string group = getOptionValue<string>(args, "multicast_group", DefaultMulticastGroup);
+            if (!multicast && getOptionValue<bool>(args, "loopback", false))
             {
-                m_udpClient = new UdpClient(port);
-                m_multicastGroup = IPAddress.Parse(multicastGroup);
-                m_endPoint = new IPEndPoint(m_multicastGroup, port);
-                m_udpClient.JoinMulticastGroup(m_multicastGroup);
+                m_udpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+                return;
             }
-            else
+            m_udpClient = new UdpClient(port);
+            try
             {
-                m_endPoint = new IPEndPoint(IPAddress.Any, port);
-                m_udpClient = new UdpClient(m_endPoint);
+                if (multicast) m_udpClient.JoinMulticastGroup(IPAddress.Parse(group));
+            }
+            catch
+            {
+                m_udpClient.Close();
+                throw;
             }
         }
 
@@ -48,7 +47,7 @@ namespace CrewChiefV4.PMR
         {
             foreach (string s in args)
             {
-                if (s.Contains(option))
+                if (s.StartsWith(option + "=", StringComparison.Ordinal))
                 {
                     string[] split = s.Split('=');
                     if (split.Length > 1)
@@ -117,9 +116,12 @@ namespace CrewChiefV4.PMR
                     byte[] data = m_udpClient.Receive(ref sender);
                     decodePacket(ref data);
                 }
-                catch (SocketException) {
-                    Console.WriteLine("UDPClient Closed");
+                catch (SocketException)
+                {
+                    if (!m_aborted) WarnInvalidPacket("UDP receive failed");
+                    break;
                 }
+                catch (ObjectDisposedException) when (m_aborted) { break; }
                 catch (Exception e) when (e is ArgumentException || e is IndexOutOfRangeException || e is OverflowException)
                 {
                     WarnInvalidPacket(e.GetType().Name);
@@ -139,7 +141,7 @@ namespace CrewChiefV4.PMR
             m_udpClient.Close();
         }
 
-        private bool m_aborted = false;
+        private volatile bool m_aborted = false;
         private Thread m_updateThread;
     }
 }

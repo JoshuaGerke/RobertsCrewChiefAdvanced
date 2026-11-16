@@ -164,13 +164,14 @@ namespace CrewChiefV4.AiTeam
             bool statusOverdue = gs?.SessionData.SessionType == SessionType.Race && StatusIsOverdue(now, prefs);
             int quietSeconds = statusOverdue ? 4 : QuietAfterRadioSeconds;
             bool recentRadio = ctx.Memory != null && ctx.Memory.HasRadioSince(TimeSpan.FromSeconds(quietSeconds), now);
-            if (gs == null || busy || recentRadio || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+            bool racingQuiet = !busy && !recentRadio && RaceRadioDirector.SuppressBackgroundStatistics(ctx);
+            if (gs == null || busy || recentRadio || racingQuiet || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(statusOverdue ? 8 : RoutineSeparationSeconds))
             {
                 if(due.Any(p=>prefs[p.Key]>0 && p.Value<=now) && now-lastDeferral>=TimeSpan.FromSeconds(15))
                 {
-                    string reason=busy?(busyReason??"channel_busy"):recentRadio?"recent_radio":gs!=null && gs.FlagData.isLocalYellow?"local_yellow":BusyForRoutine(gs)?"braking_or_qualifying_push":
+                    string reason=busy?(busyReason??"channel_busy"):recentRadio?"recent_radio":racingQuiet?"close_battle_or_final_laps":gs!=null && gs.FlagData.isLocalYellow?"local_yellow":BusyForRoutine(gs)?"braking_or_qualifying_push":
                         ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
                     foreach(var item in due.Where(p=>prefs[p.Key]>0 && p.Value<=now))
                         LiveDiagnostics.Emit("routine.state",LiveDiagnostics.Data("topic",item.Key,"reason",reason,"due_utc",item.Value.ToString("o"),

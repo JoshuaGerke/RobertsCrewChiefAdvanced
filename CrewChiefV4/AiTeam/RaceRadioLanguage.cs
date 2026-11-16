@@ -120,12 +120,15 @@ namespace CrewChiefV4.AiTeam
             return opponent + " liegt " + interval + (ahead ? " vor dir." : " hinter dir.");
         }
 
+        internal static string DisqualificationCall => RadioLanguage.T("Die Rennleitung meldet eine Disqualifikation.",
+            "Race control has disqualified us.", "Dirección de carrera nos ha descalificado.");
+
         public string Finish(SessionData s)
         {
             if (s == null || s.SessionPhase != SessionPhase.Finished) return null;
             // These flags take precedence over a numeric rank left over in the game state.
             if (s.IsDNF) return RadioLanguage.T("Die Session ist beendet. Du bist als ausgefallen geführt.", "The session is over. You're classified as a retirement.", "La sesión ha terminado. Figuras como abandono.");
-            if (s.IsDisqualified) return RadioLanguage.T("Die Session ist beendet. Die Wertung meldet eine Disqualifikation.", "The session is over. The classification shows a disqualification.", "La sesión ha terminado. La clasificación indica una descalificación.");
+            if (s.IsDisqualified) return DisqualificationCall;
             if (s.ClassPosition == 1 && !SeparateClass(s)) return Select("victory", CrewSpeechPolicy.FinishPhrases);
             string ranks = RaceRanks(s);
             if (ranks == null) return RadioLanguage.T("Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.", "Chequered flag. Final position isn't confirmed yet.", "En meta. La posición final aún no está confirmada.");

@@ -1177,6 +1177,10 @@ namespace CrewChiefV4.rFactor2
             cgs.ControlData.BrakePedal = (float)playerTelemetry.mUnfilteredBrake;
             cgs.ControlData.ThrottlePedal = (float)playerTelemetry.mUnfilteredThrottle;
             cgs.ControlData.ClutchPedal = (float)playerTelemetry.mUnfilteredClutch;
+            DateTime playerSampleUtc = AiTeam.TelemetrySourceClock.SampleUtc(shared.playerTelemetrySampleTicks, shared.ticksWhenRead);
+            if (playerSampleUtc != DateTime.MinValue)
+                TelemetryMeasurements.Pedals(cgs, Game.LMU ? "LMU.SharedMemory.Telemetry" : "RF2.SharedMemory.Telemetry",
+                    playerSampleUtc, "mUnfilteredThrottle", "mUnfilteredBrake", "mUnfilteredClutch");
 
             // --------------------------------
             // damage

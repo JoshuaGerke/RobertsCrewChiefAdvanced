@@ -894,6 +894,9 @@ namespace CrewChiefV4.assetto
             int playerIndex=ACESharedMemoryReader.PlayerIndex(wrapper.data);
             if(playerIndex<0 || wrapper.data.aceChief.vehicle==null || playerIndex>=wrapper.data.aceChief.vehicle.Length)return previousGameState;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
+            currentGameState.RequiresNativeSourceClock = wrapper.nativeSourceClock;
+            currentGameState.SourceTelemetryUtc = AiTeam.TelemetrySourceClock.SampleUtc(
+                Math.Min(wrapper.graphicsSampleTicks, wrapper.physicsSampleTicks), wrapper.ticksWhenRead);
             currentGameState.rawGameData=wrapper;
             ACEShared shared = wrapper.data;
             ACEVO_STATUS status = shared.aceGraphic.status;
@@ -1693,6 +1696,9 @@ namespace CrewChiefV4.assetto
             currentGameState.ControlData.BrakePedal = shared.acePhysics.brake;
             currentGameState.ControlData.ThrottlePedal = shared.acePhysics.gas;
             currentGameState.ControlData.ClutchPedal = shared.acePhysics.clutch;
+            if (wrapper.nativeSourceClock)
+                TelemetryMeasurements.Pedals(currentGameState, "ACE.SharedMemory.Physics",
+                    AiTeam.TelemetrySourceClock.SampleUtc(wrapper.physicsSampleTicks, wrapper.ticksWhenRead), "gas", "brake", "clutch");
             currentGameState.ControlData.SteeringWheelAngle = shared.acePhysics.steerAngle;
 
             // penalty data

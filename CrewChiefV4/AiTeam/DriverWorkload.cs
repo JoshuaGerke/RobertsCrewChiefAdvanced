@@ -73,8 +73,10 @@ namespace CrewChiefV4.AiTeam
             lastSimTime = s.SessionRunningTime;
             var motion = state.PositionAndMotionData;
             var controls = state.ControlData;
-            var sample = new Sample { SourceTicks = source.Ticks, Brake = controls.BrakePedal,
-                Throttle = controls.ThrottlePedal, Steering = controls.SteeringWheelAngle,
+            var sample = new Sample { SourceTicks = source.Ticks,
+                Brake = TelemetryMeasurementTools.FreshControl(state, "control.brake", controls.BrakePedal, now),
+                Throttle = TelemetryMeasurementTools.FreshControl(state, "control.throttle", controls.ThrottlePedal, now),
+                Steering = controls.SteeringWheelAngle,
                 Speed = motion.CarSpeed, SimTime = s.SessionRunningTime,
                 LateralAcceleration = motion.AccelerationVector?.LatAccel };
             history.PushBack(sample);
@@ -95,7 +97,7 @@ namespace CrewChiefV4.AiTeam
                     { close = true; break; }
             bool mappedCorner = track != null && now >= track.Utc && now - track.Utc <= TimeSpan.FromSeconds(1) &&
                 !string.IsNullOrWhiteSpace(track.CurrentSection);
-            bool controlLoad = driving && (controls.BrakePedal >= .18f || steeringLoad || lateralLoad || mappedCorner || state.FlagData.isLocalYellow);
+            bool controlLoad = driving && (sample.Brake >= .18f || steeringLoad || lateralLoad || mappedCorner || state.FlagData.isLocalYellow);
             if (controlLoad || overlap || crisis) Interlocked.Exchange(ref controlCalmAfterTicks, now.AddMilliseconds(350).Ticks);
             DriverWorkloadMode mode = crisis ? DriverWorkloadMode.Crisis :
                 overlap || driving && close ? DriverWorkloadMode.Battle :

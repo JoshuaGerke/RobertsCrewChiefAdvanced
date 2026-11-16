@@ -2166,7 +2166,7 @@ namespace CrewChiefV4.Audio
             return true;
         }
 
-        public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false, Boolean interruptForAiHazard = false, Boolean interruptForAiResult = false)
+        public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false, Boolean interruptForAiHazard = false, Boolean interruptForAiResult = false, string aiTopic = null)
         {
             if (blockedByFilter(queuedMessage))
             {
@@ -2225,7 +2225,7 @@ namespace CrewChiefV4.Audio
                         if (interruptForAiHazard && AiTeam.AiAudioStore.IsMessage(queuedMessage.messageName, true))
                             SoundCache.InterruptForAiHazard(queuedMessage.metadata.priority);
                         else if (interruptForAiResult && AiTeam.AiAudioStore.IsMessage(queuedMessage.messageName, true))
-                            SoundCache.InterruptForAiResult();
+                            SoundCache.InterruptForAiResult(aiTopic);
 
                         // wake up the monitor thread immediately
                         monitorQueueWakeUpEvent.Set();

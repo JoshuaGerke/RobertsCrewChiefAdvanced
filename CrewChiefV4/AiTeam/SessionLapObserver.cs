@@ -24,7 +24,7 @@ namespace CrewChiefV4.AiTeam
         internal static string TimedLapApproachPhrase => RadioLanguage.T("Gleich beginnt deine erste schnelle Runde. Konzentrier dich auf den Ausgang.",
             "Your first flying lap is coming up. Focus on the exit.",
             "Ya llega tu primera vuelta rápida. Concéntrate en la salida de curva.");
-        private bool firstTimedLapCalled, lastQualifyingLapOffered, firstFuelOffered;
+        private bool firstTimedLapCalled, lastQualifyingLapOffered, firstFuelOffered, fuelBaselineReported;
         private readonly Random qualiLastVariation = new Random();
         private int lastSectorCallLap = -1, lastSectorCall = -1;
         private readonly float[] completedSectorBest = { -1, -1, -1 };
@@ -37,7 +37,7 @@ namespace CrewChiefV4.AiTeam
             pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1;
             lastLap = lastSectorCallLap = lastSectorCall = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor();
             lastRadio = lastSectorBestCall = DateTime.MinValue;
-            firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = false;
+            firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
         }
 
@@ -45,7 +45,7 @@ namespace CrewChiefV4.AiTeam
         { return t == SessionType.Practice || t == SessionType.LonePractice || t == SessionType.Qualify || t == SessionType.PrivateQualify || t == SessionType.HotLap; }
 
         public void Observe(GameStateData gs, LapRecord completed, DateTime now, bool names, GameStateData previous = null,
-            bool sectorRadio = true, TrackAwareness tracks = null, string driverName = "Rob")
+            bool sectorRadio = true, TrackAwareness tracks = null, string driverName = "Rob", AiRaceMemory fuelHistory = null)
         {
             if (gs == null) return;
             var s = gs.SessionData;
@@ -122,6 +122,21 @@ namespace CrewChiefV4.AiTeam
                     Add(gs, now, "first-lap-fuel", RadioLanguage.T("Erste volle Runde, " + FuelWatch.Litres(completed.FuelUsed) + " verbraucht.",
                         "First full lap, " + FuelWatch.Litres(completed.FuelUsed) + " used.",
                         "Primera vuelta completa, " + FuelWatch.Litres(completed.FuelUsed) + " gastados."), "measured_first_full_lap_fuel", 4);
+                }
+                if (race && green && !fuelBaselineReported && !completed.InPitLap && !gs.PitData.InPitlane &&
+                    !pending.Any(call => call.Topic == "fuel-baseline" && call.IsValid(gs, now)) && fuelHistory != null)
+                {
+                    float fuelPerLap = fuelHistory.AverageFuelPerLap(out int samples, 3);
+                    if (samples == 3 && TrackAwareness.InRange(fuelPerLap, .05, 50).HasValue)
+                    {
+                        string consumption = FuelWatch.Litres(fuelPerLap);
+                        var call = Add(gs, now, "fuel-baseline",
+                            RadioLanguage.T("Über drei volle Runden liegst du bei " + consumption + " pro Runde.",
+                                "Over three full laps you're using " + consumption + " per lap.",
+                                "En tres vueltas completas, el consumo es de " + consumption + " por vuelta."),
+                            "three_measured_full_laps", 4);
+                        call.AdditionalValidity = live => live.FuelData.FuelUseActive && !live.FlagData.isLocalYellow;
+                    }
                 }
                 if (completed.Valid && !completed.InPitLap && Good(completed.LapTime))
                 {
@@ -422,7 +437,8 @@ namespace CrewChiefV4.AiTeam
                 Position=-1, SessionId=session, SessionType=type, CompletedLaps=gs.SessionData.CompletedLaps,
                 AllowLapFinish=topic == "own-lap" || topic == "near-best",
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic.StartsWith("timed-lap-", StringComparison.Ordinal) ? 4 :
-                    topic == "own-lap" && type != SessionType.Race ? 18 : topic == "qualifying-last" ? 7 : type == SessionType.Race ? 8 : 12) };
+                    topic == "own-lap" ? 22 : topic == "first-lap-fuel" || topic == "fuel-baseline" ? 30 :
+                    topic == "qualifying-last" ? 7 : type == SessionType.Race ? 8 : 12) };
             if (group != null) call.BindVariant(cursor, group, variant);
             if (topic == "timed-lap-approach")
                 call.AdditionalValidity = live => live.PitData.OnOutLap && live.SessionData.CurrentLapIsValid;
@@ -435,6 +451,7 @@ namespace CrewChiefV4.AiTeam
             foreach (var delivered in pending.Where(c => c.DeliveryStartedUtc != DateTime.MinValue).ToArray())
             {
                 if (delivered.DeliveryStartedUtc > lastRadio) lastRadio = delivered.DeliveryStartedUtc;
+                if (delivered.Topic == "fuel-baseline") fuelBaselineReported = true;
                 if ((delivered.Topic == "sector-best" || delivered.Topic == "own-best-pace") &&
                     delivered.DeliveryStartedUtc > lastSectorBestCall)
                     lastSectorBestCall = delivered.DeliveryStartedUtc;
@@ -447,7 +464,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (busy) return null;
             var call = pending.Where(c => c.CanReserve(now) && (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
-                c.Topic == "first-lap-fuel" || !ownLapOnly &&
+                c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || !ownLapOnly &&
                 (c.Topic == "near-best" || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
             return call != null && call.TryReserve(now) ? call : null;
         }

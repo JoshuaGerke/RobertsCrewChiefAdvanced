@@ -153,6 +153,39 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Hazard_section_requires_an_unambiguous_map_and_a_ready_clip()
+        {
+            var state = State();
+            var rival = Car(state);
+            state.SessionData.TrackDefinition.trackLandmarks = new System.Collections.Generic.List<TrackLandmark> {
+                new TrackLandmark { landmarkNames = new System.Collections.Generic.List<string> { "turn4" },
+                    distanceRoundLapStart = 1250, distanceRoundLapEnd = 1350 }
+            };
+            var call = Traffic(state, rival, 300, 0, out _, out _);
+            Assert.IsNotNull(call);
+            var now = T.AddSeconds(3.5);
+            string section = TrackAwareness.ConfirmedSection(state.SessionData.TrackDefinition, rival.DistanceRoundTrack);
+            Assert.AreEqual("Kurve 4", section);
+            Assert.AreEqual(call.Text, call.ComposePreparedDetail(state, now, _ => false, out _));
+            string detailed = call.ComposePreparedDetail(state, now, _ => true, out var verify);
+            StringAssert.Contains("Kurve 4", detailed);
+            Assert.IsTrue(verify(state, now));
+            rival.DistanceRoundTrack = 900;
+            Assert.IsFalse(verify(state, now));
+        }
+
+        [Test]
+        public void Hazard_repeat_keys_tie_the_native_and_spatial_feeds_to_the_same_car()
+        {
+            var spatial = new ObservedRaceCall { Topic="race-hazard-ahead", HazardIdentity="rival-1" };
+            var native = new ObservedRaceCall { Topic="warning-native-incident-rival", HazardIdentity="rival-1" };
+            var other = new ObservedRaceCall { Topic="race-hazard-ahead", HazardIdentity="rival-2" };
+            Assert.AreEqual(AiTeamService.RepeatKey(spatial, out var window), AiTeamService.RepeatKey(native, out _));
+            Assert.AreNotEqual(AiTeamService.RepeatKey(spatial, out _), AiTeamService.RepeatKey(other, out _));
+            Assert.IsFalse(AiTeamService.Covers(spatial, T, native, window, T.AddSeconds(1)));
+        }
+
+        [Test]
         public void Gefahr_enthaelt_den_geprueften_Namensclip_und_bleibt_bei_neuem_Abstand_gueltig()
         {
             var state = State();

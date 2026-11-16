@@ -47,6 +47,21 @@ namespace CrewChiefV4.AiTeam
     public sealed class ThermalWatch
     {
         private readonly Func<GameStateData,ThermalProfile> resolver;
+        private sealed class HotSample
+        {
+            internal DateTime Utc;
+            internal string Vehicle;
+            internal int Tyres, Brakes;
+        }
+        private HotSample hotSample;
+
+        internal int SustainedHeat(GameStateData state, DateTime now)
+        {
+            var active = System.Threading.Volatile.Read(ref hotSample);
+            if (active == null || !GreenLap(state) || !Fresh(state, now) || active.Vehicle != Key(state) ||
+                now < active.Utc || now - active.Utc > TimeSpan.FromSeconds(1)) return 0;
+            return (active.Tyres != 0 ? 1 : 0) | (active.Brakes != 0 ? 2 : 0);
+        }
         private readonly Dictionary<string,DateTime> since=new Dictionary<string,DateTime>();
         private sealed class Recovery
         {
@@ -104,7 +119,7 @@ namespace CrewChiefV4.AiTeam
         {
             get {foreach(bool b in new[]{false,true})foreach(int g in groups){for(int v=0;v<3;v++)yield return Phrase(b,g,v);yield return ClearPhrase(b,g);}}
         }
-        public void Reset(){since.Clear();recovery.Clear();identity=null;lastTick=identitySince=DateTime.MinValue;}
+        public void Reset(){System.Threading.Volatile.Write(ref hotSample,null);since.Clear();recovery.Clear();identity=null;lastTick=identitySince=DateTime.MinValue;}
         private static string Key(GameStateData gs)
         {return gs.SessionData.SessionId+"|"+gs.SessionData.SessionType+"|"+gs.carName+"|"+(gs.carClass==null?"":gs.carClass.carClassEnum.ToString())+"|"+gs.TyreData.FrontLeftTyreType+"|"+gs.TyreData.FrontRightTyreType+"|"+gs.TyreData.RearLeftTyreType+"|"+gs.TyreData.RearRightTyreType;}
         private static bool Good(float v,float max){return !float.IsNaN(v) && !float.IsInfinity(v) && v>1 && v<max;}
@@ -169,9 +184,10 @@ namespace CrewChiefV4.AiTeam
             lastTick=now;
             if(gs.PitData.InPitlane || !Fresh(gs,now) ||
                 gs.SessionData.SessionPhase!=SessionPhase.Green && gs.SessionData.SessionPhase!=SessionPhase.FullCourseYellow)
-            {since.Clear();foreach(var episode in recovery.Values)episode.BreakRun();return;}
+            {System.Threading.Volatile.Write(ref hotSample,null);since.Clear();foreach(var episode in recovery.Values)episode.BreakRun();return;}
             var profile=resolver(gs);
-            if(profile==null){foreach(var episode in recovery.Values)episode.BreakRun();return;}
+            if(profile==null){System.Threading.Volatile.Write(ref hotSample,null);foreach(var episode in recovery.Values)episode.BreakRun();return;}
+            int tyres = 0, brakes = 0;
             foreach(bool brake in new[]{false,true})
             {
                 var limits=brake?profile.BrakeCookingC:profile.TyreCookingC;int ready=0;
@@ -184,6 +200,7 @@ namespace CrewChiefV4.AiTeam
                     if(now-start>=TimeSpan.FromSeconds(brake?4:2))ready|=1<<i;
                 }
                 int mask=Group(ready);
+                if (brake) brakes = mask; else tyres = mask;
                 if(mask!=0)
                 {
                     bool b=brake;int group=mask;float[] checkedLimits=(float[])limits.Clone();string checkedKey=key;
@@ -225,6 +242,8 @@ namespace CrewChiefV4.AiTeam
                         timed:(live,utc)=>Fresh(live,utc));
                 }
             }
+            System.Threading.Volatile.Write(ref hotSample, tyres == 0 && brakes == 0 ? null :
+                new HotSample { Utc=now, Vehicle=key, Tyres=tyres, Brakes=brakes });
             if(gs.EngineData.EngineRpm>0)
             {
                 bool oil=EngineHot(gs,true,profile),water=EngineHot(gs,false,profile);string name=oil&&water?"both":oil?"oil":water?"water":null;

@@ -26,12 +26,14 @@ namespace CrewChiefV4.AiTeam
             public float SimTime;
             public string Track;
             public JObject Data, Delta;
+            public double? InputRateHz;
         }
         private readonly Dictionary<string, TyreObservation> tyres = new Dictionary<string, TyreObservation>();
         private readonly Dictionary<string, DateTime> lastSpoken = new Dictionary<string, DateTime>();
         private readonly Dictionary<string, RadioVariantCursor> variants = new Dictionary<string, RadioVariantCursor>();
         private Snapshot snapshot;
         private ObservedRaceCall pending;
+        private string lastSectorLoss;
         private DateTime lastAggregate = DateTime.MinValue, lastWeatherSample = DateTime.MinValue;
         private Conditions.ConditionsSample weatherBaseline;
         private int session = int.MinValue, revision;
@@ -43,6 +45,7 @@ namespace CrewChiefV4.AiTeam
             lastSpoken.Clear();
             variants.Clear();
             pending = null;
+            lastSectorLoss = null;
             snapshot = null;
             lastAggregate = lastWeatherSample = DateTime.MinValue;
             weatherBaseline = null;
@@ -52,7 +55,7 @@ namespace CrewChiefV4.AiTeam
 
         public bool IsDue(DateTime now) => now < lastAggregate || now - lastAggregate >= TimeSpan.FromMilliseconds(500);
 
-        public bool Observe(RaceDataContext context, DriverWorkload workload)
+        public bool Observe(RaceDataContext context, DriverWorkload workload, ThermalWatch thermalWatch = null)
         {
             if (context?.GameState == null) return false;
             var gs = context.GameState;
@@ -89,11 +92,13 @@ namespace CrewChiefV4.AiTeam
                 ["sektor"] = s.SectorNumber, ["phase"] = s.SessionPhase.ToString(),
                 ["fahrerbelastung"] = driverLoad,
                 ["eigene_letzte_saubere_runden_s"] = new JArray(own.Select(l => Math.Round(l.LapTime, 3))),
+                ["stintverlauf"] = RaceFactStore.DescribeLiveLaps(own),
                 ["interpretation"] = "Messwerte und Vergleiche. Eine Ursache oder Reifen-Gripgrenze folgt daraus nicht automatisch."
             };
             double? mean = own.Length >= 3 ? (double?)own.Skip(Math.Max(0, own.Length - 3)).Average(l => l.LapTime) : null;
             data["eigene_3_runden_mittel_s"] = Number(mean);
             data["pace_regression"] = PaceRegression(own);
+            data["klassenfeld_pace"] = RaceFieldTools.TopClassPace(gs, own);
             data["reifenverschleiss_regression"] = WearRegression(own);
             var balance = FuelEstimate.From(context);
             data["spritprojektion"] = balance == null ? null : new JObject {
@@ -109,10 +114,15 @@ namespace CrewChiefV4.AiTeam
             var rearRival = Rival(context, false, own, mean);
             data["klassengegner_vorne"] = frontRival;
             data["klassengegner_hinten"] = rearRival;
+            var thermal = ThermalContext(context, own, rearRival, thermalWatch);
+            data["temperatur_und_rennlage"] = thermal;
+            if (thermal != null && pending == null) MaybeThermalCall(context, thermal, thermalWatch);
+            data["funkphase"] = RaceRadioDirector.BackgroundPhase(context);
             data["wetterverlauf"] = Weather(gs, now);
             data["spielvorhersage"] = WeatherWatch.ForecastData(gs.Conditions, now);
             var next = new Snapshot { Session = session, Type = type, Lap = s.CompletedLaps, Track = track,
-                SourceUtc = source, Data = data, Revision = revision, SimTime = s.SessionRunningTime };
+                SourceUtc = source, Data = data, Revision = revision, SimTime = s.SessionRunningTime,
+                InputRateHz = (double?)driverLoad?["gemessene_abtastrate_hz"] };
             next.Delta = new JObject();
             foreach (var field in data.Properties())
                 if (prior == null || prior.Session != next.Session || !JToken.DeepEquals(prior.Data[field.Name], field.Value))
@@ -127,6 +137,74 @@ namespace CrewChiefV4.AiTeam
                     "front_pace_delta_s", (double?)frontRival?["eigener_tempovorteil_s_pro_runde"],
                     "rear_pace_delta_s", (double?)rearRival?["eigener_tempovorteil_s_pro_runde"]));
             return true;
+        }
+
+        internal static JObject ThermalContext(RaceDataContext context, LapRecord[] own, JObject rear, ThermalWatch watch)
+        {
+            var state = context.GameState;
+            int heat = watch?.SustainedHeat(state, context.NowUtc) ?? 0;
+            if (heat == 0 || state.SessionData.SessionType != SessionType.Race) return null;
+            bool closing = (string)rear?["abstandsverlauf"]?["typ"] == "schrumpft" &&
+                (double?)rear?["abstand"]?["sekunden"] is double gap && gap > .05 && gap <= 2.5;
+            var s = state.SessionData;
+            var recent = s.PlayerLapData.LastOrDefault();
+            int? sector = null;
+            double? loss = null;
+            if (recent != null && recent.IsValid && !recent.InLap && !recent.OutLap && !s.SectorTimingEstimated)
+            {
+                for (int split = 2; split >= 0; split--)
+                {
+                    if (recent.GameTimeAtSectorEnd.Length <= split || recent.SectorTimes.Length <= split) continue;
+                    float finished = recent.GameTimeAtSectorEnd[split];
+                    float measured = recent.SectorTimes[split];
+                    double age = s.SessionRunningTime - finished;
+                    if (finished <= 0 || !Good(age, 0, 3) || !Good(measured, .1, 3600)) continue;
+                    var baseline = own.Where(l => l.Green && l.LapNumber < recent.LapNumber && l.SectorTimes != null &&
+                        l.SectorTimes.Length > split && Good(l.SectorTimes[split], .1, 3600)).Reverse().Take(3).ToArray();
+                    if (baseline.Length == 3)
+                    {
+                        var delta = measured - baseline.Average(l => (double)l.SectorTimes[split]);
+                        if (delta > .5) { sector = split+1; loss = delta; }
+                    }
+                    break;
+                }
+            }
+            if (!closing && !loss.HasValue) return null;
+            return new JObject { ["reifen_an_warnschwelle"] = (heat & 1) != 0, ["bremsen_an_warnschwelle"] = (heat & 2) != 0,
+                ["hintermann_holt_auf"] = closing, ["sektor"] = sector, ["sektorverlust_s"] = Number(loss),
+                ["aktueller_abschnitt"] = context.Tracks?.Snapshot?.IsCurrent(context) == true ? context.Tracks.Snapshot.CurrentSection : null,
+                ["ursache_bestaetigt"] = false };
+        }
+
+        private void MaybeThermalCall(RaceDataContext context, JObject thermal, ThermalWatch watch)
+        {
+            const string topic = "reader-temperature-context";
+            if (lastSpoken.TryGetValue(topic, out var last) && context.NowUtc-last < TimeSpan.FromMinutes(2)) return;
+            int heat = watch.SustainedHeat(context.GameState, context.NowUtc);
+            if (heat == 0) return;
+            string temperature = heat == 3 ? RadioLanguage.T("Reifen und Bremsen sind heiß.", "Tyres and brakes are hot.", "Los neumáticos y frenos van calientes.") :
+                heat == 1 ? RadioLanguage.T("Die Reifen sind zu heiß.", "The tyres are too hot.", "Los neumáticos van demasiado calientes.") :
+                    RadioLanguage.T("Die Bremsen sind zu heiß.", "The brakes are too hot.", "Los frenos van demasiado calientes.");
+            int? sector = (int?)thermal["sektor"];
+            double? loss = (double?)thermal["sektorverlust_s"];
+            bool closing = (bool)thermal["hintermann_holt_auf"];
+            string gapTrend = sector.HasValue && loss.HasValue ?
+                RadioLanguage.T("In Sektor " + sector + " hast du " + GermanRadioText.Interval((float)loss.Value) + " verloren.",
+                    "You lost " + GermanRadioText.Interval((float)loss.Value) + " in sector " + sector + ".",
+                    "Has perdido " + GermanRadioText.Interval((float)loss.Value) + " en el sector " + sector + ".") :
+                RadioLanguage.T("Der Hintermann kommt näher.", "The car behind is closing.", "El coche de detrás se acerca.");
+            var state = context.GameState.SessionData;
+            var catalog = RadioPhraseCatalog.Current;
+            if (!variants.TryGetValue(topic, out var cursor)) variants[topic] = cursor = new RadioVariantCursor();
+            int variant = cursor.Select(topic, catalog.Count(topic));
+            string rearKey = state.OpponentKeyBehind;
+            pending = new ObservedRaceCall {Topic=topic, Text=catalog.Format(topic, variant, temperature, gapTrend),
+                Member=TeamMember.Mik, Priority=4, Position=-1, SessionId=state.SessionId, SessionType=state.SessionType,
+                CompletedLaps=state.CompletedLaps, DetectedUtc=context.NowUtc, ExpiresUtc=context.NowUtc.AddSeconds(8),
+                Evidence="sustained_temperature_limit_and_measured_race_context;no_cause_inferred",
+                TimedValidity=(live, at) => (watch.SustainedHeat(live, at) & heat) == heat &&
+                    (!closing || sector.HasValue || live.SessionData.OpponentKeyBehind == rearKey) };
+            pending.BindVariant(cursor, topic, variant);
         }
 
         internal static LapRecord[] RecentOwn(IReadOnlyList<LapRecord> laps)
@@ -201,8 +279,9 @@ namespace CrewChiefV4.AiTeam
             string key = gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, op)).Key;
             if (key == null || op.CarClass == null || gs.carClass == null ||
                 !CarData.IsCarClassEqual(gs.carClass, op.CarClass, false)) return null;
-            var laps = op.OpponentLapData.Where(l => l.IsValid && !l.InLap && !l.OutLap && !l.hasMissingSectors &&
-                Good(l.LapTime, 10, 3600)).OrderByDescending(l => l.LapNumber).Take(3).Reverse().ToArray();
+            var recentRivalLaps = op.OpponentLapData.Where(l => l.IsValid && !l.InLap && !l.OutLap && !l.hasMissingSectors &&
+                Good(l.LapTime, 10, 3600)).OrderByDescending(l => l.LapNumber).Take(5).Reverse().ToArray();
+            var laps = recentRivalLaps.Skip(Math.Max(0, recentRivalLaps.Length - 3)).ToArray();
             bool comparable = ownMean.HasValue && laps.Length == 3 &&
                 laps[1].LapNumber == laps[0].LapNumber + 1 && laps[2].LapNumber == laps[1].LapNumber + 1 &&
                 Good(laps[2].GameTimeAtLapStart, .001, gs.SessionData.SessionRunningTime) &&
@@ -221,12 +300,15 @@ namespace CrewChiefV4.AiTeam
                     ownRecent.Average(l => l.SectorTimes[sector]), 3) : null);
             }
             var gap = RaceDataTools.ReadGap(context, op, ahead);
+            if (ahead) MaybeSectorLossCall(context, op, key, gap);
             var result = new JObject { ["gegner_id"] = key, ["name"] = RadioPhraseCatalog.SafeRivalName(op.DriverRawName),
                 ["klassenplatz"] = op.ClassPosition, ["gesamtplatz"] = op.OverallPosition,
                 ["vergleichbare_runden"] = comparable ? 3 : 0, ["eigener_tempovorteil_s_pro_runde"] = Number(paceAdvantage),
                 ["eigener_sektorvorteil_s"] = sectors, ["abstand"] = gap.Describe(context),
                 ["gemeldete_mischung"] = KnownTyre(op.CurrentTyres) ? op.CurrentTyres.ToString() : null };
-            result["abstandsverlauf"] = GapHistory(ownRecent, key, op, ahead);
+            result["letzte_renn_runden"] = new JArray(recentRivalLaps.Select(l =>
+                new JObject { ["runde"] = l.LapNumber, ["zeit_s"] = Math.Round(l.LapTime, 3) }));
+            result["abstandsverlauf"] = GapHistory(own, key, op, ahead);
             if (tyres.TryGetValue(key, out var tyre) && tyre.ChangedGameTime >= 0)
                 result["beobachteter_mischungswechsel_vor_spielsekunden"] = Math.Round(gs.SessionData.SessionRunningTime - tyre.ChangedGameTime, 1);
             MaybeTyreCall(context, op, key, ownRecent, laps);
@@ -234,19 +316,26 @@ namespace CrewChiefV4.AiTeam
             return result;
         }
 
-        private static JObject GapHistory(LapRecord[] laps, string key, OpponentData rival, bool ahead)
+        internal static JObject GapHistory(LapRecord[] laps, string key, OpponentData rival, bool ahead)
         {
-            if (laps.Length != 3 || laps.Any(l => (ahead ? l.FrontIdentity : l.BehindIdentity) != Identity(key, rival))) return null;
-            var kinds = laps.Select(l => ahead ? l.GapAheadKind : l.GapBehindKind).ToArray();
-            double[] values = laps.Select(l => (double)(ahead ? l.GapAhead : l.GapBehind)).ToArray();
-            if (kinds.Any(k => k != RaceGapKind.SimulatorTiming && k != RaceGapKind.InterpolatedTiming) ||
-                kinds.Any(k => k != kinds[0]) || values.Any(v => !Good(v, .05, 300))) return null;
-            double first = values[1] - values[0], second = values[2] - values[1];
-            string trend = first < -.1 && second < -.1 ? "schrumpft" : first > .1 && second > .1 ? "waechst" :
-                Math.Abs(first) <= .1 && Math.Abs(second) <= .1 ? "stabil" : "wechselnd";
-            return new JObject { ["runden"] = 3, ["typ"] = trend,
+            if (laps.Length < 3) return null;
+            string identity = Identity(key, rival);
+            RaceGapKind Kind(LapRecord lap) => ahead ? lap.GapAheadKind : lap.GapBehindKind;
+            double Gap(LapRecord lap) => ahead ? lap.GapAhead : lap.GapBehind;
+            var kind = Kind(laps[laps.Length - 1]);
+            if (kind != RaceGapKind.SimulatorTiming && kind != RaceGapKind.InterpolatedTiming) return null;
+            var series = laps.Reverse().Take(5).TakeWhile(lap =>
+                (ahead ? lap.FrontIdentity : lap.BehindIdentity) == identity && Kind(lap) == kind &&
+                Good(Gap(lap), .05, 300)).Reverse().ToArray();
+            if (series.Length < 3) return null;
+            var values = series.Select(Gap).ToArray();
+            var changes = values.Zip(values.Skip(1), (earlier, later) => later - earlier).ToArray();
+            string trend = changes.All(c => c < -.1) ? "schrumpft" : changes.All(c => c > .1) ? "waechst" :
+                changes.All(c => Math.Abs(c) <= .1) ? "stabil" : "wechselnd";
+            return new JObject { ["runden"] = series.Length, ["typ"] = trend,
+                ["rundennummern"] = new JArray(series.Select(lap => lap.LapNumber)),
                 ["werte_s"] = new JArray(values.Select(v => Math.Round(v, 2))),
-                ["messmethode"] = kinds[0].ToString(), ["sektorursache_bestaetigt"] = false };
+                ["messmethode"] = kind.ToString(), ["sektorursache_bestaetigt"] = false };
         }
 
         private void MaybePaceCall(RaceDataContext context, OpponentData op, string key, bool ahead, double? advantage, int opponentLap)
@@ -280,6 +369,82 @@ namespace CrewChiefV4.AiTeam
                     LastTelemetryUtc=live.SourceTelemetryUtc == DateTime.MinValue ? live.Now : live.SourceTelemetryUtc },
                     RaceDataTools.Neighbour(live, ahead));
             LiveDiagnostics.Decision(topic, "detected", pending.Evidence);
+        }
+
+        internal static bool TryRecentSectorLoss(OpponentData rival, float gameTime, out LapData lap, out int sector, out double loss)
+        {
+            lap = null; sector = -1; loss = 0;
+            var laps = rival.OpponentLapData;
+            if (laps.Count < 4 || !Good(gameTime, .01, 200000)) return false;
+            for (int i = laps.Count - 1; i >= Math.Max(3, laps.Count - 2); i--)
+            {
+                var current = laps[i];
+                if (current == null || !current.IsValid || current.InLap || current.OutLap || current.SectorTimes.Length != 3 ||
+                    current.GameTimeAtSectorEnd.Length != 3) continue;
+                for (int split = 2; split >= 0; split--)
+                {
+                    float ended = current.GameTimeAtSectorEnd[split];
+                    float measured = current.SectorTimes[split];
+                    if (!Good(ended, .01, gameTime) || gameTime - ended > 4 || !Good(measured, .1, 3600)) continue;
+                    // Use the opponent's own preceding three clean, consecutive laps in that same sector.
+                    double sum = 0;
+                    for (int back = 1; back <= 3; back++)
+                    {
+                        var prior = laps[i - back];
+                        if (prior == null || prior.LapNumber != current.LapNumber - back || !prior.IsValid || prior.InLap ||
+                            prior.OutLap || prior.hasMissingSectors || !Good(prior.LapTime, 10, 3600) ||
+                            prior.SectorTimes.Length != 3 || !Good(prior.SectorTimes[split], .1, 3600)) return false;
+                        sum += prior.SectorTimes[split];
+                    }
+                    loss = measured - sum / 3;
+                    if (loss <= .5) return false;
+                    lap = current; sector = split + 1; return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool SectorTacticalGap(RaceGapMeasurement gap) =>
+            (gap.Kind == RaceGapKind.SimulatorTiming || gap.Kind == RaceGapKind.InterpolatedTiming) && Good(gap.Seconds, .1, 4);
+
+        private void MaybeSectorLossCall(RaceDataContext context, OpponentData rival, string key, RaceGapMeasurement gap)
+        {
+            const string topic = "rival-sector-loss";
+            var gs = context.GameState;
+            var state = gs.SessionData;
+            if (state.SessionType != SessionType.Race || state.SessionPhase != SessionPhase.Green || !state.CurrentLapIsValid ||
+                state.SectorTimingEstimated || gs.FlagData.isLocalYellow || gs.PitData.InPitlane || rival.InPits ||
+                rival.isEnteringPits() || !SectorTacticalGap(gap) ||
+                pending != null && (pending.IsReserved || pending.Priority >= 4) ||
+                lastSpoken.TryGetValue(topic, out var last) && context.NowUtc - last < TimeSpan.FromSeconds(30) ||
+                !TryRecentSectorLoss(rival, state.SessionRunningTime, out var lap, out int sector, out double loss)) return;
+            string identity = Identity(key, rival);
+            string sample = identity + "|" + lap.LapNumber + "|" + sector;
+            if (lastSectorLoss == sample) return;
+            lastSectorLoss = sample;
+            string name = context.SendDriverNames && rival.CanUseName ? RadioPhraseCatalog.SafeRivalName(rival.DriverRawName) : "";
+            string driver = name.Length > 0 ? name : RadioLanguage.T("Der Vordermann", "The car ahead", "El coche de delante");
+            var catalog = RadioPhraseCatalog.Current;
+            if (!variants.TryGetValue(topic, out var cursor)) variants[topic] = cursor = new RadioVariantCursor();
+            int variant = cursor.Select(topic, catalog.Count(topic));
+            pending = new ObservedRaceCall {
+                Topic=topic, Text=catalog.Format(topic, variant, driver, sector.ToString(CultureInfo.InvariantCulture), GermanRadioText.Interval((float)loss)),
+                Member=TeamMember.Ben, Priority=4, Position=-1, SessionId=state.SessionId, SessionType=state.SessionType,
+                CompletedLaps=state.CompletedLaps, DetectedUtc=context.NowUtc, ExpiresUtc=context.NowUtc.AddSeconds(7),
+                FieldNamesAllowed=name.Length > 0, ChaseOpponentIdentity=identity,
+                Evidence="fresh_rival_sector_vs_own_three_clean_sectors;no_cause_inferred",
+                TimedValidity=(live, at) => {
+                    var next = RaceDataTools.Neighbour(live, true);
+                    if (next == null || next.InPits || next.isEnteringPits() || live.FlagData.isLocalYellow ||
+                        Identity(key, next) != identity || live.SessionData.OpponentKeyInFront != key) return false;
+                    var liveContext = new RaceDataContext { GameState=live, NowUtc=at, Tracks=context.Tracks,
+                        LastTelemetryUtc=live.SourceTelemetryUtc == DateTime.MinValue ? live.Now : live.SourceTelemetryUtc };
+                    var fresh = RaceDataTools.ReadGap(liveContext, next, true);
+                    return SectorTacticalGap(fresh);
+                }
+            };
+            pending.BindVariant(cursor, topic, variant);
+            LiveDiagnostics.Decision(topic, "detected", pending.Evidence, pending.Text, pending.EventId);
         }
 
         private void MaybeTyreCall(RaceDataContext context, OpponentData rival, string key, LapRecord[] own, LapData[] opponent)
@@ -345,6 +510,14 @@ namespace CrewChiefV4.AiTeam
             return pending.TryReserve(now) ? pending : null;
         }
 
+        internal double? InputRate(GameStateData state, DateTime now)
+        {
+            var sample = Volatile.Read(ref snapshot);
+            return sample != null && state != null && state.SessionData.SessionId == sample.Session &&
+                state.SessionData.SessionType == sample.Type && now >= sample.SourceUtc &&
+                now - sample.SourceUtc <= TimeSpan.FromSeconds(1) ? sample.InputRateHz : null;
+        }
+
         public JObject Read(RaceDataContext context, int? afterRevision = null)
         {
             var current = Volatile.Read(ref snapshot);
@@ -359,6 +532,11 @@ namespace CrewChiefV4.AiTeam
             if (!context.SendDriverNames)
                 foreach (var key in new[] { "klassengegner_vorne", "klassengegner_hinten" })
                     if (copy[key] is JObject rival) { rival.Remove("name"); rival.Remove("gegner_id"); }
+            if (!delta)
+            {
+                var historical = DriverMemory.PreviousStint(context);
+                if (historical != null) copy["vorherige_sitzung_referenz"] = historical;
+            }
             copy["verfuegbar"] = true;
             return copy;
         }

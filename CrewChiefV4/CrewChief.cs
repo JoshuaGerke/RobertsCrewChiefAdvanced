@@ -994,7 +994,9 @@ namespace CrewChiefV4
 
                             latestRawGameData = gameDataReader.ReadGameData(false);
                             if (latestRawGameData != null)
-                                AiTeam.GameDataConnectionStatus.Record(gameDefinition.friendlyName, DateTime.UtcNow);
+                                AiTeam.GameDataConnectionStatus.Record(
+                                    gameDataReader is PMR.PMRUDPReader pmr && pmr.UsesLoopback ? gameDefinition.friendlyName + " · UDP Loopback" :
+                                        gameDefinition.friendlyName, DateTime.UtcNow);
                             ticksWhenRead = DateTime.UtcNow.Ticks; // Not exact but close enough for speech trace
                         }
                         catch (Exception error) when (IsLiveTransportError(error))
@@ -1408,6 +1410,13 @@ namespace CrewChiefV4
                     {
                         sharedMemoryManager.UpdateVariable("phraseIsPlaying", new bool[1] { audioPlayer.isChannelOpen() });
                         sharedMemoryManager.Tick(interval);
+                    }
+                    if (AiTeam.TelemetrySourceClock.SupportsNativeCadence(Game.game) && mapped && AiTeam.AiTeamService.NativeIntakeEnabled &&
+                        currentGameState != null && (currentGameState.SessionData.SessionPhase == SessionPhase.Green ||
+                            currentGameState.SessionData.SessionPhase == SessionPhase.FullCourseYellow))
+                    {
+                        interval = AiTeam.TelemetrySourceClock.NativePollDelay(interval, now, DateTime.UtcNow,
+                            currentGameState.SourceTelemetryUtc);
                     }
                     Thread.Sleep(interval);
                 }

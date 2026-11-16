@@ -187,7 +187,7 @@ namespace CrewChiefV4.AiTeam
         {
             if (ctx?.GameState == null || string.IsNullOrWhiteSpace(question) || ctx.TelemetryAgeSeconds < 0 ||
                 ctx.TelemetryAgeSeconds > 1 || !Regex.IsMatch(question, @"\b(rundenzeitvergleich|rundenzeit(en)?|bestzeit(en)?|letzte runde)\b",
-                    RegexOptions.IgnoreCase) || !Regex.IsMatch(question, @"\b(vergleich\w*|schneller|langsamer|rundenzeitvergleich|gegen|unterschied|differenz)\b",
+                    RegexOptions.IgnoreCase) || !Regex.IsMatch(question, @"\b(vergleich\w*|schneller|langsamer|rundenzeitvergleich|gegen|gegenüberstell\w*|unterschied|differenz)\b",
                     RegexOptions.IgnoreCase)) return null;
             var gs = ctx.GameState;
             var matches = RaceFieldTools.NamedInQuestion(question, gs);

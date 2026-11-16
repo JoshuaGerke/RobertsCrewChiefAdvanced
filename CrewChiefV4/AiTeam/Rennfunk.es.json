@@ -1,6 +1,54 @@
 {
   "version": 1,
   "groups": {
+    "crew-thermal-pit-handover": [
+      "La ventana está abierta. Si paramos ahora, la salida parece despejada.",
+      "Si adelantamos la parada, la salida de boxes parece despejada.",
+      "Podemos valorar una parada antes. La salida parece libre.",
+      "Una parada anticipada parece dejarnos hueco al salir de boxes."
+    ],
+    "reader-temperature-context": [
+      "{heat} {trend}",
+      "{trend} {heat}",
+      "Una actualización. {heat} {trend}",
+      "Atento. {heat} {trend}"
+    ],
+    "pit-exit-forecast": [
+      "Si paramos ahora. {forecast}",
+      "Mirando el tráfico después de la parada. {forecast}",
+      "Previsión rápida de boxes. {forecast}",
+      "Para una parada en esta vuelta. {forecast}"
+    ],
+    "race-chase-review": [
+      "Dos vueltas limpias. {result}",
+      "Actualización sobre la diferencia. {result}",
+      "{result} Son dos vueltas limpias.",
+      "Dos vueltas completas desde el último aviso. {result}"
+    ],
+    "rival-sector-loss": [
+      "{opponent} ha cedido {interval} respecto a su media en el sector {sector}. Sigue ahí.",
+      "Sector {sector}: {opponent} pierde {interval} frente a su media. Mantente cerca.",
+      "{opponent} ha sido {interval} más lento de lo habitual en el sector {sector}.",
+      "En el sector {sector}, {opponent} ha cedido {interval} frente a su ritmo habitual. Sigue así.",
+      "{opponent} pierde {interval} frente a su media en el sector {sector}. Mantén la presión.",
+      "{interval} por encima de la media de {opponent} en el sector {sector}. Sigue a su alcance."
+    ],
+    "fuel-saving-review": [
+      "Dos vueltas en verde a {average} litros por vuelta. {comparison}",
+      "Media de las dos últimas vueltas limpias: {average} litros. {comparison}",
+      "Dos vueltas completas medidas, {average} litros por vuelta. {comparison}",
+      "Control de combustible: {average} litros de media en dos vueltas. {comparison}",
+      "{average} litros por vuelta en las dos últimas vueltas limpias. {comparison}",
+      "Consumo medio de {average} litros por vuelta. {comparison}"
+    ],
+    "race-disqualified": [
+      "Vaya{driver}, te han descalificado. Se acabó nuestra carrera.",
+      "Se acabó{driver}, dirección de carrera te ha descalificado. Lo siento.",
+      "Qué lástima{driver}, te han descalificado. Volveremos a intentarlo en la próxima.",
+      "Descalificación{driver}. Lo siento, es una forma dura de acabar.",
+      "Te han descalificado{driver}. Luego lo repasamos con calma.",
+      "Estás fuera por descalificación{driver}. Ánimo, la próxima irá mejor."
+    ],
     "corner-improvement": [
       "Esta vez {corner} fue {gain} más rápida que tu media anterior. Limpio.",
       "Bien hecho. En {corner} has encontrado {gain}.",

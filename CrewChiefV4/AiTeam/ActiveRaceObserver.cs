@@ -38,7 +38,7 @@ namespace CrewChiefV4.AiTeam
     public sealed class ObservedRaceCall
     {
         public string Topic, Text, Evidence;
-        internal string OpponentNameClip;
+        internal string OpponentNameClip, HazardIdentity, ChaseOpponentIdentity;
         public string EventId { get; internal set; } = Guid.NewGuid().ToString("N");
         public Func<GameStateData,DateTime,PreparedRadioDetail> PreparedDetail;
 
@@ -286,15 +286,16 @@ namespace CrewChiefV4.AiTeam
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             bool pitFinish = Topic == "pit-finish" && s.SessionType == SessionType.Race &&
                 s.SessionPhase == SessionPhase.Finished && gs.PitData.InPitlane;
+            bool disqualified = Topic == "race-disqualified" && LapWatch.ConfirmedDisqualification(gs);
             bool qualifyingLast = Topic == "qualifying-last" && QualifyingResultWatch.Supported(s.SessionType) &&
                 (s.SessionPhase == SessionPhase.Green || s.SessionPhase == SessionPhase.Checkered);
             bool liveWarning=(Topic??"").StartsWith("warning-",StringComparison.Ordinal) &&
                 (s.SessionPhase==SessionPhase.Green || s.SessionPhase==SessionPhase.FullCourseYellow);
-            bool phaseValid = liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            bool phaseValid = disqualified || liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                (!gs.PitData.InPitlane || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
+                (!gs.PitData.InPitlane || disqualified || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, now, true, AheadName, AheadGap) && GapStillValid(gs, now, false, BehindName, BehindGap);
         }

@@ -9,6 +9,35 @@ namespace UnitTest.AiTeamTests
     [TestFixture, Category("AiTeam")]
     public class AudioDeliveryAccuracyTests
     {
+        private sealed class StereoSignal : NAudio.Wave.ISampleProvider
+        {
+            public NAudio.Wave.WaveFormat WaveFormat { get; } = NAudio.Wave.WaveFormat.CreateIeeeFloatWaveFormat(1000, 2);
+            public int Read(float[] buffer, int offset, int count)
+            {
+                for (int i = 0; i < count; i++) buffer[offset+i] = .5f;
+                return count;
+            }
+        }
+
+        [Test]
+        public void Gain_ramps_across_short_reads_and_stays_equal_in_both_channels()
+        {
+            float gain = 0;
+            var provider = new CrewChiefV4.Audio.RadioGainSampleProvider(new StereoSignal(), () => gain);
+            var buffer = new float[24];
+            gain = 1;
+            Assert.AreEqual(4, provider.Read(buffer, 0, 4));
+            Assert.AreEqual(.05f, buffer[0], .001);
+            Assert.AreEqual(buffer[0], buffer[1]);
+            Assert.AreEqual(.1f, buffer[2], .001);
+            Assert.AreEqual(buffer[2], buffer[3]);
+            Assert.AreEqual(20, provider.Read(buffer, 4, 20));
+            Assert.AreEqual(.15f, buffer[4], .001);
+            Assert.AreEqual(buffer[4], buffer[5]);
+            Assert.AreEqual(.5f, buffer[18], .001);
+            Assert.AreEqual(.5f, buffer[23], .001);
+        }
+
         [Test]
         public void Member_gain_is_independent_and_does_not_attenuate_radio_tones()
         {

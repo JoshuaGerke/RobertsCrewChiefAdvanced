@@ -108,8 +108,14 @@ namespace CrewChiefV4.AiTeam
         /// lapsRemaining = noch zu fahrende Runden inkl. der aktuellen (bei Zeitrennen geschätzt).
         /// </summary>
         public string Evaluate(int completedLaps, float fuelLeft, float perLap, float lapsRemaining, bool refuellingAllowed, bool estimatedFromTime,
-            float additionalWithoutReserve = float.MaxValue, bool provisionalConsumption = false)
+            float additionalWithoutReserve = float.MaxValue, bool provisionalConsumption = false) =>
+            Evaluate(completedLaps, fuelLeft, perLap, lapsRemaining, refuellingAllowed, estimatedFromTime, out _,
+                additionalWithoutReserve, provisionalConsumption);
+
+        internal string Evaluate(int completedLaps, float fuelLeft, float perLap, float lapsRemaining, bool refuellingAllowed, bool estimatedFromTime,
+            out float savingTarget, float additionalWithoutReserve = float.MaxValue, bool provisionalConsumption = false)
         {
+            savingTarget = -1;
             if (fuelLeft < 0 || perLap <= 0 || lapsRemaining <= 0 ||
                 float.IsNaN(fuelLeft) || float.IsInfinity(fuelLeft) ||
                 float.IsNaN(perLap) || float.IsInfinity(perLap) ||
@@ -170,6 +176,7 @@ namespace CrewChiefV4.AiTeam
             // mehr als ~8 % sparen ist kaum realistisch, dann lieber stoppen
             if (savePerLap <= perLap * 0.08f)
             {
+                savingTarget = perLap - savePerLap;
                 text += RadioLanguage.T("Wir brauchen rund " + Litres(savePerLap) + " Einsparung pro Runde. Windschatten nutzen, früher vom Gas, in die Kurven rollen lassen und etwas früher schalten.",
                     "We need to save around " + Litres(savePerLap) + " per lap. Use the slipstream, lift earlier, coast into the corners and shift a bit earlier.",
                     "Necesitamos ahorrar unos " + Litres(savePerLap) + " por vuelta. Aprovecha el rebufo, levanta antes, deja rodar en las curvas y cambia un poco antes.");

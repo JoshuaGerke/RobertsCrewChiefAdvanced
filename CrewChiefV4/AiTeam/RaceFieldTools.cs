@@ -98,6 +98,41 @@ namespace CrewChiefV4.AiTeam
             return result;
         }
 
+        internal static JObject TopClassPace(GameStateData state, IReadOnlyList<LapRecord> own)
+        {
+            if (state.SessionData.SessionType != SessionType.Race || state.SessionData.SessionPhase != SessionPhase.Green ||
+                state.SessionData.NumCarsInPlayerClass < 5 || state.carClass == null || own.Count < 2) return null;
+            var previous = own[own.Count - 2];
+            var recent = own[own.Count - 1];
+            if (!previous.Green || !recent.Green || previous.LapNumber + 1 != recent.LapNumber) return null;
+            int ownRank = state.SessionData.ClassPosition;
+            if (ownRank < 1) return null;
+            var leaders = state.OpponentData.Values.Where(o => o != null && o.IsActive && !o.InPits &&
+                o.ClassPosition >= 1 && o.ClassPosition <= 5 && o.ClassPosition != ownRank && o.CarClass != null &&
+                CarData.IsCarClassEqual(state.carClass, o.CarClass, false)).ToArray();
+            int expected = ownRank <= 5 ? 4 : 5;
+            if (leaders.Length != expected || leaders.Select(o => o.ClassPosition).Distinct().Count() != expected) return null;
+            double before = 0, after = 0;
+            foreach (var car in leaders)
+            {
+                var oldLap = car.OpponentLapData.LastOrDefault(l => l.LapNumber == previous.LapNumber);
+                var newLap = car.OpponentLapData.LastOrDefault(l => l.LapNumber == recent.LapNumber);
+                if (!ComparablePaceLap(oldLap) || !ComparablePaceLap(newLap)) return null;
+                before += oldLap.LapTime;
+                after += newLap.LapTime;
+            }
+            double ownDelta = recent.LapTime - previous.LapTime;
+            double classDelta = (after - before) / expected;
+            return new JObject { ["runde"] = recent.LapNumber, ["referenzrunde"] = previous.LapNumber,
+                ["andere_fahrer_aus_klassen_top5"] = expected, ["klassenschnitt_s"] = Math.Round(after / expected, 3),
+                ["delta_klasse_s"] = Math.Round(classDelta, 3), ["delta_eigen_s"] = Math.Round(ownDelta, 3),
+                ["delta_eigen_relativ_zur_klasse_s"] = Math.Round(ownDelta - classDelta, 3),
+                ["ursache_bestaetigt"] = false };
+        }
+
+        private static bool ComparablePaceLap(LapData lap) => lap != null && lap.IsValid && !lap.InLap && !lap.OutLap &&
+            !lap.hasMissingSectors && TrackAwareness.InRange(lap.LapTime, 10, 3600).HasValue;
+
         private static JObject Describe(OpponentData o, RaceDataContext ctx)
         {
             var result = RaceDataTools.Describe(o, ctx, ctx.GameState.SessionData);

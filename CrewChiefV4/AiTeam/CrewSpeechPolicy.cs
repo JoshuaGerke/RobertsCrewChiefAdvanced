@@ -300,8 +300,13 @@ namespace CrewChiefV4.AiTeam
         public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
         { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
 
-        internal static bool CanInterruptForResult(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority)
-        { return currentIsAi && !currentIsSpotter && !currentIsBleep && currentPriority < 4; }
+        internal static bool CanInterruptForResult(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep,
+            int currentPriority, string currentTopic = null, string nextTopic = null)
+        {
+            return currentIsAi && !currentIsSpotter && !currentIsBleep &&
+                (currentPriority < 4 || nextTopic == "own-lap" && currentPriority == 4 &&
+                    (currentTopic == "field-fastest" || currentTopic == "field-fastest-overall" || currentTopic == "rival-best"));
+        }
 
         internal static DateTime EngineerPlaybackDeadline(DateTime deadline, DateTime queued, bool safetyRadio, bool engineerCritical)
         {
@@ -325,7 +330,7 @@ namespace CrewChiefV4.AiTeam
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
-                member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == SessionLapObserver.TimedLapStartPhrase || text == SessionLapObserver.TimedLapApproachPhrase) ||
+                member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == RaceRadioLanguage.DisqualificationCall || text == SessionLapObserver.TimedLapStartPhrase || text == SessionLapObserver.TimedLapApproachPhrase) ||
                 member == TeamMember.Ben && (text == TrackSituationWatch.ClosingAheadPhrase || text == IncidentWatch.DamagePitAdvicePhrase ||
                     TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) ||
                     TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) ||

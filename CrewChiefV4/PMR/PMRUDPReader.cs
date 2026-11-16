@@ -24,7 +24,8 @@ namespace CrewChiefV4.PMR
             /// Tick timestamp (DateTime.UtcNow.Ticks) when this snapshot was taken.
             /// </summary>
             public long ticksWhenRead;
-            public long sourceSampleTicks;
+            public long sourceSampleTicks, playerTelemetrySampleTicks;
+            public Dictionary<int, long> opponentPositionTicks;
 
             /// <summary>
             /// Overall race/session metadata (track, weather, session type, etc.).
@@ -69,6 +70,11 @@ namespace CrewChiefV4.PMR
         /// This is called via GameDataReader.Initialise(), which already does
         /// the "only once" guarding and file-path setup.
         /// </summary>
+        internal bool UsesLoopback { get; private set; }
+        internal static int ParseLoopbackPort(string setting) =>
+            int.TryParse(setting, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var port) &&
+            port >= 1024 && port <= 65535 ? port : 0;
+
         protected override bool InitialiseInternal()
         {
             lock (this)
@@ -81,21 +87,14 @@ namespace CrewChiefV4.PMR
                     // Underlying PMR buffer for all incoming packets
                     dataStore = new DataStore();
 
-                    // Build UDPThread arguments. The PMR sample expects simple key=value
-                    // tokens: "multicast", "port", "multicast_group".
-                    // Defaults in the sample are multicast=true, port=7576, group=224.0.0.150.
-                    // Here we:
-                    // - honour Crew Chief's udp_data_port
-                    // - stick with multicast on the default PMR group
-                    var args = new List<string>
-                    {
-                        "multicast=true",
-                        "port=" + udpPort,
-                        "multicast_group=224.0.0.150"
-                    };
+                    int forwardPort = ParseLoopbackPort(System.Configuration.ConfigurationManager.AppSettings["RRCAPmrLoopbackPort"]);
+                    UsesLoopback = forwardPort > 0;
+                    var args = UsesLoopback
+                        ? new[] { "multicast=false", "loopback=true", "port=" + forwardPort }
+                        : new[] { "multicast=true", "port=" + udpPort, "multicast_group=224.0.0.150" };
 
                     // UDPThread runs its own blocking Receive loop on a background thread.
-                    udpThread = new UDPThread(dataStore, args.ToArray());
+                    udpThread = new UDPThread(dataStore, args);
                     udpThread.startThread();
 
                     if (dumpToFile)
@@ -106,7 +105,8 @@ namespace CrewChiefV4.PMR
                     running = true;
                     initialised = true;
 
-                    Console.WriteLine("Initialised PMR UDP listener on port " + udpPort + " (multicast 224.0.0.150)");
+                    Console.WriteLine(UsesLoopback ? "PMR UDP loopback 127.0.0.1:" + forwardPort :
+                        "PMR UDP multicast 224.0.0.150:" + udpPort);
                 }
                 catch (Exception ex)
                 {

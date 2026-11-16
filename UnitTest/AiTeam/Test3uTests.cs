@@ -100,7 +100,101 @@ namespace UnitTest.AiTeamTests
                 before=state;
             }
             Assert.AreEqual(expected,found!=null);
-            if(expected){Assert.AreEqual("stint-consistency",found.Topic);Assert.AreEqual(TeamMember.Mik,found.Member);}
+            if (expected)
+            {
+                Assert.AreEqual("stint-consistency", found.Topic);
+                Assert.AreEqual(TeamMember.Mik, found.Member);
+                Assert.IsTrue(found.IsValid(before, before.Now));
+            }
+        }
+
+        [TestCase(true, false, .93f, "Sparziel erreicht")]
+        [TestCase(true, false, 1f, "über dem Sparziel")]
+        [TestCase(false, false, .93f, null)]
+        [TestCase(true, true, .93f, null)]
+        public void Fuel_review_uses_two_full_green_laps_after_delivered_advice(bool spoken, bool brokenStint, float fuelPerLap, string message)
+        {
+            var watch = new RaceFeedbackWatch();
+            var before = State(T, 0);
+            ObservedRaceCall review = null;
+            for (int second = 0; second <= 270; second++)
+            {
+                int lap = second / 90;
+                var now = T.AddSeconds(second);
+                var state = State(now, lap);
+                state.SessionData.IsNewLap = second % 90 == 0;
+                state.PitData.InPitlane = brokenStint && second == 120;
+                state.FuelData.FuelUseActive = true;
+                var result = watch.Observe(Context(state, now), before, new LapRecord { LapNumber=lap, LapTime=90,
+                    FuelUsed=lap == 1 ? 3 : fuelPerLap, Valid=true }, new RaceGapMeasurement(), false, "Rob");
+                if (second == 30 && spoken)
+                    watch.RememberDeliveredFuelPlan(state, .95f);
+                if (result?.Topic == "fuel-saving-review")
+                {
+                    Assert.AreEqual(270, second);
+                    Assert.IsTrue(result.IsValid(state, now));
+                    review = result;
+                }
+                before = state;
+            }
+            if (message == null) Assert.IsNull(review);
+            else
+            {
+                Assert.IsNotNull(review);
+                StringAssert.Contains(message, review.Text);
+                Assert.AreEqual(TeamMember.Ben, review.Member);
+            }
+        }
+
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public void Chase_feedback_uses_two_full_green_laps_with_the_same_rival(bool swap, bool expected)
+        {
+            var watch = new RaceFeedbackWatch();
+            GameStateData before = State(T, 0);
+            ObservedRaceCall review = null;
+            for (int second = 0; second <= 270; second++)
+            {
+                int lap = second / 90;
+                var now = T.AddSeconds(second);
+                var state = State(now, lap);
+                state.SessionData.IsNewLap = second % 90 == 0;
+                state.SessionData.OpponentKeyInFront = "rival";
+                state.SessionData.TimeDeltaFront = second <= 180 ? 3 : 2;
+                state.SessionData.LapsDeltaFront = 0;
+                var rival = new OpponentData { DriverRawName="Lara", IsActive=true, CanUseName=true,
+                    CarClass=state.carClass, ClassPosition=3, r3eSlotId=swap && second >= 200 ? 9 : 5 };
+                state.OpponentData["rival"] = rival;
+                string id = RaceReader.Identity("rival", rival);
+                var context = Context(state, now);
+                if (second == 20) watch.RememberDeliveredChasePlan(context, id);
+                var result = watch.Observe(context, before, new LapRecord { LapNumber=lap, LapTime=90,
+                    FrontIdentity=id, GapAhead=state.SessionData.TimeDeltaFront, GapAheadKind=RaceGapKind.SimulatorTiming,
+                    Valid=true }, new RaceGapMeasurement(), false, "Rob");
+                if (result?.Topic == "race-chase-review")
+                {
+                    Assert.AreEqual(270, second);
+                    Assert.IsTrue(result.IsValid(state, now));
+                    review = result;
+                }
+                before = state;
+            }
+            Assert.AreEqual(expected, review != null);
+            if (expected) StringAssert.Contains("Auf Lara hast du", review.Text);
+        }
+
+        [Test]
+        public void Only_measured_fuel_saving_advice_can_arm_a_follow_up()
+        {
+            var watch = new FuelWatch();
+            Assert.IsNotNull(watch.Evaluate(3, 9.8f, 1, 10, true, false, out float target));
+            Assert.AreEqual(.95f, target, .0001f);
+            watch.Reset();
+            Assert.IsNotNull(watch.Evaluate(3, 8, 1, 10, true, false, out target));
+            Assert.AreEqual(-1, target);
+            watch.Reset();
+            Assert.IsNotNull(watch.Evaluate(3, 9.8f, 1, 10, true, false, out target, provisionalConsumption: true));
+            Assert.AreEqual(-1, target);
         }
 
         [TestCase(false,true)] [TestCase(true,false)]

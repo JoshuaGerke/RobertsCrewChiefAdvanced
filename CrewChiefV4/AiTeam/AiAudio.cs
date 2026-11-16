@@ -22,6 +22,7 @@ namespace CrewChiefV4.AiTeam
             public byte[] Wav;
             public string Subtitle;
             public string EventId;
+            public string Topic;
             public DateTime CreatedUtc;
             public Func<bool> IsValid;
             public Action Started;
@@ -33,12 +34,12 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly ConcurrentDictionary<string, Entry> clips = new ConcurrentDictionary<string, Entry>();
 
-        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null, string eventId = null)
+        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null, string eventId = null, string topic = null)
         {
             if (wav == null || wav.Length == 0 || wav.Length > 16 * 1024 * 1024) throw new ArgumentException("Ungültiger Audioclip.");
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, Topic = topic, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
             // Bound unplayed audio even if a backend rejects its queue entry without requesting it.
             foreach (var old in clips.OrderBy(kv => kv.Value.CreatedUtc).ToArray())
             {
@@ -49,6 +50,8 @@ namespace CrewChiefV4.AiTeam
         }
 
         internal static string GetEventId(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.EventId : null;
+
+        internal static string GetTopic(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.Topic : null;
 
         public static bool TryGet(string id, out byte[] wav, out string subtitle)
         {

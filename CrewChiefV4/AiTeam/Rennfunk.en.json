@@ -1,6 +1,54 @@
 {
   "version": 1,
   "groups": {
+    "crew-thermal-pit-handover": [
+      "The window is open. A stop now looks likely to give us a clear exit.",
+      "If we bring the stop forward, pit exit looks clear.",
+      "We can consider an earlier stop. Pit exit looks clear.",
+      "An early stop looks likely to give us a gap at pit exit."
+    ],
+    "reader-temperature-context": [
+      "{heat} {trend}",
+      "{trend} {heat}",
+      "Quick update. {heat} {trend}",
+      "Heads up. {heat} {trend}"
+    ],
+    "pit-exit-forecast": [
+      "If we stop now. {forecast}",
+      "Looking at traffic after the stop. {forecast}",
+      "Quick pit forecast. {forecast}",
+      "For a stop this lap. {forecast}"
+    ],
+    "race-chase-review": [
+      "Two clean laps. {result}",
+      "Quick update on the gap. {result}",
+      "{result} That's from two clean laps.",
+      "Two full laps since the last call. {result}"
+    ],
+    "rival-sector-loss": [
+      "{opponent} was {interval} off their average in sector {sector}. Stay with them.",
+      "Sector {sector}: {opponent} lost {interval} against their average. Stay close.",
+      "{opponent} was {interval} slower than usual in sector {sector}.",
+      "In sector {sector}, {opponent} was {interval} off their normal pace. Keep at it.",
+      "{opponent} dropped {interval} against their average through sector {sector}. Keep the pressure on.",
+      "That was {interval} off {opponent}’s average in sector {sector}. Stay in range."
+    ],
+    "fuel-saving-review": [
+      "Two green laps at {average} litres per lap. {comparison}",
+      "Last two clean laps averaged {average} litres. {comparison}",
+      "Two full laps measured, {average} litres per lap. {comparison}",
+      "Fuel check: {average} litres on average over two laps. {comparison}",
+      "{average} litres per lap over the last two clean laps. {comparison}",
+      "Average burn is {average} litres per lap. {comparison}"
+    ],
+    "race-disqualified": [
+      "Oh no{driver}, you’ve been disqualified. That’s the end of our race.",
+      "That’s it{driver}, race control has disqualified you. I’m sorry.",
+      "Tough one{driver}, you’ve been disqualified. We’ll go again next time.",
+      "Disqualified{driver}. Sorry, that’s a tough way to end it.",
+      "Race control has disqualified us{driver}. We’ll look at it together afterwards.",
+      "You’re out{driver}, disqualified. Keep your head up, we’ll come back stronger."
+    ],
     "corner-improvement": [
       "{corner} was {gain} quicker than your average before. Tidy.",
       "Well done. You found {gain} in {corner}.",

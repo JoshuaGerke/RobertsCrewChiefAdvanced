@@ -51,7 +51,7 @@ namespace CrewChiefV4.AiTeam
             if(!Good(length,100,100000) || !Good(own,0,length-.001f) || !Good(op.DistanceRoundTrack,0,length-.001f))return false;
             float ahead=(op.DistanceRoundTrack-own+length)%length;
             float speed=gs.PositionAndMotionData.CarSpeed;
-            return ahead>=15 && ahead<=1000 && (ahead<=200 || Good(speed,5,180) && ahead/speed<=10);
+            return ahead>=15 && ahead<=600 && (ahead<=200 || Good(speed,5,180) && ahead/speed<=10);
         }
         public bool CoversAhead(string key){return Volatile.Read(ref covered).Contains(key);}
         public void Observe(GameStateData gs,DateTime now,LiveWarningDispatcher warnings,AiRaceMemory memory,bool names)
@@ -89,7 +89,16 @@ namespace CrewChiefV4.AiTeam
                         !live.OpponentData[captured.Key].InPits && live.OpponentData[captured.Key].stoppedInLandmark==location,
                     "FlagsMonitor_stopped_in_landmark;not_proven_collision",-1,
                     (live,utc)=>utc<=deadline && IsAhead(live,captured.Key,captured.Name,location,utc),
-                    opponentNameClip:name.Length > 0 ? RaceTrafficWatch.NameClipText(name) : null);
+                    opponentNameClip:name.Length > 0 ? RaceTrafficWatch.NameClipText(name) : null,
+                    hazardIdentity:RaceReader.Identity("",gs.OpponentData[car.Key]),
+                    preparedDetail:(live,at) => {
+                        if (!SameCar(live,captured) || !IsAhead(live,captured.Key,captured.Name,location,at)) return null;
+                        string section = TrackAwareness.ConfirmedSection(live.SessionData.TrackDefinition, live.OpponentData[captured.Key].DistanceRoundTrack);
+                        if (section == null) return null;
+                        return new PreparedRadioDetail { Text=RaceTrafficWatch.SectionPhrase(section), StillCurrent=(current,utc) =>
+                            SameCar(current,captured) && IsAhead(current,captured.Key,captured.Name,location,utc) &&
+                            TrackAwareness.ConfirmedSection(current.SessionData.TrackDefinition, current.OpponentData[captured.Key].DistanceRoundTrack) == section };
+                    });
             }
             Volatile.Write(ref covered,keys.Distinct().ToArray());
         }

@@ -10,6 +10,21 @@
   let language = 'en';
   try { for (const l of (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language])) { const c = String(l || '').slice(0, 2).toLowerCase(); if (['de','en','es'].includes(c)) { language = c; break; } } } catch (_) { }
   Object.assign(words, {
+    'Disqualifikation': ['Disqualification','Descalificación'],
+    'Datenquelle': ['Telemetry source','Fuente de telemetría'],
+    'Routinefunk frei': ['Routine radio clear','Radio de rutina libre'],
+    'Routinefunk wartet': ['Routine radio waiting','Radio de rutina en espera'],
+    'Kurven-Sperre': ['Corner hold','Pausa en curva'],
+    'Zweikampf': ['Close battle','Duelo cerrado'],
+    'Vorfall': ['Incident','Incidente'],
+    'Aktives Sparziel': ['Active fuel target','Objetivo de combustible activo'],
+    'beobachtet': ['observed','observados'],
+    'Aufholphase läuft': ['Chase in progress','Acercamiento en curso'],
+    'Boxenausfahrt': ['Pit exit','Salida de boxes'],
+    'Freie Lücke wahrscheinlich': ['Clear gap likely','Hueco probable'],
+    'Verkehr möglich': ['Possible traffic','Posible tráfico'],
+    'Schätzung offen': ['Estimate inconclusive','Pronóstico incierto'],
+    'Liter pro Runde': ['litres per lap','litros por vuelta'],
     'Sara: Seitenwarnungen aus': ['Sara: side alerts off', 'Sara: avisos laterales desactivados'],
     'Sara: Seitenwarnungen aktiv': ['Sara: side alerts active', 'Sara: avisos laterales activos'],
     'Sara: Warte auf aktuelle Seitendaten': ['Sara: waiting for live side data', 'Sara: esperando datos laterales en directo']

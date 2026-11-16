@@ -7,13 +7,18 @@ namespace CrewChiefV4.Audio
     {
         private readonly ISampleProvider source;
         private readonly Func<float> gain;
-        private float current;
+        private readonly int channels, rampFrames;
+        private float current, target, rampStart;
+        private int rampSample;
 
         public RadioGainSampleProvider(ISampleProvider source, Func<float> gain)
         {
             this.source = source;
             this.gain = gain;
-            current = Clamp(gain());
+            channels = source.WaveFormat.Channels;
+            rampFrames = Math.Max(1, source.WaveFormat.SampleRate / 100);
+            current = target = Clamp(gain());
+            rampSample = rampFrames * channels;
         }
 
         public WaveFormat WaveFormat => source.WaveFormat;
@@ -35,14 +40,23 @@ namespace CrewChiefV4.Audio
         public int Read(float[] buffer, int offset, int count)
         {
             int read = source.Read(buffer, offset, count);
-            float target = Clamp(gain());
-            int transition = current == target ? 0 : Math.Min(read, Math.Max(1, WaveFormat.SampleRate * WaveFormat.Channels / 100));
-            float start = current;
-            for (int i = 0; i < transition; i++)
-                buffer[offset + i] = Limit(buffer[offset + i] * (start + (target - start) * ((i + 1f) / transition)));
+            float requested = Clamp(gain());
+            if (requested != target)
+            {
+                rampStart = current;
+                target = requested;
+                rampSample = 0;
+            }
+            int rampEnd = rampFrames * channels;
+            int transition = Math.Min(read, rampEnd - rampSample);
+            for (int i = 0; i < transition; i++, rampSample++)
+            {
+                int frame = rampSample / channels + 1;
+                current = rampStart + (target - rampStart) * ((float)frame / rampFrames);
+                buffer[offset + i] = Limit(buffer[offset + i] * current);
+            }
             for (int i = transition; i < read; i++)
                 buffer[offset + i] = Limit(buffer[offset + i] * target);
-            current = target;
             return read;
         }
     }

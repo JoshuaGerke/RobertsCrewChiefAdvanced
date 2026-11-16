@@ -588,11 +588,12 @@ namespace CrewChiefV4.Audio
                 sound.Stop();
         }
 
-        internal static void InterruptForAiResult()
+        internal static void InterruptForAiResult(string nextTopic)
         {
             var sound = System.Threading.Volatile.Read(ref currentlyPlayingSound);
             if (AudioPlayer.playWithNAudio && sound != null &&
-                AiTeam.CrewSpeechPolicy.CanInterruptForResult(sound.isAiAudio, sound.isSpotter, sound.isBleep, sound.playbackPriority))
+                AiTeam.CrewSpeechPolicy.CanInterruptForResult(sound.isAiAudio, sound.isSpotter, sound.isBleep,
+                    sound.playbackPriority, sound.AiAudioTopic, nextTopic))
                 sound.Stop();
         }
 
@@ -1842,6 +1843,7 @@ namespace CrewChiefV4.Audio
         internal Boolean isAiAudio = false;
         internal int playbackPriority;
         private String aiAudioId;
+        internal string AiAudioTopic => AiTeam.AiAudioStore.GetTopic(aiAudioId);
         private string diagnosticClip;
         private string diagnosticKey;
         private int diagnosticPriority;

@@ -99,10 +99,15 @@ namespace CrewChiefV4.ACE
             Debug.Assert(Marshal.SizeOf<SPageFileStaticEvo>() == aceConstant.MM_STATIC_STRUCT_SIZE, $"Size of SPageFileStatic struct is {Marshal.SizeOf<SPageFileStaticEvo>()}, should be {aceConstant.MM_STATIC_STRUCT_SIZE} bytes");
         }
 
+        private readonly AiTeam.TelemetrySourceClock graphicsClock = new AiTeam.TelemetrySourceClock();
+        private readonly AiTeam.TelemetrySourceClock physicsClock = new AiTeam.TelemetrySourceClock();
+
         public class ACEStructWrapper
         {
             public long ticksWhenRead;
             public ACEShared data;
+            public bool nativeSourceClock;
+            public long graphicsSampleTicks, physicsSampleTicks;
         }
 
         public static void clearSyncData()
@@ -207,6 +212,20 @@ namespace CrewChiefV4.ACE
         public static byte[] getBytesFromString(String name)
         {
             return Encoding.ASCII.GetBytes(name);
+        }
+
+        internal void ObserveSourceProgress(ACEStructWrapper frame, bool physicsPresent)
+        {
+            frame.nativeSourceClock = true;
+            var data = frame.data;
+            if (data.aceGraphic.status != ACEVO_STATUS.AC_LIVE || !(PlayerIndex(data) >= 0)) return;
+            int session = 0;
+            int status = (int)data.aceGraphic.status;
+            frame.graphicsSampleTicks = graphicsClock.Observe(unchecked((uint)data.aceGraphic.packetId),
+                session, status, data.aceGraphic.playerCarIdA, data.aceGraphic.playerCarIdB, frame.ticksWhenRead);
+            if (physicsPresent)
+                frame.physicsSampleTicks = physicsClock.Observe(unchecked((uint)data.acePhysics.packetId),
+                    session, status, data.aceGraphic.playerCarIdA, data.aceGraphic.playerCarIdB, frame.ticksWhenRead);
         }
 
         public override Object ReadGameData(Boolean forSpotter)
@@ -339,6 +358,7 @@ namespace CrewChiefV4.ACE
                         || aceShared.acePhysics.fuel != 0
                         || aceShared.acePhysics.heading != 0
                         || aceShared.acePhysics.pitch != 0;
+                    ObserveSourceProgress(structWrapper, hasPhysicsData);
                     if (!hasPhysicsData && previousACEStructWrapper != null && previousACEStructWrapper.data != null)
                     {
                         structWrapper.data.acePhysics = previousACEStructWrapper.data.acePhysics;
@@ -912,6 +932,9 @@ namespace CrewChiefV4.ACE
                 catch (Exception e) {Log.Exception(e);}
             }
 #endif
+            graphicsClock.Reset();
+            physicsClock.Reset();
+            previousACEStructWrapper = null;
             initialised = false;
         }
     }

@@ -1613,6 +1613,7 @@ namespace CrewChiefV4.GameState
 
     public class OpponentData
     {
+        internal DateTime NativePositionUtc;
         // Sometimes the name is corrupted with previous session's data. Worst case is that the name is entirely readable
         // but completely invalid. We must prevent such names being read.
         public Boolean CanUseName = true;
@@ -4172,6 +4173,7 @@ namespace CrewChiefV4.GameState
 
         public DateTime Now;
         public DateTime SourceTelemetryUtc=DateTime.MinValue;
+        internal bool RequiresNativeSourceClock;
         public readonly Dictionary<string,TelemetryMeasurement> Measurements = new Dictionary<string,TelemetryMeasurement>();
 
         // ACC has a Clock field which is the time of day in the game world, in milliseconds

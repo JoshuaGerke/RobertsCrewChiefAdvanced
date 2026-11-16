@@ -1685,6 +1685,9 @@ namespace CrewChiefV4.assetto
             currentGameState.ControlData.ThrottlePedal = shared.acsPhysics.gas;
             currentGameState.ControlData.ClutchPedal = shared.acsPhysics.clutch;
             currentGameState.ControlData.SteeringWheelAngle = shared.acsPhysics.steerAngle;
+            if (wrapper.sourceSampleTicks > 0)
+                TelemetryMeasurements.Pedals(currentGameState, "AC.SharedMemory.Physics", currentGameState.SourceTelemetryUtc,
+                    "gas", "brake", "clutch");
 
             // penalty data
             currentGameState.PenaltiesData.HasDriveThrough = currentFlag == AC_FLAG_TYPE.AC_PENALTY_FLAG && shared.acsGraphic.penaltyTime <= 0;

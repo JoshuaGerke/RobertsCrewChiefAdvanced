@@ -1,6 +1,54 @@
 {
   "version": 1,
   "groups": {
+    "crew-thermal-pit-handover": [
+      "Das Fenster ist offen. Bei einem Stopp jetzt sieht die Ausfahrt frei aus.",
+      "Wenn wir den Stopp vorziehen, ist die Ausfahrt voraussichtlich frei.",
+      "Wir können den früheren Stopp prüfen. Die Ausfahrt sieht frei aus.",
+      "Für einen frühen Stopp sieht die Lücke an der Boxenausfahrt gut aus."
+    ],
+    "reader-temperature-context": [
+      "{heat} {trend}",
+      "{trend} {heat}",
+      "Kurzes Update. {heat} {trend}",
+      "Pass auf. {heat} {trend}"
+    ],
+    "pit-exit-forecast": [
+      "Wenn wir jetzt stoppen. {forecast}",
+      "Blick auf den Verkehr nach dem Stopp. {forecast}",
+      "Kurze Boxenprognose. {forecast}",
+      "Für einen Stopp auf dieser Runde gilt. {forecast}"
+    ],
+    "race-chase-review": [
+      "Zwei saubere Runden. {result}",
+      "Kurzes Update nach vorn. {result}",
+      "{result} Zwei volle Runden gemessen.",
+      "Nach dem letzten Funk sind zwei saubere Runden durch. {result}"
+    ],
+    "rival-sector-loss": [
+      "{opponent} war in Sektor {sector} {interval} über seinem Schnitt. Bleib dran.",
+      "Sektor {sector}: {opponent} lässt {interval} liegen. Die Lücke ist klein.",
+      "{opponent} hat im Sektor {sector} {interval} auf seine übliche Zeit verloren.",
+      "In Sektor {sector} war {opponent} {interval} langsamer als üblich. Dranbleiben.",
+      "{opponent} verliert {interval} auf seinen Schnitt in Sektor {sector}. Setz ihn ruhig unter Druck.",
+      "{opponent} liegt in Sektor {sector} {interval} über seiner normalen Zeit. Bleib in Reichweite."
+    ],
+    "fuel-saving-review": [
+      "Über zwei grüne Runden waren es {average} Liter pro Runde. {comparison}",
+      "Die letzten zwei sauberen Runden im Schnitt: {average} Liter. {comparison}",
+      "Zwei volle Runden gemessen, {average} Liter pro Runde. {comparison}",
+      "Kurzer Spritcheck: {average} Liter im Schnitt über zwei Runden. {comparison}",
+      "{average} Liter pro Runde über die letzten zwei sauberen Runden. {comparison}",
+      "Im Mittel {average} Liter pro Runde. {comparison}"
+    ],
+    "race-disqualified": [
+      "Oh nein{driver}, du bist disqualifiziert. Das Rennen ist vorbei.",
+      "Das war’s{driver}, die Rennleitung hat dich disqualifiziert. Tut mir leid.",
+      "Bitter{driver}, du bist disqualifiziert. Beim nächsten Mal greifen wir wieder an.",
+      "Disqualifiziert{driver}. Tut mir leid, so wollen wir das Rennen nicht beenden.",
+      "Das Rennen ist für uns vorbei{driver}, Disqualifikation. Das schauen wir uns später in Ruhe an.",
+      "Du bist raus{driver}, disqualifiziert. Kopf hoch, beim nächsten Mal machen wir’s besser."
+    ],
     "corner-improvement": [
       "{corner} war diesmal {gain} schneller als dein Schnitt davor. Sauber.",
       "Gut getroffen. In {corner} hast du {gain} gefunden.",

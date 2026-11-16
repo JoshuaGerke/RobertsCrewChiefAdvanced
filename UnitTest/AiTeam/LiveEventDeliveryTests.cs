@@ -276,6 +276,8 @@ namespace UnitTest.AiTeamTests
             state.OpponentData["doerr"] = rival;
             string answer = LocalAnswers.CompareRivalLap("Rundenzeitvergleich gegen Ben Dörr", Context(state, T));
             StringAssert.Contains("Ben Dörr 2,6 Sekunden langsamer", answer);
+            Assert.AreEqual(answer, LocalAnswers.CompareRivalLap(
+                "Wie sind die Rundenzeiten von Ben Dörr und mir in der Gegenüberstellung?", Context(state, T)));
             rival.LastLapValid = false;
             StringAssert.Contains("fehlen gültige Zeiten", LocalAnswers.CompareRivalLap("Rundenzeitvergleich gegen Ben Dörr", Context(state, T)));
         }

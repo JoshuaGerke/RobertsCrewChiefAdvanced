@@ -52,6 +52,33 @@ namespace UnitTest.AiTeamTests
             clock.Reset();Assert.AreEqual(T.AddSeconds(14).Ticks,clock.Observe(0,2,5,3,T.AddSeconds(14).Ticks));
         }
         [Test]
+        public void Evo_graphics_and_physics_clocks_keep_their_own_age_across_pauses()
+        {
+            var reader = new ACESharedMemoryReader();
+            var data = new ACEShared();
+            data.aceGraphic.totalDrivers=1;
+            data.aceGraphic.carIds=new[]{new carId {carIdA=7,carIdB=9}};
+            data.aceGraphic.carCoordinates=new aceVec3[1];
+            data.aceGraphic.playerCarIdA=7;data.aceGraphic.playerCarIdB=9;
+            data.aceGraphic.status=ACEVO_STATUS.AC_LIVE;
+            var frame = new ACESharedMemoryReader.ACEStructWrapper {data=data,ticksWhenRead=T.Ticks};
+            reader.ObserveSourceProgress(frame, true);
+            Assert.AreEqual(T.Ticks,frame.graphicsSampleTicks);
+            Assert.AreEqual(T.Ticks,frame.physicsSampleTicks);
+            data.aceGraphic.packetId++;
+            frame = new ACESharedMemoryReader.ACEStructWrapper {data=data,ticksWhenRead=T.AddSeconds(1).Ticks};
+            reader.ObserveSourceProgress(frame, true);
+            Assert.AreEqual(T.AddSeconds(1).Ticks,frame.graphicsSampleTicks);
+            Assert.AreEqual(T.Ticks,frame.physicsSampleTicks);
+            data.aceGraphic.status=ACEVO_STATUS.AC_PAUSE;
+            frame = new ACESharedMemoryReader.ACEStructWrapper {data=data,ticksWhenRead=T.AddSeconds(2).Ticks};
+            reader.ObserveSourceProgress(frame, true);
+            Assert.IsTrue(frame.nativeSourceClock);
+            Assert.AreEqual(0,frame.graphicsSampleTicks);
+            Assert.AreEqual(0,frame.physicsSampleTicks);
+        }
+
+        [Test]
         public void Evo_geometry_does_not_invent_driver_speed_class_or_rank_and_identity_is_unique()
         {
             var data=new ACEShared();
@@ -101,12 +128,16 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Pmr_other_packets_cannot_refresh_an_old_player_channel()
         {
-            long tick=0;var store=new DataStore(()=>tick,1000);
+            long tick=0;var store=new DataStore(()=>tick,1000,()=>T.Ticks+tick*TimeSpan.TicksPerMillisecond);
             store.writeRaceState(new UDPParticipantRaceState {m_vehicleId=1,m_isPlayer=true});
             store.writeTelemetry(new UDPVehicleTelemetry {m_vehicleId=1});
             tick=2000;store.writeRaceState(new UDPParticipantRaceState {m_vehicleId=1,m_isPlayer=true});
             var snapshot=store.FreshSnapshot();
             Assert.That((snapshot.ticksWhenRead-snapshot.sourceSampleTicks)/(double)TimeSpan.TicksPerSecond,Is.EqualTo(2).Within(.001));
+            Assert.AreEqual(T.Ticks, snapshot.playerTelemetrySampleTicks);
+            Assert.AreEqual(T.Ticks, snapshot.opponentPositionTicks[1]);
+            tick=2100;
+            Assert.AreEqual(snapshot.sourceSampleTicks,store.FreshSnapshot().sourceSampleTicks);
             tick=6000;store.writeRaceState(new UDPParticipantRaceState {m_vehicleId=1,m_isPlayer=true});
             store.writeTelemetry(new UDPVehicleTelemetry {m_vehicleId=2});store.writeTimestamp();
             Assert.AreEqual(0,store.timeSinceLastWrite());
@@ -116,6 +147,13 @@ namespace UnitTest.AiTeamTests
             tick=0;Assert.IsNull(store.FreshSnapshot().PlayerRaceState);
             store.clear();Assert.IsEmpty(store.FreshSnapshot().AllTelemetry);
         }
+        [TestCase("0", 0)]
+        [TestCase("65536", 0)]
+        [TestCase("127.0.0.1:7578", 0)]
+        [TestCase("7578", 7578)]
+        public void Pmr_forwarded_input_is_explicit_and_uses_only_a_valid_local_port(string value, int expected) =>
+            Assert.AreEqual(expected, PMRUDPReader.ParseLoopbackPort(value));
+
         [Test]
         public void Pmr_ambiguous_player_is_not_assigned_another_cars_telemetry()
         {
@@ -126,6 +164,22 @@ namespace UnitTest.AiTeamTests
             }
             Assert.IsNull(store.FreshSnapshot().PlayerRaceState);Assert.IsNull(store.FreshSnapshot().PlayerTelemetry);
         }
+        [Test]
+        public void A_fresh_player_frame_does_not_refresh_a_stale_native_opponent_position()
+        {
+            var state = new GameStateData(T.Ticks) { SourceTelemetryUtc=T };
+            state.SessionData.TrackDefinition = new CrewChiefV4.TrackDefinition("Test", 3000);
+            var car = new OpponentData { DriverRawName="Lara", Speed=0, IsActive=true, DistanceRoundTrack=120, NativePositionUtc=T.AddSeconds(-2) };
+            state.OpponentData["rival"] = car;
+            var tracks = new TrackAwareness();
+            Assert.IsTrue(tracks.Observe(state, T, true));
+            Assert.IsFalse(tracks.Snapshot.Cars.Single().SpatiallyConsistent);
+            state.SourceTelemetryUtc = T.AddMilliseconds(40);
+            car.NativePositionUtc = state.SourceTelemetryUtc;
+            Assert.IsTrue(tracks.Observe(state, state.SourceTelemetryUtc, true));
+            Assert.IsTrue(tracks.Snapshot.Cars.Single().SpatiallyConsistent);
+        }
+
         [Test]
         public void Stale_and_future_source_frames_clear_spatial_evidence()
         {

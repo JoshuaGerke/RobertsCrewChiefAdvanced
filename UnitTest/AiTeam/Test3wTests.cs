@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.GameState;
@@ -71,6 +72,139 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, true, false, 2));
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, true, 2));
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 5));
+        }
+
+        [Test]
+        public void Native_telemetry_uses_fresh_positions_and_does_not_invent_frames()
+        {
+            var awareness = new TrackAwareness();
+            var first = State(SessionType.Race, T);
+            first.PositionAndMotionData.DistanceRoundTrack = 100;
+            Assert.IsTrue(awareness.Observe(first, T, fast: true));
+
+            var next = State(SessionType.Race, T.AddMilliseconds(17));
+            next.PositionAndMotionData.DistanceRoundTrack = 101;
+            Assert.IsTrue(awareness.Observe(next, next.Now, fast: true));
+            Assert.AreEqual(101, awareness.Snapshot.PlayerDistanceM);
+            Assert.IsFalse(awareness.Observe(next, next.Now.AddMilliseconds(20), fast: true));
+            Assert.AreEqual(13, TelemetrySourceClock.NativePollDelay(100, T, T.AddMilliseconds(7), T));
+            Assert.AreEqual(6, TelemetrySourceClock.NativePollDelay(100, T, T.AddMilliseconds(25), T));
+            Assert.AreEqual(100, TelemetrySourceClock.NativePollDelay(100, T, T.AddSeconds(1), T));
+        }
+
+        [Test]
+        public void Interlagos_personal_best_survives_a_long_driver_reply_and_can_interrupt_an_optional_opponent_best()
+        {
+            var observer = new SessionLapObserver();
+            var before = State(SessionType.Race, T);
+            before.SessionData.PlayerLapTimeSessionBest = 102;
+            observer.Observe(before, null, T, true);
+
+            var line = State(SessionType.Race, T.AddSeconds(1));
+            line.SessionData.CompletedLaps = 3;
+            observer.Observe(line, new LapRecord { LapNumber = 3, LapTime = 99.979f, Valid = true }, line.Now, true, before);
+            var call = observer.Take(line, line.Now, false, ownLapOnly: true);
+            Assert.AreEqual("own-lap", call.Topic);
+            var afterReply = State(SessionType.Race, line.Now.AddSeconds(18));
+            afterReply.SessionData.CompletedLaps = 3;
+            Assert.IsTrue(call.IsValid(afterReply, afterReply.Now));
+            afterReply.SessionData.CompletedLaps++;
+            Assert.IsFalse(call.IsValid(afterReply, afterReply.Now));
+
+            Assert.IsTrue(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 4, "field-fastest", "own-lap"));
+            Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 4, "field-fastest", "position"));
+            Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 5, null, "own-lap"));
+            Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, true, false, 4, "field-fastest", "own-lap"));
+            Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 7, "race-hazard-ahead", "own-lap"));
+        }
+
+        [Test]
+        public void Interlagos_disqualification_survives_rank_and_pit_refresh_without_repeating()
+        {
+            var watch = new LapWatch();
+            var race = State(SessionType.Race, T);
+            race.SessionData.Flag = FlagEnum.BLACK;
+            Assert.IsNull(watch.TakeDisqualification(race, T, false));
+
+            var terminal = State(SessionType.Race, T.AddSeconds(1));
+            terminal.SessionData.SessionPhase = SessionPhase.Finished;
+            terminal.SessionData.IsDisqualified = true;
+            terminal.SessionData.CompletedLaps = 6;
+            Assert.IsNull(watch.TakeDisqualification(terminal, terminal.Now, true));
+
+            var pit = State(SessionType.Race, T.AddSeconds(6));
+            pit.SessionData.SessionPhase = SessionPhase.Finished;
+            pit.SessionData.IsDisqualified = true;
+            pit.SessionData.CompletedLaps = 6;
+            pit.SessionData.ClassPosition = 26;
+            pit.PitData.InPitlane = true;
+            Assert.IsTrue(LapWatch.SameDisqualification(terminal, pit));
+            watch.Reset(LapWatch.SameDisqualification(terminal, pit));
+            var call = watch.TakeDisqualification(pit, pit.Now, false);
+            Assert.AreEqual("race-disqualified", call.Topic);
+            call.MarkPlaybackStarted(pit.Now);
+            Assert.IsNull(watch.TakeDisqualification(pit, pit.Now, false));
+
+            var practice = State(SessionType.Practice, T);
+            practice.SessionData.SessionPhase = SessionPhase.Checkered;
+            terminal.SessionData.IsDisqualified = false;
+            Assert.IsNull(new LapWatch().Evaluate(practice, terminal, -1, -1, false));
+        }
+
+        [Test]
+        public void Disqualification_phrasing_rotates_between_races_after_completed_playback()
+        {
+            var watch = new LapWatch();
+            var recent = new System.Collections.Generic.Queue<int>();
+            for (int race = 0; race < 9; race++)
+            {
+                watch.Reset();
+                var terminal = State(SessionType.Race, T.AddMinutes(race));
+                terminal.SessionData.SessionPhase = SessionPhase.Finished;
+                terminal.SessionData.IsDisqualified = true;
+                terminal.SessionData.SessionId = race;
+                var call = watch.TakeDisqualification(terminal, terminal.Now, false, "Rob");
+
+                Assert.IsNotNull(call);
+                Assert.AreEqual(TeamMember.Mik, call.Member);
+                Assert.IsFalse(recent.Contains(call.VariantIndex));
+                CollectionAssert.Contains(LapWatch.DisqualificationPhrases("Rob").ToArray(), call.Text);
+                call.MarkPlaybackStarted(terminal.Now);
+                call.MarkPlaybackFinished(terminal.Now.AddSeconds(3), false);
+
+                recent.Enqueue(call.VariantIndex);
+                if (recent.Count > 3) recent.Dequeue();
+            }
+        }
+
+        [Test]
+        public void Interlagos_measured_consumption_gets_a_short_report_after_three_complete_laps()
+        {
+            var observer = new SessionLapObserver();
+            var history = new AiRaceMemory();
+            var previous = State(SessionType.Race, T);
+            previous.SessionData.IsNewLap = true;
+            previous.FuelData.FuelUseActive = true;
+            previous.FuelData.FuelLeft = 20;
+            history.Update(null, previous, T);
+            observer.Observe(previous, null, T, true, fuelHistory: history);
+
+            for (int lap = 1; lap <= 3; lap++)
+            {
+                var line = State(SessionType.Race, T.AddSeconds(105 * lap));
+                line.SessionData.IsNewLap = true;
+                line.SessionData.CompletedLaps = lap;
+                line.SessionData.LapTimePrevious = 105;
+                line.FuelData.FuelUseActive = true;
+                line.FuelData.FuelLeft = 20 - lap;
+                Assert.IsTrue(history.Update(previous, line, line.Now));
+                observer.Observe(line, history.GetLaps()[lap - 1], line.Now, true, previous, fuelHistory: history);
+                previous = line;
+            }
+            var call = observer.Take(previous, previous.Now, false, ownLapOnly: true);
+            Assert.AreEqual("fuel-baseline", call.Topic);
+            StringAssert.Contains("1,0 Liter pro Runde", call.Text);
+            Assert.IsNull(observer.Take(previous, previous.Now, false, ownLapOnly: true));
         }
 
         [Test]

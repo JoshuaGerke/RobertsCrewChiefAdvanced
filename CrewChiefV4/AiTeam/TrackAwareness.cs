@@ -96,7 +96,31 @@ namespace CrewChiefV4.AiTeam
     public sealed class TrackAwareness
     {
         public const int MaxCars=256, MaxSamples=42;
-        private sealed class Sample { public DateTime Utc; public double Gap; }
+
+        internal static string ConfirmedSection(TrackDefinition track, double? routePosition)
+        {
+            double? length = track == null ? null : InRange(track.trackLength, 100, 100000);
+            if (!length.HasValue || !routePosition.HasValue || !ValidDistance(routePosition.Value, length).HasValue ||
+                track.trackLandmarks == null) return null;
+            string found = null;
+            foreach (var section in track.trackLandmarks)
+            {
+                string raw = section?.landmarkNames?.FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var start = ValidDistance(section.distanceRoundLapStart, length);
+                var end = ValidDistance(section.distanceRoundLapEnd, length);
+                if (!start.HasValue || !end.HasValue || start == end) continue;
+                bool inside = start < end ? routePosition >= start && routePosition < end :
+                    routePosition >= start || routePosition < end;
+                if (!inside) continue;
+                if (found != null && found != raw) return null;
+                found = raw;
+            }
+            return found == null ? null : CornerCoach.FriendlyName(found, 0);
+        }
+        private struct Sample { public DateTime Utc; public double Gap; }
+        private static readonly TimeSpan PositionSamplePeriod = TimeSpan.FromMilliseconds(50);
+        private static readonly TimeSpan FastPositionSamplePeriod = TimeSpan.FromMilliseconds(15);
         // Track the leading car's actual passage through the following car's current position.
         // This measures a spatially relative interval, independently of classification and lap times.
         private sealed class PassageHistory
@@ -156,6 +180,8 @@ namespace CrewChiefV4.AiTeam
             public double? X, Z, RouteDistance;
             public int Lap, Sector;
             public DateTime OpponentSampleUtc;
+            public Sample LastSample;
+            public double? ClosingSpeed;
             public readonly Queue<Sample> Samples=new Queue<Sample>();
             public readonly PassageHistory Passages=new PassageHistory();
         }
@@ -178,7 +204,7 @@ namespace CrewChiefV4.AiTeam
                 context.NowUtc >= data.OpponentSampleUtc && context.NowUtc - data.OpponentSampleUtc <= TimeSpan.FromSeconds(1);
         }
 
-        public bool Observe(GameStateData state, DateTime now)
+        public bool Observe(GameStateData state, DateTime now, bool fast = false)
         {
             if(state==null) {Reset();return false;}
             // Re-reading the same source frame must not manufacture new motion evidence.
@@ -192,7 +218,8 @@ namespace CrewChiefV4.AiTeam
                 prior.LengthM!=currentLength || (session.IsNewSession && !prior.IsNewSession) || now<prior.Utc)) Reset();
             prior=Snapshot;
             if(prior!=null && state.SourceTelemetryUtc!=DateTime.MinValue && state.SourceTelemetryUtc<=prior.SourceUtc)return false;
-            if(prior!=null && now-prior.Utc<TimeSpan.FromMilliseconds(50))return false;
+            var period = fast && state.SourceTelemetryUtc != DateTime.MinValue ? FastPositionSamplePeriod : PositionSamplePeriod;
+            if (prior != null && now - prior.Utc < period) return false;
             if(prior!=null && now-prior.Utc>TimeSpan.FromSeconds(1)) { history.Clear(); playerPassages.Clear(); }
             Gaps.Observe(state,now);
             var length=session.TrackDefinition==null ? null : InRange(session.TrackDefinition.trackLength,100,100000);
@@ -221,44 +248,51 @@ namespace CrewChiefV4.AiTeam
                 History h;
                 if(!history.TryGetValue(pair.Key,out h) || h.Identity!=identity)
                     history[pair.Key]=h=new History{Id=++nextId,Identity=identity};
-                // The frame can change while one opponent repeats the same position or timing data.
-                if ((distance.HasValue || x.HasValue) && (h.OpponentSampleUtc == DateTime.MinValue ||
-                    Changed(h.RouteDistance, distance) || Changed(h.X, x) || Changed(h.Z, z) ||
-                    h.Lap != car.CompletedLaps || h.Sector != car.CurrentSectorNumber))
+                // Native per-car packet time takes precedence, including for stationary cars.
+                bool hasNativePositionClock = car.NativePositionUtc != DateTime.MinValue;
+                bool freshPosition = !hasNativePositionClock || now >= car.NativePositionUtc &&
+                    now - car.NativePositionUtc <= TimeSpan.FromSeconds(1);
+                if ((distance.HasValue || x.HasValue) && (hasNativePositionClock ||
+                    h.OpponentSampleUtc == DateTime.MinValue || Changed(h.RouteDistance, distance) ||
+                    Changed(h.X, x) || Changed(h.Z, z) || h.Lap != car.CompletedLaps || h.Sector != car.CurrentSectorNumber))
                 {
-                    h.OpponentSampleUtc = state.SourceTelemetryUtc == DateTime.MinValue ? now : state.SourceTelemetryUtc;
+                    h.OpponentSampleUtc = hasNativePositionClock ? car.NativePositionUtc : sampledUtc;
                     h.RouteDistance = distance; h.X = x; h.Z = z;
                     h.Lap = car.CompletedLaps; h.Sector = car.CurrentSectorNumber;
                 }
-                double? closing=null;
-                if(gap.HasValue && consistent && !car.InPits && !state.PitData.InPitlane && !ownJump)
+                consistent &= freshPosition;
+                if (gap.HasValue && consistent && !car.InPits && !state.PitData.InPitlane && !ownJump)
                 {
-                    var previous=h.Samples.Count==0 ? null : h.Samples.Last();
-                    double seconds=previous==null ? 0 : (now-previous.Utc).TotalSeconds;
-                    bool jumped=h.LastDistance.HasValue && distance.HasValue && length.HasValue &&
-                        Math.Abs(Wrap(distance.Value-h.LastDistance.Value,length.Value))>180*seconds+15;
-                    if(previous!=null && (seconds<=0 || seconds>.75 || jumped || Math.Abs(gap.Value-previous.Gap)>180*seconds+15))h.Samples.Clear();
-                    h.Samples.Enqueue(new Sample{Utc=now,Gap=gap.Value});
-                    while(h.Samples.Count>MaxSamples || (h.Samples.Count>1 && now-h.Samples.Peek().Utc>TimeSpan.FromSeconds(3)))h.Samples.Dequeue();
-                    var first=h.Samples.Peek(); double span=(now-first.Utc).TotalSeconds;
-                    if(h.Samples.Count>=4 && span>=1.5 && Math.Sign(first.Gap)==Math.Sign(gap.Value))
+                    var previous = h.LastSample;
+                    var separation = sampledUtc - previous.Utc;
+                    double seconds = separation.TotalSeconds;
+                    bool jumped = h.LastDistance.HasValue && distance.HasValue && length.HasValue &&
+                        Math.Abs(Wrap(distance.Value - h.LastDistance.Value, length.Value)) > 180 * seconds + 15;
+                    if (h.Samples.Count > 0 && (seconds < 0 || seconds > .75 || jumped ||
+                        Math.Sign(gap.Value) != Math.Sign(previous.Gap) || Math.Abs(gap.Value - previous.Gap) > 180 * seconds + 15))
                     {
-                        // Positive means the separation is shrinking, both ahead and behind.
-                        double meanTime=h.Samples.Average(p=>(p.Utc-first.Utc).TotalSeconds);
-                        double meanGap=h.Samples.Average(p=>Math.Abs(p.Gap));
-                        double covariance=0,variance=0;
-                        foreach(var sample in h.Samples)
-                        {
-                            double t=(sample.Utc-first.Utc).TotalSeconds-meanTime;
-                            covariance+=t*(Math.Abs(sample.Gap)-meanGap);variance+=t*t;
-                        }
-                        double slope=covariance/variance;
-                        double residual=Math.Sqrt(h.Samples.Average(p=>Math.Pow(Math.Abs(p.Gap)-meanGap-slope*((p.Utc-first.Utc).TotalSeconds-meanTime),2)));
-                        if(Math.Abs(slope)<=90 && residual<=3)closing=-slope;
+                        h.Samples.Clear();
+                        h.ClosingSpeed = null;
+                    }
+                    // Current positions can advance at native rate while expensive trend fits keep a stable window.
+                    if (h.Samples.Count == 0 || separation >= PositionSamplePeriod)
+                    {
+                        h.LastSample = new Sample { Utc = sampledUtc, Gap = gap.Value };
+                        h.LastDistance = distance;
+                        h.Samples.Enqueue(h.LastSample);
+                        while (h.Samples.Count > MaxSamples ||
+                            h.Samples.Count > 1 && sampledUtc - h.Samples.Peek().Utc > TimeSpan.FromSeconds(3))
+                            h.Samples.Dequeue();
+                        h.ClosingSpeed = FitClosingSpeed(h.Samples, sampledUtc, gap.Value);
                     }
                 }
-                else h.Samples.Clear();
-                h.LastDistance=distance;
+                else
+                {
+                    h.Samples.Clear();
+                    h.ClosingSpeed = null;
+                    h.LastDistance = null;
+                }
+
                 int? lapOffset=null;
                 if(gap.HasValue && session.CompletedLaps>=0 && car.CompletedLaps>=0 && session.SessionType==SessionType.Race)
                     lapOffset=(int)Math.Round(((car.CompletedLaps-session.CompletedLaps)*length.Value+distance.Value-ownDistance.Value-gap.Value)/length.Value);
@@ -271,7 +305,7 @@ namespace CrewChiefV4.AiTeam
                         interval = gap > 0 ? h.Passages.Interval(ownDistance.Value, gap.Value, length.Value, sampledUtc)
                             : playerPassages.Interval(distance.Value, -gap.Value, length.Value, sampledUtc);
                 }
-                cars.Add(new TrackCarPosition(h.Id,pair.Key,car,state,x,z,distance,gap,worldDistance,closing,lapOffset,consistent,h.OpponentSampleUtc,interval));
+                cars.Add(new TrackCarPosition(h.Id,pair.Key,car,state,x,z,distance,gap,worldDistance,h.ClosingSpeed,lapOffset,consistent,h.OpponentSampleUtc,interval));
             }
             foreach(string key in history.Keys.Where(k=>!retained.Contains(k)).ToArray())history.Remove(key);
             Volatile.Write(ref latest,new TrackPositionSnapshot(state,now,cars));
@@ -287,6 +321,26 @@ namespace CrewChiefV4.AiTeam
             if(checkedMotion && !TrackSituationWatch.MotionPlausible(car,ownSpeed.Value,car.RouteGapM>0)) return null;
             // Zero may be an adapter default. Claim a stopped car only with corroborating route motion.
             return car.SpeedMps==0 && !checkedMotion?null:car.SpeedMps;
+        }
+
+        private static double? FitClosingSpeed(Queue<Sample> samples, DateTime now, double gap)
+        {
+            var first = samples.Peek();
+            if (samples.Count < 4 || now - first.Utc < TimeSpan.FromSeconds(1.5) || Math.Sign(first.Gap) != Math.Sign(gap))
+                return null;
+            double meanTime = samples.Average(sample => (sample.Utc - first.Utc).TotalSeconds);
+            double meanGap = samples.Average(sample => Math.Abs(sample.Gap));
+            double covariance = 0, variance = 0;
+            foreach (var sample in samples)
+            {
+                double t = (sample.Utc - first.Utc).TotalSeconds - meanTime;
+                covariance += t * (Math.Abs(sample.Gap) - meanGap);
+                variance += t * t;
+            }
+            double slope = covariance / variance;
+            double residual = Math.Sqrt(samples.Average(sample => Math.Pow(Math.Abs(sample.Gap) - meanGap -
+                slope * ((sample.Utc - first.Utc).TotalSeconds - meanTime), 2)));
+            return Math.Abs(slope) <= 90 && residual <= 3 ? (double?)-slope : null;
         }
 
         internal static double? InRange(double n,double min,double max)

@@ -1,4 +1,7 @@
 using System;
+using System.Linq;
+using System.Threading;
+using Newtonsoft.Json.Linq;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -60,6 +63,46 @@ namespace CrewChiefV4.AiTeam
             internal readonly Visit Own = new Visit(), Rival = new Visit();
         }
 
+        internal sealed class MergeForecast
+        {
+            internal readonly int Session;
+            internal readonly DateTime Utc;
+            internal readonly string Status;
+            internal readonly double PitSeconds, RelativeLossSeconds, HorizonSeconds;
+            internal readonly int KnownCars;
+            internal MergeForecast(int session, DateTime utc, string status, double pitSeconds,
+                double relativeLossSeconds, double horizonSeconds, int knownCars)
+            {
+                Session=session; Utc=utc; Status=status; PitSeconds=pitSeconds; RelativeLossSeconds=relativeLossSeconds;
+                HorizonSeconds=horizonSeconds; KnownCars=knownCars;
+            }
+            internal JObject Describe() => new JObject {
+                ["lage"] = Status, ["geschätzt"] = true, ["gemessene_boxendauer_s"] = Math.Round(PitSeconds, 1),
+                ["geschaetzter_zeitverlust_s"] = Math.Round(RelativeLossSeconds, 1),
+                ["bis_ausfahrt_s"] = Math.Round(HorizonSeconds, 1), ["gegner_mit_prognose"] = KnownCars
+            };
+        }
+
+        private sealed class LaneRun
+        {
+            internal double Entry, Exit;
+            internal float EntryTime, Seconds;
+            internal DateTime StoppedSince;
+            internal bool Stationary;
+        }
+
+        private LaneRun runningVisit, measuredVisit;
+        private MergeForecast forecast;
+        private DateTime lastMergeSample, lastForecastUtc;
+        private long lastMergeCallTicks;
+
+        internal bool MergeReportDue(DateTime now) =>
+            now.Ticks-Interlocked.Read(ref lastMergeCallTicks) >= TimeSpan.FromSeconds(90).Ticks;
+        internal void NoteMergeReport(DateTime now) => Interlocked.Exchange(ref lastMergeCallTicks, now.Ticks);
+        private bool? lastPitLane;
+        private ObservedRaceCall mergeCall;
+        private readonly RadioVariantCursor mergeVariants = new RadioVariantCursor();
+
         private Timing front = new Timing(), rear = new Timing();
         private Cycle cycle;
         private DateTime lastSource;
@@ -67,7 +110,121 @@ namespace CrewChiefV4.AiTeam
         private readonly RadioVariantCursor variants = new RadioVariantCursor();
 
         internal void Reset()
+        {
+            ResetComparison();
+            runningVisit = measuredVisit = null;
+            lastMergeSample = lastForecastUtc = DateTime.MinValue;
+            Interlocked.Exchange(ref lastMergeCallTicks, 0);
+            lastPitLane = null;
+            mergeCall = null;
+            Volatile.Write(ref forecast, null);
+        }
+
+        private void ResetComparison()
         { front=new Timing(); rear=new Timing(); cycle=null; lastSource=DateTime.MinValue; session=int.MinValue; }
+
+        internal MergeForecast ReadForecast(GameStateData state, DateTime now)
+        {
+            var value = Volatile.Read(ref forecast);
+            return value != null && state != null && IsRacing(state) && !state.PitData.InPitlane &&
+                value.Session == state.SessionData.SessionId && now >= value.Utc && now-value.Utc <= TimeSpan.FromSeconds(1)
+                ? value : null;
+        }
+
+        internal void ObservePitExit(RaceDataContext context, GameStateData previous)
+        {
+            var state = context.GameState;
+            var s = state.SessionData;
+            DateTime now = context.NowUtc;
+            var map = context.Tracks?.Snapshot;
+            var distance = map?.PlayerDistanceM;
+            if (previous == null || !IsRacing(state) || map == null || !map.IsCurrent(context) || !distance.HasValue ||
+                !TrackAwareness.InRange(s.SessionRunningTime, 0, 200000).HasValue)
+            {
+                runningVisit = null;
+                lastPitLane = null;
+                Volatile.Write(ref forecast, null);
+                return;
+            }
+            if (map.SourceUtc <= lastMergeSample) return;
+            if (lastMergeSample != DateTime.MinValue && map.SourceUtc-lastMergeSample > TimeSpan.FromSeconds(1))
+            { runningVisit = null; lastPitLane = null; }
+            lastMergeSample = map.SourceUtc;
+            bool? wasInPit = lastPitLane;
+            lastPitLane = state.PitData.InPitlane;
+            if (state.PitData.InPitlane)
+            {
+                Volatile.Write(ref forecast, null);
+                if (wasInPit == false && !previous.PitData.IsInGarage && !state.PitData.IsInGarage)
+                    runningVisit = new LaneRun { Entry=distance.Value, EntryTime=s.SessionRunningTime };
+                if (runningVisit == null) return;
+                if (map.PlayerSpeedMps <= 1)
+                {
+                    if (runningVisit.StoppedSince == DateTime.MinValue) runningVisit.StoppedSince = now;
+                    else if (now-runningVisit.StoppedSince >= TimeSpan.FromSeconds(1)) runningVisit.Stationary = true;
+                }
+                else runningVisit.StoppedSince = DateTime.MinValue;
+                return;
+            }
+            if (wasInPit == true && runningVisit != null)
+            {
+                runningVisit.Exit = distance.Value;
+                runningVisit.Seconds = s.SessionRunningTime - runningVisit.EntryTime;
+                double segment = (runningVisit.Exit-runningVisit.Entry+map.LengthM.GetValueOrDefault()) % map.LengthM.GetValueOrDefault();
+                if (runningVisit.Stationary && runningVisit.Seconds >= 3 && runningVisit.Seconds <= 90 &&
+                    segment >= 20 && segment <= Math.Min(1800, map.LengthM.GetValueOrDefault() / 2))
+                    measuredVisit = runningVisit;
+                runningVisit = null;
+            }
+
+            var plan = measuredVisit;
+            if (plan == null || !map.LengthM.HasValue || map.PlayerSpeedMps.GetValueOrDefault() < 10)
+            { Volatile.Write(ref forecast, null); return; }
+            double length = map.LengthM.Value;
+            double approach = (plan.Entry-distance.Value+length) % length;
+            if (approach > 450)
+            { Volatile.Write(ref forecast, null); return; }
+            if (now-lastForecastUtc < TimeSpan.FromMilliseconds(500)) return;
+            lastForecastUtc = now;
+            var clean = context.Memory?.GetLaps(5).Where(l => l.Green && l.Valid && !l.InPitLap && l.LapTime > 15).Reverse().Take(3).ToArray();
+            if (clean == null || clean.Length < 2)
+            { Volatile.Write(ref forecast, null); return; }
+            double referenceSpeed = length / clean.Average(l => l.LapTime);
+            double horizon = plan.Seconds + approach / ((map.PlayerSpeedMps.Value+referenceSpeed) / 2);
+            double section = (plan.Exit-plan.Entry+length)%length;
+            double loss = plan.Seconds-section/referenceSpeed;
+            if (loss < 1 || horizon > 100)
+            { Volatile.Write(ref forecast, null); return; }
+            string status = RaceTrafficWatch.ForecastMerge(context, map, plan.Exit, horizon, out int known);
+            Volatile.Write(ref forecast, new MergeForecast(s.SessionId, now, status, plan.Seconds, loss, horizon, known));
+        }
+
+        internal ObservedRaceCall TakeMergeCall(RaceDataContext context)
+        {
+            var state = context.GameState;
+            var now = context.NowUtc;
+            if (mergeCall?.DeliveryStartedUtc > DateTime.MinValue)
+            { NoteMergeReport(mergeCall.DeliveryStartedUtc); mergeCall = null; }
+            var outcome = ReadForecast(state, now);
+            if (outcome == null || outcome.Status == "unknown" || !MergeReportDue(now) ||
+                !state.PitData.HasRequestedPitStop && !state.PitData.IsApproachingPitlane && state.PitData.PitWindow != PitWindow.Open)
+                return null;
+            if (mergeCall == null || !mergeCall.IsValid(state, now))
+            {
+                const string group = "pit-exit-forecast";
+                var catalog = RadioPhraseCatalog.Current;
+                int variant = mergeVariants.Select(group, catalog.Count(group));
+                string message = outcome.Status == "traffic"
+                    ? RadioLanguage.T("An der Boxenausfahrt könnte Verkehr sein.", "There may be traffic at pit exit.", "Puede haber tráfico al salir de boxes.")
+                    : RadioLanguage.T("An der Boxenausfahrt sieht es nach einer freien Lücke aus.", "Pit exit looks likely to be clear.", "La salida de boxes parece despejada.");
+                mergeCall = new ObservedRaceCall { Topic=group, Text=catalog.Format(group, variant, message), Member=TeamMember.Mik,
+                    Evidence="measured_prior_pit_visit;bounded_estimated_traffic", Priority=3, Position=-1,
+                    SessionId=state.SessionData.SessionId, SessionType=state.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(8),
+                    TimedValidity=(live, at) => ReadForecast(live, at)?.Status == outcome.Status };
+                mergeCall.BindVariant(mergeVariants, group, variant);
+            }
+            return mergeCall.TryReserve(now) ? mergeCall : null;
+        }
 
         private static bool IsRacing(GameStateData gs) => gs.SessionData.SessionType==SessionType.Race &&
             gs.SessionData.SessionPhase==SessionPhase.Green && !gs.FlagData.isLocalYellow && !gs.PitData.IsInGarage;
@@ -83,7 +240,7 @@ namespace CrewChiefV4.AiTeam
             DateTime source=gs.SourceTelemetryUtc==DateTime.MinValue?context.LastTelemetryUtc:gs.SourceTelemetryUtc;
             if (session!=s.SessionId || !IsRacing(gs) || source==DateTime.MinValue || source>now ||
                 now-source>TimeSpan.FromSeconds(1) || lastSource!=DateTime.MinValue && source-lastSource>TimeSpan.FromSeconds(1))
-                Reset();
+                ResetComparison();
             if (!IsRacing(gs) || source==DateTime.MinValue || source>now || now-source>TimeSpan.FromSeconds(1) ||
                 source<=lastSource) return null;
             session=s.SessionId;

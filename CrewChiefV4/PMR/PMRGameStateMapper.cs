@@ -574,6 +574,10 @@ namespace CrewChiefV4.PMR
             ctrl.BrakePedal = playerTelemetry.m_input.m_brake;
             ctrl.HandBrake = playerTelemetry.m_input.m_handbrake;
             ctrl.SteeringWheelAngle = playerTelemetry.m_general.m_steeringWheelAngle;
+            DateTime inputSample = AiTeam.TelemetrySourceClock.SampleUtc(wrapper.playerTelemetrySampleTicks, ticksWhenRead);
+            if (inputSample != DateTime.MinValue)
+                TelemetryMeasurements.Pedals(currentGameState, "PMR.UDP.VehicleTelemetry", inputSample,
+                    "m_input.m_accelerator", "m_input.m_brake", "m_input.m_clutch");
 
 
             //------------------- Variable session data ----------------------------------
@@ -767,6 +771,7 @@ namespace CrewChiefV4.PMR
                                     lastSectorTime, false, sData.TrackDefinition.distanceForNearPitEntryChecks,
                                     currentGameState.TimingData, currentGameState.carClass);
 
+                                currentOpponentData.NativePositionUtc = OpponentPositionUtc(wrapper, participantStruct.m_vehicleId);
                                 currentOpponentData.DeltaTime.SetNextDeltaPoint(currentOpponentLapDistance, currentOpponentData.CompletedLaps,
                                     currentOpponentData.Speed, currentGameState.Now);
 
@@ -1292,7 +1297,7 @@ namespace CrewChiefV4.PMR
 
         private OpponentData createOpponentData(UDPParticipantRaceState participantStruct, UDPVehicleTelemetry participantTelemetry , Boolean loadDriverName, CarData.CarClass carClass, Boolean canUseName, float trackLength)
         {
-            OpponentData opponentData = new OpponentData();
+            OpponentData opponentData = new OpponentData { CostId = participantStruct.m_vehicleId };
             String participantName = participantStruct.m_driverName;
             opponentData.DriverRawName = participantName;
             opponentData.DriverNameSet = true;
@@ -1315,6 +1320,10 @@ namespace CrewChiefV4.PMR
 
             return opponentData;
         }
+
+        private static DateTime OpponentPositionUtc(PMRUDPReader.PMRStructWrapper wrapper, int id) =>
+            wrapper.opponentPositionTicks != null && wrapper.opponentPositionTicks.TryGetValue(id, out var ticks) ?
+                AiTeam.TelemetrySourceClock.SampleUtc(ticks, wrapper.ticksWhenRead) : DateTime.MinValue;
 
         private UDPVehicleTelemetry GetVehicleTelemetryByID(List<UDPVehicleTelemetry> vehicleTelemetries, int vehicleID)
         {

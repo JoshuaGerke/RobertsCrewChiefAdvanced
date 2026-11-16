@@ -72,17 +72,17 @@ namespace CrewChiefV4.AiTeam
         {
             ["pass-first"] = "position|driver", ["pass-repeat"] = "position", ["pit-rival"] = "opponent",
             ["pit-gain"] = "opponent position", ["fuel-tank"] = "litres", ["fuel-range"] = "litres laps",
-            ["finish-podium"] = "", ["finish-other"] = "", ["lap-best"] = "time",
+            ["finish-podium"] = "", ["finish-other"] = "", ["race-disqualified"] = "|driver", ["lap-best"] = "time",
             ["lap-first-valid"] = "time", ["lap-near-best"] = "delta",
             ["quali-sector-comparison"] = "sector time delta direction opponent",
             ["own-sector-best"] = "sector time", ["own-best-pace"] = "delta",
-            ["stint-consistency"] = "time|driver", ["race-defense-hold"] = "opponent interval|driver",
+            ["stint-consistency"] = "time|driver", ["race-defense-hold"] = "opponent interval|driver", ["fuel-saving-review"] = "average comparison", ["race-chase-review"] = "result", ["pit-exit-forecast"] = "forecast", ["crew-thermal-pit-handover"] = "",
             ["corner-improvement"] = "corner gain",
             ["pit-undercut-overcut-result"] = "opponent result interval change",
             ["race-position-loss"] = "from position",
             ["race-class-best"] = "opponent time",
             ["race-overall-best"] = "opponent time",
-            ["race-rear-pressure"] = "opponent interval",
+            ["race-rear-pressure"] = "opponent interval", ["rival-sector-loss"] = "opponent sector interval", ["reader-temperature-context"] = "heat trend",
             ["gap-front-measured"] = "interval opponent", ["gap-rear-measured"] = "interval opponent",
             ["quali-first"] = "position", ["quali-top3"] = "position", ["quali-field"] = "position",
             ["quali-provisional"] = "position", ["quali-unknown"] = "",
@@ -204,6 +204,7 @@ namespace CrewChiefV4.AiTeam
                 case "pace-front-faster": return Format("pace-front-faster", variant, RadioLanguage.Num(0.4, "0.0"), Rival);
                 case "lap-best": return Format("lap-best", variant, RadioLanguage.T("2:06,073", "2:06.073", "2:06,073"));
                 case "finish": return RadioLanguage.T("Im Ziel. Platz 3. ", "Chequered flag. P3. ", "Bandera a cuadros. Tercero. ") + Format("finish-podium", variant);
+                case "race-disqualified": return Format("race-disqualified", variant, LapWatch.DriverAddress(driverName));
                 case "pass-first": return Format("pass-first", variant, "7", SafeRivalName(driverName));
                 default: return null;
             }

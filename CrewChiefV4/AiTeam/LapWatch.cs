@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -13,6 +14,23 @@ namespace CrewChiefV4.AiTeam
         private int pendingLap = -1;
         private float pendingSince;
         private bool finishCalled, timedClockCalled;
+        private ObservedRaceCall disqualification;
+        private const string DisqualificationGroup = "race-disqualified";
+        private readonly RadioVariantCursor disqualificationVariants = new RadioVariantCursor();
+
+        internal static string DriverAddress(string driverName)
+        {
+            string name = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
+            return string.IsNullOrWhiteSpace(name) ? "" : ", " + name;
+        }
+
+        internal static IEnumerable<string> DisqualificationPhrases(string driverName)
+        {
+            var catalog = RadioPhraseCatalog.Current;
+            string address = DriverAddress(driverName);
+            for (int variant = 0; variant < catalog.Count(DisqualificationGroup); variant++)
+                yield return catalog.Format(DisqualificationGroup, variant, address);
+        }
         private int lastLapVariant;
         private static string[] LastLapMotivation => RadioLanguage.Pick(
             new[] { "Sauber ins Ziel.", "Konzentration bis zur Linie.", "Bring ihn sicher heim." },
@@ -20,10 +38,42 @@ namespace CrewChiefV4.AiTeam
             new[] { "Limpio hasta meta.", "Concentración hasta la línea.", "Llévalo a casa con seguridad." });
         private readonly RaceRadioLanguage language = new RaceRadioLanguage();
 
-        public void Reset()
+        public void Reset(bool sameDisqualification = false)
         {
             lastCalledLap = pendingLap = -1;
             finishCalled = timedClockCalled = false;
+            if (!sameDisqualification) disqualification = null;
+        }
+
+        internal static bool ConfirmedDisqualification(GameStateData state) =>
+            state != null && state.SessionData.SessionType == SessionType.Race &&
+            state.SessionData.SessionPhase == SessionPhase.Finished && state.SessionData.IsDisqualified;
+
+        internal static bool SameDisqualification(GameStateData previous, GameStateData current) =>
+            ConfirmedDisqualification(previous) && ConfirmedDisqualification(current) &&
+            previous.SessionData.SessionId == current.SessionData.SessionId &&
+            previous.SessionData.CompletedLaps == current.SessionData.CompletedLaps &&
+            previous.SessionData.TrackDefinition?.name == current.SessionData.TrackDefinition?.name;
+
+        internal ObservedRaceCall TakeDisqualification(GameStateData current, DateTime now, bool busy, string driverName = null)
+        {
+            if (!ConfirmedDisqualification(current)) return null;
+            if (disqualification == null)
+            {
+                var catalog = RadioPhraseCatalog.Current;
+                int variant = disqualificationVariants.Select(DisqualificationGroup, catalog.Count(DisqualificationGroup));
+                disqualification = new ObservedRaceCall {
+                    Topic = DisqualificationGroup, Text = catalog.Format(DisqualificationGroup, variant, DriverAddress(driverName)),
+                    Member = TeamMember.Mik,
+                    Evidence = "confirmed_player_disqualification", Priority = 7, AllowPitlane = true, Position = -1,
+                    SessionId = current.SessionData.SessionId, SessionType = SessionType.Race,
+                    DetectedUtc = now, ExpiresUtc = now.AddSeconds(30), AdditionalValidity = ConfirmedDisqualification
+                };
+                disqualification.BindVariant(disqualificationVariants, DisqualificationGroup, variant);
+                LiveDiagnostics.Decision(disqualification.Topic, "detected", disqualification.Evidence,
+                    disqualification.Text, disqualification.EventId);
+            }
+            return !busy && disqualification.IsValid(current, now) && disqualification.TryReserve(now) ? disqualification : null;
         }
 
         /// <summary>
@@ -72,7 +122,8 @@ namespace CrewChiefV4.AiTeam
             ReferenceTemplate = null;
             IncludesFrontGap = false;
             CoreCall = null;
-            if (previous == null || current == null || current.SessionData.SessionType != SessionType.Race)
+            if (previous == null || current == null || current.SessionData.SessionType != SessionType.Race ||
+                previous.SessionData.SessionType != SessionType.Race || previous.SessionData.SessionId != current.SessionData.SessionId)
             {
                 return null;
             }

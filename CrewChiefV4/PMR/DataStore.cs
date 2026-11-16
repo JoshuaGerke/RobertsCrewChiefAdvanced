@@ -13,15 +13,20 @@ namespace CrewChiefV4.PMR
 {
     public class DataStore
     {
-        private readonly Func<long> monotonicClock;
+        private readonly Func<long> monotonicClock, utcClock;
         private readonly long monotonicFrequency;
-        private readonly Dictionary<int,long> raceStateTicks = new Dictionary<int,long>();
-        private readonly Dictionary<int,long> telemetryTicks = new Dictionary<int,long>();
+        private readonly struct PacketTime
+        {
+            public readonly long Monotonic, Utc;
+            public PacketTime(long monotonic, long utc) { Monotonic = monotonic; Utc = utc; }
+        }
+        private readonly Dictionary<int,PacketTime> raceStateTicks = new Dictionary<int,PacketTime>();
+        private readonly Dictionary<int,PacketTime> telemetryTicks = new Dictionary<int,PacketTime>();
         public DataStore() : this(Stopwatch.GetTimestamp, Stopwatch.Frequency) { }
-        internal DataStore(Func<long> clock, long frequency)
+        internal DataStore(Func<long> clock, long frequency, Func<long> utc = null)
         {
             if (clock == null || frequency <= 0) throw new ArgumentException("Invalid monotonic clock.");
-            monotonicClock = clock; monotonicFrequency = frequency; m_writeTimestamp = clock();
+            monotonicClock = clock; monotonicFrequency = frequency; utcClock = utc ?? (() => DateTime.UtcNow.Ticks); m_writeTimestamp = clock();
         }
         public void writeRaceInfo(UDPRaceInfo raceInfo)
         {
@@ -46,7 +51,7 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
-                raceStateTicks[raceState.m_vehicleId] = monotonicClock();
+                raceStateTicks[raceState.m_vehicleId] = new PacketTime(monotonicClock(), utcClock());
                 bool stateFound = false;
                 for (int i = 0; i < m_raceStates.Count; i++)
                 {
@@ -71,7 +76,7 @@ namespace CrewChiefV4.PMR
         {
             lock (m_lock)
             {
-                telemetryTicks[telemetry.m_vehicleId] = monotonicClock();
+                telemetryTicks[telemetry.m_vehicleId] = new PacketTime(monotonicClock(), utcClock());
                 for (int i = 0; i < m_telemetry.Count; i++)
                 {
                     if (m_telemetry[i].m_vehicleId == telemetry.m_vehicleId)
@@ -290,28 +295,30 @@ namespace CrewChiefV4.PMR
         {
             lock(m_lock)
             {
-                long clock=monotonicClock(), utc=DateTime.UtcNow.Ticks;
+                long clock=monotonicClock(), utc=utcClock();
                 var states=m_raceStates.Where(s=>PacketAge(raceStateTicks,s.m_vehicleId,clock)<=5).ToList();
                 var telemetry=m_telemetry.Where(t=>PacketAge(telemetryTicks,t.m_vehicleId,clock)<=5).ToList();
                 states.Sort();
                 var players=states.Where(s=>s.m_isPlayer).Take(2).ToArray();
                 var player=players.Length==1?players[0]:null;
                 var own=player==null?null:telemetry.FirstOrDefault(t=>t.m_vehicleId==player.m_vehicleId);
-                long source=0;
-                if(own!=null)
+                var positions = new Dictionary<int, long>();
+                foreach (var state in states)
                 {
-                    double age=Math.Max(PacketAge(raceStateTicks,player.m_vehicleId,clock),PacketAge(telemetryTicks,player.m_vehicleId,clock));
-                    source=utc-(long)(age*TimeSpan.TicksPerSecond);
+                    double oldest = Math.Max(PacketAge(raceStateTicks, state.m_vehicleId, clock), PacketAge(telemetryTicks, state.m_vehicleId, clock));
+                    if (oldest <= 5) positions[state.m_vehicleId] =
+                        Math.Min(raceStateTicks[state.m_vehicleId].Utc, telemetryTicks[state.m_vehicleId].Utc);
                 }
+                long source = own != null && positions.TryGetValue(player.m_vehicleId, out var stamp) ? stamp : 0;
                 return new PMRUDPReader.PMRStructWrapper {ticksWhenRead=utc,sourceSampleTicks=source,
-                    RaceInfo=m_raceInfo,Leaderboard=states,AllTelemetry=telemetry,PlayerRaceState=player,PlayerTelemetry=own};
+                    playerTelemetrySampleTicks=own == null ? 0 : telemetryTicks[player.m_vehicleId].Utc,
+                    opponentPositionTicks=positions, RaceInfo=m_raceInfo,Leaderboard=states,AllTelemetry=telemetry,
+                    PlayerRaceState=player,PlayerTelemetry=own};
             }
         }
-        private double PacketAge(Dictionary<int,long> received,int id,long now)
-        {
-            long at;
-            return received.TryGetValue(id,out at) && now>=at ? ((double)now-at)/monotonicFrequency : double.PositiveInfinity;
-        }
+        private double PacketAge(Dictionary<int,PacketTime> received,int id,long now) =>
+            received.TryGetValue(id, out var at) && now >= at.Monotonic ?
+                ((double)now - at.Monotonic) / monotonicFrequency : double.PositiveInfinity;
 
         private object m_lock = new object();
 

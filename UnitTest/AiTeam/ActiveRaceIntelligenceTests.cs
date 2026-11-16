@@ -143,7 +143,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("own-lap", call.Topic);
             StringAssert.Contains("2:06,650", call.Text);
             Assert.AreEqual(TeamMember.Mik, call.Member);
-            Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(11)));
+            Assert.IsTrue(call.IsValid(gs, Now.AddSeconds(11)), "A valid PB can wait behind a driver reply.");
+            Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(25)), "The old PB must expire even if its lap did not change.");
         }
 
         [Test]

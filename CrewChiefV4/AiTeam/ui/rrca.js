@@ -150,6 +150,24 @@
     if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    const liveRadio = $('#rrca-live-radio-status');
+    const radioStatus = d.radioStatus;
+    liveRadio.hidden = !d.telemetrySource && !radioStatus;
+    const statusParts = [];
+    if (d.telemetrySource) statusParts.push(t('Datenquelle') + ' · ' + d.telemetrySource);
+    if (radioStatus) {
+      const holds = { Corner:'Kurven-Sperre', Battle:'Zweikampf', Crisis:'Vorfall' };
+      statusParts.push(t(radioStatus.routineOpen ? 'Routinefunk frei' : (holds[radioStatus.mode] || 'Routinefunk wartet')));
+      if (Number.isFinite(radioStatus.inputHz)) statusParts.push(radioStatus.inputHz + ' Hz ' + t('beobachtet'));
+      if (radioStatus.chaseActive) statusParts.push(t('Aufholphase läuft'));
+      const pit = { clear:'Freie Lücke wahrscheinlich', traffic:'Verkehr möglich', unknown:'Schätzung offen' };
+      if (pit[radioStatus.pitExit]) statusParts.push(t('Boxenausfahrt') + ' · ' + t(pit[radioStatus.pitExit]));
+      if (Number.isFinite(radioStatus.fuelTarget)) {
+        const target = new Intl.NumberFormat(I.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(radioStatus.fuelTarget);
+        statusParts.push(t('Aktives Sparziel') + ' ' + target + ' ' + t('Liter pro Runde'));
+      }
+    }
+    liveRadio.textContent = statusParts.join(' · ');
     $('#rrca-conn').textContent = t(d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden'));
     const run = $('#rrca-run'), game = $('#rrca-game');
     run.textContent = t(d.running ? 'Stopp' : 'Start');

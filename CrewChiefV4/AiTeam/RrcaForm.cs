@@ -454,13 +454,17 @@ namespace CrewChiefV4.AiTeam
         {
             if (!bridgeReady) return;
             var gs = CrewChief.currentGameState;
+            var now = DateTime.UtcNow;
             var tick = service.Memory.LastTickUtc;
-            bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
-            string source = GameDataConnectionStatus.SourceAt(DateTime.UtcNow);
+            bool connected = gs != null && tick != DateTime.MinValue && now >= tick && now - tick < TimeSpan.FromSeconds(5);
+            string source = GameDataConnectionStatus.SourceAt(now);
             var o = new JObject { ["type"] = "live", ["connected"] = connected, ["audioLevels"] = AudioLevels(), ["sendDriverNames"] = service.Settings.SendDriverNames,
                 ["autoDetect"] = UserSettings.GetUserSettings().getBoolean("enable_auto_detect"),
                 ["sourceStatus"] = !connected && source != null ? source + ": Datenquelle erreichbar" : null,
-                ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein." };
+                ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein.",
+                ["telemetrySource"] = source,
+                ["radioStatus"] = connected && now - tick <= TimeSpan.FromSeconds(1) && service.Settings.Enabled ?
+                    service.LiveRadioStatus(gs, now) : null };
             if (MainWindow.instance != null)
             {
                 o["running"] = MainWindow.instance.IsAppRunning;
@@ -521,7 +525,6 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
-            var now = DateTime.UtcNow;
             var radio = service.Memory.GetRadio(TimeSpan.FromHours(3), now);
             var list = new JArray();
             foreach (var r in radio.Skip(Math.Max(0, radio.Count - 6)))

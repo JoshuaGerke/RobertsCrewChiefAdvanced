@@ -94,8 +94,62 @@ namespace CrewChiefV4.AiTeam
             "Vorsicht, in etwa "+metres+" Metern "+(stopped?"steht ein Fahrzeug.":"ein sehr langsames Fahrzeug."),
             "Careful, "+(stopped?"stopped car":"very slow car")+" in about "+metres+" metres.",
             "Cuidado, a unos "+metres+" metros hay un coche "+(stopped?"parado.":"muy lento."));
+        internal static string SectionPhrase(string section) => RadioLanguage.T(
+            "Achtung, Gefahr voraus. Abschnitt " + section + ".",
+            "Careful, hazard ahead. Section " + section + ".",
+            "Cuidado, peligro delante. Tramo " + section + ".");
+
+        internal static IEnumerable<string> SectionPhrases(TrackDefinition track, double startingDistance)
+        {
+            if (track?.trackLandmarks == null || track.trackLength < 100 || !RaceFactContext.Finite(track.trackLength) ||
+                !TrackAwareness.ValidDistance(startingDistance, track.trackLength).HasValue) return Enumerable.Empty<string>();
+            return track.trackLandmarks.Where(landmark => !landmark.isStraight && !string.IsNullOrWhiteSpace(landmark.landmarkNames?.FirstOrDefault()) &&
+                    TrackAwareness.ValidDistance(landmark.distanceRoundLapStart, track.trackLength).HasValue)
+                .OrderBy(landmark => (landmark.distanceRoundLapStart - startingDistance + track.trackLength) % track.trackLength)
+                .Select(landmark => SectionPhrase(CornerCoach.FriendlyName(landmark.landmarkNames[0], 0)))
+                .Distinct().Take(8);
+        }
+
         public static string[] DistancePhrases => Enumerable.Range(1,12).SelectMany(i=>new[]{DistancePhrase(i*20,true),DistancePhrase(i*20,false)}).ToArray();
         public static IEnumerable<string> PreparedPhrases { get { return DistancePhrases.Concat(StoppedPhrases).Concat(SlowPhrases).Concat(RearPhrases).Concat(RearGroupPhrases); } }
+        internal static string ForecastMerge(RaceDataContext context, TrackPositionSnapshot map, double exit, double horizon, out int covered)
+        {
+            covered = 0;
+            var state = context.GameState;
+            double length = map.LengthM.GetValueOrDefault();
+            if (!TrackAwareness.ValidDistance(exit, length).HasValue || !TrackAwareness.InRange(horizon, 0, 100).HasValue) return "unknown";
+            int expected = 0;
+            bool close = false, marginal = false, unresolvedPitTraffic = false;
+            double allowance = 3 + horizon * .18;
+            foreach (var car in map.Cars)
+            {
+                if (car.InPits) { unresolvedPitTraffic = true; continue; }
+                expected++;
+                if (!car.SpatiallyConsistent || !car.LapDistanceM.HasValue || car.OpponentSampleUtc == DateTime.MinValue ||
+                    context.NowUtc < car.OpponentSampleUtc || context.NowUtc-car.OpponentSampleUtc > TimeSpan.FromSeconds(1) ||
+                    !state.OpponentData.TryGetValue(car.Key, out var opponent) || opponent == null ||
+                    RaceReader.Identity("", opponent) != car.NativeIdentity)
+                    continue;
+                var laps = opponent.OpponentLapData.Where(l => l.IsValid && !l.InLap && !l.OutLap &&
+                    TrackAwareness.InRange(l.LapTime, 15, 3600).HasValue).Reverse().Take(2).ToArray();
+                if (laps.Length != 2 || Math.Abs(laps[0].LapTime-laps[1].LapTime) > 5 || car.SpeedMps.GetValueOrDefault() < 10)
+                    continue;
+                double period = laps.Average(l => l.LapTime);
+                var speed = TrackAwareness.InRange(length / period, 10, 120);
+                if (!speed.HasValue || horizon > period) continue;
+                covered++;
+                double distance = (exit-car.LapDistanceM.Value+length)%length;
+                double untilMerge = distance / speed.Value;
+                double closest = Math.Min(Math.Abs(untilMerge-horizon), Math.Abs(untilMerge+period-horizon));
+                close |= closest <= allowance;
+                marginal |= closest <= allowance + 4;
+            }
+            // Incomplete coverage may confirm a traffic risk, but can never certify an empty gap.
+            if (close) return "traffic";
+            return expected > 0 && covered == expected && !marginal && !unresolvedPitTraffic &&
+                state.SessionData.NumCarsOverall > 1 && map.Cars.Count >= state.SessionData.NumCarsOverall - 1 ? "clear" : "unknown";
+        }
+
         private sealed class Reference { public float Speed; public int Lap; public DateTime Utc; }
         private sealed class Facts { public DateTime Utc; public int Epoch, Session; public TrackCarPosition[] Cars; }
         private Facts facts;
@@ -157,25 +211,33 @@ namespace CrewChiefV4.AiTeam
                     Topic=rear?"race-traffic-rear":"race-hazard-ahead", Text=phrases[variant++%phrases.Length],
                     Member=TeamMember.Ben, Priority=7, Position=-1, SessionId=s.SessionId, SessionType=s.SessionType,
                     DetectedUtc=now, ExpiresUtc=now.AddSeconds(3),
+                    HazardIdentity=rear ? null : car.NativeIdentity,
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
                 if (!group && !string.IsNullOrWhiteSpace(car.Name))
                     pending.OpponentNameClip = NameClipText(car.Name);
-                if(!rear) pending.PreparedDetail=(live,at)=>generation==epoch?DistanceDetail(live,at,opponentKey,id,stopped):null;
+                if(!rear) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
                 pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();
         }
         internal static string NameClipText(string name) => RadioLanguage.T("Das ist ", "That's ", "Es ") + name + ".";
 
-        private PreparedRadioDetail DistanceDetail(GameStateData gs,DateTime now,string key,int id,bool stopped)
+        private PreparedRadioDetail HazardDetail(GameStateData gs,DateTime now,string key,int id,bool stopped)
         {
             if(!ValidNow(gs,now,key,id,stopped,false))return null;
             var sample=Volatile.Read(ref facts);
             if(sample==null || now<sample.Utc || now-sample.Utc>TimeSpan.FromMilliseconds(500))return null;
             var car=sample.Cars.FirstOrDefault(c=>c.Id==id && c.Key==key);
-            if(car==null || !car.RouteGapM.HasValue || car.RouteGapM<40 || car.RouteGapM>240)return null;
+            if (car == null || !car.RouteGapM.HasValue) return null;
+            string section = TrackAwareness.ConfirmedSection(gs.SessionData.TrackDefinition, car.LapDistanceM);
+            if (section != null)
+                return new PreparedRadioDetail { Text = SectionPhrase(section), StillCurrent = (live, at) =>
+                    ValidNow(live, at, key, id, stopped, false) &&
+                    live.OpponentData.TryGetValue(key, out var opponent) &&
+                    TrackAwareness.ConfirmedSection(live.SessionData.TrackDefinition, opponent.DistanceRoundTrack) == section };
+            if (car.RouteGapM < 40 || car.RouteGapM > 240) return null;
             double measured=car.RouteGapM.Value;
             int rounded=(int)Math.Round(measured/20,MidpointRounding.AwayFromZero)*20;
             return new PreparedRadioDetail {Text=DistancePhrase(rounded,stopped),StillCurrent=(live,at)=>{
@@ -198,7 +260,7 @@ namespace CrewChiefV4.AiTeam
             if (c.InPits || !c.SpatiallyConsistent || !c.RouteGapM.HasValue || !c.SpeedMps.HasValue ||
                 !s.PlayerSpeedMps.HasValue || s.PlayerSpeedMps<5 || Math.Abs(c.RouteGapM.Value)<15) return false;
             bool rear=c.RouteGapM<0;
-            if(!rear && CoveredAhead!=null && CoveredAhead(c.Key))return false;
+            if (!rear && (c.RouteGapM > 600 || CoveredAhead != null && CoveredAhead(c.Key))) return false;
             if (rear && NativeConfirmed(c,now) && c.SpeedMps>=s.PlayerSpeedMps+3 && Math.Abs(c.RouteGapM.Value)<=500) return true;
             if (!c.ClosingMps.HasValue || !TrackSituationWatch.MotionPlausible(c,s.PlayerSpeedMps.Value,!rear)) return false;
             double closing=c.ClosingMps.Value;
