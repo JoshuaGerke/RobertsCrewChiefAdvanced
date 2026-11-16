@@ -12,8 +12,8 @@ namespace CrewChiefV4.AiTeam.Probe
     internal abstract class ProbeAnalyzer
     {
         internal readonly List<ProbeChannel> Channels = new List<ProbeChannel>();
-        internal int StructSize { get; protected set; }
-        internal string LayoutError { get; protected set; }
+        internal int StructSize { get; private protected set; }
+        internal string LayoutError { get; private protected set; }
         internal abstract string SimName { get; }
         internal abstract string FilePrefix { get; }
         internal abstract string SharedMemoryName { get; }
