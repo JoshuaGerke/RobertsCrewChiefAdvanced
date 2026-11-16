@@ -89,6 +89,7 @@ namespace CrewChiefV4.AiTeam
         private readonly RadioVariantCursor fuelVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor aheadVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor behindVariants = new RadioVariantCursor();
+        private int tyreReports; // Rob 16.11.: Verschleißbericht technisch, menschlich und Achsvergleich im Wechsel
         private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
@@ -194,7 +195,7 @@ namespace CrewChiefV4.AiTeam
                 string gapGroup = topic == "ahead" ? "gap-front-measured" : topic == "behind" ? "gap-rear-measured" : null;
                 int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
                 string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
-                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : gapVariant;
+                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : gapVariant;
                 string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
                 string fuelMeasurement = topic == "fuel" ? FuelMeasurementKey(ctx) : null;
