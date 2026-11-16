@@ -634,6 +634,12 @@ namespace CrewChiefV4.AiTeam
                 ["boxenstopps"] = op.NumPitStops,
                 ["reifen"] = op.CurrentTyres.ToString(),
             };
+            int stops = OpponentStopLog.Stops(op, out bool stoppedNow);
+            if (stops > 0 || stoppedNow)
+            {
+                d["stillstaende_auf_strecke"] = stops;
+                d["steht_gerade_auf_strecke"] = stoppedNow;
+            }
             if (ctx.SendDriverNames && !string.IsNullOrEmpty(op.DriverRawName))
             {
                 d["name"] = op.DriverRawName;

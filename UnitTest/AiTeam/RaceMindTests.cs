@@ -171,5 +171,45 @@ namespace UnitTest.AiTeamTests
             var gs = Race(7); gs.SessionData.NumCarsInPlayerClass = 20;
             Assert.AreEqual("Platz 7 von 20.", LocalAnswers.TryAnswer("Welche Position?", gs, null));
         }
+
+        [Test]
+        public void Opponent_stops_on_track_are_counted_once_per_standstill()
+        {
+            OpponentStopLog.Reset();
+            var gs = Race(); gs.SessionData.SessionId = 77;
+            var op = new OpponentData { DriverRawName = "Sergi Reche", CarNumber = "12", IsActive = true, Speed = 40 };
+            gs.OpponentData["reche"] = op;
+            float t = 100;
+            void Tick(float speed, float seconds) { op.Speed = speed; for (float x = 0; x < seconds; x += .5f) { gs.SessionData.SessionRunningTime = t += .5f; OpponentStopLog.Observe(gs); } }
+            Tick(40, 2); Tick(0, 5); Tick(0, 5);
+            Assert.AreEqual(1, OpponentStopLog.Stops(op, out bool now)); Assert.IsTrue(now);
+            Tick(30, 2); Tick(0.5f, 4);
+            Assert.AreEqual(2, OpponentStopLog.Stops(op, out now));
+            op.InPits = true; Tick(0, 10); op.InPits = false;
+            Assert.AreEqual(2, OpponentStopLog.Stops(op, out now), "Stehen in der Box zählt nicht"); Assert.IsFalse(now);
+            var never = new OpponentData { DriverRawName = "Ohne Tempo", CarNumber = "3", IsActive = true, Speed = 0 };
+            gs.OpponentData["never"] = never; Tick(0, 10);
+            Assert.AreEqual(0, OpponentStopLog.Stops(never, out now), "ohne gemessene Fahrt keine Behauptung");
+            OpponentStopLog.Reset();
+        }
+
+        [Test]
+        public void Gap_trend_projects_catch_only_for_a_consistent_trend()
+        {
+            Assert.AreEqual(.3f, GapTrendWatch.ClosingRate(new[] { 4.0f, 3.7f, 3.4f, 3.1f }), .001f);
+            Assert.AreEqual(.3f, GapTrendWatch.ClosingRate(new[] { 4.0f, 3.6f, 3.65f, 3.1f }), .001f, "ein Ausreißer ist erlaubt");
+            Assert.AreEqual(0f, GapTrendWatch.ClosingRate(new[] { 4.0f, 3.2f, 4.1f, 3.1f }), "Zickzack ist kein Trend");
+            Assert.AreEqual(0f, GapTrendWatch.ClosingRate(new[] { 4.0f, 3.7f, 3.4f }), "unter drei Runden Trend keine Aussage");
+            Assert.AreEqual(8, GapTrendWatch.LapsToCatch(3.1f, .3f));
+            Assert.AreEqual(-1, GapTrendWatch.LapsToCatch(3.1f, .1f));
+            Assert.AreEqual("3 Zehntel", GapTrendWatch.Rate(.31f));
+            Assert.AreEqual("ein Zehntel", GapTrendWatch.Rate(.12f));
+            string a = GapTrendWatch.AheadText("Keller", .3f, 5, false, -1, 2.3f, 0);
+            Assert.AreEqual("Du holst 3 Zehntel pro Runde auf Keller. In etwa 5 Runden bist du dran.", a);
+            string late = GapTrendWatch.AheadText("Keller", .2f, 12, true, 6, 3.3f, 0);
+            StringAssert.Contains("reicht so knapp nicht", late); StringAssert.Contains("5 Zehntel", late);
+            StringAssert.StartsWith("Der Hintermann", GapTrendWatch.BehindText("", .4f, 4, false, 0));
+            StringAssert.Contains("bis zur Flagge reicht es ihm so nicht", GapTrendWatch.BehindText("Wurz", .4f, 9, true, 0));
+        }
     }
 }

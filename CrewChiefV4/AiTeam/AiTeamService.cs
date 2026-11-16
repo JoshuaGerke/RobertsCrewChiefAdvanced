@@ -53,6 +53,7 @@ namespace CrewChiefV4.AiTeam
         private readonly PitStopTimer pitStopTimer = new PitStopTimer();
         private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
+        private readonly GapTrendWatch gapTrend = new GapTrendWatch();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
@@ -276,6 +277,8 @@ namespace CrewChiefV4.AiTeam
                 pitStopTimer.Reset();
                 incidentPoints.Reset();
                 raceSummary.Reset();
+                gapTrend.Reset();
+                OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
                 lock (recentLocalCalls) recentLocalCalls.Clear();
@@ -546,6 +549,8 @@ namespace CrewChiefV4.AiTeam
             pitStopTimer.Observe(current,now);
             incidentPoints.Observe(current,now);
             raceSummary.Observe(current,() => BuildContext(current),now);
+            gapTrend.Observe(current,() => BuildContext(current),now);
+            OpponentStopLog.Observe(current);
             MaybePreparePitLimit(current,now);
             MaybePrepareOpponentName(current, now);
             bool weatherBusy = !settings.IsMemberEnabled(TeamMember.Mik) || Spotter().HasOverlap ||
@@ -584,6 +589,9 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = qualifyingResults.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = raceSummary.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
+                    settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (routineDue && raceCall == null && !proactiveRunning && settings.RadioMode != AiRadioMode.MINIMAL &&
                 current.SessionData.SessionType == SessionType.Race && radioSchedule.StatusIsOverdue(now, radioPrefs) &&
