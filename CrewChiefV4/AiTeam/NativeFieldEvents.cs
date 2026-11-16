@@ -67,6 +67,8 @@ namespace CrewChiefV4.AiTeam
         private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor fastestVariants = new RadioVariantCursor();
         private int fastestAnnounced;
+        /// <summary>Funkname des Fahrers; Gegner-Bestzeiten sprechen ihn im Wechsel persönlich an.</summary>
+        internal string RadioName = "Rob";
         private struct LapEvidence
         {
             public string Identity;
@@ -258,6 +260,7 @@ namespace CrewChiefV4.AiTeam
                 string text = Text(f, names, variant);
                 if(text==null)continue;
                 if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapAndPush((float)f.Seconds,gs.SessionData.PlayerLapTimeSessionBest,variant);
+                if(fastest && fastestAnnounced%2==0)text=RadioPhraseCatalog.Address(text,AiPersonas.CleanForRadio(RadioName??"",30,false));
                 if(memory!=null)memory.AddObservation(text,now,"field-"+f.Kind,f.Key,f.Source);
                 // Existing SessionLapObserver already owns non-race class records.
                 bool nonRace=SessionLapObserver.Supported(f.Type);

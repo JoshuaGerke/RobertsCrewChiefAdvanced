@@ -267,8 +267,8 @@ namespace CrewChiefV4.AiTeam
             string text = catalog.Format("own-sector-best", variant, (sector + 1).ToString(CultureInfo.InvariantCulture), time);
             sectorBestCount++;
             // Rob 16.11.: menschlich und persönlich – aber nicht jedes Mal, nur wenn es passt.
-            if (sectorBestCount % 2 == 1 && !string.IsNullOrWhiteSpace(sectorDriverName) && text.Length > 0 && char.IsLetter(text[0]))
-                text = sectorDriverName + ", " + char.ToLower(text[0], RadioLanguage.Culture) + text.Substring(1);
+            if (sectorBestCount % 2 == 1 && !string.IsNullOrWhiteSpace(sectorDriverName))
+                text = RadioPhraseCatalog.Address(text, sectorDriverName);
             if (lapStillRunning && SectorPushFits(state))
                 text += " " + catalog.Format("own-sector-best-push", pushVariants.Select("own-sector-best-push", catalog.Count("own-sector-best-push")));
             return Add(state, now, "sector-best", text, evidence, 3, sectorBestVariants, "own-sector-best", variant);

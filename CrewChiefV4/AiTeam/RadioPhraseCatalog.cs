@@ -62,6 +62,26 @@ namespace CrewChiefV4.AiTeam
     /// <summary>Runtime text can only insert the facts declared for that situation.</summary>
     public sealed class RadioPhraseCatalog
     {
+        // Satzanfänge, die nach vorangestelltem Namen klein geschrieben werden (keine Substantive, keine Namen).
+        private static readonly HashSet<string> LowerableStarts = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Du", "Wir", "Das", "Der", "Die", "Den", "Dem", "Ein", "Eine", "Einen", "Jetzt", "Und", "Noch", "Wieder", "Gut", "Sauber", "Sauberer",
+            "Stark", "Starker", "Neue", "Neuer", "Nach", "In", "Ja", "Jawohl", "Sehr", "Deine", "Dein", "Da", "Von", "Mit", "Schnellste", "Persönliche",
+            "You", "We", "The", "A", "And", "Another", "New", "Nice", "Good", "Great", "Strong", "Back", "Fastest", "Your", "That", "Now", "One", "Clean", "Yes",
+            "Has", "Hemos", "Otra", "Otro", "Un", "Una", "El", "La", "Los", "Nueva", "Nuevo", "Bien", "Buen", "Buena", "Muy", "Ya", "Ahora", "Tu"
+        };
+
+        /// <summary>Spricht den Fahrer mit Namen an („Rob, …“). Nur bekannte Satzanfänge werden klein geschrieben; Substantive und Namen bleiben.</summary>
+        internal static string Address(string line, string name)
+        {
+            name = (name ?? "").Trim();
+            if (name.Length == 0 || string.IsNullOrEmpty(line) || line.StartsWith(name + ",", StringComparison.Ordinal)) return line;
+            int end = 0;
+            while (end < line.Length && char.IsLetter(line[end])) end++;
+            string rest = end > 0 && LowerableStarts.Contains(line.Substring(0, end)) ? char.ToLower(line[0], RadioLanguage.Culture) + line.Substring(1) : line;
+            return name + ", " + rest;
+        }
+
         public const string FileName = "Rennfunk.de.json";
         /// <summary>Katalogdatei der jeweiligen Funksprache.</summary>
         public static string FileNameFor(string language) => "Rennfunk." + language + ".json";

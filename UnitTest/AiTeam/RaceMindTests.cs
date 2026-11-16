@@ -379,5 +379,30 @@ namespace UnitTest.AiTeamTests
             gs.TyreData.FrontRightPercentWear = 23.4f;
             Assert.AreEqual("Reifen: höchster Verschleiß 23 Prozent.", OwnTyreAnswer.Brief(gs));
         }
+
+        [Test]
+        public void Simple_driving_questions_need_one_request_only()
+        {
+            var gs = Race();
+            foreach (var q in new[] { "Wie viel Sprit habe ich noch?", "Wie groß ist der Abstand nach vorne?", "Wie war meine letzte Runde?", "Welche Position?", "Wie sind die Reifen?" })
+                Assert.IsFalse(AiTeamService.NeedsTools(q, gs), q);
+            foreach (var q in new[] { "Wie wird das Wetter?", "Haben wir einen Schaden?", "Wie waren die letzten Runden im Verlauf?", "Wer ist der Führende?", "Wo verliere ich in Kurve drei?" })
+                Assert.IsTrue(AiTeamService.NeedsTools(q, gs), q);
+            Assert.IsFalse(AiTeamService.NeedsTools("Völlig okay so?", gs), "kein Treffer mitten im Wort für Öl");
+        }
+
+        [Test]
+        public void Name_is_put_in_front_without_breaking_nouns_or_rival_names()
+        {
+            Assert.AreEqual("Rob, wieder einen Platz erkämpft.", RadioPhraseCatalog.Address("Wieder einen Platz erkämpft.", "Rob"));
+            Assert.AreEqual("Rob, Sektor 2 in 31,456 Sekunden.", RadioPhraseCatalog.Address("Sektor 2 in 31,456 Sekunden.", "Rob"), "Substantiv bleibt groß");
+            Assert.AreEqual("Rob, Keller setzt die Klassenbestzeit.", RadioPhraseCatalog.Address("Keller setzt die Klassenbestzeit.", "Rob"), "Gegnername bleibt");
+            Assert.AreEqual("Rob, 31,456 Sekunden.", RadioPhraseCatalog.Address("31,456 Sekunden.", "Rob"));
+            Assert.AreEqual("Rob, schon da.", RadioPhraseCatalog.Address("Rob, schon da.", "Rob"), "nie doppelt");
+            Assert.AreEqual("Ohne Namen.", RadioPhraseCatalog.Address("Ohne Namen.", ""));
+            var repeats = Enumerable.Range(2, 6).Select(n => RaceRadioLanguage.Overtake(n, 7, "Rob")).ToArray();
+            Assert.IsTrue(repeats.Count(t => t.StartsWith("Rob, ")) >= 2, "mehrfaches Überholen auch mit Namen");
+            Assert.IsTrue(repeats.Count(t => !t.StartsWith("Rob, ")) >= 2, "aber nicht jedes Mal");
+        }
     }
 }

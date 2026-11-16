@@ -568,6 +568,7 @@ namespace CrewChiefV4.AiTeam
             nativeIncidents.Observe(current,now,liveWarnings,Memory,settings.SendDriverNames);
             fieldEvents.CaptureMappedPits(previous,current);
             fieldEvents.CaptureMappedFastestLap(previous, current);
+            fieldEvents.RadioName = settings.RadioName;
             fieldEvents.Observe(current,now,Memory,settings.SendDriverNames);
             timingEvents.Observe(current,now,Memory,settings.SendDriverNames);
             if(pendingTimingDelivery!=null && pendingTimingDelivery.DeliveryStartedUtc!=DateTime.MinValue) {
@@ -1210,6 +1211,10 @@ namespace CrewChiefV4.AiTeam
                 (gs.PitData.InPitlane && gs.PositionAndMotionData.CarSpeed < 1);
             string model = NeedsDeepModel(routed.Question) ? settings.DeepModel : settings.FastModel;
             var liveFacts = RaceDataTools.BuildBriefing(ctx);
+            var mind = RaceMind.Latest;
+            if (mind != null && gs != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(DateTime.UtcNow)) liveFacts["rennkopf"] = mind.Describe();
+            // P4: Während der Fahrt beantwortet das schnelle Modell einfache Fragen in einer einzigen Anfrage.
+            bool singleShot = !longAllowed && model == settings.FastModel && !NeedsTools(routed.Question, gs);
             if (routed.Question.IndexOf("sektor", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 routed.Question.IndexOf("bestzeit", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 routed.Question.IndexOf("split", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -1254,7 +1259,7 @@ namespace CrewChiefV4.AiTeam
             messages.Add(new JObject { ["role"] = "user", ["content"] = "[an " + TeamRouter.DisplayName(routed.Member) + "] " + routed.Question });
 
             return await RunToolLoopAsync(client, model, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, longAllowed && NeedsDeepModel(routed.Question)), messages, longAllowed ? 600 : 250, longAllowed ? 600 : 260,
-                () => BuildContext(CrewChief.currentGameState), () => Interlocked.Increment(ref callsThisSession), Log, ct, remaining).ConfigureAwait(false);
+                () => BuildContext(CrewChief.currentGameState), () => Interlocked.Increment(ref callsThisSession), Log, ct, remaining, singleShot).ConfigureAwait(false);
         }
 
         internal static string RaceTone(DriverWorkloadMode mode, bool lastLap)
@@ -1280,7 +1285,7 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         public static async Task<string> RunToolLoopAsync(OpenAiCompatibleClient client, string model, string reasoningEffort, JArray messages,
             int maxTokens, int maxChars, Func<RaceDataContext> contextProvider, Action countCall, Action<string> log, CancellationToken ct,
-            Func<TimeSpan> remaining = null)
+            Func<TimeSpan> remaining = null, bool singleShot = false)
         {
             JArray tools = RaceDataTools.BuildToolDefinitions();
             bool recoveredLength = false;
@@ -1292,8 +1297,9 @@ namespace CrewChiefV4.AiTeam
                 }
                 var sw = Stopwatch.StartNew();
                 // P4 (Rob 16.11.): Wird die Zeit knapp, keine weitere Datenabfrage – das Modell muss mit dem Vorhandenen antworten.
-                bool hurry = round > 0 && remaining != null && remaining() < TimeSpan.FromSeconds(ToolBudgetSeconds);
-                if (hurry && log != null) log("Zeit knapp: Antwort ohne weitere Werkzeuge erzwungen.");
+                // Einfache Fragen während der Fahrt: Die Lage steckt schon in der Anfrage, also genau eine Anfrage ohne Werkzeugrunde.
+                bool hurry = singleShot || round > 0 && remaining != null && remaining() < TimeSpan.FromSeconds(ToolBudgetSeconds);
+                if (hurry && log != null) log(singleShot ? "Einfache Frage: eine Anfrage ohne Werkzeuge." : "Zeit knapp: Antwort ohne weitere Werkzeuge erzwungen.");
                 JObject response = await client.ChatAsync(model, messages, tools, reasoningEffort, maxTokens, false, ct, hurry ? "none" : "auto").ConfigureAwait(false);
                 var message = response.SelectToken("choices[0].message") as JObject;
                 if (message == null)
@@ -1476,6 +1482,17 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T("Die Anfrage wurde abgelehnt, da stimmt eine Einstellung nicht. Details stehen im KI-Team-Fenster.", "The request was rejected, a setting is wrong. Details are in the AI team window.", "La petición ha sido rechazada, hay un ajuste mal. Los detalles están en la ventana del equipo de IA.");
             }
             return connectionMessage;
+        }
+
+        /// <summary>Fragen, deren Daten nicht in der mitgeschickten Lage stecken (Verlauf, Wetter, Schaden, andere Fahrer, Kurven).</summary>
+        internal static bool NeedsTools(string question, GameStateData gs)
+        {
+            string q = (question ?? "").ToLowerInvariant();
+            string[] markers = { "wetter", "regen", "schaden", "motor", "öltemp", "oeltemp", "wassertemp", "verlauf", "letzten runden", "rundenzeiten", "runden davor",
+                "kurve", "bremspunkt", "feld", "führende", "fuehrende", "wer ist", "wer fährt", "wer liegt", "box", "notiz", "merk",
+                "weather", "rain", "damage", "engine", "history", "corner", "who is", "leader", "pit",
+                "clima", "lluvia", "daño", "curva", "quién", "boxes" };
+            return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;
         }
 
         public static bool NeedsDeepModel(string question)

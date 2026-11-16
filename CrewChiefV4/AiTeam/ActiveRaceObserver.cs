@@ -430,6 +430,7 @@ namespace CrewChiefV4.AiTeam
             AiRaceMemory memory = null, bool names = false)
         {
             if (gs == null) return;
+            lossDriverName = driverName;
             var s = gs.SessionData;
             if (s.SessionId != session || (lastTick != DateTime.MinValue && (now <= lastTick || now - lastTick > TimeSpan.FromSeconds(3))))
             {
@@ -649,8 +650,10 @@ namespace CrewChiefV4.AiTeam
             var catalog = RadioPhraseCatalog.Current;
             int variant = lossVariants.Select(group, catalog.Count(group));
             int from = lossFrom;
-            string text = catalog.Format(group, variant,
-                lossFrom.ToString(CultureInfo.InvariantCulture), position.ToString(CultureInfo.InvariantCulture)) +
+            // Rob 16.11.: im Wechsel persönlich angesprochen.
+            string lossName = lossCount++ % 2 == 0 ? AiPersonas.CleanForRadio(lossDriverName ?? "", 30, false) : "";
+            string text = RadioPhraseCatalog.Address(catalog.Format(group, variant,
+                lossFrom.ToString(CultureInfo.InvariantCulture), position.ToString(CultureInfo.InvariantCulture)), lossName) +
                 (separateClass ? " In deiner Klasse." : "");
             Add("position-loss", text, state, now, 12, 4, "confirmed_grouped_class_position_loss");
             lossCall = pending.Last();
@@ -661,8 +664,8 @@ namespace CrewChiefV4.AiTeam
                 int rank = snapshot.ClassPosition;
                 if (rank < from + 2 || rank != Volatile.Read(ref stablePosition)) return null;
                 positionCall.Position = rank;
-                return catalog.Format(group, variant, from.ToString(CultureInfo.InvariantCulture),
-                    rank.ToString(CultureInfo.InvariantCulture)) + (RaceRadioLanguage.SeparateClass(snapshot) ? " In deiner Klasse." : "");
+                return RadioPhraseCatalog.Address(catalog.Format(group, variant, from.ToString(CultureInfo.InvariantCulture),
+                    rank.ToString(CultureInfo.InvariantCulture)), lossName) + (RaceRadioLanguage.SeparateClass(snapshot) ? " In deiner Klasse." : "");
             };
         }
 
@@ -805,7 +808,8 @@ namespace CrewChiefV4.AiTeam
             return delta >= 0 && delta < 120;
         }
 
-        private int lastAnnouncedPosition, positionVariant;
+        private int lastAnnouncedPosition, positionVariant, lossCount;
+        private string lossDriverName;
 
         private static string Address(string driverName)
         {

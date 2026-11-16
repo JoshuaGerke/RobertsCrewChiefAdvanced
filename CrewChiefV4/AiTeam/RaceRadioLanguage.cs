@@ -176,8 +176,10 @@ namespace CrewChiefV4.AiTeam
             if (name.Length == 0) name = "Rob";
             var catalog = RadioPhraseCatalog.Current;
             string rank = position + (classRank ? RadioLanguage.T(" in deiner Klasse", " in your class", " en tu clase") : "");
-            return confirmedPassCount == 1 ? catalog.Format("pass-first", firstVariant, rank, name) :
-                catalog.Format("pass-repeat", confirmedPassCount - 2, rank);
+            if (confirmedPassCount == 1) return catalog.Format("pass-first", firstVariant, rank, name);
+            string repeat = catalog.Format("pass-repeat", confirmedPassCount - 2, rank);
+            // Rob 16.11.: auch beim zweiten, dritten Überholen persönlich – im Wechsel mit und ohne Namen.
+            return confirmedPassCount % 2 == 0 ? RadioPhraseCatalog.Address(repeat, name) : repeat;
         }
 
     }
