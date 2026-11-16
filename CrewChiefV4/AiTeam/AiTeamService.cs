@@ -64,6 +64,7 @@ namespace CrewChiefV4.AiTeam
         private readonly FocusBriefWatch focusBrief = new FocusBriefWatch();
         private readonly TyreWearWatch tyreWear = new TyreWearWatch();
         private readonly BackmarkerWatch backmarkers = new BackmarkerWatch();
+        private readonly DriverJudgementWatch judgement = new DriverJudgementWatch();
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -221,6 +222,7 @@ namespace CrewChiefV4.AiTeam
             }
             else if (!settings.Enabled)
             {
+                DriverRadioGate.Reset();
                 pushToTalk.Stop();
             }
         }
@@ -296,6 +298,7 @@ namespace CrewChiefV4.AiTeam
                 focusBrief.Reset();
                 tyreWear.Reset();
                 backmarkers.Reset();
+                judgement.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -590,6 +593,7 @@ namespace CrewChiefV4.AiTeam
                 focusBrief.Observe(current, RaceMind.Latest, frontName, rearName, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now);
                 backmarkers.Observe(current, Tracks.Snapshot, RaceMind.Latest, settings.SendDriverNames, frontName, rearName, now);
             }
+            judgement.Observe(current, Memory.GetLaps(12), lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now);
             OpponentStopLog.Observe(current);
             tyreGrip.Observe(current, now);
             qualiFuel.Observe(current, Memory, settings.RadioName, now);
@@ -641,6 +645,9 @@ namespace CrewChiefV4.AiTeam
                     !AllowsRadioNow(false), settings.IsMemberEnabled(TeamMember.Ben)); // keine Bremszone, keine Kurvenlast
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = backmarkers.Take(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy || currentRequest != null,
+                    settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = judgement.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = focusBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
@@ -964,6 +971,8 @@ namespace CrewChiefV4.AiTeam
             // Der Fahrer will sprechen: Aufnahme zuerst, dann laufende KI-Anfrage und KI-Funkspruch stoppen
             Interlocked.Increment(ref pressSequence);
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("ptt.pressed",LiveDiagnostics.Data("utterance_sequence",pressSequence));
+            // Rob 16.11.: Funkstille, solange er spricht – auch für Crew-Chief-Ansagen; die Warteschlange läuft danach weiter.
+            DriverRadioGate.Pressed(DateTime.UtcNow);
             recorder.Start(settings.Microphone);
             var running = currentRequest;
             if (running != null)
@@ -971,7 +980,7 @@ namespace CrewChiefV4.AiTeam
                 try { running.Cancel(); } catch (ObjectDisposedException) { }
             }
             var playing = SoundCache.currentlyPlayingSound;
-            if (playing != null && playing.isAiAudio)
+            if (playing != null && !playing.IsSafetyRadio && !playing.isBleep)
             {
                 try { SoundCache.InterruptCurrentlyPlayingSound(false); } catch (Exception) { }
             }
@@ -985,6 +994,7 @@ namespace CrewChiefV4.AiTeam
         private void OnPushToTalkReleased()
         {
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("ptt.released",LiveDiagnostics.Data("utterance_sequence",pressSequence));
+            DriverRadioGate.Released(DateTime.UtcNow);
             TimeSpan duration;
             byte[] wav = recorder.Stop(out duration);
             if (audioPlayer != null)
@@ -2010,6 +2020,7 @@ namespace CrewChiefV4.AiTeam
 
         private bool AllowsRadioNow(bool shortTactical)
         {
+            if (DriverRadioGate.Holding(DateTime.UtcNow)) return false; // der Fahrer spricht gerade
             if (!workload.AllowsReport(DateTime.UtcNow, shortTactical)) return false;
             var live = CrewChief.currentGameState;
             return shortTactical || live == null || live.PitData.InPitlane || !TelemetryFresh() ||

@@ -20,7 +20,7 @@ namespace CrewChiefV4.AiTeam
         public static readonly RadioOption[] Options = {
             new RadioOption { Id="status", Label="Rennstatus: Position und Abstände", DefaultSeconds=120, Minimum=30, Hint="Aktueller Überblick; nur belegte Fortschritte und Pace." },
             new RadioOption { Id="weather", Label="Wetter, Luft- und Streckentemperatur", DefaultSeconds=300, Minimum=30, Hint="Nur verfügbare Messwerte; keine Wettervorhersage." },
-            new RadioOption { Id="fuel", Label="Sprit und gemessene Reichweite", DefaultSeconds=120, Minimum=30, Hint="Reichweite erst mit sauber gemessenem Verbrauch." },
+            new RadioOption { Id="fuel", Label="Sprit und gemessene Reichweite", DefaultSeconds=240, Minimum=30, Hint="Reichweite erst mit sauber gemessenem Verbrauch." },
             new RadioOption { Id="tyres", Label="Reifenverschleiß", DefaultSeconds=240, Minimum=30, Hint="Eigene Reifen; keine erfundenen Gegnerwerte." },
             new RadioOption { Id="pace", Label="Eigene Rundenzeiten und Konstanz", DefaultSeconds=180, Minimum=30, Hint="Drei zusammenhängende gültige Runden ohne Box." },
             new RadioOption { Id="ahead", Label="Vordermann: Name und Abstand", DefaultSeconds=120, Minimum=30, Hint="Gegner der eigenen Klasse; Abstand muss bekannt sein." },
@@ -90,6 +90,21 @@ namespace CrewChiefV4.AiTeam
         private readonly RadioVariantCursor aheadVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor behindVariants = new RadioVariantCursor();
         private int tyreReports; // Rob 16.11.: Verschleißbericht technisch, menschlich und Achsvergleich im Wechsel
+        /// <summary>
+        /// Rob 16.11.: Verbrauch, Wetter, Streckentemperatur und Reifen kamen zusammen mehrmals pro Minute. Technische
+        /// Routinemeldungen teilen sich deshalb ein gemeinsames Budget: nach einer technischen Meldung kommt die nächste
+        /// eines anderen Themas frühestens nach 3–4 Minuten. Die eingestellten Abstände je Thema bleiben die Untergrenze;
+        /// Warnungen (Sprit knapp, Reifen am Ende, Schaden) laufen über eigene Wächter und sind davon nicht betroffen. 0 schaltet ab.
+        /// </summary>
+        public int TechnicalSpacingSeconds = 180;
+        private DateTime lastTechnicalUtc = DateTime.MinValue;
+        private string lastTechnicalTopic;
+        private int technicalGapSeconds;
+        internal static bool IsTechnical(string topic) =>
+            topic == "fuel" || topic == "weather" || topic == "tyres" || topic == "stint" || topic == "vehicle";
+        internal bool TechnicalBudgetBlocks(string topic, DateTime now) =>
+            IsTechnical(topic) && lastTechnicalTopic != null && topic != lastTechnicalTopic &&
+            now - lastTechnicalUtc < TimeSpan.FromSeconds(technicalGapSeconds);
         private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
@@ -116,7 +131,7 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -150,6 +165,11 @@ namespace CrewChiefV4.AiTeam
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
                     facts.Remember(outstanding.Topic, outstandingFacts, outstanding.DeliveryStartedUtc);
                     if (outstanding.Topic == "fuel") lastFuelMeasurement = outstandingFuelMeasurement;
+                    if (IsTechnical(outstanding.Topic) && TechnicalSpacingSeconds > 0)
+                    {
+                        lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
+                        technicalGapSeconds = TechnicalSpacingSeconds + random.Next(0, 61);
+                    }
                     due[outstanding.Topic] = lastReport.AddSeconds(prefs.NextDelaySeconds(outstanding.Topic, random));
                     outstanding = null;
                 }
@@ -188,6 +208,8 @@ namespace CrewChiefV4.AiTeam
                 .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
                 .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
+                // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
+                if (TechnicalBudgetBlocks(topic, now)) continue;
                 due[topic] = now.AddSeconds(prefs.NextDelaySeconds(topic, random));
                 TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
