@@ -91,6 +91,7 @@
     <Compile Include="AiTeam\FuelProjectionTests.cs" />
     <Compile Include="AiTeam\PitAndFieldFindingsTests.cs" />
     <Compile Include="AiTeam\RaceMindTests.cs" />
+    <Compile Include="AiTeam\EngineerJudgementTests.cs" />
     <Compile Include="AiTeam\PitTrafficBehaviorTests.cs" />
     <Compile Include="AiTeam\LiveRaceReliabilityTests.cs" />
     <Compile Include="AiTeam\WorkmapRegressionTests.cs" />

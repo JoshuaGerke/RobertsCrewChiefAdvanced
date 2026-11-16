@@ -288,7 +288,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Eigene Tempo-Motivation (Sektorbestzeit, nahe an der Bestzeit): passt fast immer, nur nicht mitten im Zweikampf oder unter Gelb.</summary>
-        internal static bool OwnPace(string t) => t == "sector-best" || t == "near-best" || t == "own-best-pace" || t == "tyre-warm";
+        internal static bool OwnPace(string t) => t == "sector-best" || t == "near-best" || t == "own-best-pace" || t == "lap-on-pace" || t == "tyre-warm";
 
         /// <summary>
         /// Zentrale Freigabe. Nur bekannte Informations-Meldungen werden gesteuert; alles andere (Platzwechsel, eigene Runden,
@@ -331,6 +331,14 @@ namespace CrewChiefV4.AiTeam
             {
                 if (lastLaps) { reason = "last_lap_no_projection"; return MindVerdict.Drop; }
                 if (driverBusy || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start) { reason = "busy_projection_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
+            if (t.StartsWith("judge-", StringComparison.Ordinal))
+            {
+                // Lob, Ansporn und Mitgefühl (Rob 16.11.): nie mitten im Zweikampf, unter Gelb, in der Box oder in der Startrunde;
+                // in den letzten Runden zählt nur noch das Nötigste.
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (driverBusy || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start) { reason = "busy_judgement_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
             if (OwnPace(t) && driverBusy) { reason = "battle_or_caution"; return MindVerdict.Hold; }

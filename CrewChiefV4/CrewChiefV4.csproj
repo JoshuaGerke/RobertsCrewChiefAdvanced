@@ -270,6 +270,8 @@
     <Compile Include="AiTeam\PersonalBestWatch.cs" />
     <Compile Include="AiTeam\FocusBriefWatch.cs" />
     <Compile Include="AiTeam\TyreWearAdvisor.cs" />
+    <Compile Include="AiTeam\DriverRadioGate.cs" />
+    <Compile Include="AiTeam\DriverJudgementWatch.cs" />
     <Compile Include="AiTeam\BackmarkerWatch.cs" />
     <Compile Include="AiTeam\Probe\PackedLayout.cs" />
     <Compile Include="AiTeam\Probe\ProbeStatistics.cs" />
