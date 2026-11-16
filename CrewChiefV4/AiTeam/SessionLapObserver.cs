@@ -194,12 +194,14 @@ namespace CrewChiefV4.AiTeam
                 ObserveCompletedSectorBest(gs, completed, now, green && sectorRadio && !ownCall);
             if (sectorRadio && green && !ownCall && !s.SectorTimingEstimated)
             {
-                if (TryLiveSector(gs, previous, now, out var lap, out int sector) &&
-                    (ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
-                    ObservePersonalBestPace(gs, lap, sector, now) ||
-                    ObserveInterestingSector(gs, lap, sector, now))) return;
+                bool live = TryLiveSector(gs, previous, now, out var lap, out int sector);
+                if (live && (ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
+                    ObservePersonalBestPace(gs, lap, sector, now))) return;
                 if (QualifyingResultWatch.Supported(type))
                     ObserveQualifyingSector(gs, previous, now, names, tracks);
+                // Der Vergleich mit dem Führenden hat Vorrang; die eigene Sektorzeit nur, wenn sonst nichts ansteht.
+                if (live && !pending.Any(c => c.Topic == "quali-sector" && c.DeliveryStartedUtc == DateTime.MinValue))
+                    ObserveInterestingSector(gs, lap, sector, now);
             }
         }
 
