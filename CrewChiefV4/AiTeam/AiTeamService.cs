@@ -62,6 +62,7 @@ namespace CrewChiefV4.AiTeam
         private readonly PersonalBestWatch personalBest = new PersonalBestWatch();
         /// <summary>Der Renningenieur erklärt dauerhafte Lagewechsel (Angriff, Verteidigung, sicher, Schlussphase, Ruhe).</summary>
         private readonly FocusBriefWatch focusBrief = new FocusBriefWatch();
+        private readonly TyreWearWatch tyreWear = new TyreWearWatch();
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -292,6 +293,7 @@ namespace CrewChiefV4.AiTeam
                 qualiFuel.Reset();
                 personalBest.Reset();
                 focusBrief.Reset();
+                tyreWear.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -500,6 +502,7 @@ namespace CrewChiefV4.AiTeam
             sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous,
                 DriverMemory.QualifyingSectorRadioEnabled, Tracks, settings.RadioName, Memory);
             var bestStore = DriverMemory.Enabled ? PersonalBestStore.For(GameName) : null;
+            if (lapCompleted) tyreWear.Observe(current, Memory.GetLaps(1).LastOrDefault(), Memory, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now);
             if (lapCompleted) personalBest.ObserveLap(current, Memory.GetLaps(1).LastOrDefault(), bestStore, GameName, settings.RadioName, now);
             personalBest.Observe(current, bestStore, GameName, settings.RadioName, now);
             var radioPrefs = settings.RadioPreferences;
@@ -604,6 +607,7 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = incidentPoints.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Mik));
             if (raceCall == null) raceCall = raceTraffic.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Ben));
             // Rob 16.11.: Reifen-Grip (heiß, im Fenster, dreckig) – Mik, sobald der Funk frei ist.
+            if (raceCall == null) raceCall = tyreWear.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Mik));
             if (raceCall == null) raceCall = tyreGrip.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Mik));
             var damageAdvice = Interlocked.Exchange(ref pendingDamageAdvice, null);
             if (damageAdvice != null && damageAdvice.IsValid(current, now)) activeRace.Enqueue(damageAdvice);

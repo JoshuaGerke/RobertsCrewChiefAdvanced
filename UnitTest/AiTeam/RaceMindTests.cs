@@ -603,5 +603,33 @@ namespace UnitTest.AiTeamTests
             var call = watch.Take(gs, T.AddSeconds(40), false, true);
             Assert.IsNotNull(call); Assert.AreEqual("focus-brief", call.Topic); Assert.AreEqual(TeamMember.Ben, call.Member);
         }
+
+        // ---------- Reifenverschleiß ----------
+
+        [Test]
+        public void Tyre_wear_report_alternates_technical_and_human()
+        {
+            float[] wear = { 5f, 5.2f, 7f, 8.8f };
+            string technical = TyreWearAdvisor.Report(wear, null, true, "Rob", 0);
+            Assert.AreEqual("Am stärksten abgenutzt ist der Reifen hinten rechts: 8,8 Prozent Verschleiß.", technical);
+            string human = TyreWearAdvisor.Report(wear, null, true, "Rob", 1);
+            Assert.AreEqual("Rob, ich hab mir deine Reifen angeschaut: vorne etwa 5,1, hinten etwa 7,9 Prozent Verschleiß.", human);
+            StringAssert.Contains("Hinterachse arbeitet mehr", TyreWearAdvisor.Report(wear, null, true, "Rob", 2));
+            Assert.IsNull(TyreWearAdvisor.Report(new[] { .2f, .2f, .3f, .4f }, null, true, "Rob", 0), "ohne messbaren Verschleiß nichts");
+        }
+
+        [Test]
+        public void Tyre_life_projection_only_when_calibrated_and_measured()
+        {
+            float[] wear = { 60f, 62f, 70f, 74f }, perLap = { 2f, 2f, 2.5f, 2.5f };
+            Assert.AreEqual(6, TyreWearAdvisor.LapsToEnd(wear, perLap, true, out int corner)); Assert.AreEqual(3, corner);
+            Assert.AreEqual(-1, TyreWearAdvisor.LapsToEnd(wear, perLap, false, out _), "ohne Kalibrierung keine Hochrechnung (z. B. iRacing)");
+            Assert.AreEqual(-1, TyreWearAdvisor.LapsToEnd(wear, null, true, out _), "ohne gemessene Rate keine Hochrechnung");
+            StringAssert.Contains("in etwa 6 Runden am Ende", TyreWearAdvisor.Report(wear, perLap, true, "Rob", 0));
+            Assert.IsTrue(TyreWearAdvisor.Calibrated(GameType.AMS2)); Assert.IsFalse(TyreWearAdvisor.Calibrated(GameType.IRACING));
+            StringAssert.Contains("Reifenwechsel nötig", TyreWearWatch.Advice(4, 9, true));
+            StringAssert.Contains("ohne Stopp", TyreWearWatch.Advice(4, 3, true));
+            Assert.AreEqual("", TyreWearWatch.Advice(4, 9, false), "im Training keine Stopp-Empfehlung");
+        }
     }
 }

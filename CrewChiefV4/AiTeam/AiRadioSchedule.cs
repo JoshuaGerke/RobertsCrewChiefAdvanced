@@ -367,14 +367,10 @@ namespace CrewChiefV4.AiTeam
                 var t = gs.TyreData; if (!t.TyreWearActive) return null;
                 float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
                 if (!wear.All(w => Good(w, 0, 100))) return null;
-                int worst = Array.IndexOf(wear, wear.Max());
-                // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten
-                if (wear[worst] < 1) return null;
-                return RadioLanguage.T("Am stärksten abgenutzt ist der Reifen ", "Most worn tyre is ", "El neumático más gastado es el ") +
-                    RadioLanguage.Pick(new[] { "vorne links", "vorne rechts", "hinten links", "hinten rechts" },
-                        new[] { "front left", "front right", "rear left", "rear right" },
-                        new[] { "delantero izquierdo", "delantero derecho", "trasero izquierdo", "trasero derecho" })[worst] +
-                    ": " + Number(wear[worst]) + RadioLanguage.T(" Prozent Verschleiß.", " percent wear.", " por ciento de desgaste.");
+                // Rob 16.11.: abwechselnd technisch und menschlich, mit fundierter Hochrechnung (nur kalibrierte Simulationen).
+                // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten.
+                return TyreWearAdvisor.Report(wear, ctx.Memory?.AverageWearPerLap(3), TyreWearAdvisor.Calibrated(Game.gameType),
+                    AiPersonas.CleanForRadio(ctx.DriverName ?? "", 30, false), variant);
             }
             if (topic == "pace")
             {
