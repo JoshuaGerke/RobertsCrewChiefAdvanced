@@ -523,9 +523,15 @@ namespace CrewChiefV4.AiTeam
                                 RaceRadioLanguage.SeparateClass(s), passIndex);
                         }
                         // Rob 16.11.: „vorgerückt“ nur, wenn es gegenüber der zuletzt gemeldeten Position wirklich nach vorn geht.
-                        else text = lastAnnouncedPosition > 0 && candidatePosition >= lastAnnouncedPosition
-                            ? PositionNow(s, candidatePosition, positionVariant++)
-                            : MovedUp(s, candidatePosition, positionVariant++, driverName);
+                        else if (lastAnnouncedPosition > 0 && candidatePosition >= lastAnnouncedPosition)
+                            text = PositionNow(s, candidatePosition, positionVariant++);
+                        // Mit Tracklimit-Zweifel bleibt die Meldung neutral: kein Lob, keine Wertung.
+                        else if (conductUncertain)
+                            text = RaceRadioLanguage.SeparateClass(s) ? RadioLanguage.T("Wir sind vorgerückt. Jetzt ", "We've moved up. Now ", "Hemos subido. Ahora ") +
+                                RaceRadioLanguage.Rank(s, candidatePosition) + "." :
+                                RadioLanguage.T("Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".",
+                                    "We've moved up. You're now P" + candidatePosition + ".", "Hemos subido. Ahora vas P" + candidatePosition + ".");
+                        else text = MovedUp(s, candidatePosition, positionVariant++, driverName);
                         var pitGain = gain == 1 && !conductUncertain && recentFrontPit != null && recentFrontPit.FormerRank == candidatePosition &&
                             now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
                             gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;

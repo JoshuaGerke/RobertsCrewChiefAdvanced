@@ -284,6 +284,16 @@ namespace CrewChiefV4.AiTeam
                     "Quedan " + litres + " litros en el depósito. Aún no tengo bien medido el consumo.");
             }
 
+            // Startplatz (Rob 16.11.2026: „Welche Position zum Start?“ blieb unbeantwortet). Ohne Gegnerbezug ist der eigene Platz gemeint.
+            bool rivalWords = AnyOf(q, "gegner", "vordermann", "hintermann", "führende", "fuehrende", "leader", "opponent", "rival", "car ahead",
+                "car behind", "líder", "lider");
+            if (!rivalWords && (AnyOf(q, "startplatz", "startposition", "grid position", "on the grid", "posición de salida", "posicion de salida", "parrilla") ||
+                q.Contains("start") && AnyOf(q, "position", "platz", "place", "posición", "posicion", "puesto")))
+                return StartPositionAnswer(gs.SessionData);
+            if (!rivalWords && AnyOf(q, "welche position", "welcher platz", "welchem platz", "auf welcher position", "what position", "what place",
+                "qué posición", "que posicion", "qué puesto", "que puesto") && q.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length <= 5)
+                q = "mein " + q; // kurze Frage ohne „mein“ meint den eigenen Platz
+
             // Only explicitly self-referential short questions qualify for the own-car shortcut.
             bool ownQuestion = q.Contains("mein ") || q.Contains("meine") || q.Contains("unsere") || q.Contains("bin ich") || q.Contains("sind wir") ||
                 q.Trim(' ', '?', '.', '!') == "letzte runde" || q.Trim(' ', '?', '.', '!') == "wie war die letzte runde" || q.Trim(' ', '?', '.', '!') == "rundenzeit" ||
@@ -338,6 +348,28 @@ namespace CrewChiefV4.AiTeam
                 return answer;
             }
             return null;
+        }
+
+        internal static string StartPositionAnswer(SessionData s)
+        {
+            int start = s.SessionStartClassPosition;
+            bool race = s.SessionType == SessionType.Race;
+            bool running = race && s.SessionPhase != SessionPhase.Countdown && s.SessionPhase != SessionPhase.Gridwalk &&
+                s.SessionPhase != SessionPhase.Formation && s.SessionPhase != SessionPhase.Garage && s.SessionPhase != SessionPhase.Unavailable;
+            if (race && !running && s.ClassPosition > 0)
+                return RadioLanguage.T("Du startest von Platz " + s.ClassPosition + ".", "You start from P" + s.ClassPosition + ".",
+                    "Sales desde la posición " + s.ClassPosition + ".");
+            if (race && start > 0)
+            {
+                int gained = s.ClassPosition > 0 ? start - s.ClassPosition : 0;
+                string tail = gained > 0 ? RadioLanguage.T(", jetzt " + s.ClassPosition + ". Plus " + gained + ".", ", now P" + s.ClassPosition + ". Up " + gained + ".",
+                        ", ahora " + s.ClassPosition + ". Ganadas " + gained + ".")
+                    : gained < 0 ? RadioLanguage.T(", jetzt " + s.ClassPosition + ".", ", now P" + s.ClassPosition + ".", ", ahora " + s.ClassPosition + ".")
+                    : RadioLanguage.T(", und da bist du auch jetzt.", ", and that's where you are now.", ", y ahí sigues.");
+                return RadioLanguage.T("Gestartet von Platz " + start, "Started from P" + start, "Saliste desde la posición " + start) + tail;
+            }
+            return RadioLanguage.T("Den Startplatz habe ich noch nicht sicher.", "I don't have the grid position for sure yet.",
+                "Todavía no tengo segura la posición de salida.");
         }
 
         public static string LapTime(float seconds)

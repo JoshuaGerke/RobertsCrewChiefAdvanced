@@ -151,5 +151,25 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("7 Plätze gutgemacht", text);
             StringAssert.DoesNotContain("Sekunden", text, "ohne gemessene Abstände keine Abstandszahl");
         }
+
+        [Test]
+        public void Start_position_question_is_answered_locally()
+        {
+            var gs = Race(5); gs.SessionData.SessionStartClassPosition = 9;
+            StringAssert.Contains("Platz 9", LocalAnswers.TryAnswer("Welche Position zum Start?", gs, null));
+            StringAssert.Contains("Plus 4", LocalAnswers.TryAnswer("Welche Position zum Start?", gs, null));
+            gs.SessionData.SessionPhase = SessionPhase.Formation; gs.SessionData.ClassPosition = 9;
+            Assert.AreEqual("Du startest von Platz 9.", LocalAnswers.TryAnswer("Startplatz?", gs, null));
+            gs.SessionData.SessionPhase = SessionPhase.Green; gs.SessionData.SessionStartClassPosition = 0;
+            StringAssert.Contains("nicht sicher", LocalAnswers.TryAnswer("Von welchem Platz bin ich gestartet?", gs, null));
+            Assert.IsNull(LocalAnswers.TryAnswer("Startposition vom Vordermann?", gs, null), "Gegnerfrage nicht als eigener Startplatz");
+        }
+
+        [Test]
+        public void Short_position_question_without_my_means_own_position()
+        {
+            var gs = Race(7); gs.SessionData.NumCarsInPlayerClass = 20;
+            Assert.AreEqual("Platz 7 von 20.", LocalAnswers.TryAnswer("Welche Position?", gs, null));
+        }
     }
 }
