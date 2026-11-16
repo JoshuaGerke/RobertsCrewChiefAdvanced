@@ -79,7 +79,7 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Start_verdict_after_a_third_of_lap_one_names_gain_loss_or_hold()
+        public void Start_verdict_after_half_of_lap_one_names_gain_loss_or_hold()
         {
             var s = State(SessionType.Race).SessionData; s.OverallPosition = s.ClassPosition = 11;
             Assert.AreEqual("Rob, guter Start! 3 Plätze gewonnen, jetzt Platz 11.", ActiveRaceObserver.StartVerdict(s, 14, "Rob"));
@@ -90,10 +90,10 @@ namespace UnitTest.AiTeamTests
             gs.SessionData.ClassPosition = gs.SessionData.OverallPosition = 12;
             gs.SessionData.TrackDefinition = new TrackDefinition("Algarve", 4600f);
             var observer = new ActiveRaceObserver();
-            gs.PositionAndMotionData.DistanceRoundTrack = 900; observer.Observe(gs, T, "Rob", 120);
-            Assert.AreEqual(0, observer.PendingCount, "noch vor dem ersten Drittel");
-            gs.PositionAndMotionData.DistanceRoundTrack = 1600; observer.Observe(gs, T.AddSeconds(1), "Rob", 120);
-            gs.PositionAndMotionData.DistanceRoundTrack = 1700; observer.Observe(gs, T.AddSeconds(2), "Rob", 120);
+            gs.PositionAndMotionData.DistanceRoundTrack = 1600; observer.Observe(gs, T, "Rob", 120);
+            Assert.AreEqual(0, observer.PendingCount, "noch vor der halben Runde (Robs Vorgabe)");
+            gs.PositionAndMotionData.DistanceRoundTrack = 2400; observer.Observe(gs, T.AddSeconds(1), "Rob", 120);
+            gs.PositionAndMotionData.DistanceRoundTrack = 2500; observer.Observe(gs, T.AddSeconds(2), "Rob", 120);
             Assert.AreEqual(1, observer.PendingCount, "genau einmal");
         }
 
