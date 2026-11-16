@@ -66,6 +66,7 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastRadio=DateTime.MinValue;
         private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor fastestVariants = new RadioVariantCursor();
+        private int fastestAnnounced;
         private struct LapEvidence
         {
             public string Identity;
@@ -252,6 +253,8 @@ namespace CrewChiefV4.AiTeam
                 seen[id]=now;
                 string group = f.Kind == "fastest-overall" ? "race-overall-best" : "race-class-best";
                 int variant = fastest ? fastestVariants.Select(group, RadioPhraseCatalog.Current.Count(group)) : 0;
+                // Rob 16.11.: Gegner-Bestzeiten klangen jedes Mal gleich. Auch ohne Rückmeldung der Wiedergabe weiterdrehen.
+                if (fastest) variant = (variant + fastestAnnounced++) % RadioPhraseCatalog.Current.Count(group);
                 string text = Text(f, names, variant);
                 if(text==null)continue;
                 if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapAndPush((float)f.Seconds,gs.SessionData.PlayerLapTimeSessionBest,variant);

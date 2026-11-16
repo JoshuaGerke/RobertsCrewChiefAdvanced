@@ -111,7 +111,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         public static string[] DistancePhrases => Enumerable.Range(1,12).SelectMany(i=>new[]{DistancePhrase(i*20,true),DistancePhrase(i*20,false)}).ToArray();
-        public static IEnumerable<string> PreparedPhrases { get { return DistancePhrases.Concat(StoppedPhrases).Concat(SlowPhrases).Concat(RearPhrases).Concat(RearGroupPhrases); } }
+        public static IEnumerable<string> PreparedPhrases { get { return DistancePhrases.Concat(StoppedPhrases).Concat(SlowPhrases).Concat(RearPhrases).Concat(RearGroupPhrases).Concat(StillTherePhrases); } }
         internal static string ForecastMerge(RaceDataContext context, TrackPositionSnapshot map, double exit, double horizon, out int covered)
         {
             covered = 0;
@@ -156,6 +156,13 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<int,Reference> reference = new Dictionary<int,Reference>();
         private readonly Dictionary<string,DateTime> reported = new Dictionary<string,DateTime>();
         private readonly Dictionary<string,DateTime> nativeRear = new Dictionary<string,DateTime>();
+        // Rob 16.11.: Ein Auto, das dauerhaft an derselben Stelle steht, wird einmal gemeldet, dann einmal kurz erinnert, dann nicht mehr.
+        private sealed class Parked { public int Cell; public int Reports; }
+        private readonly Dictionary<string,Parked> parked = new Dictionary<string,Parked>();
+        private static readonly string[] StillThereDe = { "Der stehende Wagen ist noch an derselben Stelle.", "Das Auto steht immer noch da, gleiche Stelle." };
+        private static readonly string[] StillThereEn = { "The stopped car is still in the same place.", "That car is still stopped, same spot." };
+        private static readonly string[] StillThereEs = { "El coche parado sigue en el mismo sitio.", "Ese coche sigue parado, mismo lugar." };
+        public static string[] StillTherePhrases => RadioLanguage.Pick(StillThereDe, StillThereEn, StillThereEs);
         private TrackAwareness tracks;
         private ObservedRaceCall pending;
         private string pendingKey, track;
@@ -163,7 +170,7 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastTick, lastRadio;
         public void Reset()
         {
-            reference.Clear(); reported.Clear(); nativeRear.Clear(); pending=null; tracks=null;
+            reference.Clear(); reported.Clear(); nativeRear.Clear(); parked.Clear(); pending=null; tracks=null;
             session=int.MinValue; track=null; lastTick=lastRadio=DateTime.MinValue; epoch++;
             Volatile.Write(ref facts,null);
         }
@@ -206,6 +213,20 @@ namespace CrewChiefV4.AiTeam
                 if (reported.TryGetValue(key,out previous) && now-previous<TimeSpan.FromSeconds(60)) continue;
                 bool group=rear && candidates.Count(c=>c.RouteGapM<0)>1;
                 var phrases=rear?(group?RearGroupPhrases:RearPhrases):stopped?StoppedPhrases:SlowPhrases;
+                bool reminder=false;
+                if (stopped && car.LapDistanceM.HasValue)
+                {
+                    int cell=(int)(car.LapDistanceM.Value/100); Parked spot;
+                    if (parked.TryGetValue(car.Key,out spot) && Math.Abs(spot.Cell-cell)<=1)
+                    {
+                        if (spot.Reports>=2) continue;      // bekannt und unverändert: nicht mehr melden
+                        reminder=spot.Reports==1;           // zweites Mal: nur kurz
+                        spot.Reports++;
+                    }
+                    else parked[car.Key]=new Parked{Cell=cell,Reports=1};
+                    if (reminder) phrases=StillTherePhrases;
+                }
+                else if (!rear && parked.ContainsKey(car.Key)) parked.Remove(car.Key); // fährt wieder
                 int id=car.Id, generation=epoch; string opponentKey=car.Key;
                 pending=new ObservedRaceCall {
                     Topic=rear?"race-traffic-rear":"race-hazard-ahead", Text=phrases[variant++%phrases.Length],
@@ -215,9 +236,9 @@ namespace CrewChiefV4.AiTeam
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
-                if (!group && !string.IsNullOrWhiteSpace(car.Name))
+                if (!group && !reminder && !string.IsNullOrWhiteSpace(car.Name))
                     pending.OpponentNameClip = NameClipText(car.Name);
-                if(!rear) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
+                if(!rear && !reminder) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
                 pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();

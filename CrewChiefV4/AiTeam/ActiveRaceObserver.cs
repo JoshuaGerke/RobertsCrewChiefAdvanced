@@ -513,18 +513,23 @@ namespace CrewChiefV4.AiTeam
                         string passGroup = firstPass ? "pass-first" : "pass-repeat";
                         var passCursor = firstPass ? firstPassVariants : passVariants;
                         int passIndex = 0;
-                        if (candidatePass && !candidatePit)
+                        // Rob 16.11.: Überholmanöver wurden oft nur als „vorgerückt“ gemeldet. Steht der überholte Klassengegner
+                        // jetzt direkt hinter uns (unter 120 m, beide in Fahrt), ist es ein Manöver – auch ohne den engen Kreuzungsnachweis.
+                        bool likelyPass = !candidatePass && !candidatePit && !conductUncertain && gain == 1 && LikelyPassedCarBehind(gs, candidatePosition);
+                        if ((candidatePass || likelyPass) && !candidatePit)
                         {
                             passIndex = passCursor.Select(passGroup, RadioPhraseCatalog.Current.Count(passGroup));
                             text = RaceRadioLanguage.Overtake(firstPass ? 1 : passIndex + 2, candidatePosition, driverName,
                                 RaceRadioLanguage.SeparateClass(s), passIndex);
                         }
-                        else text = RaceRadioLanguage.SeparateClass(s) ? RadioLanguage.T("Wir sind vorgerückt. Jetzt ", "We've moved up. Now ", "Hemos subido. Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + "." :
-                            RadioLanguage.T("Wir sind vorgerückt. Du liegst jetzt auf Position " + candidatePosition + ".",
-                                "We've moved up. You're now P" + candidatePosition + ".", "Hemos subido. Ahora vas P" + candidatePosition + ".");
+                        // Rob 16.11.: „vorgerückt“ nur, wenn es gegenüber der zuletzt gemeldeten Position wirklich nach vorn geht.
+                        else text = lastAnnouncedPosition > 0 && candidatePosition >= lastAnnouncedPosition
+                            ? PositionNow(s, candidatePosition, positionVariant++)
+                            : MovedUp(s, candidatePosition, positionVariant++, driverName);
                         var pitGain = gain == 1 && !conductUncertain && recentFrontPit != null && recentFrontPit.FormerRank == candidatePosition &&
                             now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
                             gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;
+                        lastAnnouncedPosition = candidatePosition;
                         Add("position", text, gs, now, 9, candidatePass && !candidatePit ? 5 : 3,
                             pitGain != null ? "same_class_front_rival_entered_pit_before_rank_gain" :
                             candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
@@ -568,7 +573,10 @@ namespace CrewChiefV4.AiTeam
                         lossStarted = now;
                     }
                     else if (lossFrom == 0)
-                        Add("position", RadioLanguage.T("Jetzt ", "Now ", "Ahora ") + RaceRadioLanguage.Rank(s, candidatePosition) + RadioLanguage.T(". Bleib dran.", ". Stay with it.", ". Sigue ahí."), gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    {
+                        lastAnnouncedPosition = candidatePosition;
+                        Add("position", PositionLost(s, candidatePosition, positionVariant++, driverName), gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                    }
                     if (gain < 0)
                         memory?.AddObservation("Zurückgefallen von Platz " + stablePosition + " auf " + candidatePosition + ".",
                             now, "confirmed-position-loss", null, "stable_classification");
@@ -761,6 +769,75 @@ namespace CrewChiefV4.AiTeam
             pending.Add(new ObservedRaceCall { Topic = topic, Text = text, Evidence = evidence, Position = gs.SessionData.ClassPosition,
                 SessionId = gs.SessionData.SessionId, DetectedUtc = now, ExpiresUtc = now.AddSeconds(seconds), Priority = priority });
             LiveDiagnostics.Decision(topic, "detected", evidence, text, pending.Last().EventId);
+        }
+
+        /// <summary>Gleiche Klasse, direkt hinter uns, in Fahrt und auf der Strecke nah – Hinweis auf ein echtes Überholmanöver.</summary>
+        internal static bool LikelyPassedCarBehind(GameStateData gs, int ownPosition)
+        {
+            var s = gs.SessionData;
+            float length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
+            if (length < 100 || gs.PositionAndMotionData.CarSpeed <= 10 || gs.carClass == null) return false;
+            OpponentData behind = null;
+            foreach (var o in gs.OpponentData.Values)
+            {
+                if (o == null || !o.IsActive || o.ClassPosition != ownPosition + 1 || o.CarClass == null ||
+                    o.CarClass.getClassIdentifier() != gs.carClass.getClassIdentifier()) continue;
+                if (behind != null) return false;
+                behind = o;
+            }
+            if (behind == null || behind.InPits || behind.Speed <= 10) return false;
+            float delta = (s.CompletedLaps - behind.CompletedLaps) * length + gs.PositionAndMotionData.DistanceRoundTrack - behind.DistanceRoundTrack;
+            return delta >= 0 && delta < 120;
+        }
+
+        private int lastAnnouncedPosition, positionVariant;
+
+        private static string Address(string driverName)
+        {
+            string n = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
+            return n.Length == 0 ? "" : n;
+        }
+
+        /// <summary>Platz gewonnen ohne bestätigtes Überholmanöver – fünf Varianten, teils mit Namen.</summary>
+        internal static string MovedUp(SessionData s, int position, int variant, string driverName = null)
+        {
+            string rank = RaceRadioLanguage.Rank(s, position), n = Address(driverName);
+            switch (((variant % 5) + 5) % 5)
+            {
+                case 0: return RadioLanguage.T("Wir sind vorgerückt. Jetzt " + rank + ".", "We've moved up. Now " + rank + ".", "Hemos subido. Ahora " + rank + ".");
+                case 1: return RadioLanguage.T("Einen Platz nach vorn, jetzt " + rank + ".", "One place up, now " + rank + ".", "Un puesto más, ahora " + rank + ".");
+                case 2: return n.Length > 0 ? RadioLanguage.T("Sauber, " + n + ". " + rank + ".", "Nice, " + n + ". " + rank + ".", "Bien, " + n + ". " + rank + ".")
+                    : RadioLanguage.T("Sauber. " + rank + ".", "Nice. " + rank + ".", "Bien. " + rank + ".");
+                case 3: return RadioLanguage.T("Es geht vorwärts: " + rank + ".", "Moving forward: " + rank + ".", "Vamos hacia delante: " + rank + ".");
+                default: return RadioLanguage.T(rank + ". Weiter so.", rank + ". Keep it going.", rank + ". Sigue así.");
+            }
+        }
+
+        /// <summary>Neutrale Standmeldung, wenn die Position nicht besser ist als die zuletzt gemeldete.</summary>
+        internal static string PositionNow(SessionData s, int position, int variant)
+        {
+            string rank = RaceRadioLanguage.Rank(s, position);
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T("Stand jetzt: " + rank + ".", "Right now: " + rank + ".", "Ahora mismo: " + rank + ".");
+                case 1: return RadioLanguage.T("Du liegst auf " + rank + ".", "You're running " + rank + ".", "Vas " + rank + ".");
+                default: return RadioLanguage.T(rank + " im Moment.", rank + " at the moment.", rank + " por ahora.");
+            }
+        }
+
+        /// <summary>Platz verloren – ruhig, mit Blick nach vorn, fünf Varianten.</summary>
+        internal static string PositionLost(SessionData s, int position, int variant, string driverName = null)
+        {
+            string rank = RaceRadioLanguage.Rank(s, position), n = Address(driverName);
+            switch (((variant % 5) + 5) % 5)
+            {
+                case 0: return RadioLanguage.T("Jetzt " + rank + ". Bleib dran.", "Now " + rank + ". Stay with it.", "Ahora " + rank + ". Sigue ahí.");
+                case 1: return RadioLanguage.T(rank + ". Kopf hoch, den holen wir uns zurück.", rank + ". Head up, we'll get that back.", rank + ". Ánimo, lo recuperamos.");
+                case 2: return n.Length > 0 ? RadioLanguage.T("Platz verloren, " + n + ", jetzt " + rank + ". Ruhig weiter.", "Lost a place, " + n + ", now " + rank + ". Stay calm.", "Perdimos un puesto, " + n + ", ahora " + rank + ". Con calma.")
+                    : RadioLanguage.T("Platz verloren, jetzt " + rank + ". Ruhig weiter.", "Lost a place, now " + rank + ". Stay calm.", "Perdimos un puesto, ahora " + rank + ". Con calma.");
+                case 3: return RadioLanguage.T(rank + " jetzt. Konzentrier dich auf die nächste Kurve.", rank + " now. Focus on the next corner.", rank + " ahora. Concéntrate en la próxima curva.");
+                default: return RadioLanguage.T("Wir sind auf " + rank + " zurückgefallen. Das Rennen ist noch lang.", "We've dropped to " + rank + ". Plenty of race left.", "Hemos caído a " + rank + ". Queda carrera.");
+            }
         }
 
         internal static string StartVerdict(SessionData s, int start, string name)

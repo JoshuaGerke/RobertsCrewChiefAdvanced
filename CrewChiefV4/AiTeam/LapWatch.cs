@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -41,7 +42,7 @@ namespace CrewChiefV4.AiTeam
         public void Reset(bool sameDisqualification = false)
         {
             lastCalledLap = pendingLap = -1;
-            finishCalled = timedClockCalled = false;
+            finishCalled = timedClockCalled = false; ForgetTimedFinish();
             if (!sameDisqualification) disqualification = null;
         }
 
@@ -85,6 +86,12 @@ namespace CrewChiefV4.AiTeam
         {
             if (s == null) return -1;
             if (s.IsLastLap || (s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Checkered)) return 1;
+            int planned = Volatile.Read(ref timedFinalLap);
+            if (s.SessionHasFixedTime && s.SessionType == SessionType.Race && planned >= 0 && s.SessionId == Volatile.Read(ref timedFinalSession))
+            {
+                int left = planned - s.CompletedLaps + 1;
+                if (left >= 1 && left <= 4) return left;
+            }
             if (!s.SessionHasFixedTime)
                 return s.SessionLapsRemaining > 0 && s.SessionLapsRemaining < 10000 ? s.SessionLapsRemaining : -1;
             return LapsAreEstimated(s) ? CrewChiefV4.Events.Fuel.EstimatedLapsRemaining : -1;
@@ -104,6 +111,39 @@ namespace CrewChiefV4.AiTeam
         }
 
         private static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }
+
+        private static int timedFinalSession = int.MinValue, timedFinalLap = -1;
+
+        /// <summary>
+        /// Zeitrennen bei Ablauf der Uhr: Wer zuerst über die Linie kommt – der Führende oder wir –, entscheidet, ob unsere laufende
+        /// Runde die letzte ist. Gleiches Tempo angenommen, zählt der Anteil der Runde. Zusatzrunden des Formats kommen dazu.
+        /// Gibt die Rundenzahl (CompletedLaps während der letzten Runde) zurück oder -1, wenn es nicht belegt ist.
+        /// </summary>
+        internal static int PlanTimedFinish(GameStateData current)
+        {
+            var s = current.SessionData;
+            float length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
+            int extra = Math.Max(0, Math.Min(5, s.ExtraLapsAfterTimedSessionComplete));
+            bool currentIsLast;
+            if (s.OverallPosition == 1) currentIsLast = true;
+            else
+            {
+                OpponentData leader = null;
+                foreach (var o in current.OpponentData.Values)
+                    if (o != null && o.IsActive && o.OverallPosition == 1) { if (leader != null) return -1; leader = o; }
+                float own = current.PositionAndMotionData.DistanceRoundTrack;
+                if (leader == null || !(length > 100) || !Finite(leader.DistanceRoundTrack) || !Finite(own) ||
+                    leader.DistanceRoundTrack < 0 || own < 0 || own > length * 1.01f) return -1;
+                double leaderShare = (leader.DistanceRoundTrack % length) / length, ownShare = own / length;
+                currentIsLast = leaderShare >= ownShare; // Der Führende ist näher an der Linie und nimmt die Flagge vor uns
+            }
+            int lap = s.CompletedLaps + (currentIsLast ? 0 : 1) + extra;
+            Volatile.Write(ref timedFinalLap, lap);
+            Volatile.Write(ref timedFinalSession, s.SessionId);
+            return lap;
+        }
+
+        internal static void ForgetTimedFinish() { Volatile.Write(ref timedFinalLap, -1); Volatile.Write(ref timedFinalSession, int.MinValue); }
 
         private static bool TimedClockElapsed(SessionData s)
         {
@@ -148,6 +188,23 @@ namespace CrewChiefV4.AiTeam
             if (!timedClockCalled && s.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane && TimedClockElapsed(s))
             {
                 timedClockCalled = true;
+                // Rob 16.11.: Nach Ablauf der Uhr muss klar sein, ob dies die letzte Runde ist.
+                int finalLap = PlanTimedFinish(current);
+                if (finalLap == s.CompletedLaps)
+                {
+                    lastCalledLap = s.CompletedLaps;
+                    string name = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
+                    CoreCall = RadioLanguage.T("Die Uhr ist abgelaufen" + (name.Length > 0 ? ", " + name : "") + ". Das ist deine letzte Runde!",
+                        "The clock has run out" + (name.Length > 0 ? ", " + name : "") + ". This is your last lap!",
+                        "Se acabó el tiempo" + (name.Length > 0 ? ", " + name : "") + ". ¡Esta es tu última vuelta!") + (rank.Length > 0 ? " " + rank : "");
+                    if (s.ClassPosition != 1 && finalTactic == null) CoreCall += " " + LastLapMotivation[(lastLapVariant++) % LastLapMotivation.Length];
+                    string front = FrontChase(current, preciseFront, gapAhead, rivalName);
+                    IncludesFrontGap = front != null;
+                    return CoreCall + (finalTactic == null ? front ?? duel : " " + finalTactic);
+                }
+                if (finalLap == s.CompletedLaps + 1)
+                    return RadioLanguage.T("Die Uhr ist abgelaufen. Noch diese Runde, dann kommt die letzte.", "The clock has run out. Finish this lap, then one more.",
+                        "Se acabó el tiempo. Termina esta vuelta y queda una más.");
                 return RadioLanguage.T("Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.", "Race time is up. Watch for the chequered flag.", "Se acabó el tiempo de carrera. Atento a la bandera a cuadros.");
             }
             if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)

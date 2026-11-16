@@ -51,6 +51,8 @@ namespace CrewChiefV4.AiTeam
         private readonly WeatherWatch weatherWatch = new WeatherWatch();
         private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
         private readonly PitStopTimer pitStopTimer = new PitStopTimer();
+        private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
+        private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
@@ -261,6 +263,7 @@ namespace CrewChiefV4.AiTeam
                 OnSessionCleared();
                 Corners.SetTrack(null, 0);
                 pendingGreeting = null;
+                trackWelcome = null; trackWelcomeDone = false;
                 Interlocked.Exchange(ref callsThisSession, 0);
                 lastProactiveLap = -1;
                 fuelWatch.Reset();
@@ -271,6 +274,8 @@ namespace CrewChiefV4.AiTeam
                 weatherWatch.Reset();
                 pitLaneWatch.Reset();
                 pitStopTimer.Reset();
+                incidentPoints.Reset();
+                raceSummary.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
                 lock (recentLocalCalls) recentLocalCalls.Clear();
@@ -539,6 +544,8 @@ namespace CrewChiefV4.AiTeam
             weatherWatch.Observe(current,now);
             pitLaneWatch.Observe(current,now);
             pitStopTimer.Observe(current,now);
+            incidentPoints.Observe(current,now);
+            raceSummary.Observe(current,() => BuildContext(current),now);
             MaybePreparePitLimit(current,now);
             MaybePrepareOpponentName(current, now);
             bool weatherBusy = !settings.IsMemberEnabled(TeamMember.Mik) || Spotter().HasOverlap ||
@@ -562,6 +569,7 @@ namespace CrewChiefV4.AiTeam
             liveWarnings.Observe(current,now);
             var raceCall = liveWarnings.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled);
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,pitBusy,7);
+            if (raceCall == null) raceCall = incidentPoints.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Mik));
             if (raceCall == null) raceCall = raceTraffic.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Ben));
             var damageAdvice = Interlocked.Exchange(ref pendingDamageAdvice, null);
             if (damageAdvice != null && damageAdvice.IsValid(current, now)) activeRace.Enqueue(damageAdvice);
@@ -574,6 +582,9 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = TakePitFinish(current, now);
             if (raceCall == null) raceCall = TakeSessionBriefing(current, now);
             if (raceCall == null) raceCall = qualifyingResults.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = raceSummary.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
+                    settings.IsMemberEnabled(TeamMember.Ben));
             if (routineDue && raceCall == null && !proactiveRunning && settings.RadioMode != AiRadioMode.MINIMAL &&
                 current.SessionData.SessionType == SessionType.Race && radioSchedule.StatusIsOverdue(now, radioPrefs) &&
                 !Spotter().HasOverlap && !radioRenderGate.Busy && currentRequest == null && AllowsRadioNow(true))
@@ -1124,7 +1135,8 @@ namespace CrewChiefV4.AiTeam
                 lockAcquired = true;
                 linked = CancellationTokenSource.CreateLinkedTokenSource(driverCancel.Token);
                 linked.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
-                string answer = await AskModelAsync(routed, gs, linked.Token).ConfigureAwait(false);
+                DateTime deadline = DateTime.UtcNow.AddSeconds(settings.TimeoutSeconds);
+                string answer = await AskModelAsync(routed, gs, linked.Token, () => deadline - DateTime.UtcNow).ConfigureAwait(false);
                 var knownNames = (settings.SendDriverNames && gs != null ? gs.OpponentData.Values.Where(o => o != null).Select(o => o.DriverRawName) : Enumerable.Empty<string>())
                     .Concat(new[] { settings.RadioName });
                 string cleanAnswer = RadioAnswerQuality.Clean(answer, knownNames);
@@ -1161,7 +1173,9 @@ namespace CrewChiefV4.AiTeam
                 }
                 Log("KI-Anfrage fehlgeschlagen: " + e.Message);
                 Status("KI-Fehler: " + e.Message);
-                string fallback = SpokenError(e, RadioLanguage.T("Ich krieg gerade keine Antwort von der Auswertung. Versuch's gleich nochmal.", "I'm not getting an answer from the analysis right now. Try again in a moment.", "Ahora mismo no me llega respuesta del análisis. Inténtalo de nuevo enseguida."));
+                // P4 (Rob 16.11.): Statt „keine Antwort“ eine lokale Antwort oder wenigstens die aktuelle Lage aus Messwerten.
+                string fallback = SpokenError(e, LocalFallback(routed.Question, CrewChief.currentGameState) ??
+                    RadioLanguage.T("Ich krieg gerade keine Antwort von der Auswertung. Versuch's gleich nochmal.", "I'm not getting an answer from the analysis right now. Try again in a moment.", "Ahora mismo no me llega respuesta del análisis. Inténtalo de nuevo enseguida."));
                 await SpeakAsync(routed.Member, fallback, true, CancellationToken.None).ConfigureAwait(false);
                 return fallback;
             }
@@ -1177,7 +1191,7 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private async Task<string> AskModelAsync(RoutedRequest routed, GameStateData gs, CancellationToken ct)
+        private async Task<string> AskModelAsync(RoutedRequest routed, GameStateData gs, CancellationToken ct, Func<TimeSpan> remaining = null)
         {
             var ctx = BuildContext(gs);
             bool longAllowed = gs == null || gs.SessionData.SessionPhase == SessionPhase.Garage ||
@@ -1228,7 +1242,7 @@ namespace CrewChiefV4.AiTeam
             messages.Add(new JObject { ["role"] = "user", ["content"] = "[an " + TeamRouter.DisplayName(routed.Member) + "] " + routed.Question });
 
             return await RunToolLoopAsync(client, model, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, longAllowed && NeedsDeepModel(routed.Question)), messages, longAllowed ? 600 : 250, longAllowed ? 600 : 260,
-                () => BuildContext(CrewChief.currentGameState), () => Interlocked.Increment(ref callsThisSession), Log, ct).ConfigureAwait(false);
+                () => BuildContext(CrewChief.currentGameState), () => Interlocked.Increment(ref callsThisSession), Log, ct, remaining).ConfigureAwait(false);
         }
 
         internal static string RaceTone(DriverWorkloadMode mode, bool lastLap)
@@ -1253,7 +1267,8 @@ namespace CrewChiefV4.AiTeam
         /// Tool-Calling-Schleife: Modell fragt Werkzeuge an, wir liefern frische Telemetrie, bis eine Textantwort kommt (max. 4 Runden).
         /// </summary>
         public static async Task<string> RunToolLoopAsync(OpenAiCompatibleClient client, string model, string reasoningEffort, JArray messages,
-            int maxTokens, int maxChars, Func<RaceDataContext> contextProvider, Action countCall, Action<string> log, CancellationToken ct)
+            int maxTokens, int maxChars, Func<RaceDataContext> contextProvider, Action countCall, Action<string> log, CancellationToken ct,
+            Func<TimeSpan> remaining = null)
         {
             JArray tools = RaceDataTools.BuildToolDefinitions();
             bool recoveredLength = false;
@@ -1264,7 +1279,10 @@ namespace CrewChiefV4.AiTeam
                     countCall();
                 }
                 var sw = Stopwatch.StartNew();
-                JObject response = await client.ChatAsync(model, messages, tools, reasoningEffort, maxTokens, false, ct).ConfigureAwait(false);
+                // P4 (Rob 16.11.): Wird die Zeit knapp, keine weitere Datenabfrage – das Modell muss mit dem Vorhandenen antworten.
+                bool hurry = round > 0 && remaining != null && remaining() < TimeSpan.FromSeconds(ToolBudgetSeconds);
+                if (hurry && log != null) log("Zeit knapp: Antwort ohne weitere Werkzeuge erzwungen.");
+                JObject response = await client.ChatAsync(model, messages, tools, reasoningEffort, maxTokens, false, ct, hurry ? "none" : "auto").ConfigureAwait(false);
                 var message = response.SelectToken("choices[0].message") as JObject;
                 if (message == null)
                 {
@@ -1323,6 +1341,9 @@ namespace CrewChiefV4.AiTeam
             return RadioLanguage.T("Ich komm mit der Auswertung gerade nicht zu einem sauberen Ergebnis.", "I can't get a clean result from the analysis right now.", "Ahora mismo no consigo un resultado limpio del análisis.");
         }
 
+        /// <summary>Unter dieser Restzeit wird keine weitere Werkzeugrunde mehr erlaubt.</summary>
+        internal const double ToolBudgetSeconds = 4.5;
+
         public static string RequireCompleteAnswer(JObject response, int maxChars)
         {
             string finish = (string)response.SelectToken("choices[0].finish_reason");
@@ -1377,6 +1398,46 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Was Mik bei einem Fehler sagt: die echte Ursache statt pauschal "Verbindung hakt".</summary>
+        /// <summary>
+        /// P4: Antwortet das Sprachmodell nicht rechtzeitig, kommt eine lokale Antwort (wenn die Frage dazu passt)
+        /// oder wenigstens die gemessene Lage – nie nur „keine Antwort“.
+        /// </summary>
+        private string LocalFallback(string question, GameStateData gs)
+        {
+            if (gs == null) return null;
+            try
+            {
+                string local = LocalAnswers.TryAnswer(question, gs, Memory, settings.SendDriverNames);
+                if (!string.IsNullOrWhiteSpace(local)) return local;
+                return QuickStatus(BuildContext(gs), fallbackVariant++);
+            }
+            catch (Exception) { return null; }
+        }
+        private int fallbackVariant;
+
+        internal static string QuickStatus(RaceDataContext ctx, int variant)
+        {
+            var gs = ctx?.GameState; if (gs == null) return null;
+            var s = gs.SessionData;
+            if (s.SessionType != SessionType.Race || s.ClassPosition <= 0 || s.SessionPhase != SessionPhase.Green) return null;
+            var parts = new List<string>();
+            string[] openers = RadioLanguage.Pick(
+                new[] { "Die Detailauswertung hängt gerade, kurz das Wichtigste:", "Das dauert mir gerade zu lange, deshalb kurz die Lage:", "Ganz knapp aus den Live-Daten:" },
+                new[] { "The detailed analysis is stuck, here's the key point:", "That's taking too long, so quickly the situation:", "Quick from the live data:" },
+                new[] { "El análisis detallado va lento, lo esencial:", "Tarda demasiado, así que rápido la situación:", "Rápido, con los datos en vivo:" });
+            parts.Add(openers[((variant % openers.Length) + openers.Length) % openers.Length]);
+            parts.Add(RaceRadioLanguage.Rank(s, s.ClassPosition) + ".");
+            var front = RaceDataTools.Neighbour(gs, true); var rear = RaceDataTools.Neighbour(gs, false);
+            var fg = front == null ? null : RaceDataTools.ReadGap(ctx, front, true);
+            var rg = rear == null ? null : RaceDataTools.ReadGap(ctx, rear, false);
+            if (fg != null && fg.IsRaceGap) parts.Add(RadioLanguage.T("Nach vorn ", "Ahead ", "Por delante ") + GermanRadioText.Interval(fg.Seconds) + ".");
+            if (rg != null && rg.IsRaceGap) parts.Add(RadioLanguage.T("Nach hinten ", "Behind ", "Por detrás ") + GermanRadioText.Interval(rg.Seconds) + ".");
+            if (IncidentPointsWatch.Known(s) && IncidentPointsWatch.Level(s.CurrentIncidentCount, s.MaxIncidentCount) >= 2)
+                parts.Add(RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
+                    "Incident points " + s.CurrentIncidentCount + " of " + s.MaxIncidentCount + ".", "Puntos de incidente " + s.CurrentIncidentCount + " de " + s.MaxIncidentCount + "."));
+            return string.Join(" ", parts);
+        }
+
         public static string SpokenError(Exception e, string connectionMessage)
         {
             var api = e as AiApiException;
@@ -1562,13 +1623,57 @@ namespace CrewChiefV4.AiTeam
             if (settings.RadioMode == AiRadioMode.MINIMAL || proactiveRunning || currentRequest != null ||
                 radioRenderGate.Busy || Spotter().HasOverlap || radioDirector.TrafficQuiet(now)) return null;
             TeamMember speaker = settings.IsMemberEnabled(TeamMember.Ben) ? TeamMember.Ben : TeamMember.Mik;
-            if (!settings.IsMemberEnabled(speaker) || now > sessionSeenUtc.AddSeconds(45)) return null;
+            if (!settings.IsMemberEnabled(speaker)) return null;
+            if (now > sessionSeenUtc.AddSeconds(45)) return TakeTrackWelcome(current, now, speaker);
             // Reserve once, acknowledge only at the audio backend, retry at most once within the safe window.
             if (pendingGreeting == null || pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 !pendingGreeting.IsReserved && !pendingGreeting.DeliveryFailed && !pendingGreeting.IsValid(current, now))
                 pendingGreeting = greetingDirector.CreateCall(BuildContext(current), sessionSeenUtc.AddSeconds(45), settings.RadioName, speaker);
             return pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 pendingGreeting.IsValid(current, now) && pendingGreeting.TryReserve(now) ? pendingGreeting : null;
+        }
+
+        private ObservedRaceCall trackWelcome;
+        private bool trackWelcomeDone;
+        private int trackWelcomeVariant;
+
+        /// <summary>
+        /// Rob 16.11.: Im Training oder Hotlapping kam keine Begrüßung, weil er schon fuhr. Fehlt die Begrüßung nach dem
+        /// Standfenster, kommt einmal eine kurze Begrüßung auf der Strecke – nie im Rennen, nie im Zweikampf oder unter Gelb.
+        /// </summary>
+        private ObservedRaceCall TakeTrackWelcome(GameStateData current, DateTime now, TeamMember speaker)
+        {
+            var s = current.SessionData;
+            if (trackWelcomeDone || pendingGreeting != null && pendingGreeting.DeliveryStartedUtc != DateTime.MinValue) { trackWelcomeDone = true; return null; }
+            if (s.SessionType == SessionType.Race || !SessionLapObserver.Supported(s.SessionType) || now > sessionSeenUtc.AddMinutes(5)) return null;
+            if (trackWelcome != null && trackWelcome.DeliveryStartedUtc != DateTime.MinValue) { trackWelcomeDone = true; trackWelcome = null; return null; }
+            if (trackWelcome == null || !trackWelcome.IsValid(current, now) && !trackWelcome.IsReserved)
+            {
+                if (s.SessionPhase != SessionPhase.Green || current.FlagData.isLocalYellow || current.PitData.InPitlane) return null;
+                string track = SessionGreetingDirector.SpokenTrack(s.TrackDefinition != null ? s.TrackDefinition.name : current.trackName);
+                string name = AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false);
+                string who = name.Length > 0 ? name : RadioLanguage.T("Fahrer", "driver", "piloto");
+                string kind = s.SessionType == SessionType.HotLap ? RadioLanguage.T("Hotlap", "hotlap", "vuelta rápida") :
+                    s.SessionType == SessionType.Qualify || s.SessionType == SessionType.PrivateQualify ? RadioLanguage.T("Qualifying", "qualifying", "clasificación") :
+                    RadioLanguage.T("Training", "practice", "entrenamiento");
+                string[] lines = RadioLanguage.Pick(
+                    new[] { who + ", schön, dass du da bist. " + track + ", " + kind + ". Fahr dich in Ruhe ein, wir sind bei dir.",
+                            "Hallo " + who + ". " + kind + " in " + track + ", die Crew ist bereit. Lass es locker angehen.",
+                            "Da ist er ja. " + track + ", " + kind + ". Wir hören zu, " + who + "." },
+                    new[] { who + ", good to have you. " + track + ", " + kind + ". Ease into it, we're with you.",
+                            "Hi " + who + ". " + kind + " at " + track + ", the crew is ready. Take it easy to start.",
+                            "There you are. " + track + ", " + kind + ". We're listening, " + who + "." },
+                    new[] { who + ", qué bien que estés. " + track + ", " + kind + ". Entra en ritmo con calma, estamos contigo.",
+                            "Hola " + who + ". " + kind + " en " + track + ", el equipo está listo. Empieza tranquilo.",
+                            "Ahí estás. " + track + ", " + kind + ". Te escuchamos, " + who + "." });
+                int session = s.SessionId; var type = s.SessionType;
+                trackWelcome = new ObservedRaceCall { Topic = "track-welcome", Text = lines[(trackWelcomeVariant++) % lines.Length], Member = speaker,
+                    Evidence = "no_greeting_in_stationary_window_non_race_session", Priority = 2, Position = -1, SessionId = session, SessionType = type,
+                    DetectedUtc = now, ExpiresUtc = now.AddSeconds(20),
+                    AdditionalValidity = live => !live.FlagData.isLocalYellow && !Spotter().HasOverlap };
+                LiveDiagnostics.Decision(trackWelcome.Topic, "detected", trackWelcome.Evidence, trackWelcome.Text, trackWelcome.EventId);
+            }
+            return trackWelcome.IsValid(current, now) && trackWelcome.TryReserve(now) ? trackWelcome : null;
         }
 
         /// <summary>Mik meldet den Schaden. Ben folgt nach abgeschlossenem Audio mit einer belegten Boxenempfehlung.</summary>

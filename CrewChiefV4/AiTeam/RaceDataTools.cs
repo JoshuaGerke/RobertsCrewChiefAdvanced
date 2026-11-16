@@ -225,6 +225,13 @@ namespace CrewChiefV4.AiTeam
                 ["restrunden_geschaetzt"] = LapWatch.LapsAreEstimated(s),
                 ["letzte_runde_geschaetzt"] = LapWatch.LapsAreEstimated(s) && LapWatch.LapsLeft(s) == 1,
             };
+            if (IncidentPointsWatch.Known(s))
+            {
+                o["vorfallpunkte"] = s.CurrentIncidentCount;
+                o["vorfallpunkte_limit"] = s.MaxIncidentCount;
+                o["vorfallpunkte_frei"] = s.MaxIncidentCount - s.CurrentIncidentCount;
+                o["vorfallpunkte_hinweis"] = "Vom Spiel gemeldet. Bei Erreichen des Limits droht Disqualifikation.";
+            }
             int startMode, startPhase;
             if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
                 o["raceroom_startgruppe"] = new JObject {

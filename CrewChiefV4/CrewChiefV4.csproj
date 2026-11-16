@@ -259,6 +259,8 @@
     <Compile Include="AiTeam\TelemetryCapabilities.cs" />
     <Compile Include="AiTeam\TelemetrySourceClock.cs" />
     <Compile Include="AiTeam\PitStopTimer.cs" />
+    <Compile Include="AiTeam\IncidentPointsWatch.cs" />
+    <Compile Include="AiTeam\RaceSummaryWatch.cs" />
     <Compile Include="AiTeam\Probe\PackedLayout.cs" />
     <Compile Include="AiTeam\Probe\ProbeStatistics.cs" />
     <Compile Include="AiTeam\Probe\ProbeAnalyzer.cs" />

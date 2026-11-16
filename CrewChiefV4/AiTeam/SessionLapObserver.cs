@@ -152,7 +152,8 @@ namespace CrewChiefV4.AiTeam
                         var variants = first ? firstValidVariants : improvements;
                         int heard = SelectVariant(group, variants);
                         string text = RadioPhraseCatalog.Current.Format(group, heard, formatted) +
-                            (classRecord ? RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!") : "");
+                            (classRecord ? RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!") :
+                                first ? FirstLapComparison(gs, time, names, firstComparisonVariant++) : "");
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", 5,
@@ -435,6 +436,36 @@ namespace CrewChiefV4.AiTeam
             lastSectorCall = sector;
         }
 
+        private int firstComparisonVariant;
+
+        /// <summary>
+        /// Rob 16.11.: Nach der ersten gezeiteten Runde ein kurzer, natürlicher Vergleich mit der aktuellen Bestzeit der Klasse
+        /// (mit Namen, wenn erlaubt und eindeutig). Ohne bekannte Bestzeit kein Satz.
+        /// </summary>
+        internal static string FirstLapComparison(GameStateData gs, float mine, bool names, int variant)
+        {
+            float best = FieldBest(gs);
+            if (!Good(best) || !Good(mine) || mine <= best + .01f) return "";
+            var holder = gs.OpponentData.Values.Where(o => SameClass(gs, o) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - best) < .01f).Take(2).ToArray();
+            string who = names && holder.Length == 1 && holder[0].CanUseName ? RadioPhraseCatalog.SafeRivalName(holder[0].DriverRawName) : "";
+            string gap = GermanRadioText.Interval(mine - best);
+            string bestTime = LocalAnswers.LapTime(best);
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return who.Length > 0
+                    ? RadioLanguage.T(" Die Bestzeit hat " + who + " mit " + bestTime + ", dir fehlen " + gap + ". Ein guter Anfang.",
+                        " " + who + " has the best with " + bestTime + ", you're " + gap + " off. A good start.",
+                        " " + who + " tiene el mejor tiempo con " + bestTime + ", te faltan " + gap + ". Buen comienzo.")
+                    : RadioLanguage.T(" Zur Bestzeit fehlen " + gap + ". Ein guter Anfang.", " You're " + gap + " off the best. A good start.", " Te faltan " + gap + " para el mejor tiempo. Buen comienzo.");
+                case 1: return RadioLanguage.T(" Damit " + gap + " hinter der Spitze" + (who.Length > 0 ? ", " + who : "") + ". Da arbeiten wir uns ran.",
+                    " That's " + gap + " behind the top" + (who.Length > 0 ? ", " + who : "") + ". We'll work our way in.",
+                    " Eso es " + gap + " detrás de la cabeza" + (who.Length > 0 ? ", " + who : "") + ". Vamos a acercarnos.");
+                default: return RadioLanguage.T(" Die Messlatte liegt bei " + bestTime + (who.Length > 0 ? " von " + who : "") + ", also " + gap + " Luft nach oben.",
+                    " The benchmark is " + bestTime + (who.Length > 0 ? " from " + who : "") + ", so " + gap + " to find.",
+                    " La referencia es " + bestTime + (who.Length > 0 ? " de " + who : "") + ", así que hay " + gap + " por encontrar.");
+            }
+        }
+
         private static bool SameClass(GameStateData gs, OpponentData o) =>
             o != null && o.IsActive && gs.carClass != null && CarData.IsCarClassEqual(gs.carClass, o.CarClass);
 
@@ -465,9 +496,12 @@ namespace CrewChiefV4.AiTeam
                 text = RadioLanguage.T("Dir fehlen " + gap + " Sekunden. ", "You're " + gap + " seconds off. ", "Te faltan " + gap + " segundos. ");
             }
             var push = MotivationPhrases;
-            return text + push[(int)((uint)variant % push.Length)];
+            // Unabhängig vom Satzvarianten-Zähler weiterdrehen, damit der Ansporn nicht jedes Mal gleich klingt.
+            int next = System.Threading.Interlocked.Increment(ref motivationCounter);
+            return text + push[(int)((uint)(variant + next) % push.Length)];
         }
 
+        private static int motivationCounter = -1;
         private static readonly string[] MotivationDe = {
             "Da geht noch was, bleib dran.",
             "Das ist die Messlatte. Du kannst das.",
