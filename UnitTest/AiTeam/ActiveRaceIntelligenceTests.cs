@@ -459,7 +459,7 @@ namespace UnitTest.AiTeamTests
             gs.EngineData.EngineWaterTemp=94;gs.TyreData.TyreWearActive=true;gs.TyreData.FrontLeftPercentWear=21;
             string text=AiRadioSchedule.VehicleReport(gs);
             StringAssert.Contains("94,0",text);StringAssert.Contains("21,0",text);
-            StringAssert.Contains("fehlen Messwerte",text);StringAssert.DoesNotContain("alles",text);
+            StringAssert.Contains("sag Bescheid",text);StringAssert.DoesNotContain("alles",text);
         }
     }
 }

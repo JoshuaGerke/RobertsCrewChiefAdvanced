@@ -879,7 +879,7 @@ namespace UnitTest.AiTeamTests
             d.OverallEngineDamage = DamageLevel.MAJOR;
             StringAssert.Contains("komm an die Box", IncidentWatch.DamageReport(d));
             d.OverallEngineDamage = DamageLevel.NONE;
-            StringAssert.Contains("fehlen Messwerte", IncidentWatch.DamageReport(d));
+            StringAssert.Contains("sag Bescheid", IncidentWatch.DamageReport(d));
             d.OverallAeroDamage = d.OverallTransmissionDamage = DamageLevel.NONE;
             StringAssert.Contains("Keine nennenswerten Schäden an Aero, Motor und Getriebe", IncidentWatch.DamageReport(d));
             d.DamageEnabled = false;
