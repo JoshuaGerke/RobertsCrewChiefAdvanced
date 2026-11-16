@@ -522,5 +522,40 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(LocalAnswers.FuelConsumption("Wie viel Sprit habe ich noch?", gs, null), "Tankstand beantwortet der bestehende Weg");
             Assert.IsNull(LocalAnswers.FuelConsumption("Reicht der Sprit bei meinem Verbrauch bis ins Ziel?", gs, null), "Strategiefrage");
         }
+
+        [Test]
+        public void All_time_record_is_only_called_against_an_earlier_session()
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rrca-pb-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new PersonalBestStore(folder, "Automobilista 2");
+                var gs = Race(); gs.carName = "Porsche 992 GT3 R"; gs.SessionData.SessionType = SessionType.Practice;
+                var watch = new PersonalBestWatch();
+                watch.Observe(gs, store, "Automobilista 2", "Rob", T);
+                watch.ObserveLap(gs, new LapRecord { LapNumber = 1, LapTime = 127.762f, Valid = true }, store, "Automobilista 2", "Rob", T.AddSeconds(130));
+                watch.ObserveLap(gs, new LapRecord { LapNumber = 2, LapTime = 124.834f, Valid = true }, store, "Automobilista 2", "Rob", T.AddSeconds(255));
+                Assert.IsNull(watch.Take(gs, T.AddSeconds(255), false, true), "Bathurst: keine „schnellste Runde überhaupt“ gegen eine Runde derselben Sitzung");
+
+                gs.SessionData.SessionId = 6;
+                watch.Observe(gs, store, "Automobilista 2", "Rob", T.AddHours(2));
+                watch.ObserveLap(gs, new LapRecord { LapNumber = 3, LapTime = 124.100f, Valid = true }, store, "Automobilista 2", "Rob", T.AddHours(2).AddSeconds(130));
+                var call = watch.Take(gs, T.AddHours(2).AddSeconds(130), false, true);
+                Assert.IsNotNull(call); Assert.AreEqual("personal-best-record", call.Topic); StringAssert.Contains("2:04,100", call.Text);
+            }
+            finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
+        }
+
+        [Test]
+        public void Slick_window_follows_Robs_guide_not_the_generic_threshold()
+        {
+            var gs = Race();
+            Assert.IsTrue(TyreGripWatch.Window(gs, out float cold, out float hot));
+            Assert.AreEqual(80f, cold); Assert.AreEqual(100f, hot);
+            StringAssert.Contains("85 bis 90 sehr gut", TyreGripWatch.WarmText(cold, hot, 0));
+            StringAssert.Contains("über 80 Grad", TyreGripWatch.WarmText(cold, hot, 0));
+            gs.TyreData.FrontLeftTyreType = TyreType.Wet;
+            Assert.IsFalse(TyreGripWatch.IsRaceSlick(gs.TyreData.FrontLeftTyreType));
+        }
     }
 }

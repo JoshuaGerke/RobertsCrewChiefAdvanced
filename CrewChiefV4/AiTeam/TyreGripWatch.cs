@@ -37,10 +37,23 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Temperaturfenster (warm) aus den Crew-Chief-Grenzwerten; false ohne Klasse oder bei unplausiblen Werten.</summary>
+        /// <summary>
+        /// Robs Richtwert für Rennreifen (16.11.2026, Bathurst: „ab 70 Grad in Ordnung, ab 80 gut, 85 bis 90 sehr gut“).
+        /// Die Crew-Chief-Sammelgrenzen (z. B. 55–95 °C) waren für Slicks zu niedrig und haben zu früh „pushen“ gemeldet.
+        /// </summary>
+        internal const float SlickGood = 80f, SlickTop = 100f;
+
+        /// <summary>Regen-, Intermediate- und Straßenreifen haben andere Fenster; dort gelten weiter die Crew-Chief-Grenzwerte.</summary>
+        internal static bool IsRaceSlick(TyreType t) => t != TyreType.Wet && t != TyreType.Intermediate && t != TyreType.Road && t != TyreType.Ice &&
+            t != TyreType.Snow && t != TyreType.AllTerrain && t != TyreType.Bias_Ply;
+
+        /// <summary>Gutes Temperaturfenster: für Slicks Robs Richtwert (ab 80 °C gut, bis etwa 100 °C), sonst Crew-Chief-Grenzwert mit engem Fenster.</summary>
         internal static bool Window(GameStateData gs, out float cold, out float hot)
         {
             cold = hot = -1;
-            if (gs?.carClass == null) return false;
+            if (gs == null) return false;
+            if (IsRaceSlick(gs.TyreData.FrontLeftTyreType)) { cold = SlickGood; hot = SlickTop; return true; }
+            if (gs.carClass == null) return false;
             try
             {
                 var t = CarData.getTyreTempThresholds(gs.carClass, gs.TyreData.FrontLeftTyreType);
@@ -114,12 +127,20 @@ namespace CrewChiefV4.AiTeam
 
         internal static string WarmText(float cold, float top, int v)
         {
-            string window = top > 0 ? RadioLanguage.T(" Fenster etwa " + RadioLanguage.Num(cold, "0") + " bis " + RadioLanguage.Num(top, "0") + " Grad.",
-                " Window about " + RadioLanguage.Num(cold, "0") + " to " + RadioLanguage.Num(top, "0") + " degrees.",
-                " Ventana de unos " + RadioLanguage.Num(cold, "0") + " a " + RadioLanguage.Num(top, "0") + " grados.") : "";
-            return (((v % 3) + 3) % 3) == 0 ? RadioLanguage.T("Reifen sind jetzt im Fenster, du kannst pushen.", "Tyres are in the window now, you can push.", "Neumáticos en ventana, ya puedes apretar.") + window
-                : (((v % 3) + 3) % 3) == 1 ? RadioLanguage.T("Die Reifen haben Temperatur. Jetzt geht's los.", "Tyres are up to temperature. Let's go.", "Los neumáticos tienen temperatura. Vamos.") + window
-                : RadioLanguage.T("Reifen sind warm, jetzt kannst du richtig angreifen.", "Tyres are warm, now you can really attack.", "Neumáticos calientes, ahora sí puedes atacar.") + window;
+            bool slickGuide = cold == SlickGood && top == SlickTop;
+            string window = slickGuide
+                ? RadioLanguage.T(" Ab 80 Grad gut, 85 bis 90 sehr gut.", " 80 degrees and up is good, 85 to 90 is ideal.", " Desde 80 grados bien, de 85 a 90 ideal.")
+                : top > 0 ? RadioLanguage.T(" Fenster etwa " + RadioLanguage.Num(cold, "0") + " bis " + RadioLanguage.Num(top, "0") + " Grad.",
+                    " Window about " + RadioLanguage.Num(cold, "0") + " to " + RadioLanguage.Num(top, "0") + " degrees.",
+                    " Ventana de unos " + RadioLanguage.Num(cold, "0") + " a " + RadioLanguage.Num(top, "0") + " grados.") : "";
+            switch (((v % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T("Alle vier Reifen jetzt über " + RadioLanguage.Num(cold, "0") + " Grad, du kannst pushen.",
+                    "All four tyres above " + RadioLanguage.Num(cold, "0") + " degrees now, you can push.",
+                    "Los cuatro neumáticos ya por encima de " + RadioLanguage.Num(cold, "0") + " grados, puedes apretar.") + window;
+                case 1: return RadioLanguage.T("Die Reifen haben Temperatur. Jetzt geht's los.", "Tyres are up to temperature. Let's go.", "Los neumáticos tienen temperatura. Vamos.") + window;
+                default: return RadioLanguage.T("Reifen sind warm, jetzt kannst du richtig angreifen.", "Tyres are warm, now you can really attack.", "Neumáticos calientes, ahora sí puedes atacar.") + window;
+            }
         }
 
         internal static string DirtText(List<int> corners, bool measured, int v)

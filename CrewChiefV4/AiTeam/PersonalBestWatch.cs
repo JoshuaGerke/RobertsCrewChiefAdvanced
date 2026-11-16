@@ -13,10 +13,10 @@ namespace CrewChiefV4.AiTeam
     {
         private int session = int.MinValue, variant, lastSectorLap = -100;
         private bool briefed, nearDone;
-        private DateTime drivingSince = DateTime.MinValue;
+        private DateTime drivingSince = DateTime.MinValue, sessionStartUtc = DateTime.MinValue;
         private ObservedRaceCall call;
 
-        internal void Reset() { session = int.MinValue; lastSectorLap = -100; briefed = nearDone = false; drivingSince = DateTime.MinValue; call = null; }
+        internal void Reset() { session = int.MinValue; lastSectorLap = -100; briefed = nearDone = false; drivingSince = sessionStartUtc = DateTime.MinValue; call = null; }
 
         internal static bool Practiceish(SessionType t) => t == SessionType.Practice || t == SessionType.LonePractice || t == SessionType.Qualify ||
             t == SessionType.PrivateQualify || t == SessionType.HotLap;
@@ -155,6 +155,7 @@ namespace CrewChiefV4.AiTeam
             if (gs == null || store == null) return;
             var s = gs.SessionData;
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
+            if (sessionStartUtc == DateTime.MinValue) sessionStartUtc = now;
             if (briefed || !Practiceish(s.SessionType) || s.SessionPhase != SessionPhase.Green) return;
             bool driving = !gs.PitData.InPitlane && gs.PositionAndMotionData.CarSpeed > 20;
             if (!driving) { drivingSince = DateTime.MinValue; return; }
@@ -174,16 +175,21 @@ namespace CrewChiefV4.AiTeam
         internal void ObserveLap(GameStateData gs, LapRecord lap, PersonalBestStore store, string game, string name, DateTime now)
         {
             if (gs == null || lap == null || store == null) return;
+            if (gs.SessionData.SessionId != session) { Reset(); session = gs.SessionData.SessionId; }
+            if (sessionStartUtc == DateTime.MinValue) sessionStartUtc = now;
             var entry = PersonalBestStore.FromLap(game, gs, lap, now);
             if (entry == null) return;
             var known = store.Find(entry.Game, entry.Car, entry.Track, entry.Layout);
             if (store.Offer(entry, out var previous))
             {
-                if (previous != null)
+                // Rob 16.11., Bathurst: „schnellste Runde überhaupt … 2,9 besser als die alte Marke“ kam, obwohl die alte Marke
+                // erst eine Runde vorher in derselben Sitzung gespeichert war. Ein Rekord zählt nur gegen frühere Sitzungen.
+                if (previous != null && previous.DateUtc < sessionStartUtc)
                     Offer(gs, now, "personal-best-record", Record(entry.LapSeconds, previous, AiPersonas.CleanForRadio(name ?? "", 30, false), variant++), 5, "lap_beats_stored_personal_best");
                 LiveDiagnostics.Decision("personal-best", "stored", "valid_lap", entry.Track + " " + entry.Car + " " + entry.LapSeconds.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture));
                 return;
             }
+            if (known != null && known.DateUtc >= sessionStartUtc) known = null; // nur gegen frühere Sitzungen vergleichen
             if (!nearDone && known != null && entry.LapSeconds - known.LapSeconds <= .3f && entry.LapSeconds > known.LapSeconds)
             {
                 nearDone = true;
