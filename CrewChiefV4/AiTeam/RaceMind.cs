@@ -117,6 +117,8 @@ namespace CrewChiefV4.AiTeam
         private static RaceSituation latest;
         /// <summary>Zuletzt veröffentlichte Lage (für Analysewerkzeug und Zwischenresümee); null außerhalb von Rennen.</summary>
         internal static RaceSituation Latest => Volatile.Read(ref latest);
+        /// <summary>Nur für Tests: eine Lage veröffentlichen (null setzt zurück).</summary>
+        internal static void Publish(RaceSituation x) => Volatile.Write(ref latest, x);
 
         internal readonly GapHistory Front = new GapHistory(), Rear = new GapHistory();
         /// <summary>Runde der letzten Abstandsmessung; Beobachter reagieren einmal je neuem Wert.</summary>
@@ -350,6 +352,12 @@ namespace CrewChiefV4.AiTeam
             string t = call.Topic ?? "";
             if (t == "position" && call.Priority <= 2 && now - call.DetectedUtc < TimeSpan.FromSeconds(2.5))
             { reason = "position_loss_settling"; return MindVerdict.Hold; }
+            // Startgetümmel (Mosport: vier Platzmeldungen in 30 s): in der Startrunde jede Platzmeldung 3 s setzen lassen –
+            // rasche Wechsel ersetzen einander, das Startfazit nach der halben Runde fasst zusammen.
+            var latest = Latest;
+            if (t == "position" && latest != null && latest.SessionId == call.SessionId && latest.Fresh(now) && latest.Phase == RacePhase.Start &&
+                now - call.DetectedUtc < TimeSpan.FromSeconds(3))
+            { reason = "start_positions_settling"; return MindVerdict.Hold; }
             if ((t == "status" || t == "summary") && now - lastPositionNews < TimeSpan.FromSeconds(20))
             { reason = "position_just_reported"; return MindVerdict.Drop; }
             if (t == "position" || t == "position-loss") lastPositionNews = now;

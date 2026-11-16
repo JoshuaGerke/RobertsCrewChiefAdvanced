@@ -728,5 +728,24 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(-1.115, (double)r["abstand_zu_rob_s"], .001);
             Assert.IsNull(RaceFieldTools.BestLapRating(new OpponentData { CurrentBestLapTime = -1 }, gs));
         }
+
+        [Test]
+        public void Start_lap_position_calls_settle_before_speaking()
+        {
+            try
+            {
+                RaceMind.Publish(Situation(RacePhase.Start, RaceAttention.Battle));
+                var mind = new RaceMind();
+                var gain = Call("position", 5);
+                Assert.AreEqual(MindVerdict.Hold, mind.Judge(gain, T.AddSeconds(1), out _), "Startgetümmel: erst setzen lassen");
+                RaceMind.Publish(Retime(Situation(RacePhase.Start, RaceAttention.Battle), T.AddSeconds(3.5)));
+                Assert.AreEqual(MindVerdict.Admit, mind.Judge(gain, T.AddSeconds(3.5), out _));
+                RaceMind.Publish(Retime(Situation(RacePhase.Middle, RaceAttention.Battle), T.AddSeconds(1)));
+                Assert.AreEqual(MindVerdict.Admit, new RaceMind().Judge(Call("position", 5), T.AddSeconds(1), out _), "außerhalb der Startrunde sofort");
+            }
+            finally { RaceMind.Publish(null); }
+        }
+
+        private static RaceSituation Retime(RaceSituation x, DateTime utc) { x.Utc = utc; return x; }
     }
 }
