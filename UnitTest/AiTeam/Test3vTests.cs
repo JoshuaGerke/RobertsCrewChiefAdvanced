@@ -176,7 +176,7 @@ namespace UnitTest.AiTeamTests
         {
             var catalog=RadioPhraseCatalog.Current;
             foreach(var group in new[]{"quali-first","quali-top3","quali-field","quali-provisional","quali-unknown",
-                "corner-improvement","pit-undercut-overcut-result"}) Assert.AreEqual(6,catalog.Count(group),group);
+                "corner-improvement","pit-undercut-overcut-result"}) Assert.GreaterOrEqual(catalog.Count(group),6,group); // Rob 16.11.: mehr Auswahl erlaubt
             var first=Enumerable.Range(0,6).Select(i=>QualifyingResultWatch.Compose("Rob",1,true,i)).ToArray();
             Assert.AreEqual(6,first.Distinct().Count());
             Assert.IsTrue(first.All(t=>t.Contains("Platz 1") && !t.Contains("Bestzeit")));

@@ -144,7 +144,7 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(call); Assert.AreEqual("sector-best", call.Topic);
             StringAssert.StartsWith("Rob, ", call.Text);
             StringAssert.Contains("34,512", call.Text);
-            var push = Enumerable.Range(0, 6).Select(i => RadioPhraseCatalog.Current.Format("own-sector-best-push", i)).ToArray();
+            var push = Enumerable.Range(0, RadioPhraseCatalog.Current.Count("own-sector-best-push")).Select(i => RadioPhraseCatalog.Current.Format("own-sector-best-push", i)).ToArray();
             Assert.IsTrue(push.Any(p => call.Text.EndsWith(p, StringComparison.Ordinal)), call.Text);
         }
 
@@ -154,7 +154,7 @@ namespace UnitTest.AiTeamTests
             foreach (string language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
             {
                 RadioLanguage.Current = language;
-                Assert.AreEqual(6, RadioPhraseCatalog.Current.Count("own-sector-best-push"), language);
+                Assert.AreEqual(10, RadioPhraseCatalog.Current.Count("own-sector-best-push"), language); // Rob 16.11.: mehr Auswahl
             }
             RadioLanguage.Current = RadioLanguage.German;
         }
