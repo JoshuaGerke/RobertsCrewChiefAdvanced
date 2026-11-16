@@ -281,6 +281,13 @@ namespace CrewChiefV4.AiTeam
                 case "setRecorder":
                     if ((bool)m["on"]) Notice(LiveDiagnostics.Start()); else { LiveDiagnostics.Stop(); Notice("Diagnose gestoppt."); }
                     break;
+                case "setProbe":
+                    if ((bool)m["on"]) Notice(Probe.TelemetryProbe.Start()); else { Probe.TelemetryProbe.Stop(); Notice("Telemetrie-Messung gestoppt; Bericht wird geschrieben."); }
+                    break;
+                case "openProbe":
+                    Directory.CreateDirectory(Probe.TelemetryProbe.Folder);
+                    System.Diagnostics.Process.Start("explorer.exe", "\"" + Probe.TelemetryProbe.Folder + "\"");
+                    break;
                 case "setMemory":
                     service.SetPersistentMemory((bool)m["on"]);
                     break;
@@ -416,6 +423,8 @@ namespace CrewChiefV4.AiTeam
                 ["memoryFolder"] = DriverMemory.Folder,
                 ["recorder"] = LiveDiagnostics.Enabled,
                 ["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status,
+                ["probe"] = Probe.TelemetryProbe.Enabled,
+                ["probeStatus"] = Probe.TelemetryProbe.Status,
                 ["keys"] = new JObject
                 {
                     ["openrouter"] = string.IsNullOrEmpty(openRouter) ? null : "hinterlegt " + AiSecretStore.Mask(openRouter),
@@ -549,6 +558,8 @@ namespace CrewChiefV4.AiTeam
             o["warning"] = Warning(readiness);
             o["recorder"] = LiveDiagnostics.Enabled;
             o["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status;
+            o["probe"] = Probe.TelemetryProbe.Enabled;
+            o["probeStatus"] = Probe.TelemetryProbe.Status;
             if (JToken.DeepEquals(lastLive, o)) return;
             lastLive = o;
             Post(o);

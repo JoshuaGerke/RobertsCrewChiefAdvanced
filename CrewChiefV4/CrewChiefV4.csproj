@@ -258,6 +258,11 @@
     <Compile Include="AiTeam\PitLaneWatch.cs" />
     <Compile Include="AiTeam\TelemetryCapabilities.cs" />
     <Compile Include="AiTeam\TelemetrySourceClock.cs" />
+    <Compile Include="AiTeam\Probe\PackedLayout.cs" />
+    <Compile Include="AiTeam\Probe\ProbeStatistics.cs" />
+    <Compile Include="AiTeam\Probe\R3EProbeAnalyzer.cs" />
+    <Compile Include="AiTeam\Probe\ProbeReport.cs" />
+    <Compile Include="AiTeam\Probe\TelemetryProbe.cs" />
     <Compile Include="AiTeam\TelemetryMeasurementTools.cs" />
     <Compile Include="GameState\TelemetryMeasurement.cs" />
     <Compile Include="AiTeam\AiPersonas.cs" />

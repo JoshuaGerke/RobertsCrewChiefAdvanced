@@ -123,6 +123,8 @@
     $('#rrca-memory-status').textContent = t(t(d.memoryStatus || ''));
     $('#rrca-memory-folder').textContent = d.memoryFolder || '';
     $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    if (typeof d.probe === 'boolean') $('#rrca-probe').checked = d.probe;
+    if (d.probeStatus != null) $('#rrca-probe-status').textContent = t(d.probeStatus);
     $('#key-openrouter').textContent = t(d.keys.openrouter || 'kein Schlüssel hinterlegt');
     $('#key-elevenlabs').textContent = t(d.keys.elevenlabs || 'kein Schlüssel hinterlegt');
     if (!d.keys.openrouter || !d.keys.elevenlabs) $('#rrca-keys').open = true;
@@ -150,6 +152,8 @@
     if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    if (typeof d.probe === 'boolean') $('#rrca-probe').checked = d.probe;
+    if (d.probeStatus != null) $('#rrca-probe-status').textContent = t(d.probeStatus);
     const liveRadio = $('#rrca-live-radio-status');
     const radioStatus = d.radioStatus;
     liveRadio.hidden = !d.telemetrySource && !radioStatus;
@@ -256,6 +260,7 @@
   $('#rrca-send-names').addEventListener('change', e => send('setSendNames', { on: e.target.checked }));
   $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
+  $('#rrca-probe').addEventListener('change', e => send('setProbe', { on: e.target.checked }));
   $$('[data-key-save]').forEach(b => b.addEventListener('click', () => {
     const input = $('#key-' + b.dataset.keySave + '-input'); const key = input.value.trim();
     if (!key) { notify('Erst den Schlüssel einfügen.'); return; }

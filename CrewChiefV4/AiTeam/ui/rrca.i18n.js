@@ -29,6 +29,20 @@
     'Sara: Seitenwarnungen aktiv': ['Sara: side alerts active', 'Sara: avisos laterales activos'],
     'Sara: Warte auf aktuelle Seitendaten': ['Sara: waiting for live side data', 'Sara: esperando datos laterales en directo']
   });
+  Object.assign(words, {
+    'Telemetrie-Messung einschalten (RaceRoom)': ['Enable telemetry measurement (RaceRoom)','Activar medición de telemetría (RaceRoom)'],
+    'Misst, welche Daten das Spiel liefert und wie oft sie sich ändern. Nur lokal, ändert nichts am Funk. Braucht etwas Rechenzeit – nach der Messfahrt wieder ausschalten.': ['Measures which data the game provides and how often it changes. Local only, does not change the radio. Uses some CPU – switch it off again after the test drive.','Mide qué datos entrega el simulador y con qué frecuencia cambian. Solo local, no cambia la radio. Consume algo de CPU: desactívala tras la vuelta de prueba.'],
+    'Messberichte': ['Measurement reports','Informes de medición'],
+    'startet': ['starting','iniciando'],
+    'wartet auf RaceRoom': ['waiting for RaceRoom','esperando a RaceRoom'],
+    'verbunden · wartet auf Fahrt': ['connected · waiting for driving','conectado · esperando a que conduzcas'],
+    'keine neuen Daten – verbinde neu': ['no new data – reconnecting','sin datos nuevos – reconectando'],
+    'beendet · Bericht im Diagnoseordner (Telemetrie-Probe)': ['finished · report in the diagnostics folder (Telemetrie-Probe)','terminada · informe en la carpeta de diagnóstico (Telemetrie-Probe)'],
+    'beendet · keine Daten von RaceRoom erhalten': ['finished · no data received from RaceRoom','terminada · no se recibieron datos de RaceRoom'],
+    'Telemetrie-Messung läuft bereits.': ['Telemetry measurement is already running.','La medición de telemetría ya está en curso.'],
+    'Die vorige Messung wird noch abgeschlossen.': ['The previous measurement is still finishing.','La medición anterior aún se está cerrando.'],
+    'Telemetrie-Messung gestoppt; Bericht wird geschrieben.': ['Telemetry measurement stopped; writing report.','Medición de telemetría detenida; escribiendo informe.']
+  });
   try { const saved = localStorage.getItem('rrca.uiLanguage'); if (['de','en','es'].includes(saved)) language=saved; } catch (_) { }
   const records=[], attributes=[], seen=new WeakSet();
   const pick = (de,en,es) => language==='en'?en:language==='es'?es:de;
@@ -51,6 +65,13 @@
     [/^auf (.*) vor dir( · Näherung)?$/, (name,est)=>pick('auf '+name+' vor dir'+(est||''),'to '+name+' ahead'+(est?' · estimate':''),'con '+name+' delante'+(est?' · estimación':''))],
     [/^auf (.*?)( · Näherung)?( · vorne (.*))?$/, (name,est,front,rest)=>pick('auf '+name+(est||'')+(front||''),'to '+name+(est?' · estimate':'')+(front?' · ahead '+rest.replace(' ungefähr ',' approximately '):''),'con '+name+(est?' · estimación':'')+(front?' · delante '+rest.replace(' ungefähr ',' aproximadamente '):''))],
     [/^Diagnose: (.*)$/, value=>pick('Diagnose: ','Diagnostics: ','Diagnóstico: ')+t(value).replace('verworfen=',pick('verworfen=','dropped=','descartados='))],
+    [/^Messung: (.*)$/, value=>pick('Messung: ','Measurement: ','Medición: ')+t(value)],
+    [/^läuft · RaceRoom · (\d+) s · (.+) Bilder\/s · (\d+) Gegner$/, (sec,fps,n)=>pick('läuft · RaceRoom · '+sec+' s · '+fps+' Bilder/s · '+n+' Gegner','running · RaceRoom · '+sec+' s · '+fps+' frames/s · '+n+' opponents','en curso · RaceRoom · '+sec+' s · '+fps+' imágenes/s · '+n+' rivales')],
+    [/^Fehler · Datenstruktur passt nicht \((.*)\)$/, why=>pick('Fehler · Datenstruktur passt nicht ('+why+')','Error · data layout mismatch ('+why+')','Error · la estructura de datos no coincide ('+why+')')],
+    [/^Fehler beim Schreiben · (.*)$/, why=>pick('Fehler beim Schreiben · '+why,'Error writing report · '+why,'Error al escribir el informe · '+why)],
+    [/^Fehler · (.*)$/, why=>pick('Fehler · '+why,'Error · '+why,'Error · '+why)],
+    [/^Telemetrie-Messung aktiv\. Bericht: (.*)$/, path=>pick('Telemetrie-Messung aktiv. Bericht: ','Telemetry measurement active. Report: ','Medición de telemetría activa. Informe: ')+path],
+    [/^Telemetrie-Messung konnte nicht starten: (.*)$/, why=>pick('Telemetrie-Messung konnte nicht starten: ','Telemetry measurement could not start: ','No se pudo iniciar la medición de telemetría: ')+why],
     [/^Frage an die Crew: (.*)$/, value=>pick('Frage an die Crew: ','Question for the crew: ','Pregunta al equipo: ')+value]
   ];
   function t(text) {
