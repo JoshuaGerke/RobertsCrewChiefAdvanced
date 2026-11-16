@@ -268,6 +268,15 @@ namespace CrewChiefV4.AiTeam
             Volatile.Write(ref deliveryState, 0);
             LiveDiagnostics.Decision(Topic, "deferred", reason, Evidence, EventId);
         }
+        /// <summary>Rennkopf: jetzt nicht, später erneut versuchen. Zählt nicht als Zustellversuch.</summary>
+        internal void HoldBack(DateTime now, TimeSpan wait, string reason)
+        {
+            if (Interlocked.CompareExchange(ref deliveryState, 4, 1) != 1) return;
+            Interlocked.Decrement(ref attempts);
+            Interlocked.Exchange(ref retryNotBeforeTicks, now.Add(wait).Ticks);
+            Volatile.Write(ref deliveryState, 0);
+            LiveDiagnostics.Decision(Topic, "held", reason, Evidence, EventId);
+        }
         public bool IsValid(GameStateData gs, DateTime now)
         {
             if (gs == null || DeliveryFailed || now < DetectedUtc || now > ExpiresUtc) return false;

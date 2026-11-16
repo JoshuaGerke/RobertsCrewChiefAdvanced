@@ -54,6 +54,8 @@ namespace CrewChiefV4.AiTeam
         private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
+        /// <summary>Renningenieur-Kopf: führt die Rennlage zusammen und entscheidet, welche Info-Meldung jetzt wichtig ist.</summary>
+        private readonly RaceMind raceMind = new RaceMind();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
@@ -278,6 +280,7 @@ namespace CrewChiefV4.AiTeam
                 incidentPoints.Reset();
                 raceSummary.Reset();
                 gapTrend.Reset();
+                raceMind.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -327,6 +330,7 @@ namespace CrewChiefV4.AiTeam
             var steeringUnits = Game.AMS2 ? SteeringMeasurement.Normalized : Game.IRACING ? SteeringMeasurement.Radians : SteeringMeasurement.Unknown;
             workload.Observe(current, now, Spotter().HasOverlap, Tracks.Snapshot, measuredFront, measuredRear, steeringUnits);
             bool lapCompleted = Memory.Update(previous, current, now, measuredFront, measuredRear);
+            raceMind.Observe(current, now, Spotter().HasOverlap, measuredFront, measuredRear, Tracks.Snapshot, () => BuildContext(current));
             ObservedRaceCall cornerImprovement = null;
             if (lapCompleted)
             {
@@ -548,8 +552,8 @@ namespace CrewChiefV4.AiTeam
             pitLaneWatch.Observe(current,now);
             pitStopTimer.Observe(current,now);
             incidentPoints.Observe(current,now);
-            raceSummary.Observe(current,() => BuildContext(current),now);
-            gapTrend.Observe(current,() => BuildContext(current),now);
+            raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
+            gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
             OpponentStopLog.Observe(current);
             MaybePreparePitLimit(current,now);
             MaybePrepareOpponentName(current, now);
@@ -658,12 +662,12 @@ namespace CrewChiefV4.AiTeam
                     current.SessionData.PreviousLapWasValid && !current.PitData.InPitlane
                     ? radioDirector.MeasuredOpponentApproaching(current.SessionData.OpponentKeyBehind,
                         current.SessionData.CompletedLaps, measuredRear.IsRaceGap ? measuredRear.Seconds : -1) : null;
-                if (closing != null && CrewChiefV4.Events.Timings.NativeTimingHandoff==null)
+                if (closing != null && CrewChiefV4.Events.Timings.NativeTimingHandoff==null && !gapTrend.CoversRecently(true, current.SessionData.CompletedLaps))
                 {
                     trigger = "Gemessener Gegnertrend: " + closing + " Ben soll sachlich berichten, ohne Überholversprechen.";
                     topic = "opponent-gap-trend";
                 }
-                else if (approaching != null && CrewChiefV4.Events.Timings.NativeTimingHandoff==null)
+                else if (approaching != null && CrewChiefV4.Events.Timings.NativeTimingHandoff==null && !gapTrend.CoversRecently(false, current.SessionData.CompletedLaps))
                 {
                     trigger = "Gemessener Gegnertrend hinten: " + approaching + " Ben berichtet nur den Messbefund, keine riskante Verteidigungsanweisung.";
                     topic = "opponent-behind-trend";
@@ -1950,6 +1954,20 @@ namespace CrewChiefV4.AiTeam
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "same_call_recently_spoken", call.Text);
+                return;
+            }
+            // Renningenieur-Kopf: Ist diese Info in der aktuellen Rennlage wichtig genug? Sicherheit und eigene Rennereignisse gehen immer durch.
+            var mindVerdict = raceMind.Judge(call, DateTime.UtcNow, out string mindReason);
+            if (mindVerdict == MindVerdict.Hold)
+            {
+                call.HoldBack(DateTime.UtcNow, TimeSpan.FromSeconds(2), "race_mind:" + mindReason);
+                return;
+            }
+            if (mindVerdict == MindVerdict.Drop)
+            {
+                var at = DateTime.UtcNow;
+                call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "race_mind:" + mindReason, call.Text);
                 return;
             }
             if (call.CanRefresh && (currentRequest != null || Spotter().HasOverlap || !AllowsRadioNow(IsShortTactical(call.Topic))))

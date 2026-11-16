@@ -119,3 +119,21 @@ Ausgangslage: Disqualifikation bei 30/30 Vorfallpunkten, obwohl RaceRoom den Zä
 - **Nachtrag (gleicher Tag):** Startplatz-Frage („Welche Position zum Start?“) wird lokal beantwortet (vor dem Start: „Du startest von Platz …“, im Rennen mit Bilanz); kurze Positionsfrage ohne „mein“ gilt als eigene. Bei Tracklimit-Zweifel bleibt die Platzmeldung neutral (kein „Sauber“).
 - **Rennkopf Teil 2 – Abstandstrend (GapTrendWatch):** Je Runde der gemessene Klassenabstand zu Vorder- und Hintermann (nur derselbe Gegner, keine Box-Runden, keine reinen Streckenmeter-Schätzungen). Nach drei Runden gleichgerichtetem Trend (höchstens ein kleiner Ausreißer) rechnet Ben hoch: „Du holst 3 Zehntel pro Runde auf Keller. In etwa 5 Runden bist du dran.“ Reicht es bis zur Flagge nicht, sagt er das und nennt das nötige Tempo; kommt der Hintermann bis zum Ende nicht heran, beruhigt er. Nicht im Zweikampf (<1 s), nicht in der letzten Runde, je Gegner höchstens alle vier Runden, insgesamt höchstens alle zwei Runden.
 - **Stillstände der Gegner (OpponentStopLog):** Rob fragte „Der steht ziemlich oft draußen, der Sergi Reche“ – das Analysewerkzeug kannte nur „in der Box“. Jetzt je Gegner: stillstaende_auf_strecke, steht_gerade_auf_strecke (unter 1 m/s für 3 s außerhalb der Box, nur wenn er vorher in Fahrt gemessen wurde).
+
+## Claude – P6 Renningenieur-Kopf (RaceMind), 16.11.2026 abends
+
+Robs Kernwunsch: eine zentrale Stelle, die die Rennlage zusammenführt und bewertet und entscheidet, was jetzt wirklich wichtig ist.
+
+- **RaceMind (neu, zentral):** pro Tick ein Lagebericht (RaceSituation, threadsicher veröffentlicht):
+  - Rennphase: vor dem Start, Startrunde, früh, Mitte, spät, Schlussphase (2 Runden), letzte Runde, beendet.
+  - Lage ums Auto: Boxengasse, Gelbphase, Zweikampf (<1 s oder Spotter-Überlappung, 3 s Nachlauf), Verkehr (<2,5 s oder Auto in 2,5 s Fahrstrecke, 2 s Nachlauf), freie Fahrt, ruhig (nichts innerhalb 5 s).
+  - Trends: rundenweise Abstandsmessung zu demselben Vorder-/Hintermann (gemeinsame Quelle für Abstandstrend und Zwischenresümee), Hochrechnung „dran in Runden“.
+  - Gefahren (Gelb, Hintermann dran/holt auf, Vorfallpunkte knapp, Sprit reicht nicht) und Chancen (Vordermann in Reichweite/einholbar/in der Box).
+  - Fokus: sicher ins Ziel > verteidigen/angreifen > nach Hause bringen > Rhythmus.
+- **Zentrale Freigabe in QueueLocalRaceCall:** zulassen, zurückhalten (2 s, zählt nicht als Zustellversuch, ObservedRaceCall.HoldBack) oder verwerfen. Gesteuert werden nur bekannte Info-Meldungen (Gegner-/Feldnachrichten, Statistik, Routinestatus, Kurven-Coaching, Begrüßung, Boxenzeit, leichte Wetterinfos, Zwischenresümee, Abstandstrend, eigene Sektor-Motivation). Sicherheit, Warnungen, Box, Vorfallpunkte, Platzwechsel, eigene Runden, Taktik und alles Unbekannte gehen unverändert durch (Bestandsschutz). Ohne frische Lage oder außerhalb des Rennens wird nichts blockiert.
+  - Schlussphase/letzte Runde: Hintergrundinfos und Zwischenresümee verfallen; Hochrechnung in der letzten Runde verfällt.
+  - Startrunde, Zweikampf, Gelb, Verkehr: Hintergrund wartet; Zwischenresümee nur in ruhiger Minute.
+  - Fokus Angriff/Verteidigung: Nachrichten über andere Autos verfallen.
+- **Zwischenresümee:** Schlusssatz folgt dem Fokus des Rennkopfs. **KI-Auswertung:** get_race_state enthält „rennkopf“ (Phase, Lage, Fokus, Gefahren, Chancen, Trends); Persona-Hinweis ergänzt. **Doppelmeldung:** KI-Trendbericht entfällt, wenn Ben denselben Trend in den letzten 4 Runden schon gemeldet hat.
+- Diagnose: LiveDiagnostics „race-mind/state“ bei jeder Lageänderung, „held“/„suppressed“ mit Grund „race_mind:…“.
+- Tests: RaceMindTests (Phase, Lage mit Nachlauf, Fokus, Freigabe-Matrix, Sicherheit nie blockiert, HoldBack ohne Versuchsverbrauch, Beschreibung).

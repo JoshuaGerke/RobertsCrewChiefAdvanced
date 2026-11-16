@@ -263,6 +263,7 @@
     <Compile Include="AiTeam\RaceSummaryWatch.cs" />
     <Compile Include="AiTeam\OpponentStopLog.cs" />
     <Compile Include="AiTeam\GapTrendWatch.cs" />
+    <Compile Include="AiTeam\RaceMind.cs" />
     <Compile Include="AiTeam\Probe\PackedLayout.cs" />
     <Compile Include="AiTeam\Probe\ProbeStatistics.cs" />
     <Compile Include="AiTeam\Probe\ProbeAnalyzer.cs" />

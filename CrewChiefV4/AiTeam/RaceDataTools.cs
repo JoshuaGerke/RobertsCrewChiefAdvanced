@@ -54,7 +54,7 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_driver_history", "Belegte historische eigene Runden aus dauerhaftem lokalem Faktengedächtnis. Nur passender Spiel-/Fahrzeug-/Strecken-/Reifen-/Bedingungskontext, Quelle und UTC. Kein aktueller Fahrzeugzustand, keine vollständige persönliche Rekordliste, unbekannte Verbrauchseinstellung; niemals aktuelle Reichweite daraus ableiten."));
             tools.Add(Tool("get_data_capabilities", "Nachweis der im aktuellen Adapter angekommenen Daten: Gegner/Zeiten/Sektoren, räumliche Beobachtung, Fahrzeug, Wetter und bestätigte Spiel-/Servervorhersage. Vor Behauptungen über fehlende Daten verwenden."));
             tools.Add(Tool("get_telemetry_values", "Alle aktuell als Messwerte erfassten Details mit exaktem Rohwert, Wert, Einheit, Quelle, Feld, Komponente, UTC, Messalter und Status. Fehlend/veraltet/ungültig nie als Null interpretieren. Schaden ist API-Zustand, kein bewiesener Prozentverlust an Leistung."));
-            tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge und eigene Streckenposition/Start-Ziel-Distanz."));
+            tools.Add(Tool("get_race_state", "Session, Strecke, Auto, Position, Runden/Restzeit, Flagge, eigene Streckenposition/Start-Ziel-Distanz und im Rennen die Lageeinschätzung des Rennkopfs."));
             tools.Add(Tool("get_track_situation", "Räumliche Verkehrslage: nächste Fahrzeuge auf der Strecke, Weltkoordinaten, Abstand in Metern entlang der Runde, Überrundungsbezug und über mehrere Samples gemessene Annäherung. Keine Seitenfreigabe oder Überholgarantie."));
             tools.Add(Tool("get_tyre_status", "Reifentemperaturen (innen/mitte/außen), Drücke, Verschleiß, Reifentyp, Bremsentemperaturen, blockierende/durchdrehende Räder."));
             tools.Add(Tool("get_fuel_status", "Tankinhalt, Verbrauch pro Runde (gemessen), Reichweite, Crew-Chief-Rechnung für benötigten Sprit bis Rennende."));
@@ -232,6 +232,9 @@ namespace CrewChiefV4.AiTeam
                 o["vorfallpunkte_frei"] = s.MaxIncidentCount - s.CurrentIncidentCount;
                 o["vorfallpunkte_hinweis"] = "Vom Spiel gemeldet. Bei Erreichen des Limits droht Disqualifikation.";
             }
+            // Einschätzung des Renningenieur-Kopfs: Phase, Lage, Fokus, Gefahren, Chancen, Trends – damit Antworten die Rennlage kennen.
+            var mind = RaceMind.Latest;
+            if (mind != null && mind.SessionId == s.SessionId && mind.Fresh(ctx.NowUtc)) o["rennkopf"] = mind.Describe();
             int startMode, startPhase;
             if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
                 o["raceroom_startgruppe"] = new JObject {

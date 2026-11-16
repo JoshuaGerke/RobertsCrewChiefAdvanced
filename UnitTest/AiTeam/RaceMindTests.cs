@@ -211,5 +211,147 @@ namespace UnitTest.AiTeamTests
             StringAssert.StartsWith("Der Hintermann", GapTrendWatch.BehindText("", .4f, 4, false, 0));
             StringAssert.Contains("bis zur Flagge reicht es ihm so nicht", GapTrendWatch.BehindText("Wurz", .4f, 9, true, 0));
         }
+
+        // ---------- Renningenieur-Kopf (RaceMind) ----------
+
+        private static RaceSituation Situation(RacePhase phase, RaceAttention attention, RaceFocus focus = RaceFocus.Rhythm) =>
+            new RaceSituation { Utc = T, SessionId = 5, Phase = phase, Attention = attention, Focus = focus };
+
+        private static ObservedRaceCall Call(string topic, int priority = 3, SessionType type = SessionType.Race) =>
+            new ObservedRaceCall { Topic = topic, Text = topic, Priority = priority, SessionId = 5, SessionType = type, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+
+        private static MindVerdict Judge(RaceSituation x, string topic, int priority = 3) => RaceMind.Judge(x, Call(topic, priority), T, out _);
+
+        [Test]
+        public void Mind_knows_the_race_phase()
+        {
+            var gs = Race(); var s = gs.SessionData;
+            s.SessionNumberOfLaps = 20; s.SessionLapsRemaining = 14; s.CompletedLaps = 6;
+            Assert.AreEqual(RacePhase.Middle, RaceMind.PhaseOf(s));
+            s.CompletedLaps = 2; s.SessionLapsRemaining = 18; Assert.AreEqual(RacePhase.Early, RaceMind.PhaseOf(s));
+            s.CompletedLaps = 16; s.SessionLapsRemaining = 4; Assert.AreEqual(RacePhase.Late, RaceMind.PhaseOf(s));
+            s.CompletedLaps = 18; s.SessionLapsRemaining = 2; Assert.AreEqual(RacePhase.Final, RaceMind.PhaseOf(s));
+            s.IsLastLap = true; Assert.AreEqual(RacePhase.LastLap, RaceMind.PhaseOf(s)); s.IsLastLap = false;
+            s.CompletedLaps = 0; s.SessionLapsRemaining = 20; Assert.AreEqual(RacePhase.Start, RaceMind.PhaseOf(s));
+            s.SessionPhase = SessionPhase.Formation; Assert.AreEqual(RacePhase.PreStart, RaceMind.PhaseOf(s));
+            s.SessionType = SessionType.Practice; s.SessionPhase = SessionPhase.Green; Assert.AreEqual(RacePhase.NotRacing, RaceMind.PhaseOf(s));
+        }
+
+        [Test]
+        public void Mind_reads_battle_traffic_and_calm_with_hysteresis()
+        {
+            var gs = Race(); var mind = new RaceMind();
+            Assert.AreEqual(RaceAttention.Battle, mind.AttentionOf(gs, T, false, .6f, 9f, null));
+            Assert.AreEqual(RaceAttention.Battle, mind.AttentionOf(gs, T.AddSeconds(2), false, 3f, 9f, null), "Zweikampf hält kurz nach");
+            Assert.AreEqual(RaceAttention.Open, mind.AttentionOf(gs, T.AddSeconds(4), false, 3f, 9f, null));
+            Assert.AreEqual(RaceAttention.Traffic, mind.AttentionOf(gs, T.AddSeconds(5), false, 2f, 9f, null));
+            Assert.AreEqual(RaceAttention.Calm, mind.AttentionOf(gs, T.AddSeconds(8), false, 8f, 9f, null));
+            Assert.AreEqual(RaceAttention.Battle, mind.AttentionOf(gs, T.AddSeconds(9), true, 8f, 9f, null), "Spotter-Überlappung ist Zweikampf");
+            gs.FlagData.isLocalYellow = true;
+            Assert.AreEqual(RaceAttention.Caution, mind.AttentionOf(gs, T.AddSeconds(20), false, 8f, 9f, null));
+            gs.FlagData.isLocalYellow = false; gs.PitData.InPitlane = true;
+            Assert.AreEqual(RaceAttention.Pit, mind.AttentionOf(gs, T.AddSeconds(21), false, 8f, 9f, null));
+        }
+
+        [Test]
+        public void Mind_sets_the_focus_like_a_race_engineer()
+        {
+            var x = Situation(RacePhase.Middle, RaceAttention.Open);
+            x.LapsLeft = 10;
+            Assert.AreEqual(RaceFocus.Rhythm, RaceMind.FocusOf(x));
+            x.GapBehind = .8f; Assert.AreEqual(RaceFocus.Defend, RaceMind.FocusOf(x));
+            x.GapAhead = 1.2f; Assert.AreEqual(RaceFocus.Attack, RaceMind.FocusOf(x), "vorne in Reichweite geht vor");
+            x.GapAhead = 6f; x.FrontLapsToCatch = 12; x.GapBehind = 7f; x.RearLapsToCatch = 2;
+            Assert.AreEqual(RaceFocus.Defend, RaceMind.FocusOf(x), "Hintermann in zwei Runden dran");
+            x.RearLapsToCatch = 12; Assert.AreEqual(RaceFocus.Rhythm, RaceMind.FocusOf(x), "Einholen erst nach dem Ende zählt nicht");
+            x.Phase = RacePhase.Final; Assert.AreEqual(RaceFocus.BringHome, RaceMind.FocusOf(x));
+            x.IncidentsTight = true; Assert.AreEqual(RaceFocus.Safe, RaceMind.FocusOf(x));
+        }
+
+        [Test]
+        public void Mind_never_holds_back_safety_or_own_race_events()
+        {
+            var battleLastLap = Situation(RacePhase.LastLap, RaceAttention.Battle, RaceFocus.Defend);
+            foreach (var topic in new[] { "position", "position-loss", "own-lap", "race-hazard-ahead", "race-traffic-rear", "race-disqualified", "warning-tyre", "pit-limit" })
+                Assert.AreEqual(MindVerdict.Admit, Judge(battleLastLap, topic), topic);
+            Assert.AreEqual(MindVerdict.Admit, Judge(battleLastLap, "incident-points", 3), "auch der erste Vorfallpunkt");
+            Assert.AreEqual(MindVerdict.Admit, Judge(battleLastLap, "weather-rain", 5), "Wetterwarnung");
+            Assert.AreEqual(MindVerdict.Admit, Judge(battleLastLap, "chase-target"), "unbekannte Taktikmeldungen bleiben unverändert");
+            Assert.AreEqual(MindVerdict.Admit, Judge(battleLastLap, "field-anything", 6), "ab Priorität 6 immer");
+        }
+
+        [Test]
+        public void Mind_decides_what_matters_now()
+        {
+            var calm = Situation(RacePhase.Middle, RaceAttention.Calm);
+            var open = Situation(RacePhase.Middle, RaceAttention.Open);
+            var battle = Situation(RacePhase.Middle, RaceAttention.Battle, RaceFocus.Attack);
+            var final = Situation(RacePhase.Final, RaceAttention.Open, RaceFocus.BringHome);
+            var lastLap = Situation(RacePhase.LastLap, RaceAttention.Open, RaceFocus.BringHome);
+            var start = Situation(RacePhase.Start, RaceAttention.Open);
+
+            Assert.AreEqual(MindVerdict.Admit, Judge(calm, "field-pit"));
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Battle), "field-pit"), "im Zweikampf warten");
+            Assert.AreEqual(MindVerdict.Drop, Judge(battle, "field-pit"), "im Angriff verfallen Nachrichten über andere");
+            Assert.AreEqual(MindVerdict.Hold, Judge(start, "status"));
+            Assert.AreEqual(MindVerdict.Drop, Judge(final, "field-fastest"));
+            Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-pit"), "Fokus auf dem eigenen Kampf");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Traffic), "reader-pace-front"));
+
+            Assert.AreEqual(MindVerdict.Hold, Judge(open, "race-summary"), "Zwischenstand nur in ruhiger Minute");
+            Assert.AreEqual(MindVerdict.Admit, Judge(calm, "race-summary"));
+            Assert.AreEqual(MindVerdict.Drop, Judge(final, "race-summary"));
+
+            Assert.AreEqual(MindVerdict.Hold, Judge(battle, "gap-trend"));
+            Assert.AreEqual(MindVerdict.Admit, Judge(final, "gap-trend"), "Hochrechnung zählt gerade am Ende");
+            Assert.AreEqual(MindVerdict.Drop, Judge(lastLap, "gap-trend"));
+
+            Assert.AreEqual(MindVerdict.Hold, Judge(battle, "sector-best"));
+            Assert.AreEqual(MindVerdict.Admit, Judge(lastLap, "sector-best"), "Sektorbestzeit in der letzten Runde passt");
+        }
+
+        [Test]
+        public void Mind_is_silent_without_fresh_race_assessment()
+        {
+            var battle = Situation(RacePhase.Middle, RaceAttention.Battle);
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(battle, Call("field-pit"), T.AddSeconds(3), out _), "veraltete Lage blockiert nichts");
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(battle, Call("field-pit", 3, SessionType.Practice), T, out _), "nur im Rennen");
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(null, Call("field-pit"), T, out _));
+        }
+
+        [Test]
+        public void Held_call_comes_back_later_without_using_a_delivery_attempt()
+        {
+            var call = Call("field-pit");
+            for (int i = 0; i < 5; i++)
+            {
+                var at = T.AddSeconds(i * 3);
+                Assert.IsTrue(call.TryReserve(at), "Versuch " + i);
+                call.HoldBack(at, TimeSpan.FromSeconds(2), "race_mind:test");
+                Assert.IsFalse(call.CanReserve(at.AddSeconds(1)));
+            }
+        }
+
+        [Test]
+        public void Situation_describes_itself_for_the_analysis()
+        {
+            var x = Situation(RacePhase.Late, RaceAttention.Calm, RaceFocus.Attack);
+            x.FrontRate = .3f; x.FrontLapsToCatch = 5; x.Opportunities = new[] { "vordermann_einholbar" };
+            var o = x.Describe();
+            Assert.AreEqual("spaete_phase", (string)o["rennphase"]);
+            Assert.AreEqual("ruhig", (string)o["lage"]);
+            Assert.AreEqual("angreifen", (string)o["fokus"]);
+            Assert.AreEqual(5, (int)o["vorne_dran_in_runden"]);
+            Assert.AreEqual(-.3, (double)o["vorne_abstand_aenderung_s_pro_runde"], .001);
+            StringAssert.Contains("Hochrechnung", (string)o["hinweis"]);
+        }
+
+        [Test]
+        public void Summary_closing_follows_the_mind_focus()
+        {
+            Assert.AreEqual(RaceSummaryWatch.Mood.Defend, RaceSummaryWatch.MoodOf(RaceFocus.Defend, 4));
+            Assert.AreEqual(RaceSummaryWatch.Mood.Leading, RaceSummaryWatch.MoodOf(RaceFocus.Rhythm, 1));
+            Assert.AreEqual(RaceSummaryWatch.Mood.Steady, RaceSummaryWatch.MoodOf(RaceFocus.BringHome, 3));
+        }
     }
 }

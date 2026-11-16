@@ -19,16 +19,14 @@ namespace CrewChiefV4.AiTeam
         private readonly List<double> windows = new List<double>();
         private ObservedRaceCall call;
         private readonly int[] closingVariant = new int[5];
-        private int lastLapSampled = -1;
-        private readonly List<float> frontGaps = new List<float>(), rearGaps = new List<float>();
-        private string frontIdentity, rearIdentity;
+        private RaceMind mind;
+        private static readonly List<float> NoGaps = new List<float>();
 
         internal RaceSummaryWatch(int seed = 0) { random = seed == 0 ? new Random() : new Random(seed); }
 
         internal void Reset()
         {
-            session = int.MinValue; startPosition = 0; delivered = 0; windows.Clear(); call = null; lastLapSampled = -1;
-            frontGaps.Clear(); rearGaps.Clear(); frontIdentity = rearIdentity = null;
+            session = int.MinValue; startPosition = 0; delivered = 0; windows.Clear(); call = null;
         }
 
         /// <summary>Anteil des Rennens (0..1) aus Runden oder Zeit; -1 wenn unbekannt.</summary>
@@ -80,23 +78,16 @@ namespace CrewChiefV4.AiTeam
             return true;
         }
 
-        internal void Observe(GameStateData gs, Func<RaceDataContext> context, DateTime now)
+        internal void Observe(GameStateData gs, RaceMind raceMind, Func<RaceDataContext> context, DateTime now)
         {
             if (gs == null) return;
+            mind = raceMind;
             var s = gs.SessionData;
             if (s.SessionType != SessionType.Race) { if (session != int.MinValue) Reset(); return; }
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
             if (startPosition <= 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
             if (windows.Count == 0 && (s.SessionNumberOfLaps > 0 || s.SessionTotalRunTime > 0)) Plan(s);
             if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 2) return;
-
-            // Einmal je Runde Abstände für den Trend merken – nur gegen dieselben Gegner.
-            if (s.IsNewLap && s.CompletedLaps != lastLapSampled)
-            {
-                lastLapSampled = s.CompletedLaps;
-                var ctx = context();
-                Sample(ctx, true); Sample(ctx, false);
-            }
 
             if (call != null || delivered >= windows.Count) return;
             double progress = Progress(s);
@@ -118,16 +109,13 @@ namespace CrewChiefV4.AiTeam
             LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, text, call.EventId);
         }
 
-        private void Sample(RaceDataContext ctx, bool ahead)
+        /// <summary>Die rundenweise Abstandsmessung des Rennkopfs, nur wenn sie zum aktuellen Nachbarn gehört (letzte bis zu vier Runden).</summary>
+        private List<float> Gaps(GameStateData gs, bool ahead)
         {
-            var op = RaceDataTools.Neighbour(ctx.GameState, ahead);
-            var list = ahead ? frontGaps : rearGaps;
-            string id = op == null ? null : op.DriverRawName;
-            if (id != (ahead ? frontIdentity : rearIdentity)) { list.Clear(); if (ahead) frontIdentity = id; else rearIdentity = id; }
-            float gap = op == null ? -1 : Gap(ctx, ahead);
-            if (gap < 0) { list.Clear(); return; }
-            list.Add(gap);
-            if (list.Count > 4) list.RemoveAt(0);
+            var h = mind == null ? null : ahead ? mind.Front : mind.Rear;
+            var op = RaceDataTools.Neighbour(gs, ahead);
+            if (h == null || op == null || h.Id != OpponentStopLog.Key(op)) return NoGaps;
+            return h.Gaps.Count <= 4 ? h.Gaps : h.Gaps.GetRange(h.Gaps.Count - 4, 4);
         }
 
         private static float Gap(RaceDataContext ctx, bool ahead)
@@ -166,6 +154,7 @@ namespace CrewChiefV4.AiTeam
 
             var front = RaceDataTools.Neighbour(gs, true);
             var rear = RaceDataTools.Neighbour(gs, false);
+            var frontGaps = Gaps(gs, true); var rearGaps = Gaps(gs, false);
             float frontTrend = Trend(frontGaps), rearTrend = Trend(rearGaps);
             string frontName = front != null && ctx.SendDriverNames && front.CanUseName ? RadioPhraseCatalog.SafeRivalName(front.DriverRawName) : "";
             string rearName = rear != null && ctx.SendDriverNames && rear.CanUseName ? RadioPhraseCatalog.SafeRivalName(rear.DriverRawName) : "";
@@ -194,9 +183,24 @@ namespace CrewChiefV4.AiTeam
                 parts.Add(RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
                     "Incident points " + s.CurrentIncidentCount + " of " + s.MaxIncidentCount + ".", "Puntos de incidente " + s.CurrentIncidentCount + " de " + s.MaxIncidentCount + "."));
 
-            Mood mood = ChooseMood(s, ahead, behind, frontTrend, rearTrend, frontGaps.Count, rearGaps.Count, incidentsTight);
+            // Der Rennkopf kennt Trends, Gefahren und Chancen; seine Einschätzung bestimmt den Schlusssatz. Ohne frische Lage die eigene Regel.
+            var x = RaceMind.Latest;
+            Mood mood = x != null && x.SessionId == s.SessionId && x.Fresh(ctx.NowUtc) && x.Focus != RaceFocus.None
+                ? MoodOf(x.Focus, s.ClassPosition)
+                : ChooseMood(s, ahead, behind, frontTrend, rearTrend, frontGaps.Count, rearGaps.Count, incidentsTight);
             parts.Add(Closing(mood, closingVariant[(int)mood]++, name));
             return string.Join(" ", parts);
+        }
+
+        internal static Mood MoodOf(RaceFocus focus, int classPosition)
+        {
+            switch (focus)
+            {
+                case RaceFocus.Safe: return Mood.Safe;
+                case RaceFocus.Defend: return Mood.Defend;
+                case RaceFocus.Attack: return Mood.Attack;
+                default: return classPosition == 1 ? Mood.Leading : Mood.Steady;
+            }
         }
 
         internal static Mood ChooseMood(SessionData s, float ahead, float behind, float frontTrend, float rearTrend, int frontSamples, int rearSamples, bool incidentsTight)

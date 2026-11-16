@@ -6,7 +6,7 @@ namespace CrewChiefV4.AiTeam
 {
     /// <summary>
     /// Rennkopf, Teil 2: Zusammenhang zwischen Abstand und Rundentempo erkennen, wie es ein Renningenieur tut.
-    /// Pro Runde wird der gemessene Abstand zum Klassen-Vorder- und Hintermann gemerkt (nur derselbe Gegner, keine Box- oder
+    /// Pro Runde misst der Rennkopf den Abstand zum Klassen-Vorder- und Hintermann (nur derselbe Gegner, keine Box- oder
     /// reinen Streckenmeter-Schätzungen). Nach mindestens drei Runden mit gleichgerichtetem Trend rechnet Ben hoch: „Du holst drei Zehntel pro Runde auf
     /// Keller, in etwa fünf Runden bist du dran“ – oder er ordnet ein, dass es bis zum Ende nicht reicht bzw. der Hintermann
     /// uns bis zur Flagge nicht erreicht. Kein Zweikampf (unter 1 s), nicht in der letzten Runde, je Gegner höchstens alle vier Runden.
@@ -14,17 +14,20 @@ namespace CrewChiefV4.AiTeam
     internal sealed class GapTrendWatch
     {
         internal const float MinRate = .15f, CatchMargin = .8f;
-        private sealed class Track { public string Id; public readonly List<float> Gaps = new List<float>(); public int AnnouncedLap = -100; public string AnnouncedId; }
+        private sealed class Announced { public int Lap = -100; public string Id; }
 
-        private readonly Track front = new Track(), rear = new Track();
+        private readonly Announced front = new Announced(), rear = new Announced();
         private int session = int.MinValue, lastLap = -1, lastCallLap = -100, variant;
         private ObservedRaceCall call;
 
         internal void Reset()
         {
             session = int.MinValue; lastLap = -1; lastCallLap = -100; call = null;
-            foreach (var t in new[] { front, rear }) { t.Id = null; t.Gaps.Clear(); t.AnnouncedLap = -100; t.AnnouncedId = null; }
+            foreach (var t in new[] { front, rear }) { t.Lap = -100; t.Id = null; }
         }
+
+        /// <summary>Hat Ben über diesen Gegner in den letzten Runden schon einen Trend gemeldet? (Verhindert doppelte KI-Trendmeldung.)</summary>
+        internal bool CoversRecently(bool ahead, int completedLaps) => completedLaps - (ahead ? front : rear).Lap < 4;
 
         /// <summary>Zeit pro Runde, um die sich der Abstand verkleinert (positiv = schrumpft); 0 ohne klaren, gleichgerichteten Trend.</summary>
         internal static float ClosingRate(IList<float> gaps)
@@ -44,23 +47,20 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Runden, bis der Abstand auf Angriffsdistanz (0,8 s) geschrumpft ist; -1 ohne Annäherung.</summary>
         internal static int LapsToCatch(float gap, float rate) => rate < MinRate || gap <= CatchMargin ? -1 : (int)Math.Ceiling((gap - CatchMargin) / rate);
 
-        internal void Observe(GameStateData gs, Func<RaceDataContext> context, DateTime now)
+        /// <summary>Die Abstandsmessung je Runde führt der Rennkopf (RaceMind); hier wird nur bewertet und formuliert.</summary>
+        internal void Observe(GameStateData gs, RaceMind mind, Func<RaceDataContext> context, DateTime now)
         {
-            if (gs == null) return;
+            if (gs == null || mind == null) return;
             var s = gs.SessionData;
             if (s.SessionType != SessionType.Race) { if (session != int.MinValue) Reset(); return; }
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
-            if (s.SessionPhase != SessionPhase.Green || !s.IsNewLap || s.CompletedLaps == lastLap) return;
-            lastLap = s.CompletedLaps;
-            if (s.CompletedLaps < 2) return;
-            var ctx = context();
-            bool ownPitLap = gs.PitData.InPitlane || gs.PitData.OnOutLap || gs.PitData.OnInLap;
-            Sample(ctx, front, true, ownPitLap);
-            Sample(ctx, rear, false, ownPitLap);
+            if (s.SessionPhase != SessionPhase.Green || mind.SampledLap == lastLap || mind.SampledLap < 2) return;
+            lastLap = mind.SampledLap;
             if (call != null || s.CompletedLaps - lastCallLap < 2) return;
             int left = LapWatch.LapsLeft(s);
             if (left == 1) return;
-            string text = Decide(ctx, front, true, left) ?? Decide(ctx, rear, false, left);
+            var ctx = context();
+            string text = Decide(ctx, mind.Front, front, true, left) ?? Decide(ctx, mind.Rear, rear, false, left);
             if (text == null) return;
             lastCallLap = s.CompletedLaps;
             call = new ObservedRaceCall
@@ -72,33 +72,22 @@ namespace CrewChiefV4.AiTeam
             LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, text, call.EventId);
         }
 
-        private static void Sample(RaceDataContext ctx, Track t, bool ahead, bool ownPitLap)
-        {
-            var op = RaceDataTools.Neighbour(ctx.GameState, ahead);
-            string id = op == null ? null : OpponentStopLog.Key(op);
-            if (id != t.Id) { t.Gaps.Clear(); t.Id = id; }
-            if (op == null || ownPitLap || op.InPits) { t.Gaps.Clear(); return; }
-            var m = RaceDataTools.ReadGap(ctx, op, ahead);
-            if (!m.IsRaceGap || m.Kind == RaceGapKind.TrackDistanceEstimate || !(m.Seconds > 0) || m.Seconds > 60) { t.Gaps.Clear(); return; }
-            t.Gaps.Add(m.Seconds);
-            if (t.Gaps.Count > 5) t.Gaps.RemoveAt(0);
-        }
-
-        private string Decide(RaceDataContext ctx, Track t, bool ahead, int lapsLeft)
+        private string Decide(RaceDataContext ctx, GapHistory t, Announced said, bool ahead, int lapsLeft)
         {
             var s = ctx.GameState.SessionData;
             if (t.Gaps.Count < 4 || t.Id == null) return null;
-            if (t.AnnouncedId == t.Id && s.CompletedLaps - t.AnnouncedLap < 4) return null;
+            var op = RaceDataTools.Neighbour(ctx.GameState, ahead);
+            if (op == null || OpponentStopLog.Key(op) != t.Id) return null;
+            if (said.Id == t.Id && s.CompletedLaps - said.Lap < 4) return null;
             if (ahead && s.ClassPosition <= 1) return null;
             float gap = t.Gaps[t.Gaps.Count - 1], rate = ClosingRate(t.Gaps);
             if (gap < 1f || gap > (ahead ? 10f : 8f) || rate < MinRate) return null;
             int laps = LapsToCatch(gap, rate);
             if (laps < 1 || laps > (ahead ? 15 : 10)) return null;
-            var op = RaceDataTools.Neighbour(ctx.GameState, ahead);
-            string name = op != null && ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
+            string name = ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
             // Bis zur Flagge sind lapsLeft - 1 volle Runden zum Aufholen übrig (die aktuelle läuft schon).
             bool tooLate = lapsLeft > 1 && laps > lapsLeft - 1;
-            t.AnnouncedId = t.Id; t.AnnouncedLap = s.CompletedLaps;
+            said.Id = t.Id; said.Lap = s.CompletedLaps;
             int v = variant++;
             return ahead ? AheadText(name, rate, laps, tooLate, lapsLeft, gap, v) : BehindText(name, rate, laps, tooLate, v);
         }
