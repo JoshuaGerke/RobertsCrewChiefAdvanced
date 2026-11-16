@@ -87,3 +87,14 @@ Basis ist das lokal vorhandene Quellarchiv zu `c931ad49c0f9b077d58bafbb57d82365c
 - Die Messung ist jetzt spielunabhängig (ProbeAnalyzer) und erkennt selbst, ob RaceRoom oder AMS2 läuft. Stehen bei einem Spiel 5 s lang keine neuen Bilder an (im Menü 15 s), wird das nächste Spiel geprüft. Je Spiel ein eigener Bericht (`R3E_…`, `AMS2_…`).
 - AMS2: Shared Memory „$pcars2$“, Offsets direkt vom Marshaller (Standard-Ausrichtung). Nur vollständig geschriebene Bilder zählen (Sequenznummer gerade und vorher/nachher gleich); verworfene Versuche stehen im Bericht. 131 Kanäle, darunter ABS-Eingriff, Reifen (Lauffläche, Karkasse, Luft), Wetter und 12 Kanäle je Gegner (Weltposition, Streckenmeter, Platz, Tempo, Gierwinkel, Boxenmodus, Rundenzeiten).
 - Tests: drei weitere AMS2-Tests (Layout gegen den vorhandenen Reader, Werte-Rundlauf über StructureToPtr, Raten mit Pause und langsamerer Gegnerkarte). Ungeprüft: Verhalten im echten AMS2.
+
+## Claude – Erkenntnisse aus Robs AMS2-Fahrt 16.11.2026 (Bathurst, Training)
+
+Grundlage: Diagnoseprotokoll 16:04–16:16 und Telemetrie-Messung (AMS2 liefert 118 Bilder/s, RRCA nutzte 48).
+
+- **Sprit-Hochrechnung ab den ersten Metern:** Bisher blockiert durch (1) Sperre bei „ungültiger Runde“ – AMS2 meldet die Outlap als ungültig –, (2) Mindeststrecke 25 % der Runde, (3) Neustart an jeder Ziellinie. Jetzt: Verbrauch je Meter seit Boxenausfahrt mal Rundenlänge, ab 300 m und 0,05 l, unabhängig von der Rundengültigkeit, über die Ziellinie hinweg; Stillstand und leichtes Zurückrollen unterbrechen nicht. Neu beginnt sie nur nach Boxengasse, Nachtanken, Reset/Teleport, Auto- oder Streckenwechsel und alten Daten. Im Funk immer als Schätzung (vier Formulierungen), gemessene volle Runden haben Vorrang. Die bisherige Schwelle im Test VerifiedV06 wurde bewusst auf 300 m angepasst (Robs ausdrücklicher Wunsch).
+- **AMS2-Gegnerzeiten:** Bestzeit und letzte Runde werden aus mFastestLapTimes/mLastLapTimes übernommen, wenn Crew Chief sie selbst nicht gesehen hat (z. B. vor dem Verbinden gefahren). Eigene Beobachtungen werden nie ersetzt, es entsteht kein Rundenereignis.
+- **Boxenanforderung:** Die vorhandene Limit-Erinnerung bei Anmeldung beginnt jetzt mit einer kurzen Bestätigung (vier Varianten, ohne „diese/nächste Runde“).
+- **Weniger Boxenlimit-Wiederholung:** Wurde vor der Boxengasse bereits erinnert (Anmeldung/Anfahrt), entfällt die Ansage beim Einfahren. Die Erinnerung beim Losfahren aus der Box bleibt.
+- **Boxenzeiten (PitStopTimer):** Einfahrt bis Halt, Standzeit, Ausfahrt und Gesamtzeit in allen Sitzungsarten, gemessen mit der Sitzungsuhr. Ben meldet sie einmal nach der Ausfahrt; für Fragen im Analysewerkzeug „letzter_boxenbesuch“. Durchfahrt ohne Halt wird so benannt, Garage/Zurücksetzen zählt nicht.
+- Tests: FuelProjectionTests (6), PitAndFieldFindingsTests (4). Offen: Zeitüberschreitung „keine Antwort von der Auswertung“ (16:12) – Ursache im Protokoll noch nicht untersucht.

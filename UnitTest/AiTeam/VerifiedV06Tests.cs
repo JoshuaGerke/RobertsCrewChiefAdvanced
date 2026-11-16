@@ -127,7 +127,9 @@ namespace UnitTest.AiTeamTests
                 next.PositionAndMotionData.CarSpeed = 40;
                 memory.Update(frame, next, next.Now);
                 frame = next;
-                if (tick == 49) Assert.IsNull(FuelEstimate.From(new RaceDataContext { GameState = frame, Memory = memory }));
+                // Rob 16.11.: Schätzung schon ab rund 300 m (hier 20 m je Bild), nicht erst nach einem Viertel der Runde.
+                if (tick == 14) Assert.IsNull(FuelEstimate.From(new RaceDataContext { GameState = frame, Memory = memory }));
+                if (tick == 15) Assert.IsNotNull(FuelEstimate.From(new RaceDataContext { GameState = frame, Memory = memory }));
             }
 
             var estimate = FuelEstimate.From(new RaceDataContext { GameState = frame, Memory = memory });

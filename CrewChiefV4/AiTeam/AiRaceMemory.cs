@@ -212,11 +212,17 @@ namespace CrewChiefV4.AiTeam
             return lapCompleted;
         }
 
-        // Only continuous forward track progress supports a provisional consumption rate.
+        // Hochrechnung wie ein Renningenieur: verbrauchter Sprit je gefahrenem Meter, mal Rundenlänge.
+        // Ob die Runde für die Zeitnahme gültig ist (Outlap, Tracklimits), spielt für den Verbrauch keine Rolle.
+        // Unterbrochen wird nur durch Boxengasse, Nachtanken, Reset/Teleport, Sitzungs- oder Autowechsel und alte Daten.
+        internal const float ProvisionalMinimumMetres = 300f;
+        internal const float ProvisionalMinimumLitres = 0.05f;
+        private const float FuelNoiseLitres = 0.05f;
+
         private void ObserveFuelSegment(GameStateData previous, GameStateData current, DateTime now, bool onTrack)
         {
             var session = current.SessionData;
-            bool movingSession = session.SessionPhase == SessionPhase.Green;
+            bool movingSession = session.SessionPhase == SessionPhase.Green || session.SessionPhase == SessionPhase.FullCourseYellow;
             DateTime stamp = current.SourceTelemetryUtc == DateTime.MinValue ? current.Now : current.SourceTelemetryUtc;
             segmentLastStamp = stamp;
             bool fresh = stamp != DateTime.MinValue && now >= stamp && now - stamp <= TimeSpan.FromSeconds(1);
@@ -224,8 +230,7 @@ namespace CrewChiefV4.AiTeam
             float distance = current.PositionAndMotionData.DistanceRoundTrack;
             float speed = current.PositionAndMotionData.CarSpeed;
             bool good = onTrack && movingSession && fresh && trackLength > 0 && !float.IsInfinity(trackLength) &&
-                current.SessionData.CurrentLapIsValid &&
-                distance >= 0 && distance < trackLength && speed > 3 && speed <= 150;
+                distance >= 0 && distance < trackLength && speed >= 0 && speed <= 150;
             if (!good)
             {
                 segmentStartFuel = -1;
@@ -234,14 +239,14 @@ namespace CrewChiefV4.AiTeam
             }
 
             float fuel = current.FuelData.FuelLeft;
-            if (previous != null && segmentStartFuel >= 0 && previousFuel >= fuel &&
-                previous.SessionData.CompletedLaps == session.CompletedLaps &&
+            if (previous != null && segmentStartFuel >= 0 && previousFuel >= 0 && fuel <= previousFuel + FuelNoiseLitres &&
                 string.Equals(previous.carName, current.carName, StringComparison.Ordinal) &&
                 string.Equals(previous.SessionData.TrackDefinition?.name, session.TrackDefinition?.name, StringComparison.Ordinal))
             {
                 DateTime previousStamp = previous.SourceTelemetryUtc == DateTime.MinValue ? previous.Now : previous.SourceTelemetryUtc;
                 double seconds = (stamp - previousStamp).TotalSeconds;
                 float delta = distance - previous.PositionAndMotionData.DistanceRoundTrack;
+                if (delta < -trackLength * 0.5f) delta += trackLength; // Start/Ziel überquert: Segment läuft weiter
                 if (seconds == 0 && delta == 0 && previousFuel == fuel) return;
                 float maxSpeed = Math.Max(speed, previous.PositionAndMotionData.CarSpeed);
                 if (seconds > 0 && seconds <= 1 && delta >= 0 && delta <= maxSpeed * seconds * 1.5 + 5)
@@ -249,6 +254,7 @@ namespace CrewChiefV4.AiTeam
                     segmentMetres += delta;
                     return;
                 }
+                if (seconds >= 0 && seconds <= 1 && Math.Abs(delta) <= 2) return; // Stillstand oder leichtes Zurückrollen
             }
             segmentStartFuel = fuel;
             segmentMetres = 0;
@@ -256,8 +262,16 @@ namespace CrewChiefV4.AiTeam
 
         internal float ProvisionalFuelPerLap(GameStateData state)
         {
+            float metres;
+            return ProvisionalFuelPerLap(state, out metres);
+        }
+
+        /// <summary>Geschätzter Verbrauch pro Runde seit der letzten Unterbrechung; <paramref name="metres"/> ist die zugrunde liegende Strecke.</summary>
+        internal float ProvisionalFuelPerLap(GameStateData state, out float metres)
+        {
             lock (sync)
             {
+                metres = 0;
                 if (!state.FuelData.FuelUseActive || state.PitData.InPitlane || state.PitData.IsInGarage) return -1;
                 DateTime stamp = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc;
                 if (state.SessionData.SessionId != SessionId || state.SessionData.SessionType != lastSessionType ||
@@ -266,7 +280,8 @@ namespace CrewChiefV4.AiTeam
 
                 float trackLength = state.SessionData.TrackDefinition?.trackLength ?? 0;
                 float used = segmentStartFuel - state.FuelData.FuelLeft;
-                if (segmentMetres < Math.Max(500, trackLength * 0.25f) || !(used >= 0.2f)) return -1;
+                metres = segmentMetres;
+                if (segmentMetres < Math.Max(ProvisionalMinimumMetres, trackLength * 0.05f) || !(used >= ProvisionalMinimumLitres)) return -1;
                 return used / segmentMetres * trackLength;
             }
         }

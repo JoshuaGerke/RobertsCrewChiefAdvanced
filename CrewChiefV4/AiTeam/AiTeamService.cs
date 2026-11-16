@@ -50,6 +50,7 @@ namespace CrewChiefV4.AiTeam
         private readonly FlagWatch flagWatch = new FlagWatch();
         private readonly WeatherWatch weatherWatch = new WeatherWatch();
         private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
+        private readonly PitStopTimer pitStopTimer = new PitStopTimer();
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
@@ -269,6 +270,7 @@ namespace CrewChiefV4.AiTeam
                 flagWatch.Reset();
                 weatherWatch.Reset();
                 pitLaneWatch.Reset();
+                pitStopTimer.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
                 lock (recentLocalCalls) recentLocalCalls.Clear();
@@ -536,6 +538,7 @@ namespace CrewChiefV4.AiTeam
             qualifyingResults.Observe(current,now,settings.RadioName,previous);
             weatherWatch.Observe(current,now);
             pitLaneWatch.Observe(current,now);
+            pitStopTimer.Observe(current,now);
             MaybePreparePitLimit(current,now);
             MaybePrepareOpponentName(current, now);
             bool weatherBusy = !settings.IsMemberEnabled(TeamMember.Mik) || Spotter().HasOverlap ||
@@ -601,6 +604,8 @@ namespace CrewChiefV4.AiTeam
                 if(raceCall!=null)pendingTimingDelivery=raceCall;
             }
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,weatherBusy);
+            if (raceCall == null) raceCall = pitStopTimer.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,
+                settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null) raceCall = weatherWatch.Take(current,now,weatherBusy || radioDirector.TrafficQuiet(now));
             if (routineDue && raceCall == null)
             {
@@ -2579,6 +2584,7 @@ namespace CrewChiefV4.AiTeam
                 Tracks = Tracks,
                 Reader = raceReader,
                 PitForecast = pitCycle.ReadForecast(gs, DateTime.UtcNow),
+                LastPitStop = pitStopTimer.Last,
             };
         }
 

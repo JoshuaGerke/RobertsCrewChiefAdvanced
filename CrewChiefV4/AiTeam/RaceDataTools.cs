@@ -26,6 +26,7 @@ namespace CrewChiefV4.AiTeam
         public TrackAwareness Tracks;
         public RaceReader Reader;
         internal PitCycleWatch.MergeForecast PitForecast;
+        internal PitStopTimer.Measurement LastPitStop;
 
         public double TelemetryAgeSeconds
         {
@@ -336,7 +337,7 @@ namespace CrewChiefV4.AiTeam
             }
             else
             {
-                missing.Add("verbrauch_pro_runde (noch keine volle gemessene Runde)");
+                missing.Add("verbrauch_pro_runde (Hochrechnung beginnt etwa 300 m nach der Boxenausfahrt; in der Boxengasse und direkt nach dem Tanken gibt es noch keine)");
             }
             var estimate=FuelEstimate.From(ctx);
             if (estimate != null)
@@ -762,6 +763,8 @@ namespace CrewChiefV4.AiTeam
             }
             if (ctx.PitForecast != null) o["boxenausfahrt_prognose"] = ctx.PitForecast.Describe();
             else missing.Add("boxenausfahrt_prognose (keine frische Messgrundlage)");
+            if (ctx.LastPitStop != null && ctx.GameState != null && ctx.LastPitStop.SessionId == ctx.GameState.SessionData.SessionId)
+                o["letzter_boxenbesuch"] = ctx.LastPitStop.Describe();
             return o;
         }
 

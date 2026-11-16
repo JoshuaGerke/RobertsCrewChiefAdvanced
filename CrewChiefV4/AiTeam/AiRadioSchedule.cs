@@ -242,6 +242,22 @@ namespace CrewChiefV4.AiTeam
             float litres = context.GameState.FuelData.FuelLeft;
             return Number(litres) + (Good(perLap, .1, 100) ? "|" + Number(litres / perLap) : "");
         }
+        /// <summary>Kurze, abwechselnde Formulierung der geschätzten Hochrechnung; immer als Schätzung erkennbar.</summary>
+        internal static string FuelEstimateLine(float perLap, float laps, int variant)
+        {
+            string l = Number(perLap), r = ((int)Math.Floor(laps)).ToString(RadioLanguage.Culture);
+            switch (((variant % 4) + 4) % 4)
+            {
+                case 0: return RadioLanguage.T("Grob geschätzt " + l + " Liter pro Runde, das wird mit jeder Kurve genauer.",
+                    "Rough estimate " + l + " litres a lap, it sharpens every corner.", "Estimación aproximada: " + l + " litros por vuelta, se afina en cada curva.");
+                case 1: return RadioLanguage.T("Hochgerechnet etwa " + l + " Liter pro Runde, noch eine Schätzung.",
+                    "Projected about " + l + " litres a lap, still an estimate.", "Proyectado unos " + l + " litros por vuelta, aún es una estimación.");
+                case 2: return RadioLanguage.T("Erste Schätzung: rund " + l + " Liter pro Runde, reicht damit für etwa " + r + " Runden.",
+                    "First estimate: around " + l + " litres a lap, good for about " + r + " laps.", "Primera estimación: unos " + l + " litros por vuelta, da para unas " + r + " vueltas.");
+                default: return RadioLanguage.T("Nach den bisherigen Metern geschätzt " + l + " Liter pro Runde, gemessen ist es noch nicht.",
+                    "Going by the distance so far, an estimated " + l + " litres a lap, not measured yet.", "Por los metros recorridos, estimados " + l + " litros por vuelta, aún sin medir.");
+            }
+        }
         private static string FuelGroup(RaceDataContext ctx) =>
             Good(ctx.Memory?.AverageFuelPerLap() ?? -1, .1, 100) ? "fuel-range" : "fuel-tank";
 
@@ -336,7 +352,10 @@ namespace CrewChiefV4.AiTeam
                 if (!Good(perLap, .1, 100))
                 {
                     template=catalog.ReferenceFor("fuel-tank",variant);
-                    return catalog.Format("fuel-tank", variant, litres);
+                    string tank = catalog.Format("fuel-tank", variant, litres);
+                    // Noch keine volle gemessene Runde: ausdrücklich geschätzte Hochrechnung aus gefahrener Strecke (Rob 16.11.).
+                    float estimate = ctx.Memory == null ? -1 : ctx.Memory.ProvisionalFuelPerLap(gs);
+                    return Good(estimate, .1, 100) ? tank + " " + FuelEstimateLine(estimate, gs.FuelData.FuelLeft / estimate, variant) : tank;
                 }
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
                 template=catalog.ReferenceFor("fuel-range",variant);

@@ -896,6 +896,7 @@ namespace CrewChiefV4.AMS2
                                             currentGameState.SessionData.SessionHasFixedTime, currentGameState.SessionData.SessionTimeRemaining,
                                             lastSectorTime, shared.mLapsInvalidated[i] == 1, currentGameState.SessionData.TrackDefinition.distanceForNearPitEntryChecks,
                                             currentGameState.TimingData, currentGameState.carClass);
+                                    FillMissingLapTimesFromSimulator(currentOpponentData, shared.mFastestLapTimes, shared.mLastLapTimes, i);
 
                                     currentOpponentData.DeltaTime.SetNextDeltaPoint(currentOpponentLapDistance, currentOpponentData.CompletedLaps,
                                         currentOpponentData.Speed, currentGameState.Now);
@@ -1410,6 +1411,26 @@ namespace CrewChiefV4.AMS2
             // for the session
             // return clutchOverheated ? DamageLevel.MINOR : DamageLevel.NONE;
             return DamageLevel.NONE;
+        }
+
+        /// <summary>
+        /// RRCA: AMS2 meldet Bestzeit und letzte Runde jedes Teilnehmers selbst. Wer seine Zeiten gefahren hat, bevor
+        /// Crew Chief verbunden war (oder zuletzt in der Box stand), hätte sonst keine Zeiten. Nur Lücken füllen –
+        /// eine selbst beobachtete Zeit wird nie ersetzt, und es entsteht kein neues Rundenereignis.
+        /// </summary>
+        internal static void FillMissingLapTimesFromSimulator(OpponentData opponent, float[] fastestLapTimes, float[] lastLapTimes, int index)
+        {
+            if (opponent == null || index < 0) return;
+            float best = Plausible(fastestLapTimes, index), last = Plausible(lastLapTimes, index);
+            if (best > 0 && opponent.CurrentBestLapTime <= 0) opponent.CurrentBestLapTime = best;
+            if (last > 0 && opponent.LastLapTime <= 0) opponent.LastLapTime = last;
+        }
+
+        private static float Plausible(float[] values, int index)
+        {
+            if (values == null || index >= values.Length) return -1;
+            float v = values[index];
+            return float.IsNaN(v) || float.IsInfinity(v) || v <= 10 || v >= 3600 ? -1 : v;
         }
 
         private void updateOpponentData(OpponentData opponentData, int racePosition, int completedLaps, int sector, Boolean isEnteringPits,
