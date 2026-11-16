@@ -214,6 +214,37 @@ namespace CrewChiefV4.AiTeam
                 GermanRadioText.Interval(Math.Abs(delta)) + (delta < 0 ? " schneller." : " langsamer."));
         }
 
+        /// <summary>
+        /// Frage nach dem aktuellen Verbrauch („was ich ungefähr an Sprit verbrauche“). Rob 16.11., Bathurst: Die erste Antwort sagte
+        /// „noch nicht zuverlässig“, obwohl eine vorläufige Schätzung vorlag. Jetzt kommt sofort die Zahl – als Schätzung gekennzeichnet.
+        /// Auch längere, umgangssprachliche Fragen; Gegnerfragen und Strategiefragen gehen weiter an die Auswertung.
+        /// </summary>
+        public static string FuelConsumption(string question, GameStateData gs, AiRaceMemory memory)
+        {
+            if (gs == null || string.IsNullOrWhiteSpace(question)) return null;
+            string q = question.ToLowerInvariant();
+            if (q.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length > 22 || complexMarkers.Any(m => q.Contains(m))) return null;
+            if (!AnyOf(q, "sprit", "benzin", "kraftstoff", "fuel", "combustible", "gasolina") ||
+                !AnyOf(q, "verbrauch", "consumption", "consum", "pro runde", "per lap", "por vuelta", "burn")) return null;
+            if (AnyOf(q, "gegner", "vordermann", "hintermann", " hat ", "opponent", "rival", " tiene ")) return null;
+            if (!gs.FuelData.FuelUseActive || float.IsNaN(gs.FuelData.FuelLeft) || float.IsInfinity(gs.FuelData.FuelLeft) || gs.FuelData.FuelLeft < 0)
+                return RadioLanguage.T("Gerade kein verlässlicher Tankstand, also auch kein Verbrauch.", "No reliable fuel reading right now, so no consumption either.",
+                    "Ahora no hay nivel de combustible fiable, así que tampoco consumo.");
+            float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out _);
+            if (!(perLap > 0))
+                return RadioLanguage.T("Für eine Schätzung brauche ich noch ein paar hundert Meter Fahrt ab der Box.",
+                    "I need a few hundred metres of driving from the pits for an estimate.", "Necesito unos cientos de metros desde boxes para estimarlo.");
+            string l = RadioLanguage.Num(perLap, "0.0"), left = RadioLanguage.Num(gs.FuelData.FuelLeft, "0");
+            int laps = (int)Math.Floor(gs.FuelData.FuelLeft / perLap);
+            return provisional
+                ? RadioLanguage.T("Erste Schätzung: etwa " + l + " Liter pro Runde, wird mit jeder Kurve genauer. Mit " + left + " Litern reicht das für rund " + laps + " Runden.",
+                    "First estimate: about " + l + " litres per lap, getting sharper every corner. With " + left + " litres that's roughly " + laps + " laps.",
+                    "Primera estimación: unos " + l + " litros por vuelta, se afina en cada curva. Con " + left + " litros son unas " + laps + " vueltas.")
+                : RadioLanguage.T("Gemessen " + l + " Liter pro Runde. Mit " + left + " Litern reicht das für etwa " + laps + " Runden.",
+                    "Measured " + l + " litres per lap. With " + left + " litres that's about " + laps + " laps.",
+                    "Medido " + l + " litros por vuelta. Con " + left + " litros dan para unas " + laps + " vueltas.");
+        }
+
         public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory, bool allowDriverNames = true)
         {
             if (gs == null || string.IsNullOrWhiteSpace(question))

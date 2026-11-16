@@ -509,5 +509,18 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => PersonalBestWatch.SectorLoss(2, .31f, v)).Distinct().Count());
             StringAssert.Contains("Sektor 2", PersonalBestWatch.SectorLoss(2, .31f, 0));
         }
+
+        [Test]
+        public void Consumption_question_is_answered_locally_even_when_phrased_casually()
+        {
+            const string q = "Kannst du mir schon ein bisschen was auslesen, was ich ungefähr an Sprit verbrauche aktuell?";
+            var gs = Race();
+            StringAssert.Contains("kein verlässlicher Tankstand", LocalAnswers.FuelConsumption(q, gs, null));
+            gs.FuelData.FuelUseActive = true; gs.FuelData.FuelLeft = 30;
+            StringAssert.Contains("paar hundert Meter", LocalAnswers.FuelConsumption(q, gs, null), "ohne Messung ehrlich, aber mit Grund");
+            Assert.IsNull(LocalAnswers.FuelConsumption("Wie viel Sprit verbraucht der Vordermann?", gs, null), "Gegnerfrage geht an die Auswertung");
+            Assert.IsNull(LocalAnswers.FuelConsumption("Wie viel Sprit habe ich noch?", gs, null), "Tankstand beantwortet der bestehende Weg");
+            Assert.IsNull(LocalAnswers.FuelConsumption("Reicht der Sprit bei meinem Verbrauch bis ins Ziel?", gs, null), "Strategiefrage");
+        }
     }
 }
