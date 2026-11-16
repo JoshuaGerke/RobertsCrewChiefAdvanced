@@ -662,5 +662,23 @@ namespace UnitTest.AiTeamTests
             gs.OpponentData["c"] = new OpponentData { DriverRawName = "Doppelt", ClassPosition = 3, IsActive = true };
             Assert.AreEqual("", LapWatch.Podium(gs, true), "zwei Autos auf demselben Platz: nichts behaupten");
         }
+
+        [Test]
+        public void Lap_is_projected_from_this_laps_sectors_and_the_best_lap()
+        {
+            const string q = "Kannst du ungefähr abschätzen, wie ich diese Runde zu Ende bringen werde?";
+            var gs = Race(); var s = gs.SessionData; s.SessionType = SessionType.Practice; s.CurrentLapIsValid = true;
+            StringAssert.Contains("erst eine gültige Runde", LocalAnswers.LapPrediction(q, gs));
+            s.PlayerLapTimeSessionBest = 123.670f; s.PlayerBestLapSector1Time = 51.4f; s.PlayerBestLapSector2Time = 40.27f; s.PlayerBestLapSector3Time = 32f;
+            s.PlayerBestSector2Time = 40f; s.PlayerBestSector3Time = 32f;
+            s.SectorNumber = 1;
+            StringAssert.Contains("ersten Sektor", LocalAnswers.LapPrediction(q, gs));
+            s.SectorNumber = 2; s.LastSector1Time = 51.1f;
+            string p = LocalAnswers.LapPrediction(q, gs);
+            StringAssert.Contains("etwa 2:03,370", p); StringAssert.Contains("0,3 schneller als deine Bestzeit", p);
+            StringAssert.Contains("Einzelsektoren wäre 2:03,100 drin", p);
+            Assert.IsNull(LocalAnswers.LapPrediction("Wie viel Sprit kannst du hochrechnen?", gs), "Spritfrage geht woanders hin");
+            StringAssert.Contains("Hochrechnung", LocalAnswers.LapPrediction("Kannst du die Zeit vorausschätzen?", gs));
+        }
     }
 }

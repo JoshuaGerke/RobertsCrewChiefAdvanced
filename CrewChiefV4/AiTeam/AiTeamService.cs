@@ -1143,6 +1143,7 @@ namespace CrewChiefV4.AiTeam
             string quick = comparison ?? recentPass ?? LocalAnswers.FuelToFinish(routed.Question, quickContext) ??
                 LocalAnswers.PreviousStintFuel(routed.Question, quickContext) ??
                 LocalAnswers.FuelConsumption(routed.Question, gs, Memory) ??
+                LocalAnswers.LapPrediction(routed.Question, gs) ??
                 LocalAnswers.TryAnswer(routed.Question, gs, Memory, comparisonNames);
             if (quick != null)
             {

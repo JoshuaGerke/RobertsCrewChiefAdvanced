@@ -245,6 +245,58 @@ namespace CrewChiefV4.AiTeam
                     "Medido " + l + " litros por vuelta. Con " + left + " litros dan para unas " + laps + " vueltas.");
         }
 
+        private static bool Sector(float v) => !float.IsNaN(v) && !float.IsInfinity(v) && v > 1 && v < 1000;
+
+        /// <summary>
+        /// Hochrechnung der laufenden Runde (Rob 16.11.2026, Bathurst: „Kannst du abschätzen, wie ich diese Runde zu Ende bringe?“ –
+        /// „Ihr habt doch die Sektorenbestzeiten.“). Bereits gefahrene Sektoren dieser Runde plus die Sektoren deiner Bestrunde für den
+        /// Rest; dazu, was mit deinen besten Einzelsektoren drin wäre. Im ersten Sektor gibt es noch nichts Gemessenes dieser Runde.
+        /// </summary>
+        public static string LapPrediction(string question, GameStateData gs)
+        {
+            if (gs == null || string.IsNullOrWhiteSpace(question)) return null;
+            string q = question.ToLowerInvariant();
+            if (!AnyOf(q, "hochrechn", "vorausschätz", "voraussch", "abschätz", "abschaetz", "zu ende bring", "wie beende", "welche zeit wird", "was für eine zeit wird",
+                "rundenzeit wird", "predict", "projected lap", "what time will", "estimar la vuelta", "qué tiempo voy", "que tiempo voy")) return null;
+            if (AnyOf(q, "sprit", "fuel", "combustible", "reifen", "tyre", "neumátic", "gegner", "rival", "vordermann", "hintermann")) return null;
+            var s = gs.SessionData;
+            float b1 = s.PlayerBestLapSector1Time, b2 = s.PlayerBestLapSector2Time, b3 = s.PlayerBestLapSector3Time;
+            float best = s.PlayerLapTimeSessionBest;
+            if (!Sector(b1) || !Sector(b2) || !Sector(b3) || !(best > 10 && best < 3600))
+                return RadioLanguage.T("Für eine Hochrechnung brauche ich erst eine gültige Runde mit allen Sektorzeiten.",
+                    "I need a valid lap with all sector times before I can project.", "Necesito una vuelta válida con todos los sectores para estimar.");
+            float predicted, theoretical;
+            if (s.SectorNumber == 2 && Sector(s.LastSector1Time))
+            {
+                predicted = s.LastSector1Time + b2 + b3;
+                theoretical = s.LastSector1Time + Best(s.PlayerBestSector2Time, b2) + Best(s.PlayerBestSector3Time, b3);
+            }
+            else if (s.SectorNumber == 3 && Sector(s.LastSector1Time) && Sector(s.LastSector2Time))
+            {
+                predicted = s.LastSector1Time + s.LastSector2Time + b3;
+                theoretical = s.LastSector1Time + s.LastSector2Time + Best(s.PlayerBestSector3Time, b3);
+            }
+            else
+                return RadioLanguage.T("Noch im ersten Sektor, da habe ich von dieser Runde noch nichts. Nach Sektor eins kann ich hochrechnen.",
+                    "Still in sector one, nothing measured on this lap yet. After sector one I can project.",
+                    "Aún en el sector uno, nada medido de esta vuelta. Tras el sector uno puedo estimar.");
+            float delta = predicted - best;
+            string verdict = Math.Abs(delta) < .05f ? RadioLanguage.T(", genau auf deiner Bestzeit", ", right on your best", ", justo en tu mejor tiempo")
+                : delta < 0 ? RadioLanguage.T(", " + RadioLanguage.Num(-delta, "0.0") + " schneller als deine Bestzeit", ", " + RadioLanguage.Num(-delta, "0.0") + " quicker than your best", ", " + RadioLanguage.Num(-delta, "0.0") + " más rápido que tu mejor")
+                : RadioLanguage.T(", " + RadioLanguage.Num(delta, "0.0") + " über deiner Bestzeit", ", " + RadioLanguage.Num(delta, "0.0") + " off your best", ", " + RadioLanguage.Num(delta, "0.0") + " por encima de tu mejor");
+            string text = RadioLanguage.T("Hochrechnung: Fährst du den Rest wie auf deiner Bestrunde, kommst du bei etwa " + LapTime(predicted) + " raus" + verdict + ".",
+                "Projection: if you drive the rest like your best lap, you'll finish around " + LapTime(predicted) + verdict + ".",
+                "Estimación: si haces el resto como en tu mejor vuelta, acabas en torno a " + LapTime(predicted) + verdict + ".");
+            if (theoretical < predicted - .05f)
+                text += RadioLanguage.T(" Mit deinen besten Einzelsektoren wäre " + LapTime(theoretical) + " drin.", " With your best individual sectors " + LapTime(theoretical) + " is possible.",
+                    " Con tus mejores sectores sueltos sería posible un " + LapTime(theoretical) + ".");
+            if (!s.CurrentLapIsValid)
+                text += RadioLanguage.T(" Die Runde ist allerdings ungültig.", " The lap is invalid, though.", " Aunque la vuelta no es válida.");
+            return text;
+        }
+
+        private static float Best(float individual, float fallback) => Sector(individual) && individual < fallback ? individual : fallback;
+
         public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory, bool allowDriverNames = true)
         {
             if (gs == null || string.IsNullOrWhiteSpace(question))
