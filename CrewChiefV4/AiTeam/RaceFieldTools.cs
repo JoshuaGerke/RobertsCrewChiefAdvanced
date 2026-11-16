@@ -143,7 +143,37 @@ namespace CrewChiefV4.AiTeam
             result["runden_absolviert"] = o.CompletedLaps;
             var lap = o.OpponentLapData.LastOrDefault(l => l.LapTime > 0);
             result["letzte_runde_gueltig"] = lap != null ? (JToken)lap.IsValid : null;
+            var rating = BestLapRating(o, ctx.GameState);
+            if (rating != null) result["bestzeit_einordnung"] = rating;
             return result;
+        }
+
+        /// <summary>
+        /// Rob 16.11.2026 (Mosport): „Wer ist dieser Nox? Ist die Runde gut, schlecht oder mittelmäßig?“ – Einordnung der Bestzeit eines
+        /// Gegners in der eigenen Klasse: Rang, Anzahl gezeiteter Fahrer, Abstand zur Klassenbestzeit und zu Robs Bestzeit.
+        /// </summary>
+        internal static JObject BestLapRating(OpponentData o, GameStateData gs)
+        {
+            float best = o.CurrentBestLapTime;
+            if (gs == null || !(best > 10 && best < 3600)) return null;
+            var times = gs.OpponentData.Values.Where(c => c != null && c.CurrentBestLapTime > 10 && c.CurrentBestLapTime < 3600 &&
+                    (gs.carClass == null || c.CarClass == null || CarData.IsCarClassEqual(gs.carClass, c.CarClass, false)))
+                .Select(c => c.CurrentBestLapTime).ToList();
+            float own = gs.SessionData.PlayerLapTimeSessionBest;
+            if (own > 10 && own < 3600) times.Add(own);
+            if (times.Count < 2) return null;
+            times.Sort();
+            int rank = times.FindIndex(t => t >= best - .0005f) + 1;
+            float classBest = times[0];
+            string verdict = rank == 1 ? "schnellste der Klasse" : rank <= (int)Math.Ceiling(times.Count / 3.0) ? "vorderes Drittel" :
+                rank <= (int)Math.Ceiling(times.Count * 2 / 3.0) ? "Mittelfeld" : "hinteres Drittel";
+            return new JObject
+            {
+                ["rang"] = rank, ["gezeitete_fahrer"] = times.Count, ["einordnung"] = verdict,
+                ["abstand_zur_klassenbestzeit_s"] = Math.Round(best - classBest, 3),
+                ["abstand_zu_rob_s"] = own > 10 && own < 3600 ? (JToken)Math.Round(best - own, 3) : null,
+                ["hinweis"] = "Aus den gemeldeten Bestzeiten dieser Sitzung in Robs Klasse; positiv = langsamer als die Klassenbestzeit bzw. als Rob."
+            };
         }
 
         public static string Normalize(string value)

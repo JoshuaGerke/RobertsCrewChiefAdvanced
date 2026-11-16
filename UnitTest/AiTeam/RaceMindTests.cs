@@ -711,5 +711,22 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("Früh zeigen", BackmarkerWatch.Compose(5, null, 5f, "Keller", 6f, "Wurz", 0));
             StringAssert.DoesNotContain("das ist", BackmarkerWatch.Compose(5, null, 5f, null, 6f, null, 1), "ohne Namensfreigabe kein Name");
         }
+
+        [Test]
+        public void Rival_best_lap_is_rated_within_the_class()
+        {
+            var gs = Race(); gs.SessionData.PlayerLapTimeSessionBest = 79.5f;
+            var nox = new OpponentData { DriverRawName = "NOX", CurrentBestLapTime = 78.385f };
+            gs.OpponentData["nox"] = nox;
+            gs.OpponentData["b"] = new OpponentData { DriverRawName = "B", CurrentBestLapTime = 77.271f };
+            gs.OpponentData["c"] = new OpponentData { DriverRawName = "C", CurrentBestLapTime = 80.1f };
+            gs.OpponentData["d"] = new OpponentData { DriverRawName = "D", CurrentBestLapTime = 81f };
+            var r = RaceFieldTools.BestLapRating(nox, gs);
+            Assert.AreEqual(2, (int)r["rang"]); Assert.AreEqual(5, (int)r["gezeitete_fahrer"]);
+            Assert.AreEqual("vorderes Drittel", (string)r["einordnung"]);
+            Assert.AreEqual(1.114, (double)r["abstand_zur_klassenbestzeit_s"], .001);
+            Assert.AreEqual(-1.115, (double)r["abstand_zu_rob_s"], .001);
+            Assert.IsNull(RaceFieldTools.BestLapRating(new OpponentData { CurrentBestLapTime = -1 }, gs));
+        }
     }
 }
