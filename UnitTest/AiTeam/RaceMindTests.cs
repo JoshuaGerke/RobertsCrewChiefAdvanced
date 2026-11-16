@@ -700,5 +700,16 @@ namespace UnitTest.AiTeamTests
             }
             finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
         }
+
+        [Test]
+        public void Backmarker_call_reads_the_fight_around_you()
+        {
+            string defend = BackmarkerWatch.Compose(6.2, "Max Muster", 4f, "Keller", 1.2f, "Wurz", 0);
+            StringAssert.StartsWith("Überrundeter vorne, in etwa 6 Sekunden bist du dran, das ist Max Muster.", defend);
+            StringAssert.Contains("Wurz ist 1,2 Sekunden hinter dir", defend);
+            StringAssert.Contains("deine Chance auf Keller", BackmarkerWatch.Compose(5, null, 1.1f, "Keller", 6f, "Wurz", 0));
+            StringAssert.Contains("Früh zeigen", BackmarkerWatch.Compose(5, null, 5f, "Keller", 6f, "Wurz", 0));
+            StringAssert.DoesNotContain("das ist", BackmarkerWatch.Compose(5, null, 5f, null, 6f, null, 1), "ohne Namensfreigabe kein Name");
+        }
     }
 }
