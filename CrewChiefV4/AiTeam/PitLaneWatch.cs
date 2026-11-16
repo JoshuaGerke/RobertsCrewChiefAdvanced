@@ -163,9 +163,9 @@ namespace CrewChiefV4.AiTeam
             }
             wasInPits=inPits;lastSpeed=speed;initialized=true;
         }
-        private static readonly string[] RequestConfirmDe={"Box ist angemeldet, Rob.","Verstanden, wir erwarten dich in der Box.","Boxenstopp ist eingetragen.","Alles klar, die Crew steht bereit."};
-        private static readonly string[] RequestConfirmEn={"Pit request is in, Rob.","Copy, we're expecting you in the pits.","Pit stop is booked.","All right, the crew is ready."};
-        private static readonly string[] RequestConfirmEs={"Parada solicitada, Rob.","Entendido, te esperamos en boxes.","La parada está anotada.","Vale, el equipo está listo."};
+        private static readonly string[] RequestConfirmDe={"Box, Box, Rob. Wir sind bereit.","Verstanden, wir erwarten dich in der Box.","Boxenstopp ist eingetragen.","Alles klar, die Crew steht bereit."};
+        private static readonly string[] RequestConfirmEn={"Box, box, Rob. We're ready.","Copy, we're expecting you in the pits.","Pit stop is booked.","All right, the crew is ready."};
+        private static readonly string[] RequestConfirmEs={"Box, box, Rob. Estamos listos.","Entendido, te esperamos en boxes.","La parada está anotada.","Vale, el equipo está listo."};
         /// <summary>Kurze Bestätigung der Boxenanforderung (Rob 16.11.); sagt bewusst nicht „diese/nächste Runde“.</summary>
         public static string[] RequestConfirmations => RadioLanguage.Pick(RequestConfirmDe,RequestConfirmEn,RequestConfirmEs);
         private int confirmVariant;

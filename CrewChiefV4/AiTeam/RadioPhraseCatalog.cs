@@ -75,7 +75,7 @@ namespace CrewChiefV4.AiTeam
             ["finish-podium"] = "", ["finish-other"] = "", ["race-disqualified"] = "|driver", ["lap-best"] = "time",
             ["lap-first-valid"] = "time", ["lap-near-best"] = "delta",
             ["quali-sector-comparison"] = "sector time delta direction opponent",
-            ["own-sector-best"] = "sector time", ["own-best-pace"] = "delta",
+            ["own-sector-best"] = "sector time", ["own-sector-best-push"] = "", ["own-best-pace"] = "delta",
             ["stint-consistency"] = "time|driver", ["race-defense-hold"] = "opponent interval|driver", ["fuel-saving-review"] = "average comparison", ["race-chase-review"] = "result", ["pit-exit-forecast"] = "forecast", ["crew-thermal-pit-handover"] = "",
             ["corner-improvement"] = "corner gain",
             ["pit-undercut-overcut-result"] = "opponent result interval change",

@@ -89,6 +89,14 @@
       "Sector {sector} in {time} seconds. Personal best.",
       "Clean sector {sector}. Your best split here: {time} seconds."
     ],
+    "own-sector-best-push": [
+      "Stay focused, this could be your best lap.",
+      "Keep it clean now, the lap is alive.",
+      "Just like that, this smells like a best lap.",
+      "Stay sharp, there's something in it today.",
+      "Don't let up, this lap can be really good.",
+      "Stay calm and bring it home, this looks strong."
+    ],
     "own-best-pace": [
       "After two sectors you're {delta} up on your best. Keep it going.",
       "You're {delta} quicker than on your best lap. Now a clean final sector.",

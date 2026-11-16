@@ -759,6 +759,8 @@ namespace CrewChiefV4.AMS2
             }
 
             currentGameState.SessionData.LapTimeCurrent = CurrentLapSeconds(shared,playerIndex,wrapper.sdk14LayoutSelected);
+            FillMissingPlayerBestsFromSimulator(currentGameState.SessionData, shared.mPersonalFastestLapTime,
+                shared.mPersonalFastestSector1Time, shared.mPersonalFastestSector2Time, shared.mPersonalFastestSector3Time);
 
             currentGameState.SessionData.TimeDeltaBehind = shared.mSplitTimeBehind;
             currentGameState.SessionData.TimeDeltaFront = shared.mSplitTimeAhead;
@@ -1418,6 +1420,21 @@ namespace CrewChiefV4.AMS2
         /// Crew Chief verbunden war (oder zuletzt in der Box stand), hätte sonst keine Zeiten. Nur Lücken füllen –
         /// eine selbst beobachtete Zeit wird nie ersetzt, und es entsteht kein neues Rundenereignis.
         /// </summary>
+        /// <summary>
+        /// RRCA: Nach einem Neustart von Crew Chief mitten in der Sitzung fehlen die eigenen Bestwerte, obwohl AMS2 sie kennt.
+        /// Nur Lücken füllen; selbst gemessene Werte haben Vorrang. Die Bestzeit gilt als Ausgangswert, nicht als neues Ereignis.
+        /// </summary>
+        internal static void FillMissingPlayerBestsFromSimulator(SessionData s, float lap, float sector1, float sector2, float sector3)
+        {
+            if (s == null) return;
+            if (s.PlayerLapTimeSessionBest <= 0 && Plausible(lap)) s.PlayerLapTimeSessionBest = lap;
+            if (s.PlayerBestSector1Time <= 0 && Plausible(sector1)) s.PlayerBestSector1Time = sector1;
+            if (s.PlayerBestSector2Time <= 0 && Plausible(sector2)) s.PlayerBestSector2Time = sector2;
+            if (s.PlayerBestSector3Time <= 0 && Plausible(sector3)) s.PlayerBestSector3Time = sector3;
+        }
+
+        private static bool Plausible(float seconds) { return !float.IsNaN(seconds) && !float.IsInfinity(seconds) && seconds > 1 && seconds < 3600; }
+
         internal static void FillMissingLapTimesFromSimulator(OpponentData opponent, float[] fastestLapTimes, float[] lastLapTimes, int index)
         {
             if (opponent == null || index < 0) return;

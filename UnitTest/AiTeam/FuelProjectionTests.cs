@@ -49,7 +49,7 @@ namespace UnitTest.AiTeamTests
                 s.FuelData.FuelUseActive = true;
                 s.FuelData.FuelLeft = Fuel;
                 s.PositionAndMotionData.DistanceRoundTrack = Distance;
-                s.PositionAndMotionData.CarSpeed = metres * 10;
+                s.PositionAndMotionData.CarSpeed = Math.Abs(metres) * 10; // Tempo ist nie negativ, auch beim Zurückrollen
                 s.carName = "Porsche 992 GT3 R";
                 Memory.Update(Last, s, Now);
                 Last = s;

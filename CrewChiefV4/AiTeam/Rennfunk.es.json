@@ -89,6 +89,14 @@
       "Sector {sector} en {time} segundos. Mejor marca personal.",
       "Sector {sector} limpio. Tu mejor parcial aquí: {time} segundos."
     ],
+    "own-sector-best-push": [
+      "Mantén la concentración, puede ser tu mejor vuelta.",
+      "Ahora sigue limpio, la vuelta está viva.",
+      "Así mismo, esto huele a mejor vuelta.",
+      "Concentrado, hoy hay algo ahí.",
+      "No aflojes, esta vuelta puede ser muy buena.",
+      "Tranquilo y remata, esto pinta muy bien."
+    ],
     "own-best-pace": [
       "Tras dos sectores vas {delta} por debajo de tu mejor tiempo. Sigue así.",
       "Vas {delta} más rápido que en tu mejor vuelta. Ahora un último sector limpio.",

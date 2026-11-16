@@ -14,7 +14,7 @@ namespace CrewChiefV4.AiTeam
     {
         internal sealed class Measurement
         {
-            internal float EntrySeconds = -1, StationarySeconds = -1, ExitSeconds = -1, TotalSeconds = -1;
+            internal float EntrySeconds = -1, StationarySeconds = -1, ExitSeconds = -1, TotalSeconds = -1, FuelAdded = -1;
             internal bool Stopped;
             internal DateTime FinishedUtc;
             internal int SessionId;
@@ -29,6 +29,7 @@ namespace CrewChiefV4.AiTeam
                     ["standzeit_s"] = Stopped ? (JToken)Math.Round(StationarySeconds, 1) : null,
                     ["ausfahrt_ab_losfahren_s"] = Stopped ? (JToken)Math.Round(ExitSeconds, 1) : null,
                     ["boxengasse_gesamt_s"] = Math.Round(TotalSeconds, 1),
+                    ["nachgetankt_l"] = FuelAdded > 0 ? (JToken)Math.Round(FuelAdded, 1) : null,
                     ["hinweis"] = "Gemessen mit der Sitzungsuhr von Einfahrt in die Boxengasse bis Ausfahrt. Stillstand = unter 1 m/s für mindestens 1 s."
                 };
             }
@@ -37,7 +38,7 @@ namespace CrewChiefV4.AiTeam
         private const float StoppedSpeed = 1f;
         private int session = int.MinValue;
         private bool inLane, stopped, wasStopped;
-        private float laneStart, stopStart, stopEnd;
+        private float laneStart, stopStart, stopEnd, fuelAtEntry = -1;
         private float stillSince = -1;
         private int variant;
         private ObservedRaceCall call;
@@ -62,6 +63,7 @@ namespace CrewChiefV4.AiTeam
             {
                 inLane = true; stopped = wasStopped = false; stillSince = -1;
                 laneStart = t;
+                fuelAtEntry = FuelOf(gs);
                 return;
             }
             if (!lane && inLane)
@@ -69,6 +71,9 @@ namespace CrewChiefV4.AiTeam
                 inLane = false;
                 if (gs.PitData.IsInGarage || gs.PitData.JumpedToPits) return; // Garage/Zurücksetzen ist kein Boxenstopp
                 var m = new Measurement { SessionId = s.SessionId, FinishedUtc = now, Stopped = stopped, TotalSeconds = t - laneStart };
+                float fuelNow = FuelOf(gs);
+                // Nur ein deutlicher Anstieg ist Nachtanken; der Verbrauch in der Boxengasse ist dagegen klein.
+                if (fuelAtEntry >= 0 && fuelNow >= 0 && fuelNow - fuelAtEntry >= .3f) m.FuelAdded = fuelNow - fuelAtEntry;
                 if (stopped)
                 {
                     m.EntrySeconds = stopStart - laneStart;
@@ -100,9 +105,18 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        private static float FuelOf(GameStateData gs)
+        {
+            float f = gs.FuelData.FuelLeft;
+            return gs.FuelData.FuelUseActive && !float.IsNaN(f) && !float.IsInfinity(f) && f >= 0 && f < 10000 ? f : -1;
+        }
+
         private ObservedRaceCall Announce(GameStateData gs, DateTime now, Measurement m)
         {
             string text = Text(m, variant++);
+            if (m.FuelAdded > 0)
+                text += RadioLanguage.T(" Nachgetankt: rund ", " Refuelled: about ", " Repostado: unos ") + RadioLanguage.Num(m.FuelAdded, "0") +
+                    RadioLanguage.T(" Liter.", " litres.", " litros.");
             var c = new ObservedRaceCall
             {
                 Topic = "pit-stop-time", Text = text, Evidence = "measured_own_pit_lane_visit", Member = TeamMember.Ben, Priority = 4,

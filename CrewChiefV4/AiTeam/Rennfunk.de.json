@@ -89,6 +89,14 @@
       "Sektor {sector} in {time} Sekunden. Persönliche Bestmarke.",
       "Sauberer Sektor {sector}. Deine beste Zwischenzeit hier: {time} Sekunden."
     ],
+    "own-sector-best-push": [
+      "Bleib fokussiert, daraus kann deine Topzeit werden.",
+      "Jetzt sauber weiter, die Runde lebt.",
+      "Genau so weiter, das riecht nach Bestzeit.",
+      "Konzentriert bleiben, da geht heute was.",
+      "Nicht nachlassen, die Runde kann richtig gut werden.",
+      "Ruhig bleiben und durchziehen, das wird stark."
+    ],
     "own-best-pace": [
       "Nach zwei Sektoren {delta} unter deiner Bestzeit. Bleib dran.",
       "Du bist {delta} schneller als auf deiner Bestzeit. Jetzt den letzten Sektor sauber fahren.",

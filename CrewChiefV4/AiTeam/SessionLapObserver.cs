@@ -36,7 +36,7 @@ namespace CrewChiefV4.AiTeam
         {
             pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1;
             lastLap = lastSectorCallLap = lastSectorCall = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor();
-            lastRadio = lastSectorBestCall = DateTime.MinValue;
+            lastRadio = lastSectorBestCall = lastSectorTimeCall = DateTime.MinValue; firstSectorTimeCalled = false;
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
         }
@@ -48,6 +48,7 @@ namespace CrewChiefV4.AiTeam
             bool sectorRadio = true, TrackAwareness tracks = null, string driverName = "Rob", AiRaceMemory fuelHistory = null)
         {
             if (gs == null) return;
+            sectorDriverName = AiPersonas.CleanForRadio(driverName ?? "Rob", 30, false);
             var s = gs.SessionData;
             bool race = s.SessionType == SessionType.Race;
             if (!race && !Supported(s.SessionType)) { Reset(); return; }
@@ -195,7 +196,8 @@ namespace CrewChiefV4.AiTeam
             {
                 if (TryLiveSector(gs, previous, now, out var lap, out int sector) &&
                     (ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
-                    ObservePersonalBestPace(gs, lap, sector, now))) return;
+                    ObservePersonalBestPace(gs, lap, sector, now) ||
+                    ObserveInterestingSector(gs, lap, sector, now))) return;
                 if (QualifyingResultWatch.Supported(type))
                     ObserveQualifyingSector(gs, previous, now, names, tracks);
             }
@@ -245,7 +247,7 @@ namespace CrewChiefV4.AiTeam
             }
             completedSectorBest[sector] = prior > 0 ? Math.Min(prior, time) : time;
             if (now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
-            var call = OfferSectorBest(state, now, sector, time, evidence);
+            var call = OfferSectorBest(state, now, sector, time, evidence, true);
             int currentSector = state.SessionData.SectorNumber;
             call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.SessionData.SectorTimingEstimated &&
                 live.SessionData.SectorNumber == currentSector &&
@@ -253,14 +255,34 @@ namespace CrewChiefV4.AiTeam
             return true;
         }
 
-        private ObservedRaceCall OfferSectorBest(GameStateData state, DateTime now, int sector, float seconds, string evidence)
+        private ObservedRaceCall OfferSectorBest(GameStateData state, DateTime now, int sector, float seconds, string evidence, bool lapStillRunning = false)
         {
             var catalog = RadioPhraseCatalog.Current;
             int variant = SelectVariant("own-sector-best", sectorBestVariants);
-            string time = seconds.ToString("0.0", CultureInfo.GetCultureInfo("de-DE"));
-            return Add(state, now, "sector-best", catalog.Format("own-sector-best", variant,
-                (sector + 1).ToString(CultureInfo.InvariantCulture), time), evidence, 3, sectorBestVariants,
-                "own-sector-best", variant);
+            // Rob 14.11.: Zeiten mit drei Nachkommastellen.
+            string time = seconds.ToString("0.000", RadioLanguage.Culture);
+            string text = catalog.Format("own-sector-best", variant, (sector + 1).ToString(CultureInfo.InvariantCulture), time);
+            sectorBestCount++;
+            // Rob 16.11.: menschlich und persönlich – aber nicht jedes Mal, nur wenn es passt.
+            if (sectorBestCount % 2 == 1 && !string.IsNullOrWhiteSpace(sectorDriverName) && text.Length > 0 && char.IsLetter(text[0]))
+                text = sectorDriverName + ", " + char.ToLower(text[0], RadioLanguage.Culture) + text.Substring(1);
+            if (lapStillRunning && SectorPushFits(state))
+                text += " " + catalog.Format("own-sector-best-push", pushVariants.Select("own-sector-best-push", catalog.Count("own-sector-best-push")));
+            return Add(state, now, "sector-best", text, evidence, 3, sectorBestVariants, "own-sector-best", variant);
+        }
+
+        private int sectorBestCount;
+        private string sectorDriverName = "Rob";
+        private readonly RadioVariantCursor pushVariants = new RadioVariantCursor();
+
+        /// <summary>Ansporn nur, wenn die Runde noch läuft und gültig ist; im Rennen seltener und nie im engen Zweikampf.</summary>
+        private bool SectorPushFits(GameStateData state)
+        {
+            var s = state.SessionData;
+            if (!s.CurrentLapIsValid || state.PitData.OnInLap || state.FlagData.isLocalYellow) return false;
+            if (s.SessionType != SessionType.Race) return sectorBestCount % 3 != 0;
+            bool battle = Math.Abs(s.TimeDeltaFront) > 0 && Math.Abs(s.TimeDeltaFront) < 1f || Math.Abs(s.TimeDeltaBehind) > 0 && Math.Abs(s.TimeDeltaBehind) < 1f;
+            return !battle && sectorBestCount % 3 == 1;
         }
 
         private bool ObservePersonalBestPace(GameStateData state, LapData lap, int sector, DateTime now)
@@ -286,6 +308,56 @@ namespace CrewChiefV4.AiTeam
             var call = Add(state, now, "own-best-pace", catalog.Format("own-best-pace", variant, GermanRadioText.Interval(delta)),
                 "same_personal_best_lap_two_elapsed_splits", 3, bestPaceVariants, "own-best-pace", variant);
             call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.SessionData.SectorTimingEstimated && live.SessionData.SectorNumber == 3 &&
+                !live.PitData.OnInLap && !live.FlagData.isLocalYellow;
+            return true;
+        }
+
+        private bool firstSectorTimeCalled;
+        private DateTime lastSectorTimeCall;
+        private int sectorTimeVariant;
+
+        /// <summary>
+        /// Rob 14.–16.11.: erste Sektorzeit zeitnah hören; sonst nur interessante Sektoren (knapp an der eigenen Bestmarke),
+        /// selten und nie im Rennen. Bestsektoren selbst laufen über ObserveLivePersonalBest.
+        /// </summary>
+        private bool ObserveInterestingSector(GameStateData state, LapData lap, int sector, DateTime now)
+        {
+            if (type == SessionType.Race || now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
+            var s = state.SessionData;
+            float time = lap.SectorTimes[sector];
+            float prior = completedSectorBest[sector];
+            float native = sector == 0 ? s.PlayerBestSector1Time : s.PlayerBestSector2Time;
+            float reference = GoodSector(prior) && GoodSector(native) ? Math.Min(prior, native) : GoodSector(prior) ? prior : native;
+            string text;
+            int v = sectorTimeVariant++;
+            string t = time.ToString("0.000", RadioLanguage.Culture);
+            if (!GoodSector(reference))
+            {
+                if (sector != 0 || firstSectorTimeCalled) return false;
+                firstSectorTimeCalled = true;
+                text = v % 2 == 0
+                    ? RadioLanguage.T("Erster Sektor: " + t + " Sekunden. Das ist unsere Referenz.", "First sector: " + t + " seconds. That's our reference.", "Primer sector: " + t + " segundos. Esa es nuestra referencia.")
+                    : RadioLanguage.T("Sektor eins in " + t + ". Ab hier vergleichen wir.", "Sector one in " + t + ". We compare from here.", "Sector uno en " + t + ". A partir de aquí comparamos.");
+            }
+            else
+            {
+                double over = time - reference;
+                if (over < 0 || over > .15 || now - lastSectorTimeCall < TimeSpan.FromMinutes(3)) return false;
+                string d = over < .1 ? RadioLanguage.Num(over, "0.000") + RadioLanguage.T(" Sekunden", " seconds", " segundos") : GermanRadioText.Interval(over);
+                switch (v % 3)
+                {
+                    case 0: text = RadioLanguage.T("Sektor " + (sector + 1) + " nur " + d + " über deiner Bestmarke. Da ist mehr drin.",
+                        "Sector " + (sector + 1) + " only " + d + " off your best. There's more in it.", "Sector " + (sector + 1) + " a solo " + d + " de tu mejor marca. Hay más."); break;
+                    case 1: text = RadioLanguage.T("Knapp dran in Sektor " + (sector + 1) + ": " + d + " fehlen auf deine Bestzeit.",
+                        "Close in sector " + (sector + 1) + ": " + d + " to your best.", "Muy cerca en el sector " + (sector + 1) + ": te faltan " + d + "."); break;
+                    default: text = RadioLanguage.T("Sektor " + (sector + 1) + " in " + t + ", " + d + " hinter deinem besten. Fast.",
+                        "Sector " + (sector + 1) + " in " + t + ", " + d + " behind your best. Nearly.", "Sector " + (sector + 1) + " en " + t + ", " + d + " por detrás de tu mejor. Casi."); break;
+                }
+            }
+            lastSectorTimeCall = now;
+            var call = Add(state, now, "sector-time", text, GoodSector(reference) ? "valid_split_close_to_personal_best" : "first_valid_split_without_reference", 2);
+            int currentSector = s.SectorNumber;
+            call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && live.SessionData.SectorNumber == currentSector &&
                 !live.PitData.OnInLap && !live.FlagData.isLocalYellow;
             return true;
         }

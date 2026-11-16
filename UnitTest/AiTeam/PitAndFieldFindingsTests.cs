@@ -82,6 +82,76 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Ams2_own_bests_fill_gaps_after_a_restart_but_never_replace_measured_values()
+        {
+            var s = new SessionData();
+            CrewChiefV4.AMS2.AMS2GameStateMapper.FillMissingPlayerBestsFromSimulator(s, 123.359f, 34.5f, 50.1f, 38.7f);
+            Assert.AreEqual(123.359f, s.PlayerLapTimeSessionBest, .001f);
+            Assert.AreEqual(34.5f, s.PlayerBestSector1Time, .001f);
+            s.PlayerBestSector2Time = 49.9f;
+            CrewChiefV4.AMS2.AMS2GameStateMapper.FillMissingPlayerBestsFromSimulator(s, 120f, 33f, 48f, -1f);
+            Assert.AreEqual(123.359f, s.PlayerLapTimeSessionBest, .001f);
+            Assert.AreEqual(49.9f, s.PlayerBestSector2Time, .001f);
+            Assert.AreEqual(38.7f, s.PlayerBestSector3Time, .001f);
+        }
+
+        private static GameStateData SectorFrame(int sectorNumber, float s1, DateTime source, float bestS1, SessionType type = SessionType.Practice)
+        {
+            var g = new GameStateData(source.Ticks);
+            g.Now = source; g.SourceTelemetryUtc = source;
+            g.SessionData.SessionId = 42; g.SessionData.SessionType = type; g.SessionData.SessionPhase = SessionPhase.Green;
+            g.SessionData.CompletedLaps = 2; g.SessionData.SectorNumber = sectorNumber; g.SessionData.CurrentLapIsValid = true;
+            g.SessionData.PlayerBestSector1Time = bestS1;
+            g.PositionAndMotionData.CarSpeed = 50;
+            if (sectorNumber == 2) g.SessionData.PlayerLapData.Add(new LapData { LapNumber = 3, IsValid = true, SectorTimes = new[] { s1, -1f, -1f } });
+            return g;
+        }
+
+        [Test]
+        public void First_sector_without_reference_is_announced_once_with_three_decimals()
+        {
+            RadioLanguage.Current = RadioLanguage.German;
+            var before = SectorFrame(1, -1, T, -1);
+            var now = T.AddMilliseconds(50);
+            var present = SectorFrame(2, 34.512f, now, -1);
+            var watch = new SessionLapObserver();
+            watch.Observe(before, null, T, false);
+            watch.Observe(present, null, now, false, before);
+            var call = watch.Take(present, now, false);
+            Assert.IsNotNull(call); Assert.AreEqual("sector-time", call.Topic);
+            StringAssert.Contains("34,512", call.Text);
+        }
+
+        [Test]
+        public void Live_sector_best_sounds_human_and_sometimes_encourages()
+        {
+            RadioLanguage.Current = RadioLanguage.German;
+            var before = SectorFrame(1, -1, T, 35f);
+            var now = T.AddMilliseconds(50);
+            var present = SectorFrame(2, 34.512f, now, 35f);
+            var watch = new SessionLapObserver();
+            watch.Observe(before, null, T, false, null, true, null, "Rob");
+            watch.Observe(present, null, now, false, before, true, null, "Rob");
+            var call = watch.Take(present, now, false);
+            Assert.IsNotNull(call); Assert.AreEqual("sector-best", call.Topic);
+            StringAssert.StartsWith("Rob, ", call.Text);
+            StringAssert.Contains("34,512", call.Text);
+            var push = Enumerable.Range(0, 6).Select(i => RadioPhraseCatalog.Current.Format("own-sector-best-push", i)).ToArray();
+            Assert.IsTrue(push.Any(p => call.Text.EndsWith(p, StringComparison.Ordinal)), call.Text);
+        }
+
+        [Test]
+        public void Encouragement_catalog_exists_in_all_three_languages()
+        {
+            foreach (string language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = language;
+                Assert.AreEqual(6, RadioPhraseCatalog.Current.Count("own-sector-best-push"), language);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
         public void Ams2_lap_times_fill_gaps_but_never_replace_observed_times()
         {
             var unknown = new OpponentData();
