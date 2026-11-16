@@ -294,7 +294,7 @@ namespace UnitTest.AiTeamTests
             foreach(string group in new[] {"gap-front-measured","gap-rear-measured","own-sector-best","own-best-pace",
                 "race-last","race-closing","race-rear-pressure","race-class-best","race-overall-best","race-position-loss",
                 "lap-first-valid","lap-near-best","quali-sector-comparison","stint-consistency","race-defense-hold"})
-                Assert.AreEqual(6,RadioPhraseCatalog.Current.Count(group),group);
+                Assert.GreaterOrEqual(RadioPhraseCatalog.Current.Count(group),6,group); // Rob 16.11.: mehr Auswahl erlaubt
             var openings=Enumerable.Range(0,4).Select(AiTeamService.FreeAnswerOpening).ToArray();
             Assert.AreEqual(4,openings.Distinct().Count());
             Assert.AreEqual(openings[0],AiTeamService.FreeAnswerOpening(4));
