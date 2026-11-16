@@ -57,7 +57,7 @@ namespace CrewChiefV4.AiTeam.Probe
 
     internal enum ProbeScope { Player, OwnListEntry, Opponents, Session }
 
-    internal enum ProbeKind { Int32, Single, Double }
+    internal enum ProbeKind { Int32, UInt32, Single, Double, Byte }
 
     /// <summary>Ein gemessener Kanal mit Zählern. Für Gegner werden Werte je Fahrzeug-Slot verfolgt.</summary>
     internal sealed class ProbeChannel
@@ -67,7 +67,7 @@ namespace CrewChiefV4.AiTeam.Probe
         internal readonly string Id, Group, Path, Unit, Note;
         internal readonly ProbeScope Scope;
         internal readonly ProbeKind Kind;
-        internal readonly int Offset;
+        internal readonly int Offset, Stride;
         internal readonly double Sentinel;
 
         internal long Samples, Changes, ChangesWithoutFrame, Frames, Invalid, SentinelHits;
@@ -84,10 +84,12 @@ namespace CrewChiefV4.AiTeam.Probe
         internal readonly double[] SlotLast;
         internal readonly long[] SlotLastChange;
 
-        internal ProbeChannel(string id, string group, string path, string unit, ProbeScope scope, ProbeKind kind, int offset,
+        /// <param name="offset">Byte-Offset ab Beginn des Rohbilds (bei Fahrzeugkanälen: für Eintrag 0).</param>
+        /// <param name="stride">Abstand zwischen zwei Fahrzeugeinträgen in Byte; 0 für Einzelwerte.</param>
+        internal ProbeChannel(string id, string group, string path, string unit, ProbeScope scope, ProbeKind kind, int offset, int stride,
             string note = null, double sentinel = double.NaN)
         {
-            Id = id; Group = group; Path = path; Unit = unit; Scope = scope; Kind = kind; Offset = offset; Note = note; Sentinel = sentinel;
+            Id = id; Group = group; Path = path; Unit = unit; Scope = scope; Kind = kind; Offset = offset; Stride = stride; Note = note; Sentinel = sentinel;
             if (scope == ProbeScope.Opponents)
             {
                 SlotHas = new bool[MaxSlots];
@@ -96,15 +98,28 @@ namespace CrewChiefV4.AiTeam.Probe
             }
         }
 
-        internal double Read(byte[] buffer, int baseOffset)
+        /// <summary>Liest den Wert; <paramref name="index"/> ist der Fahrzeugeintrag (bei Einzelwerten 0).</summary>
+        internal double Read(byte[] buffer, int index)
         {
-            int at = baseOffset + Offset;
+            int at = Offset + index * Stride;
             switch (Kind)
             {
                 case ProbeKind.Int32: return BitConverter.ToInt32(buffer, at);
+                case ProbeKind.UInt32: return BitConverter.ToUInt32(buffer, at);
                 case ProbeKind.Single: return BitConverter.ToSingle(buffer, at);
+                case ProbeKind.Byte: return buffer[at];
                 default: return BitConverter.ToDouble(buffer, at);
             }
+        }
+
+        internal static ProbeKind KindOf(Type type)
+        {
+            if (type == typeof(int)) return ProbeKind.Int32;
+            if (type == typeof(uint)) return ProbeKind.UInt32;
+            if (type == typeof(float)) return ProbeKind.Single;
+            if (type == typeof(double)) return ProbeKind.Double;
+            if (type == typeof(byte) || type == typeof(bool)) return ProbeKind.Byte;
+            throw new NotSupportedException("Kein Zahlenfeld: " + type.Name);
         }
 
         /// <summary>Wertet einen Einzelwert aus. Gibt true zurück, wenn er sich geändert hat.</summary>

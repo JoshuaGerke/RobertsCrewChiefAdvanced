@@ -5,14 +5,13 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Threading;
-using CrewChiefV4.RaceRoom;
 
 namespace CrewChiefV4.AiTeam.Probe
 {
     /// <summary>
     /// Telemetrie-Messung (P1): liest die Rohdaten des Spiels in einem eigenen Faden, unabhängig von der
     /// Crew-Chief-Hauptschleife, und schreibt einen Bericht in den Diagnoseordner. Nur lokal, nur lesend.
-    /// Ändert weder Spielzustand noch Funk. Unterstützt zuerst RaceRoom; weitere Spiele folgen.
+    /// Ändert weder Spielzustand noch Funk. Erkennt RaceRoom und AMS2 automatisch; weitere Spiele folgen.
     /// </summary>
     public static class TelemetryProbe
     {
@@ -71,18 +70,19 @@ namespace CrewChiefV4.AiTeam.Probe
         {
             private const int ReportEveryMs = 30000;
             private const int StalledReopenMs = 5000;
+            private const int SequenceAttempts = 8;
             private readonly string folder;
             private readonly ManualResetEvent stop = new ManualResetEvent(false);
             private Thread thread;
             private volatile bool stopRequested, finished;
             private volatile string status = "startet";
             private readonly DateTime startedLocal = DateTime.Now;
-            private readonly string baseName;
+            private readonly string stamp;
 
             internal Runner(string folder)
             {
                 this.folder = folder;
-                baseName = "R3E_" + startedLocal.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+                stamp = startedLocal.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
             }
 
             internal bool StopRequested { get { return stopRequested; } }
@@ -99,12 +99,22 @@ namespace CrewChiefV4.AiTeam.Probe
 
             internal void Join(TimeSpan timeout) { var t = thread; if (t != null) t.Join(timeout); }
 
+            /// <summary>Unterstützte Spiele in Prüfreihenfolge. Das laufende Spiel wird automatisch erkannt.</summary>
+            private static ProbeAnalyzer[] CreateAnalyzers()
+            {
+                return new ProbeAnalyzer[] { new R3EProbeAnalyzer(), new AMS2ProbeAnalyzer() };
+            }
+
+            private const string Waiting = "wartet auf RaceRoom oder AMS2";
+
             private void Run()
             {
-                R3EProbeAnalyzer analyzer = null;
+                ProbeAnalyzer[] analyzers = null;
+                ProbeAnalyzer analyzer = null;
+                byte[][] buffers = null;
+                int current = -1, preferred = 0;
                 MemoryMappedFile file = null;
                 MemoryMappedViewAccessor view = null;
-                byte[] buffer = null;
                 bool timerRaised = false;
                 var cpuWatch = Stopwatch.StartNew();
                 TimeSpan cpuStart = TimeSpan.Zero;
@@ -112,53 +122,65 @@ namespace CrewChiefV4.AiTeam.Probe
                 long nextReport = 0, lastReopenCheck = 0;
                 try
                 {
-                    analyzer = new R3EProbeAnalyzer();
-                    if (analyzer.LayoutError != null)
-                    {
-                        status = "Fehler · Datenstruktur passt nicht (" + analyzer.LayoutError + ")";
-                        return;
-                    }
-                    buffer = new byte[analyzer.StructSize];
+                    analyzers = CreateAnalyzers();
+                    buffers = new byte[analyzers.Length][];
+                    for (int i = 0; i < analyzers.Length; i++) buffers[i] = new byte[analyzers[i].StructSize];
                     try { timerRaised = NativeMethods.timeBeginPeriod(1) == 0; } catch (Exception) { }
                     try { cpuStart = Process.GetCurrentProcess().TotalProcessorTime; } catch (Exception) { }
                     long reportTicks = Stopwatch.Frequency * ReportEveryMs / 1000;
                     nextReport = Stopwatch.GetTimestamp() + reportTicks;
-                    status = "wartet auf RaceRoom";
+                    status = Waiting;
                     while (!stopRequested)
                     {
                         if (view == null)
                         {
-                            if (!TryOpen(analyzer.StructSize, out file, out view))
+                            current = -1;
+                            for (int k = 0; k < analyzers.Length && current < 0; k++)
                             {
-                                status = "wartet auf RaceRoom";
+                                int i = (preferred + k) % analyzers.Length;
+                                if (analyzers[i].LayoutError != null) continue;
+                                if (TryOpen(analyzers[i], out file, out view)) current = i;
+                            }
+                            if (current < 0)
+                            {
+                                status = LayoutProblem(analyzers) ?? Waiting;
                                 if (stop.WaitOne(2000)) break;
                                 continue;
                             }
+                            analyzer = analyzers[current];
                             lastReopenCheck = Stopwatch.GetTimestamp();
+                            status = "verbunden · " + analyzer.SimName;
                         }
+                        byte[] buffer = buffers[current];
                         long t0 = Stopwatch.GetTimestamp();
-                        if (!Copy(view, buffer))
+                        int torn;
+                        bool ok = Copy(view, buffer, analyzer.SequenceOffset, out torn);
+                        analyzer.TornFrames += torn;
+                        if (!ok)
                         {
-                            Close(ref file, ref view);
-                            continue;
+                            if (torn == 0) { Close(ref file, ref view); continue; }
+                            stop.WaitOne(1);
+                            continue; // Spiel schreibt gerade: nächstes Bild abwarten
                         }
                         long t1 = Stopwatch.GetTimestamp();
                         analyzer.Observe(buffer, t0, t1 - t0);
 
-                        // Spiel beendet? Die Abbildung bleibt bestehen, solange wir sie offen halten – dann neu öffnen.
-                        if (!analyzer.Paused(buffer) && analyzer.MsSinceLastFrame(t1) > StalledReopenMs &&
-                            (t1 - lastReopenCheck) * 1000 / Stopwatch.Frequency > StalledReopenMs)
+                        // Spiel beendet oder anderes Spiel gestartet? Eine alte Abbildung kann bestehen bleiben – dann das nächste Spiel zuerst prüfen.
+                        // Im Menü länger warten (dort stehen manche Spiele still), bei Fahrt schon nach 5 s.
+                        int stallLimit = analyzer.Inactive(buffer) ? StalledReopenMs * 3 : StalledReopenMs;
+                        if (analyzer.MsSinceLastFrame(t1) > stallLimit && (t1 - lastReopenCheck) * 1000 / Stopwatch.Frequency > stallLimit)
                         {
                             Close(ref file, ref view);
+                            preferred = (current + 1) % analyzers.Length;
                             lastReopenCheck = t1;
-                            status = "keine neuen Daten – verbinde neu";
+                            status = "keine neuen Daten – suche Spiel";
                             continue;
                         }
 
                         if (t1 >= nextReport)
                         {
                             cpuPercent = Cpu(cpuStart, cpuWatch);
-                            TryWrite(analyzer, cpuPercent);
+                            WriteAll(analyzers, cpuPercent);
                             nextReport = t1 + reportTicks;
                         }
                         if (analyzer.Polls % 500 == 0) status = Describe(analyzer);
@@ -173,33 +195,43 @@ namespace CrewChiefV4.AiTeam.Probe
                 {
                     Close(ref file, ref view);
                     if (timerRaised) { try { NativeMethods.timeEndPeriod(1); } catch (Exception) { } }
-                    if (analyzer != null && analyzer.LayoutError == null && analyzer.Polls > 0)
-                    {
-                        cpuPercent = Cpu(cpuStart, cpuWatch);
-                        if (TryWrite(analyzer, cpuPercent)) status = "beendet · Bericht im Diagnoseordner (Telemetrie-Probe)";
-                    }
-                    else if (!status.StartsWith("Fehler", StringComparison.Ordinal))
-                    {
-                        status = "beendet · keine Daten von RaceRoom erhalten";
-                    }
+                    int written = analyzers == null ? 0 : WriteAll(analyzers, Cpu(cpuStart, cpuWatch));
+                    if (written > 0) status = "beendet · Bericht im Diagnoseordner (Telemetrie-Probe)";
+                    else if (!status.StartsWith("Fehler", StringComparison.Ordinal)) status = "beendet · keine Fahrdaten erhalten";
                     stopRequested = true;
                     finished = true;
                 }
             }
 
-            private static string Describe(R3EProbeAnalyzer a)
+            private static string LayoutProblem(ProbeAnalyzer[] analyzers)
+            {
+                foreach (ProbeAnalyzer a in analyzers)
+                    if (a.LayoutError != null) return "Fehler · Datenstruktur passt nicht (" + a.SimName + ": " + a.LayoutError + ")";
+                return null;
+            }
+
+            /// <summary>Schreibt je Spiel mit Fahrdaten einen Bericht. Gibt die Zahl der Berichte zurück.</summary>
+            private int WriteAll(ProbeAnalyzer[] analyzers, double cpuPercent)
+            {
+                int n = 0;
+                foreach (ProbeAnalyzer a in analyzers)
+                    if (a.ActiveFrames > 0 && TryWrite(a, cpuPercent)) n++;
+                return n;
+            }
+
+            private static string Describe(ProbeAnalyzer a)
             {
                 if (a.ActiveMs <= 0) return "verbunden · wartet auf Fahrt";
-                return "läuft · RaceRoom · " + ((int)(a.ActiveMs / 5000) * 5).ToString(CultureInfo.InvariantCulture) + " s · " +
+                return "läuft · " + a.SimName + " · " + ((int)(a.ActiveMs / 5000) * 5).ToString(CultureInfo.InvariantCulture) + " s · " +
                     (double.IsNaN(a.SourceFramesPerSecond) ? "–" : Math.Round(a.SourceFramesPerSecond).ToString(CultureInfo.InvariantCulture)) +
                     " Bilder/s · " + a.MaxOpponents.ToString(CultureInfo.InvariantCulture) + " Gegner";
             }
 
-            private bool TryWrite(R3EProbeAnalyzer analyzer, double cpuPercent)
+            private bool TryWrite(ProbeAnalyzer analyzer, double cpuPercent)
             {
                 try
                 {
-                    ProbeReport.Write(folder, baseName, analyzer, startedLocal, cpuPercent, SafeBuild());
+                    ProbeReport.Write(folder, analyzer.FilePrefix + "_" + stamp, analyzer, startedLocal, cpuPercent, SafeBuild());
                     return true;
                 }
                 catch (Exception e)
@@ -225,13 +257,13 @@ namespace CrewChiefV4.AiTeam.Probe
                 catch (Exception) { return double.NaN; }
             }
 
-            private static bool TryOpen(int size, out MemoryMappedFile file, out MemoryMappedViewAccessor view)
+            private static bool TryOpen(ProbeAnalyzer analyzer, out MemoryMappedFile file, out MemoryMappedViewAccessor view)
             {
                 file = null; view = null;
                 try
                 {
-                    file = MemoryMappedFile.OpenExisting(RaceRoomConstant.SharedMemoryName, MemoryMappedFileRights.Read);
-                    view = file.CreateViewAccessor(0, size, MemoryMappedFileAccess.Read);
+                    file = MemoryMappedFile.OpenExisting(analyzer.SharedMemoryName, MemoryMappedFileRights.Read);
+                    view = file.CreateViewAccessor(0, analyzer.StructSize, MemoryMappedFileAccess.Read);
                     return true;
                 }
                 catch (Exception)
@@ -243,18 +275,41 @@ namespace CrewChiefV4.AiTeam.Probe
                 }
             }
 
-            private static unsafe bool Copy(MemoryMappedViewAccessor view, byte[] buffer)
+            /// <summary>
+            /// Kopiert ein Rohbild. Mit Sequenznummer (AMS2): nur ein vollständig geschriebenes Bild zählt;
+            /// <paramref name="torn"/> zählt verworfene Versuche. Rückgabe false und torn 0 = Verbindung verloren.
+            /// </summary>
+            private static unsafe bool Copy(MemoryMappedViewAccessor view, byte[] buffer, int sequenceOffset, out int torn)
             {
+                torn = 0;
                 byte* pointer = null;
                 var handle = view.SafeMemoryMappedViewHandle;
                 try
                 {
                     handle.AcquirePointer(ref pointer);
-                    Marshal.Copy(new IntPtr(pointer + view.PointerOffset), buffer, 0, buffer.Length);
-                    return true;
+                    byte* start = pointer + view.PointerOffset;
+                    if (sequenceOffset < 0)
+                    {
+                        Marshal.Copy(new IntPtr(start), buffer, 0, buffer.Length);
+                        return true;
+                    }
+                    for (int attempt = 0; attempt < SequenceAttempts; attempt++)
+                    {
+                        uint before = *(uint*)(start + sequenceOffset);
+                        if ((before & 1) == 0)
+                        {
+                            Marshal.Copy(new IntPtr(start), buffer, 0, buffer.Length);
+                            uint after = *(uint*)(start + sequenceOffset);
+                            if (before == after && BitConverter.ToUInt32(buffer, sequenceOffset) == before) return true;
+                        }
+                        torn++;
+                        Thread.Yield();
+                    }
+                    return false;
                 }
                 catch (Exception)
                 {
+                    torn = 0;
                     return false;
                 }
                 finally

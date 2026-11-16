@@ -2,13 +2,15 @@ using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Reflection;
+using CrewChiefV4.AMS2;
 using CrewChiefV4.AiTeam.Probe;
 using CrewChiefV4.RaceRoom.RaceRoomData;
 using NUnit.Framework;
 
 namespace UnitTest.AiTeamTests
 {
-    /// <summary>P1 Telemetrie-Messung: Byte-Offsets, Raten, Pausen, Bericht ohne Namen.</summary>
+    /// <summary>P1 Telemetrie-Messung (RaceRoom, AMS2): Byte-Offsets, Raten, Pausen, Bericht ohne Namen.</summary>
     [TestFixture, Category("AiTeam")]
     public class TelemetryProbeTests
     {
@@ -59,7 +61,7 @@ namespace UnitTest.AiTeamTests
             data.DriverData[1].Place = 2;
             buffer = ToBytes(data);
             var gegner = a.Channels.Single(c => c.Id == "gegner.pos_x");
-            Assert.AreEqual(77.5, gegner.Read(buffer, a.DriverEntryOffset(1)), 1e-6);
+            Assert.AreEqual(77.5, gegner.Read(buffer, 1), 1e-6);
         }
 
         [Test]
@@ -160,6 +162,115 @@ namespace UnitTest.AiTeamTests
                 StringAssert.DoesNotContain("Mustermann", text);
                 StringAssert.DoesNotContain("Gerke", text);
             }
+        }
+
+        // ---- AMS2 ----
+
+        [Test]
+        public void Ams2_layout_matches_the_reader()
+        {
+            var a = new AMS2ProbeAnalyzer(1000);
+            Assert.IsNull(a.LayoutError);
+            Assert.AreEqual(Marshal.SizeOf(typeof(ams2APIStruct)), a.StructSize);
+            Assert.AreEqual(AMS2SharedMemoryReader.SequenceOffset, a.SequenceOffset);
+            Assert.AreEqual("AMS2", a.FilePrefix);
+        }
+
+        [Test]
+        public void Ams2_channels_read_the_same_values_the_marshaller_writes()
+        {
+            var d = Ams2Racing();
+            d.mSpeed = 61.5f;
+            d.mAntiLockActive = true;
+            d.mTyreTemp[2] = 91.5f;
+            d.mAmbientTemperature = 18.5f;
+            d.mParticipantData[3].mWorldPosition[2] = -123.25f;
+            d.mParticipantData[3].mRacePosition = 7;
+            d.mSpeeds[3] = 44.5f;
+            d.mOrientations[3 * 3 + 1] = 1.25f;
+            byte[] b = Ams2Bytes(d);
+            var a = new AMS2ProbeAnalyzer(1000);
+            Func<string, int, double> read = (id, i) => a.Channels.Single(c => c.Id == id).Read(b, i);
+            Assert.AreEqual(61.5, read("bewegung.tempo", 0), 1e-6);
+            Assert.AreEqual(1.0, read("hilfe.abs_greift", 0), 1e-9);
+            Assert.AreEqual(91.5, read("reifen.temp_hl", 0), 1e-6);
+            Assert.AreEqual(18.5, read("wetter.luft", 0), 1e-6);
+            Assert.AreEqual(-123.25, read("gegner.pos_z", 3), 1e-6);
+            Assert.AreEqual(7.0, read("gegner.platz", 3), 1e-9);
+            Assert.AreEqual(44.5, read("gegner.tempo", 3), 1e-6);
+            Assert.AreEqual(1.25, read("gegner.gier", 3), 1e-6);
+        }
+
+        [Test]
+        public void Ams2_rates_pause_and_opponents()
+        {
+            var a = new AMS2ProbeAnalyzer(1000);
+            var d = Ams2Racing();
+            int frame = 0;
+            for (long ms = 1; ms <= 3000; ms++)
+            {
+                d.mGameState = ms > 1000 && ms <= 1500 ? 3u : 2u; // eine halbe Sekunde Pause
+                if (d.mGameState == 2 && ms % 16 == 0)
+                {
+                    frame++;
+                    d.mSequenceNumber = (uint)(frame * 2);
+                    d.mSpeed = 40 + frame * 0.01f;
+                    d.mParticipantData[0].mWorldPosition[0] = frame * 0.5f;
+                    if (frame % 3 == 0)
+                        for (int i = 1; i < 4; i++) d.mParticipantData[i].mWorldPosition[0] = frame * 0.5f + i;
+                }
+                a.Observe(Ams2Bytes(d), ms, 0);
+            }
+            Assert.IsNull(a.HeaderError);
+            Assert.AreEqual(500, a.PausedMs, 2);
+            Assert.AreEqual(62.5, a.SourceFramesPerSecond, 2);
+            Assert.IsTrue(double.IsNaN(a.SimTicksPerSecond));
+            Assert.Less(a.FrameIntervals.MaxMs, 40);
+            Assert.AreEqual(3, a.MaxOpponents);
+            var map = a.Channels.Single(c => c.Id == "gegner.pos_x");
+            Assert.AreEqual(48, map.Intervals.Percentile(0.5), 0.01);
+            Assert.AreEqual("vorhanden", a.Channels.Single(c => c.Id == "eigen_liste.pos_x").Status);
+            StringAssert.Contains("AMS2", ProbeReport.Summary(a, DateTime.Now, 1));
+        }
+
+        private static ams2APIStruct Ams2Racing()
+        {
+            var d = Filled<ams2APIStruct>();
+            d.mVersion = 14;
+            d.mGameState = 2;
+            d.mNumParticipants = 4;
+            d.mViewedParticipantIndex = 0;
+            for (int i = 0; i < 4; i++) d.mParticipantData[i].mIsActive = true;
+            return d;
+        }
+
+        private static byte[] Ams2Bytes(ams2APIStruct data)
+        {
+            int size = Marshal.SizeOf(typeof(ams2APIStruct));
+            var bytes = new byte[size];
+            IntPtr p = Marshal.AllocHGlobal(size);
+            try { Marshal.StructureToPtr(data, p, false); Marshal.Copy(p, bytes, 0, size); }
+            finally { Marshal.FreeHGlobal(p); }
+            return bytes;
+        }
+
+        /// <summary>Legt alle festen Arrays (auch in Unterstrukturen) in der Länge an, die der Marshaller erwartet.</summary>
+        private static T Filled<T>() { return (T)Fill(typeof(T)); }
+
+        private static object Fill(Type type)
+        {
+            object boxed = Activator.CreateInstance(type);
+            foreach (FieldInfo f in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (!f.FieldType.IsArray) continue;
+                var m = (MarshalAsAttribute)Attribute.GetCustomAttribute(f, typeof(MarshalAsAttribute));
+                Type element = f.FieldType.GetElementType();
+                Array array = Array.CreateInstance(element, m.SizeConst);
+                if (element.IsValueType && !element.IsPrimitive)
+                    for (int i = 0; i < array.Length; i++) array.SetValue(Fill(element), i);
+                f.SetValue(boxed, array);
+            }
+            return boxed;
         }
 
         // ---- Hilfen ----

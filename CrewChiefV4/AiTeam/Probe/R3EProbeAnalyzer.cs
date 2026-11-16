@@ -1,60 +1,29 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
 using CrewChiefV4.RaceRoom.RaceRoomData;
 
 namespace CrewChiefV4.AiTeam.Probe
 {
     /// <summary>
-    /// Wertet Rohbilder des RaceRoom-Shared-Memory aus (nur Lesen, ohne Mapper, ohne Spielzustand).
-    /// Misst je Kanal: vorhanden?, Wertebereich, wie oft er sich ändert und wie gleichmäßig.
-    /// Testbar mit künstlichen Puffern; der Lesefaden liegt in <see cref="TelemetryProbe"/>.
+    /// RaceRoom: liest das Shared Memory „$R3E“ (nur lesen, ohne Mapper, ohne Spielzustand).
+    /// Offsets werden aus RaceRoomData.cs berechnet und beim Start gegen den Marshaller geprüft.
     /// </summary>
-    internal sealed class R3EProbeAnalyzer
+    internal sealed class R3EProbeAnalyzer : ProbeAnalyzer
     {
-        internal const string SimName = "RaceRoom";
         private const double R3ENotAvailable = -1;
 
-        internal readonly List<ProbeChannel> Channels = new List<ProbeChannel>();
-        internal readonly int StructSize;
-        internal readonly string LayoutError;
-        private readonly double ticksPerMs;
+        internal override string SimName { get { return "RaceRoom"; } }
+        internal override string FilePrefix { get { return "R3E"; } }
+        internal override string SharedMemoryName { get { return RaceRoom.RaceRoomConstant.SharedMemoryName; } }
 
-        // Feste Offsets
         private readonly int oVersionMajor, oVersionMinor, oAllDriversOffset, oDriverDataSize, oGamePaused, oGameInMenus, oGameInReplay,
             oSimTicks, oSimTime, oNumCars, oDriverData, oSlotPlayer, oTrackId, oLayoutId, oTrackName, oLayoutName, oSessionType;
-        private readonly int driverSize, oEntryPlace, oEntrySlot, numCarsOffset;
-
-        // Zustand
-        private bool hasFrame;
-        private int lastSimTicks;
-        private double lastSimTime;
-        private long lastFrameTicks, lastPollTicks;
-        private ProbeChannel[] singles, opponents, ownEntry;
-        private bool wasActive;
-        private bool frameIntervalValid; // erst nach einem neuen Bild im aktiven Zustand
-        private readonly bool[] presentNow = new bool[ProbeChannel.MaxSlots];
-        private readonly bool[] presentBefore = new bool[ProbeChannel.MaxSlots];
-        private int lastTrackId = int.MinValue, lastLayoutId = int.MinValue, lastSessionType = int.MinValue;
-
-        // Ergebnisse (für Bericht)
-        internal readonly IntervalHistogram FrameIntervals = new IntervalHistogram();
-        internal readonly IntervalHistogram PollIntervals = new IntervalHistogram();
-        internal long Polls, ActivePolls, Frames, ActiveFrames, CostTicksSum, CostTicksMax;
-        internal double ActiveMs, PausedMs, MenuMs, ReplayMs, StalledMs;
-        internal long SimTicksAdvanced;
-        internal double SimTicksWallMs;
-        internal int MaxOpponents, VersionMajor, VersionMinor, Sessions;
-        internal double OpponentSlotMs;
-        internal string TrackName, LayoutName, HeaderError;
-        internal long HeaderChecks;
+        private readonly int driverSize, oEntryPlace, oEntrySlot;
 
         internal R3EProbeAnalyzer() : this(Stopwatch.Frequency) { }
 
-        internal R3EProbeAnalyzer(long tickFrequency)
+        internal R3EProbeAnalyzer(long tickFrequency) : base(tickFrequency)
         {
-            ticksPerMs = tickFrequency / 1000.0;
             Type root = typeof(RaceRoomShared);
             LayoutError = PackedLayout.Verify(root);
             StructSize = PackedLayout.Size(root);
@@ -63,38 +32,29 @@ namespace CrewChiefV4.AiTeam.Probe
             oAllDriversOffset = at("AllDriversOffset"); oDriverDataSize = at("DriverDataSize");
             oGamePaused = at("GamePaused"); oGameInMenus = at("GameInMenus"); oGameInReplay = at("GameInReplay");
             oSimTicks = at("Player.GameSimulationTicks"); oSimTime = at("Player.GameSimulationTime");
-            oNumCars = at("NumCars"); numCarsOffset = oNumCars; oDriverData = at("DriverData");
+            oNumCars = at("NumCars"); oDriverData = at("DriverData");
             oSlotPlayer = at("VehicleInfo.SlotId");
             oTrackId = at("TrackId"); oLayoutId = at("LayoutId"); oTrackName = at("TrackName"); oLayoutName = at("LayoutName");
             oSessionType = at("SessionType");
             driverSize = PackedLayout.Size(typeof(DriverData));
             oEntryPlace = PackedLayout.Offset(typeof(DriverData), "Place");
             oEntrySlot = PackedLayout.Offset(typeof(DriverData), "DriverInfo.SlotId");
-            DefineChannels(root);
-            var s = new List<ProbeChannel>(); var o = new List<ProbeChannel>(); var l = new List<ProbeChannel>();
-            foreach (ProbeChannel c in Channels)
-            {
-                if (c.Scope == ProbeScope.Opponents) o.Add(c);
-                else if (c.Scope == ProbeScope.OwnListEntry) l.Add(c);
-                else s.Add(c);
-            }
-            singles = s.ToArray(); opponents = o.ToArray(); ownEntry = l.ToArray();
+            DefineChannels();
+            Finish();
         }
 
         private void Add(string id, string group, string path, string unit, ProbeScope scope, string note = null, bool sentinel = false)
         {
-            Type root = scope == ProbeScope.Opponents || scope == ProbeScope.OwnListEntry ? typeof(DriverData) : typeof(RaceRoomShared);
+            bool perCar = scope == ProbeScope.Opponents || scope == ProbeScope.OwnListEntry;
             Type leaf;
-            int offset = PackedLayout.Offset(root, path, out leaf);
-            ProbeKind kind = leaf == typeof(int) ? ProbeKind.Int32 : leaf == typeof(float) ? ProbeKind.Single : leaf == typeof(double) ? ProbeKind.Double
-                : throw new NotSupportedException(path + " ist kein Zahlenfeld");
-            Channels.Add(new ProbeChannel(id, group, path, unit, scope, kind, offset, note, sentinel ? R3ENotAvailable : double.NaN));
+            int offset = perCar ? oDriverData + PackedLayout.Offset(typeof(DriverData), path, out leaf) : PackedLayout.Offset(typeof(RaceRoomShared), path, out leaf);
+            AddChannel(id, group, path, unit, scope, ProbeChannel.KindOf(leaf), offset, perCar ? driverSize : 0, note, sentinel ? R3ENotAvailable : double.NaN);
         }
 
         private static readonly string[] Corners = { "FrontLeft", "FrontRight", "RearLeft", "RearRight" };
         private static readonly string[] CornerIds = { "vl", "vr", "hl", "hr" };
 
-        private void DefineChannels(Type root)
+        private void DefineChannels()
         {
             const ProbeScope P = ProbeScope.Player, S = ProbeScope.Session, O = ProbeScope.Opponents, L = ProbeScope.OwnListEntry;
             Add("quelle.sim_ticks", "Quelle", "Player.GameSimulationTicks", "Ticks", P, "Takt der Physik");
@@ -207,176 +167,64 @@ namespace CrewChiefV4.AiTeam.Probe
             Add("eigen_liste.strecke_m", "Eigenes Auto in der Fahrerliste", "LapDistance", "m", L, "Vergleich mit Runde.strecke_m", true);
         }
 
-        private bool ReadyFor(byte[] buffer) { return buffer != null && buffer.Length >= StructSize; }
-
-        /// <summary>Wertet ein Rohbild aus. <paramref name="now"/> und <paramref name="costTicks"/> in Stopwatch-Ticks.</summary>
-        internal void Observe(byte[] buffer, long now, long costTicks)
+        protected override void ReadState(byte[] b, out bool paused, out bool menu, out bool replay, out long clock, out double clockTime)
         {
-            if (!ReadyFor(buffer)) return;
-            Polls++;
-            CostTicksSum += costTicks;
-            if (costTicks > CostTicksMax) CostTicksMax = costTicks;
-            double sinceLastPollMs = lastPollTicks == 0 ? 0 : (now - lastPollTicks) / ticksPerMs;
-            if (lastPollTicks != 0) PollIntervals.Add(sinceLastPollMs);
-            lastPollTicks = now;
-
-            CheckHeader(buffer);
-
-            bool paused = BitConverter.ToInt32(buffer, oGamePaused) == 1;
-            bool menu = BitConverter.ToInt32(buffer, oGameInMenus) == 1;
-            bool replay = BitConverter.ToInt32(buffer, oGameInReplay) == 1;
-            int simTicks = BitConverter.ToInt32(buffer, oSimTicks);
-            double simTime = BitConverter.ToDouble(buffer, oSimTime);
-            bool newFrame = !hasFrame || simTicks != lastSimTicks || !simTime.Equals(lastSimTime);
-            bool active = !paused && !menu && !replay;
-
-            if (newFrame)
-            {
-                Frames++;
-                if (active && frameIntervalValid) FrameIntervals.Add((now - lastFrameTicks) / ticksPerMs);
-                if (active && frameIntervalValid && simTicks > lastSimTicks)
-                {
-                    // Nur zusammenhängende aktive Abschnitte zählen (keine Pausen, kein Sitzungswechsel).
-                    SimTicksAdvanced += simTicks - lastSimTicks;
-                    SimTicksWallMs += (now - lastFrameTicks) / ticksPerMs;
-                }
-                lastFrameTicks = now;
-                lastSimTicks = simTicks;
-                lastSimTime = simTime;
-                hasFrame = true;
-                frameIntervalValid = active;
-            }
-            if (!active) frameIntervalValid = false;
-
-            if (paused) PausedMs += sinceLastPollMs;
-            else if (menu) MenuMs += sinceLastPollMs;
-            else if (replay) ReplayMs += sinceLastPollMs;
-            else if (!newFrame && hasFrame && (now - lastFrameTicks) / ticksPerMs > 1000) StalledMs += sinceLastPollMs;
-            else ActiveMs += sinceLastPollMs;
-
-            if (!active)
-            {
-                if (wasActive) InterruptAll();
-                wasActive = false;
-                return;
-            }
-            if (!wasActive) InterruptAll();
-            wasActive = true;
-            ActivePolls++;
-            if (newFrame) ActiveFrames++;
-
-            NoteSession(buffer);
-
-            for (int i = 0; i < singles.Length; i++)
-                singles[i].ObserveSingle(singles[i].Read(buffer, 0), now, newFrame, ticksPerMs);
-            ObserveDrivers(buffer, now, newFrame, sinceLastPollMs);
+            paused = BitConverter.ToInt32(b, oGamePaused) == 1;
+            menu = BitConverter.ToInt32(b, oGameInMenus) == 1;
+            replay = BitConverter.ToInt32(b, oGameInReplay) == 1;
+            clock = BitConverter.ToInt32(b, oSimTicks);
+            clockTime = BitConverter.ToDouble(b, oSimTime);
         }
 
-        private void InterruptAll()
+        protected override string CheckHeader(byte[] b)
         {
-            foreach (ProbeChannel c in Channels) c.Interrupt();
-            Array.Clear(presentBefore, 0, presentBefore.Length);
+            int major = BitConverter.ToInt32(b, oVersionMajor), minor = BitConverter.ToInt32(b, oVersionMinor);
+            DataVersion = major + "." + minor;
+            int allDrivers = BitConverter.ToInt32(b, oAllDriversOffset);
+            int driverDataSize = BitConverter.ToInt32(b, oDriverDataSize);
+            int expected = (int)RaceRoom.RaceRoomConstant.VersionMajor.R3E_VERSION_MAJOR;
+            if (major != expected) return "Datenformat-Version " + major + " statt " + expected;
+            if (allDrivers != 0 && allDrivers != oNumCars) return "Spiel meldet Fahrerliste bei Byte " + allDrivers + ", erwartet " + oNumCars;
+            if (driverDataSize != 0 && driverDataSize != driverSize) return "Spiel meldet Fahrereintrag " + driverDataSize + " Byte, erwartet " + driverSize;
+            return null;
         }
 
-        private void ObserveDrivers(byte[] buffer, long now, bool newFrame, double sinceLastPollMs)
+        protected override long SessionKey(byte[] b)
         {
-            int numCars = BitConverter.ToInt32(buffer, oNumCars);
-            int maxEntries = Math.Min(Math.Max(numCars, 0), 128);
-            int playerSlot = BitConverter.ToInt32(buffer, oSlotPlayer);
-            Array.Clear(presentNow, 0, presentNow.Length);
-            int count = 0;
-            for (int i = 0; i < maxEntries; i++)
+            return ((long)BitConverter.ToInt32(b, oTrackId) << 40) ^ ((long)BitConverter.ToInt32(b, oLayoutId) << 16) ^ BitConverter.ToInt32(b, oSessionType);
+        }
+
+        protected override void ReadTrack(byte[] b, out string track, out string layout)
+        {
+            track = Utf8(b, oTrackName, 64);
+            layout = Utf8(b, oLayoutName, 64);
+        }
+
+        protected override int CollectEntries(byte[] b, int[] index, int[] slot, out int own)
+        {
+            own = -1;
+            int max = Math.Min(Math.Max(BitConverter.ToInt32(b, oNumCars), 0), 128);
+            int playerSlot = BitConverter.ToInt32(b, oSlotPlayer);
+            int n = 0;
+            for (int i = 0; i < max && n < index.Length; i++)
             {
                 int entry = oDriverData + i * driverSize;
-                if (entry + driverSize > buffer.Length) break;
-                if (BitConverter.ToInt32(buffer, entry + oEntryPlace) <= 0) continue;
-                int slot = BitConverter.ToInt32(buffer, entry + oEntrySlot);
-                if (slot < 0 || slot >= ProbeChannel.MaxSlots) continue;
-                bool own = slot == playerSlot;
-                if (own)
-                {
-                    for (int k = 0; k < ownEntry.Length; k++) ownEntry[k].ObserveSingle(ownEntry[k].Read(buffer, entry), now, newFrame, ticksPerMs);
-                    continue;
-                }
-                if (presentNow[slot]) continue; // doppelter Slot im selben Bild: nur den ersten zählen
-                presentNow[slot] = true;
-                count++;
-                for (int k = 0; k < opponents.Length; k++) opponents[k].ObserveSlot(slot, opponents[k].Read(buffer, entry), now, newFrame, ticksPerMs);
+                if (entry + driverSize > b.Length) break;
+                if (BitConverter.ToInt32(b, entry + oEntryPlace) <= 0) continue;
+                int s = BitConverter.ToInt32(b, entry + oEntrySlot);
+                if (s == playerSlot) { own = i; continue; }
+                index[n] = i; slot[n] = s; n++;
             }
-            for (int slot = 0; slot < ProbeChannel.MaxSlots; slot++)
-            {
-                if (presentBefore[slot] && !presentNow[slot])
-                    for (int k = 0; k < opponents.Length; k++) opponents[k].ForgetSlot(slot);
-                presentBefore[slot] = presentNow[slot];
-            }
-            if (count > MaxOpponents) MaxOpponents = count;
-            OpponentSlotMs += sinceLastPollMs * count;
+            return n;
         }
-
-        private void CheckHeader(byte[] buffer)
-        {
-            HeaderChecks++;
-            VersionMajor = BitConverter.ToInt32(buffer, oVersionMajor);
-            VersionMinor = BitConverter.ToInt32(buffer, oVersionMinor);
-            int allDrivers = BitConverter.ToInt32(buffer, oAllDriversOffset);
-            int driverDataSize = BitConverter.ToInt32(buffer, oDriverDataSize);
-            if (VersionMajor != (int)RaceRoom.RaceRoomConstant.VersionMajor.R3E_VERSION_MAJOR)
-                HeaderError = "Datenformat-Version " + VersionMajor + " statt " + (int)RaceRoom.RaceRoomConstant.VersionMajor.R3E_VERSION_MAJOR;
-            else if (allDrivers != 0 && allDrivers != numCarsOffset)
-                HeaderError = "Spiel meldet Fahrerliste bei Byte " + allDrivers + ", erwartet " + numCarsOffset;
-            else if (driverDataSize != 0 && driverDataSize != driverSize)
-                HeaderError = "Spiel meldet Fahrereintrag " + driverDataSize + " Byte, erwartet " + driverSize;
-            else
-                HeaderError = null;
-        }
-
-        private void NoteSession(byte[] buffer)
-        {
-            int track = BitConverter.ToInt32(buffer, oTrackId), layout = BitConverter.ToInt32(buffer, oLayoutId), type = BitConverter.ToInt32(buffer, oSessionType);
-            if (track == lastTrackId && layout == lastLayoutId && type == lastSessionType) return;
-            lastTrackId = track; lastLayoutId = layout; lastSessionType = type;
-            Sessions++;
-            TrackName = Utf8(buffer, oTrackName, 64);
-            LayoutName = Utf8(buffer, oLayoutName, 64);
-        }
-
-        private static string Utf8(byte[] buffer, int offset, int length)
-        {
-            int end = offset;
-            while (end < offset + length && buffer[end] != 0) end++;
-            return Encoding.UTF8.GetString(buffer, offset, end - offset);
-        }
-
-        internal double SourceFramesPerSecond { get { return ActiveMs <= 0 ? double.NaN : ActiveFrames / (ActiveMs / 1000.0); } }
-        internal double SimTicksPerSecond { get { return SimTicksWallMs <= 0 ? double.NaN : SimTicksAdvanced / (SimTicksWallMs / 1000.0); } }
-
-        /// <summary>Änderungen je Sekunde: Spieler/Sitzung auf aktive Zeit, Gegner je Auto.</summary>
-        internal double ChangesPerSecond(ProbeChannel c)
-        {
-            double ms = c.Scope == ProbeScope.Opponents ? OpponentSlotMs : ActiveMs;
-            return ms <= 0 ? double.NaN : c.Changes / (ms / 1000.0);
-        }
-
-        internal double FrameShare(ProbeChannel c) { return c.Frames == 0 ? double.NaN : (double)c.Changes / c.Frames; }
-
-        internal double MsSinceLastFrame(long now) { return !hasFrame ? double.PositiveInfinity : (now - lastFrameTicks) / ticksPerMs; }
-
-        internal bool Paused(byte[] buffer)
-        {
-            return ReadyFor(buffer) && (BitConverter.ToInt32(buffer, oGamePaused) == 1 || BitConverter.ToInt32(buffer, oGameInMenus) == 1 || BitConverter.ToInt32(buffer, oGameInReplay) == 1);
-        }
-
-        internal double TicksPerMs { get { return ticksPerMs; } }
 
         /// <summary>Für Tests: schreibt einen Wert an einen Strukturpfad.</summary>
-        internal static void Write(byte[] buffer, string path, double value, int baseOffset = 0, Type root = null)
+        internal static void Write(byte[] buffer, string path, double value)
         {
             Type leaf;
-            int at = baseOffset + PackedLayout.Offset(root ?? typeof(RaceRoomShared), path, out leaf);
+            int at = PackedLayout.Offset(typeof(RaceRoomShared), path, out leaf);
             byte[] bytes = leaf == typeof(int) ? BitConverter.GetBytes((int)value) : leaf == typeof(float) ? BitConverter.GetBytes((float)value) : BitConverter.GetBytes(value);
             Buffer.BlockCopy(bytes, 0, buffer, at, bytes.Length);
         }
-
-        internal int DriverEntryOffset(int index) { return oDriverData + index * driverSize; }
     }
 }

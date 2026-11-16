@@ -17,7 +17,7 @@ namespace CrewChiefV4.AiTeam.Probe
         private static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-DE");
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-        internal static string Csv(R3EProbeAnalyzer a)
+        internal static string Csv(ProbeAnalyzer a)
         {
             var sb = new StringBuilder();
             sb.AppendLine("Gruppe;Kanal;Feld im Spiel;Einheit;Status;Änderungen pro Sekunde;Anteil Quellbilder mit Änderung %;Intervall p50 ms;Intervall p95 ms;Intervall max ms;Min;Max;Stichproben;Änderungen;Änderungen ohne neues Quellbild;Hinweis");
@@ -44,7 +44,7 @@ namespace CrewChiefV4.AiTeam.Probe
             return sb.ToString();
         }
 
-        internal static JObject Json(R3EProbeAnalyzer a, DateTime startedLocal, double cpuPercent, string build)
+        internal static JObject Json(ProbeAnalyzer a, DateTime startedLocal, double cpuPercent, string build)
         {
             var channels = new JArray();
             foreach (ProbeChannel c in a.Channels)
@@ -68,13 +68,13 @@ namespace CrewChiefV4.AiTeam.Probe
             return new JObject
             {
                 ["format"] = "rrca-telemetry-probe/1",
-                ["sim"] = R3EProbeAnalyzer.SimName,
+                ["sim"] = a.SimName,
                 ["build"] = build,
                 ["started_local"] = startedLocal.ToString("yyyy-MM-dd HH:mm:ss", Inv),
                 ["written_local"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", Inv),
                 ["layout_check"] = a.LayoutError ?? "ok",
                 ["header_check"] = a.HeaderError ?? "ok",
-                ["data_version"] = a.VersionMajor + "." + a.VersionMinor,
+                ["data_version"] = a.DataVersion,
                 ["track"] = a.TrackName, ["layout"] = a.LayoutName, ["sessions_seen"] = a.Sessions,
                 ["time_ms"] = new JObject { ["active"] = J(a.ActiveMs), ["paused"] = J(a.PausedMs), ["menu"] = J(a.MenuMs), ["replay"] = J(a.ReplayMs), ["stalled"] = J(a.StalledMs) },
                 ["source"] = new JObject
@@ -89,6 +89,7 @@ namespace CrewChiefV4.AiTeam.Probe
                 ["probe"] = new JObject
                 {
                     ["polls"] = a.Polls,
+                    ["torn_frames_skipped"] = a.TornFrames,
                     ["poll_interval_p50_ms"] = J(a.PollIntervals.Percentile(0.5)),
                     ["poll_interval_p95_ms"] = J(a.PollIntervals.Percentile(0.95)),
                     ["read_cost_mean_us"] = J(a.Polls == 0 ? double.NaN : a.CostTicksSum / (double)a.Polls / a.TicksPerMs * 1000),
@@ -101,22 +102,23 @@ namespace CrewChiefV4.AiTeam.Probe
             };
         }
 
-        internal static string Summary(R3EProbeAnalyzer a, DateTime startedLocal, double cpuPercent)
+        internal static string Summary(ProbeAnalyzer a, DateTime startedLocal, double cpuPercent)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("RRCA Telemetrie-Messung – " + R3EProbeAnalyzer.SimName);
+            sb.AppendLine("RRCA Telemetrie-Messung – " + a.SimName);
             sb.AppendLine("Gestartet: " + startedLocal.ToString("dd.MM.yyyy HH:mm:ss", De) + " · geschrieben: " + DateTime.Now.ToString("HH:mm:ss", De));
             sb.AppendLine("Strecke: " + (string.IsNullOrEmpty(a.TrackName) ? "unbekannt" : a.TrackName + (string.IsNullOrEmpty(a.LayoutName) ? "" : " – " + a.LayoutName)));
             sb.AppendLine("Zeit im Auto (gemessen): " + Sec(a.ActiveMs) + " · Pause " + Sec(a.PausedMs) + " · Menü " + Sec(a.MenuMs) +
                 " · Wiederholung " + Sec(a.ReplayMs) + " · ohne neue Daten " + Sec(a.StalledMs));
-            sb.AppendLine("Datenformat: Version " + a.VersionMajor + "." + a.VersionMinor + " · Strukturprüfung: " + (a.LayoutError ?? "in Ordnung") +
+            sb.AppendLine("Datenformat: Version " + (a.DataVersion ?? "–") + " · Strukturprüfung: " + (a.LayoutError ?? "in Ordnung") +
                 " · Abgleich mit dem Spiel: " + (a.HeaderError ?? "in Ordnung"));
             sb.AppendLine();
             sb.AppendLine("QUELLE");
             sb.AppendLine("  Neue Datenbilder vom Spiel: " + N(a.SourceFramesPerSecond, "0.0") + " pro Sekunde" +
                 " (Abstand typisch " + N(a.FrameIntervals.Percentile(0.5), "0.0") + " ms, 95 % unter " + N(a.FrameIntervals.Percentile(0.95), "0.0") +
                 " ms, längste Lücke " + N(a.FrameIntervals.Count == 0 ? double.NaN : a.FrameIntervals.MaxMs, "0") + " ms)");
-            sb.AppendLine("  Physik-Takt laut Spiel: " + N(a.SimTicksPerSecond, "0") + " Ticks pro Sekunde");
+            sb.AppendLine(a.HasSimClock ? "  Physik-Takt laut Spiel: " + N(a.SimTicksPerSecond, "0") + " Ticks pro Sekunde" : "  Physik-Takt: vom Spiel nicht gemeldet");
+            if (a.TornFrames > 0) sb.AppendLine("  Halb geschriebene Bilder übersprungen: " + a.TornFrames.ToString(Inv));
             sb.AppendLine("  Messung selbst: tastet alle " + N(a.PollIntervals.Percentile(0.5), "0.0") + " ms ab (95 % unter " + N(a.PollIntervals.Percentile(0.95), "0.0") +
                 " ms) · Lesezeit Ø " + N(a.Polls == 0 ? double.NaN : a.CostTicksSum / (double)a.Polls / a.TicksPerMs * 1000, "0") + " µs · Crew Chief gesamt Ø " + N(cpuPercent, "0.0") + " % CPU");
             sb.AppendLine();
@@ -158,7 +160,7 @@ namespace CrewChiefV4.AiTeam.Probe
         }
 
         /// <summary>Schreibt alle drei Dateien; erst in Zwischendateien, dann austauschen.</summary>
-        internal static void Write(string folder, string baseName, R3EProbeAnalyzer a, DateTime startedLocal, double cpuPercent, string build)
+        internal static void Write(string folder, string baseName, ProbeAnalyzer a, DateTime startedLocal, double cpuPercent, string build)
         {
             Directory.CreateDirectory(folder);
             Replace(Path.Combine(folder, baseName + ".csv"), Csv(a), new UTF8Encoding(true));

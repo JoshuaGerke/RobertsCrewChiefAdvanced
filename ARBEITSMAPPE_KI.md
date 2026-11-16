@@ -81,3 +81,9 @@ Basis ist das lokal vorhandene Quellarchiv zu `c931ad49c0f9b077d58bafbb57d82365c
 - Bericht alle 30 s und beim Ausschalten in `RCCA-LiveDiagnostics\Telemetrie-Probe`: CSV (Semikolon, Dezimalkomma), JSON, Zusammenfassung.txt. Keine Fahrernamen, keine Schlüssel. Während der Messung wird die Windows-Zeitauflösung für diesen Prozess auf 1 ms gesetzt und danach zurückgesetzt.
 - Tests: `UnitTest/AiTeam/TelemetryProbeTests.cs` (7 Tests: Layout gegen Marshaller, Werte-Rundlauf über StructureToPtr, Raten bei 62,5 Hz Quelle und langsamerer Gegnerkarte, Pause, Gegnerwechsel, Histogramm, Bericht ohne Namen).
 - **Ungeprüft**: Build und Tests (in der Cloud nicht ausführbar), echte Raten in RaceRoom, CPU-Wirkung. Abnahme durch Rob: bauen, Tests, je eine kurze Fahrt offline und online mit Gegnern, Bericht zurückgeben.
+
+## Claude P1b – Telemetrie-Messung auch für AMS2 (16.11.2026)
+
+- Die Messung ist jetzt spielunabhängig (ProbeAnalyzer) und erkennt selbst, ob RaceRoom oder AMS2 läuft. Stehen bei einem Spiel 5 s lang keine neuen Bilder an (im Menü 15 s), wird das nächste Spiel geprüft. Je Spiel ein eigener Bericht (`R3E_…`, `AMS2_…`).
+- AMS2: Shared Memory „$pcars2$“, Offsets direkt vom Marshaller (Standard-Ausrichtung). Nur vollständig geschriebene Bilder zählen (Sequenznummer gerade und vorher/nachher gleich); verworfene Versuche stehen im Bericht. 131 Kanäle, darunter ABS-Eingriff, Reifen (Lauffläche, Karkasse, Luft), Wetter und 12 Kanäle je Gegner (Weltposition, Streckenmeter, Platz, Tempo, Gierwinkel, Boxenmodus, Rundenzeiten).
+- Tests: drei weitere AMS2-Tests (Layout gegen den vorhandenen Reader, Werte-Rundlauf über StructureToPtr, Raten mit Pause und langsamerer Gegnerkarte). Ungeprüft: Verhalten im echten AMS2.

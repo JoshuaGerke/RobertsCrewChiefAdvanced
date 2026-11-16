@@ -30,7 +30,10 @@
     'Sara: Warte auf aktuelle Seitendaten': ['Sara: waiting for live side data', 'Sara: esperando datos laterales en directo']
   });
   Object.assign(words, {
-    'Telemetrie-Messung einschalten (RaceRoom)': ['Enable telemetry measurement (RaceRoom)','Activar medición de telemetría (RaceRoom)'],
+    'Telemetrie-Messung einschalten (RaceRoom, AMS2)': ['Enable telemetry measurement (RaceRoom, AMS2)','Activar medición de telemetría (RaceRoom, AMS2)'],
+    'wartet auf RaceRoom oder AMS2': ['waiting for RaceRoom or AMS2','esperando a RaceRoom o AMS2'],
+    'keine neuen Daten – suche Spiel': ['no new data – looking for the game','sin datos nuevos – buscando el simulador'],
+    'beendet · keine Fahrdaten erhalten': ['finished · no driving data received','terminada · no se recibieron datos de conducción'],
     'Misst, welche Daten das Spiel liefert und wie oft sie sich ändern. Nur lokal, ändert nichts am Funk. Braucht etwas Rechenzeit – nach der Messfahrt wieder ausschalten.': ['Measures which data the game provides and how often it changes. Local only, does not change the radio. Uses some CPU – switch it off again after the test drive.','Mide qué datos entrega el simulador y con qué frecuencia cambian. Solo local, no cambia la radio. Consume algo de CPU: desactívala tras la vuelta de prueba.'],
     'Messberichte': ['Measurement reports','Informes de medición'],
     'startet': ['starting','iniciando'],
@@ -66,7 +69,8 @@
     [/^auf (.*?)( · Näherung)?( · vorne (.*))?$/, (name,est,front,rest)=>pick('auf '+name+(est||'')+(front||''),'to '+name+(est?' · estimate':'')+(front?' · ahead '+rest.replace(' ungefähr ',' approximately '):''),'con '+name+(est?' · estimación':'')+(front?' · delante '+rest.replace(' ungefähr ',' aproximadamente '):''))],
     [/^Diagnose: (.*)$/, value=>pick('Diagnose: ','Diagnostics: ','Diagnóstico: ')+t(value).replace('verworfen=',pick('verworfen=','dropped=','descartados='))],
     [/^Messung: (.*)$/, value=>pick('Messung: ','Measurement: ','Medición: ')+t(value)],
-    [/^läuft · RaceRoom · (\d+) s · (.+) Bilder\/s · (\d+) Gegner$/, (sec,fps,n)=>pick('läuft · RaceRoom · '+sec+' s · '+fps+' Bilder/s · '+n+' Gegner','running · RaceRoom · '+sec+' s · '+fps+' frames/s · '+n+' opponents','en curso · RaceRoom · '+sec+' s · '+fps+' imágenes/s · '+n+' rivales')],
+    [/^läuft · (.+?) · (\d+) s · (.+) Bilder\/s · (\d+) Gegner$/, (sim,sec,fps,n)=>pick('läuft · '+sim+' · '+sec+' s · '+fps+' Bilder/s · '+n+' Gegner','running · '+sim+' · '+sec+' s · '+fps+' frames/s · '+n+' opponents','en curso · '+sim+' · '+sec+' s · '+fps+' imágenes/s · '+n+' rivales')],
+    [/^verbunden · (RaceRoom|AMS2)$/, sim=>pick('verbunden · ','connected · ','conectado · ')+sim],
     [/^Fehler · Datenstruktur passt nicht \((.*)\)$/, why=>pick('Fehler · Datenstruktur passt nicht ('+why+')','Error · data layout mismatch ('+why+')','Error · la estructura de datos no coincide ('+why+')')],
     [/^Fehler beim Schreiben · (.*)$/, why=>pick('Fehler beim Schreiben · '+why,'Error writing report · '+why,'Error al escribir el informe · '+why)],
     [/^Fehler · (.*)$/, why=>pick('Fehler · '+why,'Error · '+why,'Error · '+why)],
