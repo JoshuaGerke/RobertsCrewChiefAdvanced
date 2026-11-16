@@ -129,11 +129,11 @@ namespace CrewChiefV4.AiTeam
             // These flags take precedence over a numeric rank left over in the game state.
             if (s.IsDNF) return RadioLanguage.T("Die Session ist beendet. Du bist als ausgefallen geführt.", "The session is over. You're classified as a retirement.", "La sesión ha terminado. Figuras como abandono.");
             if (s.IsDisqualified) return DisqualificationCall;
-            if (s.ClassPosition == 1 && !SeparateClass(s)) return Select("victory", CrewSpeechPolicy.FinishPhrases);
+            if (s.ClassPosition == 1 && !SeparateClass(s)) return (Select("victory", CrewSpeechPolicy.FinishPhrases) + " " + Debrief(s)).TrimEnd();
             string ranks = RaceRanks(s);
             if (ranks == null) return RadioLanguage.T("Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.", "Chequered flag. Final position isn't confirmed yet.", "En meta. La posición final aún no está confirmada.");
             string text = RadioLanguage.T("Im Ziel! ", "Chequered flag! ", "¡En meta! ") + ranks + ".";
-            if (s.ClassPosition == 1) return text + RadioLanguage.T(" Klassensieg. Stark gefahren!", " Class win. Strong drive!", " Victoria de clase. ¡Gran carrera!");
+            if (s.ClassPosition == 1) return (text + RadioLanguage.T(" Klassensieg. Stark gefahren!", " Class win. Strong drive!", " Victoria de clase. ¡Gran carrera!") + " " + Debrief(s)).TrimEnd();
             if (s.ClassPosition > 0 && s.SessionStartClassPosition > s.ClassPosition)
             {
                 int gain = s.SessionStartClassPosition - s.ClassPosition;
@@ -143,11 +143,29 @@ namespace CrewChiefV4.AiTeam
                     " Gained " + gain + (gain == 1 ? " place" : " places") + (separate ? " in your class." : "."),
                     " Has ganado " + gain + (gain == 1 ? " puesto" : " puestos") + (separate ? " en tu clase." : "."));
             }
+            string debrief = Debrief(s);
+            if (debrief.Length > 0) text += " " + debrief;
             string group = s.ClassPosition > 0 && s.ClassPosition <= 3 ? "finish-podium" : "finish-other";
             var catalog = RadioPhraseCatalog.Current;
             var variants = Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i))
                 .Where(line => !line.StartsWith("Im Ziel", StringComparison.OrdinalIgnoreCase)).ToArray();
             return variants.Length == 0 ? text : text + " " + Select(group, variants);
+        }
+
+        /// <summary>Kurzes Rennfazit (Rob 16.11.2026): schnellste eigene Runde und Vorfallpunkte, nur aus bestätigten Werten.</summary>
+        internal static string Debrief(SessionData s)
+        {
+            var parts = new List<string>();
+            float best = s.PlayerLapTimeSessionBest;
+            if (best > 10 && best < 3600)
+                parts.Add(RadioLanguage.T("Schnellste Runde ", "Fastest lap ", "Vuelta rápida ") + LocalAnswers.LapTime(best) + ".");
+            if (IncidentPointsWatch.Known(s))
+                parts.Add(s.CurrentIncidentCount == 0
+                    ? RadioLanguage.T("Ohne einen Vorfallpunkt, sauber gefahren.", "Not a single incident point, clean drive.", "Sin un solo punto de incidente, carrera limpia.")
+                    : RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
+                        "Incident points " + s.CurrentIncidentCount + " of " + s.MaxIncidentCount + ".",
+                        "Puntos de incidente " + s.CurrentIncidentCount + " de " + s.MaxIncidentCount + "."));
+            return string.Join(" ", parts);
         }
 
         /// <summary>Use only after a same-rival on-track pass has been confirmed.</summary>

@@ -592,8 +592,8 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = TakeSessionBriefing(current, now);
             if (raceCall == null) raceCall = qualifyingResults.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
-                raceCall = raceSummary.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
-                    settings.IsMemberEnabled(TeamMember.Ben));
+                raceCall = raceSummary.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
+                    !AllowsRadioNow(false), settings.IsMemberEnabled(TeamMember.Ben)); // keine Bremszone, keine Kurvenlast
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));

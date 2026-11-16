@@ -453,14 +453,14 @@ namespace CrewChiefV4.AiTeam
                 recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
             if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
             if (startPosition == 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
-            // Kurzes Startfazit nach etwa einem Drittel der ersten Runde (Robs Wunsch), einmal pro Rennen
+            // Kurzes Startfazit nach der ersten halben Runde (Robs Wunsch), einmal pro Rennen, in wechselnden Formulierungen
             float trackLength = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float lapDistance = gs.PositionAndMotionData.DistanceRoundTrack;
             if (green && !startVerdictDone && startPosition > 0 && s.CompletedLaps == 0 && s.ClassPosition > 0 && !gs.PitData.InPitlane &&
-                trackLength > 500 && lapDistance >= trackLength / 3 && lapDistance < trackLength * .8f)
+                trackLength > 500 && lapDistance >= trackLength / 2 && lapDistance < trackLength * .85f)
             {
                 startVerdictDone = true;
-                Add("start-verdict", StartVerdict(s, startPosition, driverName), gs, now, 8, 5, "class_position_at_third_of_lap_one");
+                Add("start-verdict", StartVerdict(s, startPosition, driverName, Environment.TickCount & 0xFF), gs, now, 8, 5, "class_position_at_half_of_lap_one");
             }
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
@@ -855,10 +855,31 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        internal static string StartVerdict(SessionData s, int start, string name)
+        internal static string StartVerdict(SessionData s, int start, string name, int variant = 0)
         {
             int pos = s.ClassPosition, gained = start - pos;
-            string rank = RaceRadioLanguage.Rank(s, pos);
+            string rank = RaceRadioLanguage.Rank(s, pos), n = SafeName(name);
+            int v = ((variant % 3) + 3) % 3;
+            if (v == 1)
+            {
+                if (gained > 0) return RadioLanguage.T("Starker Start, " + n + ". Plus " + gained + ", du bist jetzt " + rank + ".",
+                    "Strong start, " + n + ". Up " + gained + ", you're " + rank + " now.", "Gran salida, " + n + ". " + gained + " más, ahora " + rank + ".");
+                if (gained < 0) return RadioLanguage.T("Der Start hat " + (-gained == 1 ? "einen Platz" : -gained + " Plätze") + " gekostet, " + n + ". " + rank + ", wir holen uns das zurück.",
+                    "The start cost us " + -gained + (-gained == 1 ? " place" : " places") + ", " + n + ". " + rank + ", we'll get that back.",
+                    "La salida nos costó " + -gained + (-gained == 1 ? " puesto" : " puestos") + ", " + n + ". " + rank + ", lo recuperamos.");
+                return RadioLanguage.T("Start ohne Verluste, " + n + ". " + rank + ", jetzt in den Rhythmus finden.",
+                    "No losses at the start, " + n + ". " + rank + ", now find your rhythm.", "Salida sin pérdidas, " + n + ". " + rank + ", ahora coge el ritmo.");
+            }
+            if (v == 2)
+            {
+                if (gained > 0) return RadioLanguage.T("Erste halbe Runde, " + n + ": " + (gained == 1 ? "ein Platz" : gained + " Plätze") + " gewonnen. " + rank + ", sauber weiter.",
+                    "Half a lap in, " + n + ": " + gained + (gained == 1 ? " place" : " places") + " gained. " + rank + ", keep it clean.",
+                    "Media vuelta, " + n + ": " + gained + (gained == 1 ? " puesto ganado" : " puestos ganados") + ". " + rank + ", limpio.");
+                if (gained < 0) return RadioLanguage.T(n + ", nach dem Start " + rank + ". Kein Stress, das Rennen ist lang.",
+                    n + ", " + rank + " after the start. No stress, it's a long race.", n + ", " + rank + " tras la salida. Sin agobios, la carrera es larga.");
+                return RadioLanguage.T(n + ", Position am Start gehalten, " + rank + ". Gut gemacht.",
+                    n + ", held position at the start, " + rank + ". Well done.", n + ", posición mantenida en la salida, " + rank + ". Bien hecho.");
+            }
             if (gained > 0) return SafeName(name) + RadioLanguage.T(", guter Start! " + (gained == 1 ? "Einen Platz" : gained + " Plätze") + " gewonnen, jetzt " + rank + ".",
                 ", good start! Gained " + gained + (gained == 1 ? " place" : " places") + ", now " + rank + ".",
                 ", ¡buena salida! " + (gained == 1 ? "Una posición ganada" : gained + " posiciones ganadas") + ", ahora " + rank + ".");

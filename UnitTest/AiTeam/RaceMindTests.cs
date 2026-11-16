@@ -353,5 +353,31 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(RaceSummaryWatch.Mood.Leading, RaceSummaryWatch.MoodOf(RaceFocus.Rhythm, 1));
             Assert.AreEqual(RaceSummaryWatch.Mood.Steady, RaceSummaryWatch.MoodOf(RaceFocus.BringHome, 3));
         }
+
+        [Test]
+        public void Start_verdict_and_race_debrief_vary_and_stay_grounded()
+        {
+            var s = Race(11).SessionData;
+            var texts = Enumerable.Range(0, 3).Select(v => ActiveRaceObserver.StartVerdict(s, 14, "Rob", v)).ToArray();
+            Assert.AreEqual(3, texts.Distinct().Count());
+            Assert.IsTrue(texts.All(t => t.Contains("Rob") && t.Contains("11")));
+            s.PlayerLapTimeSessionBest = 83.456f; s.HasLimitedIncidents = true; s.MaxIncidentCount = 30; s.CurrentIncidentCount = 0;
+            StringAssert.Contains("Schnellste Runde 1:23,456.", RaceRadioLanguage.Debrief(s));
+            StringAssert.Contains("Ohne einen Vorfallpunkt", RaceRadioLanguage.Debrief(s));
+            s.CurrentIncidentCount = 7; StringAssert.Contains("Vorfallpunkte 7 von 30.", RaceRadioLanguage.Debrief(s));
+            Assert.AreEqual("", RaceRadioLanguage.Debrief(Race().SessionData));
+        }
+
+        [Test]
+        public void Tyre_brief_only_from_reported_values()
+        {
+            var gs = Race();
+            Assert.IsNull(OwnTyreAnswer.Brief(gs));
+            gs.TyreData.TyreWearActive = true;
+            gs.TyreData.FrontLeftPercentWear = 3; gs.TyreData.FrontRightPercentWear = 4; gs.TyreData.RearLeftPercentWear = 2; gs.TyreData.RearRightPercentWear = 5;
+            StringAssert.Contains("noch gut", OwnTyreAnswer.Brief(gs));
+            gs.TyreData.FrontRightPercentWear = 23.4f;
+            Assert.AreEqual("Reifen: höchster Verschleiß 23 Prozent.", OwnTyreAnswer.Brief(gs));
+        }
     }
 }

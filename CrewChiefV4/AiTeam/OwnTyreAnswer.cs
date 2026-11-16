@@ -25,6 +25,29 @@ namespace CrewChiefV4.AiTeam
         private static bool Good(float value, float maximum) => !float.IsNaN(value) && !float.IsInfinity(value) && value >= 0 && value <= maximum;
         private static float Mean(float a, float b, float c) => a > 1 && b > 1 && c > 1 && Good(a, 500) && Good(b, 500) && Good(c, 500) ? (a + b + c) / 3 : -1;
 
+        /// <summary>Ein kurzer Reifensatz für das Zwischenresümee; null, wenn nichts Verlässliches vorliegt.</summary>
+        internal static string Brief(GameStateData gs)
+        {
+            if (gs == null) return null;
+            var t = gs.TyreData;
+            float[] temps = { Mean(t.FrontLeft_LeftTemp, t.FrontLeft_CenterTemp, t.FrontLeft_RightTemp),
+                Mean(t.FrontRight_LeftTemp, t.FrontRight_CenterTemp, t.FrontRight_RightTemp),
+                Mean(t.RearLeft_LeftTemp, t.RearLeft_CenterTemp, t.RearLeft_RightTemp),
+                Mean(t.RearRight_LeftTemp, t.RearRight_CenterTemp, t.RearRight_RightTemp) };
+            bool temperaturesKnown = temps.All(v => v > 1 && Good(v, 500));
+            if (temperaturesKnown && (t.TyreTempStatus.hasValueAtLevel(TyreTemp.COOKING) || t.TyreTempStatus.hasValueAtLevel(TyreTemp.HOT)))
+                return RadioLanguage.T("Die Reifen sind heiß, etwas Last rausnehmen.", "Tyres are hot, ease the load a bit.", "Los neumáticos están calientes, quita algo de carga.");
+            if (t.TyreWearActive && t.TyreConditionStatus.hasValueAtLevel(TyreCondition.WORN_OUT))
+                return RadioLanguage.T("Die Reifen bauen stark ab.", "The tyres are going off badly.", "Los neumáticos se degradan mucho.");
+            float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
+            if (!t.TyreWearActive || !wear.All(v => Good(v, 100))) return null;
+            float worst = wear.Max();
+            if (worst < 8) return RadioLanguage.T("Die Reifen sind noch gut beisammen.", "Tyres are still in good shape.", "Los neumáticos aún están bien.");
+            string percent = Math.Round(worst).ToString(CultureInfo.InvariantCulture);
+            return RadioLanguage.T("Reifen: höchster Verschleiß " + percent + " Prozent.", "Tyres: worst wear " + percent + " percent.",
+                "Neumáticos: desgaste máximo " + percent + " por ciento.");
+        }
+
         public static string Answer(GameStateData gs, DateTime now)
         {
             if (gs == null) return RadioLanguage.T("Aktuell fehlen mir die Reifenwerte.", "I don't have tyre data right now.", "Ahora mismo no tengo datos de neumáticos.");

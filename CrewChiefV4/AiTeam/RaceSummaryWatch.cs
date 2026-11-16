@@ -87,7 +87,8 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
             if (startPosition <= 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
             if (windows.Count == 0 && (s.SessionNumberOfLaps > 0 || s.SessionTotalRunTime > 0)) Plan(s);
-            if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 2) return;
+            // Robs Vorgabe: frühestens nach etwa drei Runden.
+            if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 3) return;
 
             if (call != null || delivered >= windows.Count) return;
             double progress = Progress(s);
@@ -178,6 +179,8 @@ namespace CrewChiefV4.AiTeam
             var fuel = FuelEstimate.From(ctx, 1);
             string verdict = fuel?.Verdict();
             if (verdict != null) parts.Add(verdict);
+            string tyres = OwnTyreAnswer.Brief(gs);
+            if (tyres != null) parts.Add(tyres);
             bool incidentsTight = IncidentPointsWatch.Known(s) && IncidentPointsWatch.Level(s.CurrentIncidentCount, s.MaxIncidentCount) >= 3;
             if (incidentsTight)
                 parts.Add(RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
