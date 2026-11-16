@@ -631,5 +631,36 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("ohne Stopp", TyreWearWatch.Advice(4, 3, true));
             Assert.AreEqual("", TyreWearWatch.Advice(4, 9, false), "im Training keine Stopp-Empfehlung");
         }
+
+        [Test]
+        public void Pit_exit_reminds_white_line_and_traffic_once_per_visit()
+        {
+            Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => PitStopTimer.ExitText("Rob", v)).Distinct().Count());
+            StringAssert.Contains("weiße Linie", PitStopTimer.ExitText("Rob", 0)); StringAssert.Contains("Verkehr", PitStopTimer.ExitText("Rob", 0));
+            var timer = new PitStopTimer();
+            GameStateData Lane(float t, float v) { var g = Race(); g.SessionData.SessionRunningTime = t; g.PitData.InPitlane = true; g.PositionAndMotionData.CarSpeed = v; return g; }
+            for (int i = 0; i <= 30; i++) timer.Observe(Lane(10 + i * .1f, 0), T.AddSeconds(i * .1));
+            var moving = Lane(13.5f, 12);
+            timer.Observe(moving, T.AddSeconds(3.5));
+            var call = timer.Take(moving, T.AddSeconds(3.5), false, true);
+            Assert.IsNotNull(call); Assert.AreEqual("pit-exit", call.Topic);
+            call.MarkPlaybackStarted(T.AddSeconds(3.5));
+            timer.Observe(Lane(14f, 15), T.AddSeconds(4));
+            Assert.IsNull(timer.Take(Lane(14f, 15), T.AddSeconds(4), false, true), "nur einmal je Boxenbesuch");
+        }
+
+        [Test]
+        public void Race_end_names_winner_and_podium_only_when_clear()
+        {
+            var gs = Race(2);
+            gs.OpponentData["a"] = new OpponentData { DriverRawName = "Rafa Rivera", ClassPosition = 1, IsActive = true };
+            gs.OpponentData["b"] = new OpponentData { DriverRawName = "Max Keller", ClassPosition = 3, IsActive = true };
+            Assert.AreEqual(" Gewonnen hat Rafa Rivera, aufs Podium kommen außerdem Max Keller.", LapWatch.Podium(gs, true));
+            Assert.AreEqual("", LapWatch.Podium(gs, false), "ohne Namensfreigabe keine Namen");
+            gs.SessionData.ClassPosition = 1; gs.OpponentData["a"].ClassPosition = 2;
+            Assert.AreEqual(" Hinter dir: Rafa Rivera und Max Keller.", LapWatch.Podium(gs, true));
+            gs.OpponentData["c"] = new OpponentData { DriverRawName = "Doppelt", ClassPosition = 3, IsActive = true };
+            Assert.AreEqual("", LapWatch.Podium(gs, true), "zwei Autos auf demselben Platz: nichts behaupten");
+        }
     }
 }

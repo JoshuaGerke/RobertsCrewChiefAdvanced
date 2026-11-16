@@ -433,6 +433,7 @@ namespace CrewChiefV4.AiTeam
             var closingRival = lateRace ? RaceDataTools.Neighbour(current, true) : null;
             string closingName = settings.SendDriverNames && closingRival?.CanUseName == true ?
                 RadioPhraseCatalog.SafeRivalName(closingRival.DriverRawName) : null;
+            lapWatch.SendDriverNames = settings.SendDriverNames;
             string lapCall = lapWatch.Evaluate(previous, current,
                 measuredFront.Kind == RaceGapKind.SimulatorTiming && (!lateRace || closingRival != null) ? measuredFront.Seconds : -1,
                 measuredRear.Kind == RaceGapKind.SimulatorTiming ? measuredRear.Seconds : -1,
@@ -567,6 +568,7 @@ namespace CrewChiefV4.AiTeam
             qualifyingResults.Observe(current,now,settings.RadioName,previous);
             weatherWatch.Observe(current,now);
             pitLaneWatch.Observe(current,now);
+            pitStopTimer.DriverName = AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false);
             pitStopTimer.Observe(current,now);
             incidentPoints.Observe(current,now);
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using CrewChiefV4.GameState;
 
@@ -153,6 +154,41 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Ein Telemetrie-Tick. gapAhead/gapBehind in Sekunden, &lt;= 0 = unbekannt. Liefert den Funkspruch oder null.</summary>
         internal string ReferenceTemplate { get; private set; }
+        /// <summary>Gegnernamen erlaubt (Einstellung „Fahrernamen an KI übermitteln“); steuert die Podiumsnamen beim Rennende.</summary>
+        internal bool SendDriverNames = true;
+
+        /// <summary>
+        /// Rob 16.11.2026: Zum Rennende Sieger und Podium mit Namen, dazu der eigene Platz. Nur aus der gemeldeten Endwertung der eigenen
+        /// Klasse und nur mit eindeutigen Plätzen 1 bis 3; sonst nichts.
+        /// </summary>
+        internal static string Podium(GameStateData gs, bool names)
+        {
+            if (!names || gs == null) return "";
+            var s = gs.SessionData;
+            int own = s.ClassPosition;
+            var byPos = new System.Collections.Generic.Dictionary<int, string>();
+            foreach (var o in gs.OpponentData.Values)
+            {
+                if (o == null || o.ClassPosition < 1 || o.ClassPosition > 3 || !o.CanUseName) continue;
+                if (gs.carClass != null && o.CarClass != null && !CarData.IsCarClassEqual(gs.carClass, o.CarClass, false)) continue;
+                if (byPos.ContainsKey(o.ClassPosition)) return ""; // nicht eindeutig: lieber nichts sagen
+                byPos[o.ClassPosition] = RadioPhraseCatalog.SafeRivalName(o.DriverRawName);
+            }
+            string Name(int p) => p == own ? null : byPos.TryGetValue(p, out var n) && !string.IsNullOrWhiteSpace(n) ? n : null;
+            if (own == 1)
+            {
+                string second = Name(2), third = Name(3);
+                if (second == null) return "";
+                return RadioLanguage.T(" Hinter dir: " + second + (third != null ? " und " + third : "") + ".",
+                    " Behind you: " + second + (third != null ? " and " + third : "") + ".", " Detrás de ti: " + second + (third != null ? " y " + third : "") + ".");
+            }
+            string winner = Name(1);
+            if (winner == null) return "";
+            var others = new[] { 2, 3 }.Where(p => p != own).Select(Name).Where(n => n != null).ToArray();
+            return RadioLanguage.T(" Gewonnen hat " + winner + (others.Length > 0 ? ", aufs Podium kommen außerdem " + string.Join(" und ", others) : "") + ".",
+                " The win goes to " + winner + (others.Length > 0 ? ", also on the podium: " + string.Join(" and ", others) : "") + ".",
+                " Gana " + winner + (others.Length > 0 ? ", también en el podio: " + string.Join(" y ", others) : "") + ".");
+        }
         internal bool IncludesFrontGap { get; private set; }
         internal string CoreCall { get; private set; }
 
@@ -175,7 +211,8 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionPhase == SessionPhase.Finished && ps.SessionPhase != SessionPhase.Finished && !finishCalled)
             {
                 finishCalled = true;
-                return language.Finish(s);
+                string finish = language.Finish(s);
+                return finish == null ? null : finish + (s.IsDNF || s.IsDisqualified ? "" : Podium(current, SendDriverNames));
             }
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {

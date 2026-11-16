@@ -284,7 +284,7 @@ namespace CrewChiefV4.AiTeam
                 (now < gs.SourceTelemetryUtc || now - gs.SourceTelemetryUtc > TimeSpan.FromSeconds(1))) return false;
             var s = gs.SessionData;
             bool weather = AllowPitlane && (Topic ?? "").StartsWith("weather-", StringComparison.Ordinal);
-            bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed");
+            bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed" || Topic == "pit-exit");
             bool greeting = AllowPitlane && Topic == "greeting" && SessionGreetingDirector.SafeToGreet(
                 s.SessionType, s.SessionPhase, gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed);
             if (Topic == "greeting" && !greeting) return false;

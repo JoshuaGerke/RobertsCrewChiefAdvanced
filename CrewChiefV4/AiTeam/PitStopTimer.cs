@@ -41,14 +41,38 @@ namespace CrewChiefV4.AiTeam
         private float laneStart, stopStart, stopEnd, fuelAtEntry = -1;
         private float stillSince = -1, onTrackSince = -1;
         private bool cameFromTrack;
-        private int variant;
-        private ObservedRaceCall call;
+        private int variant, exitVariant;
+        private ObservedRaceCall call, exitCall;
+        private bool exitWarned;
+        /// <summary>Funkname für die Ausfahrtswarnung.</summary>
+        internal string DriverName = "Rob";
+
+        /// <summary>
+        /// Rob 16.11.2026 (Bathurst): Bei jeder Boxenausfahrt kurz warnen – weiße Linie nicht überqueren, auf Verkehr achten.
+        /// Keine Seitenfreigaben, die bleiben bei Sara. Vier Formulierungen im Wechsel.
+        /// </summary>
+        internal static string ExitText(string name, int variant)
+        {
+            string n = string.IsNullOrWhiteSpace(name) ? "" : name;
+            switch (((variant % 4) + 4) % 4)
+            {
+                case 0: return RadioLanguage.T((n.Length > 0 ? n + ", gleich" : "Gleich") + " geht's raus: weiße Linie an der Ausfahrt nicht überfahren und auf den Verkehr achten.",
+                    (n.Length > 0 ? n + ", heading" : "Heading") + " out now: don't cross the white line at the exit and watch the traffic.",
+                    (n.Length > 0 ? n + ", salimos" : "Salimos") + ": no pises la línea blanca de la salida y atento al tráfico.");
+                case 1: return RadioLanguage.T("Boxenausfahrt: bleib hinter der weißen Linie und schau nach dem Verkehr.",
+                    "Pit exit: stay behind the white line and check the traffic.", "Salida de boxes: quédate tras la línea blanca y mira el tráfico.");
+                case 2: return RadioLanguage.T("Achtung beim Rausfahren: weiße Linie respektieren, Verkehr von hinten im Blick behalten.",
+                    "Careful on the way out: respect the white line, keep an eye on traffic from behind.", "Cuidado al salir: respeta la línea blanca, vigila el tráfico por detrás.");
+                default: return RadioLanguage.T("Raus aus der Box: Linie nicht kreuzen, ruhig einfädeln.", "Out of the pits: don't cross the line, merge calmly.",
+                    "Fuera de boxes: no cruces la línea, incorpórate con calma.");
+            }
+        }
 
         internal Measurement Last { get; private set; }
 
         internal void Reset()
         {
-            session = int.MinValue; inLane = stopped = wasStopped = cameFromTrack = false; stillSince = onTrackSince = -1; call = null; Last = null;
+            session = int.MinValue; inLane = stopped = wasStopped = cameFromTrack = exitWarned = false; exitCall = null; stillSince = onTrackSince = -1; call = null; Last = null;
         }
 
         internal void Observe(GameStateData gs, DateTime now)
@@ -67,6 +91,7 @@ namespace CrewChiefV4.AiTeam
             if (lane && !inLane)
             {
                 cameFromTrack = onTrackSince >= 0 && t - onTrackSince >= 5;
+                exitWarned = false;
                 onTrackSince = -1;
                 inLane = true; stopped = wasStopped = false; stillSince = -1;
                 laneStart = t;
@@ -109,6 +134,19 @@ namespace CrewChiefV4.AiTeam
                 if (wasStopped) stopEnd = t;
                 wasStopped = false;
                 stillSince = -1;
+                // Nach dem Halt am Boxenplatz oder aus der Garage losgefahren: einmal je Boxenbesuch an die Ausfahrt erinnern.
+                if ((stopped || !cameFromTrack) && !exitWarned && speed > 8)
+                {
+                    exitWarned = true;
+                    string text = ExitText(DriverName, exitVariant++);
+                    exitCall = new ObservedRaceCall
+                    {
+                        Topic = "pit-exit", Text = text, Evidence = "moving_off_after_stop_in_pit_lane", Member = TeamMember.Ben, Priority = 6, Position = -1,
+                        SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(20), AllowPitlane = true,
+                        AdditionalValidity = live => live.PitData.InPitlane
+                    };
+                    LiveDiagnostics.Decision(exitCall.Topic, "detected", exitCall.Evidence, text, exitCall.EventId);
+                }
             }
         }
 
@@ -164,6 +202,8 @@ namespace CrewChiefV4.AiTeam
 
         internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool benEnabled)
         {
+            if (exitCall != null && (!exitCall.IsValid(gs, now) || exitCall.DeliveryStartedUtc != DateTime.MinValue)) exitCall = null;
+            if (!busy && benEnabled && exitCall != null && exitCall.TryReserve(now)) return exitCall;
             if (call != null && (!call.IsValid(gs, now) || call.DeliveryStartedUtc != DateTime.MinValue)) call = null;
             if (busy || !benEnabled || call == null) return null;
             return call.TryReserve(now) ? call : null;
