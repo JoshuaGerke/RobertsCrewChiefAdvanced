@@ -468,5 +468,46 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Admit, mind.Judge(Call("status"), T.AddSeconds(25), out _));
             Assert.AreEqual(MindVerdict.Admit, mind.Judge(Call("position", 5), T.AddSeconds(1), out _), "Überholen sofort");
         }
+
+        // ---------- Bestzeiten-Datenbank ----------
+
+        private static PersonalBest Pb(string game, float lap, float[] sectors) => new PersonalBest
+        {
+            Game = game, Car = "Porsche 911 GT3 R", Track = "Mosport", Layout = "Mosport/1/3936m", Compound = "Medium",
+            LapSeconds = lap, FuelAtStart = 34, TrackC = 33, AirC = 25, DateUtc = DateTime.UtcNow.AddDays(-95), Sectors = sectors
+        };
+
+        [Test]
+        public void Personal_bests_are_kept_per_sim_and_only_improve()
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rrca-pb-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var ams2 = new PersonalBestStore(folder, "Automobilista 2");
+                Assert.IsTrue(ams2.Offer(Pb("Automobilista 2", 78.5f, new[] { 24f, 24.5f, 30f }), out var none)); Assert.IsNull(none);
+                Assert.IsFalse(ams2.Offer(Pb("RaceRoom", 70f, null), out _), "nie in die Datenbank einer anderen Simulation");
+                Assert.IsFalse(ams2.Offer(Pb("Automobilista 2", 79f, new[] { 23.6f, 25f, 30.4f }), out _), "langsamer wird nicht Bestzeit");
+                var best = ams2.Find("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m");
+                Assert.AreEqual(78.5f, best.LapSeconds, .001f);
+                Assert.AreEqual(23.6f, best.BestSectors[0], .001f, "bester Einzelsektor aus einer langsameren Runde");
+                Assert.IsTrue(ams2.Offer(Pb("Automobilista 2", 77.9f, new[] { 23.9f, 24.2f, 29.8f }), out var old));
+                Assert.AreEqual(78.5f, old.LapSeconds, .001f);
+                Assert.IsNull(ams2.Find("RaceRoom", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m"));
+            }
+            finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
+        }
+
+        [Test]
+        public void Personal_best_briefing_names_time_ago_conditions_and_sectors()
+        {
+            var pb = Pb("Automobilista 2", 77.271f, new[] { 23.5f, 24f, 29.771f });
+            Assert.AreEqual("vor 3 Monaten", PersonalBestWatch.Ago(DateTime.UtcNow.AddDays(-95), DateTime.UtcNow));
+            string brief = PersonalBestWatch.Briefing(pb, 22, 37, "Rob", 2);
+            StringAssert.StartsWith("Rob, vor 3 Monaten bist du hier schon mal eine 1:17,271 gefahren", brief);
+            StringAssert.Contains("34 Litern", brief); StringAssert.Contains("33 Grad Strecke", brief); StringAssert.Contains("Sektoren", brief);
+            StringAssert.Contains("leichter", brief); StringAssert.Contains("4 Grad wärmer", brief);
+            Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => PersonalBestWatch.SectorLoss(2, .31f, v)).Distinct().Count());
+            StringAssert.Contains("Sektor 2", PersonalBestWatch.SectorLoss(2, .31f, 0));
+        }
     }
 }
