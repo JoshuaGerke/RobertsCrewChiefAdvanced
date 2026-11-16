@@ -17,7 +17,8 @@ namespace CrewChiefV4.AiTeam
     {
         public string Game, Car, Track, Layout, CarClass, Compound, SessionType;
         public float LapSeconds, FuelAtStart = -1, TrackC = float.NaN, AirC = float.NaN, Rain = -1;
-        public float[] Sectors;
+        public float[] Sectors;      // Sektoren der Bestrunde (3 oder 4, wie das Spiel sie liefert)
+        public float[] BestSectors;  // beste je gefahrene Einzelsektoren (theoretische Bestrunde), Rob 16.11.
         public DateTime DateUtc;
         public int Improvements;
 
@@ -29,7 +30,8 @@ namespace CrewChiefV4.AiTeam
         {
             ["simulator"] = Game, ["fahrzeug"] = Car, ["strecke"] = Track, ["layout"] = Layout, ["klasse"] = CarClass,
             ["bestzeit_s"] = Math.Round(LapSeconds, 3),
-            ["sektoren_s"] = Sectors != null && Sectors.Length == 3 && Sectors.All(x => x > 0 && x < 1000) ? new JArray(Sectors.Select(x => Math.Round(x, 3))) : null,
+            ["sektoren_s"] = GoodSectors(Sectors) ? new JArray(Sectors.Select(x => Math.Round(x, 3))) : null,
+            ["beste_einzelsektoren_s"] = GoodSectors(BestSectors) ? new JArray(BestSectors.Select(x => Math.Round(x, 3))) : null,
             ["sprit_beim_rundenstart_l"] = FuelAtStart >= 0 ? (JToken)Math.Round(FuelAtStart, 1) : null,
             ["reifen"] = Compound,
             ["streckentemperatur_c"] = Finite(TrackC) ? (JToken)Math.Round(TrackC, 1) : null,
@@ -48,13 +50,15 @@ namespace CrewChiefV4.AiTeam
                 LapSeconds = (float?)o["bestzeit_s"] ?? -1, FuelAtStart = (float?)o["sprit_beim_rundenstart_l"] ?? -1,
                 TrackC = (float?)o["streckentemperatur_c"] ?? float.NaN, AirC = (float?)o["lufttemperatur_c"] ?? float.NaN,
                 Rain = (float?)o["regen_0_bis_1"] ?? -1, Improvements = (int?)o["verbesserungen"] ?? 0,
-                Sectors = o["sektoren_s"] is JArray a && a.Count == 3 ? a.Select(x => (float)x).ToArray() : null
+                Sectors = o["sektoren_s"] is JArray a && (a.Count == 3 || a.Count == 4) ? a.Select(x => (float)x).ToArray() : null,
+                BestSectors = o["beste_einzelsektoren_s"] is JArray bs && (bs.Count == 3 || bs.Count == 4) ? bs.Select(x => (float)x).ToArray() : null
             };
             DateTime.TryParse((string)o["datum_utc"], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out b.DateUtc);
             return b.LapSeconds > 10 && b.LapSeconds < 3600 && !string.IsNullOrWhiteSpace(b.Track) && !string.IsNullOrWhiteSpace(b.Car) ? b : null;
         }
 
         internal static bool Finite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
+        internal static bool GoodSectors(float[] s) => s != null && (s.Length == 3 || s.Length == 4) && s.All(x => x > 0 && x < 1000);
     }
 
     /// <summary>
@@ -225,7 +229,18 @@ namespace CrewChiefV4.AiTeam
             lock (sync)
             {
                 bests.TryGetValue(lap.Key, out previous);
-                if (previous != null && lap.LapSeconds >= previous.LapSeconds - .0005f) return false;
+                // Beste Einzelsektoren immer mitführen – auch aus Runden, die insgesamt nicht schneller waren.
+                if (previous != null && PersonalBest.GoodSectors(lap.Sectors))
+                {
+                    var merged = PersonalBest.GoodSectors(previous.BestSectors) && previous.BestSectors.Length == lap.Sectors.Length
+                        ? previous.BestSectors.Zip(lap.Sectors, (a, b) => Math.Min(a, b)).ToArray() : (float[])lap.Sectors.Clone();
+                    bool sectorGain = !PersonalBest.GoodSectors(previous.BestSectors) || merged.Where((v, i) => v < previous.BestSectors[i] - .0005f).Any();
+                    previous.BestSectors = merged;
+                    if (lap.LapSeconds >= previous.LapSeconds - .0005f) { if (sectorGain) Save(); return false; }
+                    lap.BestSectors = merged;
+                }
+                else if (previous != null && lap.LapSeconds >= previous.LapSeconds - .0005f) return false;
+                if (lap.BestSectors == null && PersonalBest.GoodSectors(lap.Sectors)) lap.BestSectors = (float[])lap.Sectors.Clone();
                 if (previous == null && bests.Count >= Capacity) return false;
                 lap.Improvements = previous == null ? 0 : previous.Improvements + 1;
                 bests[lap.Key] = lap;
@@ -274,7 +289,7 @@ namespace CrewChiefV4.AiTeam
                 TrackC = weather && c.TrackTemperature > -30 && c.TrackTemperature < 90 ? c.TrackTemperature : float.NaN,
                 AirC = weather && c.AmbientTemperature > -30 && c.AmbientTemperature < 60 ? c.AmbientTemperature : float.NaN,
                 Rain = weather && c.RainDensity >= 0 && c.RainDensity <= 1 ? c.RainDensity : -1,
-                Sectors = lap.SectorTimes != null && lap.SectorTimes.Length == 3 && lap.SectorTimes.All(x => x > 0 && x < 1000) ? (float[])lap.SectorTimes.Clone() : null
+                Sectors = PersonalBest.GoodSectors(lap.SectorTimes) ? (float[])lap.SectorTimes.Clone() : null
             };
         }
     }
