@@ -234,7 +234,8 @@ namespace CrewChiefV4.AiTeam
                 {
                     var merged = PersonalBest.GoodSectors(previous.BestSectors) && previous.BestSectors.Length == lap.Sectors.Length
                         ? previous.BestSectors.Zip(lap.Sectors, (a, b) => Math.Min(a, b)).ToArray() : (float[])lap.Sectors.Clone();
-                    bool sectorGain = !PersonalBest.GoodSectors(previous.BestSectors) || merged.Where((v, i) => v < previous.BestSectors[i] - .0005f).Any();
+                    var oldSectors = previous.BestSectors; // out-Parameter dürfen nicht in einem Lambda verwendet werden
+                    bool sectorGain = !PersonalBest.GoodSectors(oldSectors) || merged.Where((v, i) => v < oldSectors[i] - .0005f).Any();
                     previous.BestSectors = merged;
                     if (lap.LapSeconds >= previous.LapSeconds - .0005f) { if (sectorGain) Save(); return false; }
                     lap.BestSectors = merged;
