@@ -21,6 +21,8 @@ namespace CrewChiefV4.AiTeam
         public float[] BestSectors;  // beste je gefahrene Einzelsektoren (theoretische Bestrunde), Rob 16.11.
         public DateTime DateUtc;
         public int Improvements;
+        public string WearCompound;   // Reifenmischung, für die die Verschleißrate gemessen wurde
+        public float[] WearPerLap;    // gemessener Verschleiß pro Runde je Ecke (VL, VR, HL, HR), Prozentpunkte
 
         internal string Key => MakeKey(Game, Car, Track, Layout);
         internal static string MakeKey(string game, string car, string track, string layout) =>
@@ -38,7 +40,9 @@ namespace CrewChiefV4.AiTeam
             ["lufttemperatur_c"] = Finite(AirC) ? (JToken)Math.Round(AirC, 1) : null,
             ["regen_0_bis_1"] = Rain >= 0 ? (JToken)Math.Round(Rain, 2) : null,
             ["sitzung"] = SessionType, ["datum_utc"] = DateUtc.ToString("o", CultureInfo.InvariantCulture),
-            ["verbesserungen"] = Improvements
+            ["verbesserungen"] = Improvements,
+            ["verschleiss_reifen"] = WearCompound,
+            ["verschleiss_pro_runde"] = WearPerLap != null && WearPerLap.Length == 4 ? new JArray(WearPerLap.Select(x => Math.Round(x, 3))) : null
         };
 
         internal static PersonalBest FromJson(JObject o)
@@ -50,6 +54,8 @@ namespace CrewChiefV4.AiTeam
                 LapSeconds = (float?)o["bestzeit_s"] ?? -1, FuelAtStart = (float?)o["sprit_beim_rundenstart_l"] ?? -1,
                 TrackC = (float?)o["streckentemperatur_c"] ?? float.NaN, AirC = (float?)o["lufttemperatur_c"] ?? float.NaN,
                 Rain = (float?)o["regen_0_bis_1"] ?? -1, Improvements = (int?)o["verbesserungen"] ?? 0,
+                WearCompound = (string)o["verschleiss_reifen"],
+                WearPerLap = o["verschleiss_pro_runde"] is JArray w && w.Count == 4 ? w.Select(x => (float)x).ToArray() : null,
                 Sectors = o["sektoren_s"] is JArray a && (a.Count == 3 || a.Count == 4) ? a.Select(x => (float)x).ToArray() : null,
                 BestSectors = o["beste_einzelsektoren_s"] is JArray bs && (bs.Count == 3 || bs.Count == 4) ? bs.Select(x => (float)x).ToArray() : null
             };
@@ -220,6 +226,40 @@ namespace CrewChiefV4.AiTeam
 
         internal int Count { get { lock (sync) return bests.Count; } }
 
+        /// <summary>
+        /// Gemessenen Verschleiß pro Runde für diese Kombination merken (Rob 16.11.: Reifenwarnungen müssen je Simulation, Auto und
+        /// Reifen fundiert sein). Gleiche Mischung: Mittel aus alt und neu, andere Mischung: ersetzen. Nur zu einer bestehenden Bestzeit.
+        /// </summary>
+        internal bool RecordWear(string game, string car, string track, string layout, string compound, float[] perLap)
+        {
+            if (perLap == null || perLap.Length != 4 || perLap.Any(x => float.IsNaN(x) || float.IsInfinity(x) || x < 0 || x > 50) || string.IsNullOrWhiteSpace(compound)) return false;
+            if (!string.Equals(RaceFactContext.Label(game), RaceFactContext.Label(Game), StringComparison.Ordinal)) return false;
+            lock (sync)
+            {
+                if (!bests.TryGetValue(PersonalBest.MakeKey(game, car, track, layout), out var b)) return false;
+                b.WearPerLap = b.WearPerLap != null && b.WearPerLap.Length == 4 && string.Equals(b.WearCompound, compound, StringComparison.Ordinal)
+                    ? b.WearPerLap.Zip(perLap, (a, c) => (a + c) / 2).ToArray() : (float[])perLap.Clone();
+                b.WearCompound = compound;
+            }
+            Save();
+            return true;
+        }
+
+        /// <summary>Gespeicherte Verschleißrate für Auto/Strecke/Mischung aus früheren Fahrten, null wenn unbekannt.</summary>
+        internal float[] StoredWear(string game, string car, string track, string layout, string compound)
+        {
+            var b = Find(game, car, track, layout);
+            return b?.WearPerLap != null && b.WearPerLap.Length == 4 && string.Equals(b.WearCompound, compound, StringComparison.Ordinal) ? (float[])b.WearPerLap.Clone() : null;
+        }
+
+        /// <summary>Reifenmischung wie in der Datenbank geschrieben.</summary>
+        internal static string Compound(GameStateData gs)
+        {
+            var tyres = gs.TyreData;
+            return !string.IsNullOrWhiteSpace(tyres.TyreTypeName) ? tyres.TyreTypeName :
+                tyres.FrontLeftTyreType != TyreType.Unknown_Race && tyres.FrontLeftTyreType != TyreType.Uninitialized ? tyres.FrontLeftTyreType.ToString() : null;
+        }
+
         /// <summary>Bietet eine gültige Runde an. Liefert true bei neuer Allzeit-Bestzeit; previous ist die alte (oder null).</summary>
         internal bool Offer(PersonalBest lap, out PersonalBest previous)
         {
@@ -244,6 +284,7 @@ namespace CrewChiefV4.AiTeam
                 if (lap.BestSectors == null && PersonalBest.GoodSectors(lap.Sectors)) lap.BestSectors = (float[])lap.Sectors.Clone();
                 if (previous == null && bests.Count >= Capacity) return false;
                 lap.Improvements = previous == null ? 0 : previous.Improvements + 1;
+                if (previous != null && lap.WearPerLap == null) { lap.WearPerLap = previous.WearPerLap; lap.WearCompound = previous.WearCompound; }
                 bests[lap.Key] = lap;
             }
             Save();

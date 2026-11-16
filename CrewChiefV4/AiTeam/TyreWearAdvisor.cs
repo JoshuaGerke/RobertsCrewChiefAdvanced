@@ -120,7 +120,7 @@ namespace CrewChiefV4.AiTeam
                     " Quedan " + lapsLeft + " vueltas. Así hará falta cambiar neumáticos, o levantar claramente el ritmo.");
         }
 
-        internal void Observe(GameStateData gs, LapRecord lap, AiRaceMemory memory, string name, DateTime now)
+        internal void Observe(GameStateData gs, LapRecord lap, AiRaceMemory memory, string name, DateTime now, float[] storedRate = null)
         {
             if (gs == null) return;
             var s = gs.SessionData;
@@ -130,7 +130,8 @@ namespace CrewChiefV4.AiTeam
             var t = gs.TyreData;
             if (!t.TyreWearActive) return;
             float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
-            int laps = TyreWearAdvisor.LapsToEnd(wear, memory.AverageWearPerLap(3), TyreWearAdvisor.Calibrated(Game.gameType), out int corner);
+            // Eigene Messung dieser Fahrt zuerst; sonst die gespeicherte Rate dieses Autos auf dieser Strecke mit derselben Mischung.
+            int laps = TyreWearAdvisor.LapsToEnd(wear, memory.AverageWearPerLap(3) ?? storedRate, TyreWearAdvisor.Calibrated(Game.gameType), out int corner);
             if (laps < 1 || laps > 5) return;
             bool race = s.SessionType == SessionType.Race;
             int left = race ? LapWatch.LapsLeft(s) : -1;

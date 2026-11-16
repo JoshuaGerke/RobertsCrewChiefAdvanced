@@ -172,6 +172,14 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Nach jeder beendeten Runde: speichern und bei Allzeit-Bestzeit oder knapp dahinter kommentieren.</summary>
+        /// <summary>Verschleißrate dieser Fahrt in die Datenbank (nach jeder sauberen Runde, sobald zwei Runden Messung vorliegen).</summary>
+        internal static void RecordWear(GameStateData gs, PersonalBestStore store, string game, float[] perLap, DateTime now)
+        {
+            if (gs == null || store == null || perLap == null) return;
+            var ctx = RaceFactContext.FromGameState(game, gs, now);
+            if (ctx.IdentityKnown) store.RecordWear(ctx.Game, ctx.Car, ctx.Track, ctx.Layout, PersonalBestStore.Compound(gs), perLap);
+        }
+
         internal void ObserveLap(GameStateData gs, LapRecord lap, PersonalBestStore store, string game, string name, DateTime now)
         {
             if (gs == null || lap == null || store == null) return;

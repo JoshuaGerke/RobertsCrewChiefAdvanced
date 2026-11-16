@@ -680,5 +680,25 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(LocalAnswers.LapPrediction("Wie viel Sprit kannst du hochrechnen?", gs), "Spritfrage geht woanders hin");
             StringAssert.Contains("Hochrechnung", LocalAnswers.LapPrediction("Kannst du die Zeit vorausschätzen?", gs));
         }
+
+        [Test]
+        public void Wear_rate_is_remembered_per_car_track_and_compound()
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rrca-pb-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new PersonalBestStore(folder, "Automobilista 2");
+                Assert.IsFalse(store.RecordWear("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Medium", new[] { 1f, 1f, 2f, 2f }), "erst mit gespeicherter Bestzeit");
+                store.Offer(Pb("Automobilista 2", 78.5f, null), out _);
+                Assert.IsTrue(store.RecordWear("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Medium", new[] { 1f, 1f, 2f, 2f }));
+                store.RecordWear("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Medium", new[] { 1.4f, 1.4f, 2.4f, 2.4f });
+                Assert.AreEqual(2.2f, store.StoredWear("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Medium")[3], .001f, "Mittel aus alt und neu");
+                Assert.IsNull(store.StoredWear("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Soft"), "andere Mischung zählt nicht");
+                Assert.IsFalse(store.RecordWear("RaceRoom", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Medium", new[] { 1f, 1f, 1f, 1f }), "andere Simulation nie");
+                store.Offer(Pb("Automobilista 2", 77.9f, null), out _);
+                Assert.IsNotNull(store.StoredWear("Automobilista 2", "Porsche 911 GT3 R", "Mosport", "Mosport/1/3936m", "Medium"), "neue Bestzeit behält die Verschleißrate");
+            }
+            finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
+        }
     }
 }

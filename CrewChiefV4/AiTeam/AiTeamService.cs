@@ -503,8 +503,16 @@ namespace CrewChiefV4.AiTeam
             sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous,
                 DriverMemory.QualifyingSectorRadioEnabled, Tracks, settings.RadioName, Memory);
             var bestStore = DriverMemory.Enabled ? PersonalBestStore.For(GameName) : null;
-            if (lapCompleted) tyreWear.Observe(current, Memory.GetLaps(1).LastOrDefault(), Memory, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now);
+            if (lapCompleted)
+            {
+                var wearStore = DriverMemory.Enabled ? PersonalBestStore.For(GameName) : null;
+                var wearCtx = RaceFactContext.FromGameState(GameName, current, now);
+                float[] storedRate = wearStore != null && wearCtx.IdentityKnown
+                    ? wearStore.StoredWear(wearCtx.Game, wearCtx.Car, wearCtx.Track, wearCtx.Layout, PersonalBestStore.Compound(current)) : null;
+                tyreWear.Observe(current, Memory.GetLaps(1).LastOrDefault(), Memory, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now, storedRate);
+            }
             if (lapCompleted) personalBest.ObserveLap(current, Memory.GetLaps(1).LastOrDefault(), bestStore, GameName, settings.RadioName, now);
+            if (lapCompleted) PersonalBestWatch.RecordWear(current, bestStore, GameName, Memory.AverageWearPerLap(3), now);
             personalBest.Observe(current, bestStore, GameName, settings.RadioName, now);
             var radioPrefs = settings.RadioPreferences;
             activeRace.Observe(current, now, settings.RadioName, 0, Memory, settings.SendDriverNames);
