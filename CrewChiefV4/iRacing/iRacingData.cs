@@ -11,123 +11,126 @@ namespace CrewChiefV4.iRacing
 	[Serializable]
 	public class iRacingData
 	{
-        public iRacingData(iRacingSDK sdk, bool hasNewSessionData, bool isNewSession, bool is360HzTelemetry)
-		{
-			if(hasNewSessionData)
-			{
-				SessionInfo = new SessionInfo(sdk.GetSessionInfoString()).Yaml;
-			}
-			else
-			{
-				SessionInfo = "";
-			}
+        private static readonly string[] FrameIdentityFields = { "SessionTick", "SessionNum", "PlayerCarIdx" };
 
+        internal iRacingData(byte[] sample, Dictionary<string, CVarHeader> variables, int sessionUpdate, bool is360HzTelemetry)
+        {
+            object read(string name) => variables.TryGetValue(name, out CVarHeader variable)
+                ? iRacingSDK.DecodeTelemetry(sample, variable) : 0;
+
+            foreach (string name in FrameIdentityFields)
+            {
+                if (!variables.TryGetValue(name, out CVarHeader variable) ||
+                    variable.Type != CVarHeader.VarType.irInt || variable.Count != 1)
+                    throw new System.IO.InvalidDataException("Missing iRacing frame identity: " + name);
+            }
+
+            SessionInfo = "";
             Is360HzTelemetry = is360HzTelemetry;
-			SessionInfoUpdate = sdk.Header.SessionInfoUpdate;
-			IsNewSession = isNewSession;
-			SessionTime = (System.Double)sdk.GetData("SessionTime");
-            SessionTick = (System.Int32)sdk.GetData("SessionTick");
-            SessionNum = (System.Int32)sdk.GetData("SessionNum");
-			SessionState = (CrewChiefV4.iRacing.SessionStates)sdk.GetData("SessionState");
-            DisplayUnits = (CrewChiefV4.iRacing.DisplayUnits)sdk.GetData("DisplayUnits");
-            SessionFlags = (System.UInt32)sdk.GetData("SessionFlags");
-			SessionTimeRemain = (System.Double)sdk.GetData("SessionTimeRemain");
-			IsOnTrack = (System.Boolean)sdk.GetData("IsOnTrack");
-            IsReplayPlaying = (System.Boolean)sdk.GetData("IsReplayPlaying");
-            IsDiskLoggingEnabled = (System.Boolean)sdk.GetData("IsDiskLoggingEnabled");
-            IsDiskLoggingActive = (System.Boolean)sdk.GetData("IsDiskLoggingActive");
-            PlayerCarPosition = (System.Int32)sdk.GetData("PlayerCarPosition");
-			PlayerTrackSurface = (CrewChiefV4.iRacing.TrackSurfaces)sdk.GetData("PlayerTrackSurface");
-			PlayerCarIdx = (System.Int32)sdk.GetData("PlayerCarIdx");
-			PlayerCarTeamIncidentCount = (System.Int32)sdk.GetData("PlayerCarTeamIncidentCount");
-			PlayerCarMyIncidentCount = (System.Int32)sdk.GetData("PlayerCarMyIncidentCount");
-			PlayerCarDriverIncidentCount = (System.Int32)sdk.GetData("PlayerCarDriverIncidentCount");
-			CarIdxLap = (System.Int32[])sdk.GetData("CarIdxLap");
-			CarIdxLapCompleted = (System.Int32[])sdk.GetData("CarIdxLapCompleted");
-			CarIdxLapDistPct = (System.Single[])sdk.GetData("CarIdxLapDistPct");
-			CarIdxTrackSurface = (CrewChiefV4.iRacing.TrackSurfaces[])sdk.GetData("CarIdxTrackSurface");
-			CarIdxOnPitRoad = (System.Boolean[])sdk.GetData("CarIdxOnPitRoad");
-			CarIdxPosition = (System.Int32[])sdk.GetData("CarIdxPosition");
-			CarIdxClassPosition = (System.Int32[])sdk.GetData("CarIdxClassPosition");
-            CarIdxTireCompound = (System.Int32[])sdk.GetData("CarIdxTireCompound");
-            CarIdxSessionFlags = (System.Int32[])sdk.GetData("CarIdxSessionFlags");
-            OnPitRoad = (System.Boolean)sdk.GetData("OnPitRoad");
-            CarIdxSteer = (System.Single[])sdk.GetData("CarIdxSteer");
-            CarIdxRPM = (System.Single[])sdk.GetData("CarIdxRPM");
-			CarIdxGear = (System.Int32[])sdk.GetData("CarIdxGear");
-            CarIdxLastLapTime = (System.Single[])sdk.GetData("CarIdxLastLapTime");
-            DRS_Status = (DrsStatus)sdk.GetData("DRS_Status");
-            SteeringWheelAngle = (System.Single)sdk.GetData("SteeringWheelAngle");
-            Throttle = (System.Single)sdk.GetData("Throttle");
-			Brake = (System.Single)sdk.GetData("Brake");
-            Clutch = (System.Single)sdk.GetData("Clutch");
-            HandBrake = (System.Single)sdk.GetData("HandbrakeRaw");
-            Gear = (System.Int32)sdk.GetData("Gear");
-            RPM = (System.Single)sdk.GetData("RPM");
-            Lap = (System.Int32)sdk.GetData("Lap");
-            LapBestLap = (System.Int32)sdk.GetData("LapBestLap");
-            LapBestLapTime = (System.Single)sdk.GetData("LapBestLapTime");
-            LapLastLapTime = (System.Single)sdk.GetData("LapLastLapTime");
-			LapCurrentLapTime = (System.Single)sdk.GetData("LapCurrentLapTime");
-			Speed = (System.Single)sdk.GetData("Speed");
-			Yaw = (System.Single)sdk.GetData("Yaw");
-			Pitch = (System.Single)sdk.GetData("Pitch");
-			Roll = (System.Single)sdk.GetData("Roll");
-			TrackTempCrew = (System.Single)sdk.GetData("TrackTempCrew");
-			AirTemp = (System.Single)sdk.GetData("AirTemp");
-			WindVel = (System.Single)sdk.GetData("WindVel");
-            Precipitation = (System.Single)sdk.GetData("Precipitation");
-            CarLeftRight = (CrewChiefV4.iRacing.CarLeftRight)sdk.GetData("CarLeftRight");
-            PitsOpen = (System.Boolean)sdk.GetData("PitsOpen");
-			IsInGarage = (System.Boolean)sdk.GetData("IsInGarage");
-			EngineWarnings = (CrewChiefV4.iRacing.EngineWarnings)sdk.GetData("EngineWarnings");
-            TrackWetness = (CrewChiefV4.iRacing.TrackWetness)sdk.GetData("TrackWetness");
-            FuelLevel = (System.Single)sdk.GetData("FuelLevel");
-            if(sdk.VarHeaders.ContainsKey("WaterTemp"))
-			    WaterTemp = (System.Single)sdk.GetData("WaterTemp");
-            if (sdk.VarHeaders.ContainsKey("WaterLevel"))
-                WaterLevel = (System.Single)sdk.GetData("WaterLevel");
-            if (sdk.VarHeaders.ContainsKey("FuelPress"))
-                FuelPress = (System.Single)sdk.GetData("FuelPress");
-            if (sdk.VarHeaders.ContainsKey("OilTemp"))
-                OilTemp = (System.Single)sdk.GetData("OilTemp");
+			SessionInfoUpdate = sessionUpdate;
+			SessionTime = (System.Double)read("SessionTime");
+            SessionTick = (System.Int32)read("SessionTick");
+            SessionNum = (System.Int32)read("SessionNum");
+			SessionState = (CrewChiefV4.iRacing.SessionStates)read("SessionState");
+            DisplayUnits = (CrewChiefV4.iRacing.DisplayUnits)read("DisplayUnits");
+            SessionFlags = (System.UInt32)read("SessionFlags");
+			SessionTimeRemain = (System.Double)read("SessionTimeRemain");
+			IsOnTrack = (System.Boolean)read("IsOnTrack");
+            IsReplayPlaying = (System.Boolean)read("IsReplayPlaying");
+            IsDiskLoggingEnabled = (System.Boolean)read("IsDiskLoggingEnabled");
+            IsDiskLoggingActive = (System.Boolean)read("IsDiskLoggingActive");
+            PlayerCarPosition = (System.Int32)read("PlayerCarPosition");
+			PlayerTrackSurface = (CrewChiefV4.iRacing.TrackSurfaces)read("PlayerTrackSurface");
+			PlayerCarIdx = (System.Int32)read("PlayerCarIdx");
+			PlayerCarTeamIncidentCount = (System.Int32)read("PlayerCarTeamIncidentCount");
+			PlayerCarMyIncidentCount = (System.Int32)read("PlayerCarMyIncidentCount");
+			PlayerCarDriverIncidentCount = (System.Int32)read("PlayerCarDriverIncidentCount");
+			CarIdxLap = (System.Int32[])read("CarIdxLap");
+			CarIdxLapCompleted = (System.Int32[])read("CarIdxLapCompleted");
+			CarIdxLapDistPct = (System.Single[])read("CarIdxLapDistPct");
+			CarIdxTrackSurface = (CrewChiefV4.iRacing.TrackSurfaces[])read("CarIdxTrackSurface");
+			CarIdxOnPitRoad = (System.Boolean[])read("CarIdxOnPitRoad");
+			CarIdxPosition = (System.Int32[])read("CarIdxPosition");
+			CarIdxClassPosition = (System.Int32[])read("CarIdxClassPosition");
+            CarIdxTireCompound = (System.Int32[])read("CarIdxTireCompound");
+            CarIdxSessionFlags = (System.Int32[])read("CarIdxSessionFlags");
+            OnPitRoad = (System.Boolean)read("OnPitRoad");
+            CarIdxSteer = (System.Single[])read("CarIdxSteer");
+            CarIdxRPM = (System.Single[])read("CarIdxRPM");
+			CarIdxGear = (System.Int32[])read("CarIdxGear");
+            CarIdxLastLapTime = (System.Single[])read("CarIdxLastLapTime");
+            DRS_Status = (DrsStatus)read("DRS_Status");
+            SteeringWheelAngle = (System.Single)read("SteeringWheelAngle");
+            Throttle = (System.Single)read("Throttle");
+			Brake = (System.Single)read("Brake");
+            Clutch = (System.Single)read("Clutch");
+            HandBrake = (System.Single)read("HandbrakeRaw");
+            Gear = (System.Int32)read("Gear");
+            RPM = (System.Single)read("RPM");
+            Lap = (System.Int32)read("Lap");
+            LapBestLap = (System.Int32)read("LapBestLap");
+            LapBestLapTime = (System.Single)read("LapBestLapTime");
+            LapLastLapTime = (System.Single)read("LapLastLapTime");
+			LapCurrentLapTime = (System.Single)read("LapCurrentLapTime");
+			Speed = (System.Single)read("Speed");
+			Yaw = (System.Single)read("Yaw");
+			Pitch = (System.Single)read("Pitch");
+			Roll = (System.Single)read("Roll");
+			TrackTempCrew = (System.Single)read("TrackTempCrew");
+			AirTemp = (System.Single)read("AirTemp");
+			WindVel = (System.Single)read("WindVel");
+            Precipitation = (System.Single)read("Precipitation");
+            CarLeftRight = (CrewChiefV4.iRacing.CarLeftRight)read("CarLeftRight");
+            PitsOpen = (System.Boolean)read("PitsOpen");
+			IsInGarage = (System.Boolean)read("IsInGarage");
+			EngineWarnings = (CrewChiefV4.iRacing.EngineWarnings)read("EngineWarnings");
+            TrackWetness = (CrewChiefV4.iRacing.TrackWetness)read("TrackWetness");
+            FuelLevel = (System.Single)read("FuelLevel");
+            if(variables.ContainsKey("WaterTemp"))
+			    WaterTemp = (System.Single)read("WaterTemp");
+            if (variables.ContainsKey("WaterLevel"))
+                WaterLevel = (System.Single)read("WaterLevel");
+            if (variables.ContainsKey("FuelPress"))
+                FuelPress = (System.Single)read("FuelPress");
+            if (variables.ContainsKey("OilTemp"))
+                OilTemp = (System.Single)read("OilTemp");
 
-			Voltage = (System.Single)sdk.GetData("Voltage");
-			RRcoldPressure = (System.Single)sdk.GetData("RRcoldPressure");
-			LRcoldPressure = (System.Single)sdk.GetData("LRcoldPressure");
-			RFcoldPressure = (System.Single)sdk.GetData("RFcoldPressure");
-			LFcoldPressure = (System.Single)sdk.GetData("LFcoldPressure");
+			Voltage = (System.Single)read("Voltage");
+			RRcoldPressure = (System.Single)read("RRcoldPressure");
+			LRcoldPressure = (System.Single)read("LRcoldPressure");
+			RFcoldPressure = (System.Single)read("RFcoldPressure");
+			LFcoldPressure = (System.Single)read("LFcoldPressure");
 
-            LFtempCL = (Single)sdk.GetData("LFtempCL");
-            LFtempCM = (Single)sdk.GetData("LFtempCM");
-            LFtempCR = (Single)sdk.GetData("LFtempCR");
-            LFwearL = (Single)sdk.GetData("LFwearL");
-            LFwearM = (Single)sdk.GetData("LFwearM");
-            LFwearR = (Single)sdk.GetData("LFwearR");
-            RFtempCL = (Single)sdk.GetData("RFtempCL");
-            RFtempCM = (Single)sdk.GetData("RFtempCM");
-            RFtempCR = (Single)sdk.GetData("RFtempCR");
-            RFwearL = (Single)sdk.GetData("RFwearL");
-            RFwearM = (Single)sdk.GetData("RFwearM");
-            RFwearR = (Single)sdk.GetData("RFwearR");
-            LRtempCL = (Single)sdk.GetData("LRtempCL");
-            LRtempCM = (Single)sdk.GetData("LRtempCM");
-            LRtempCR = (Single)sdk.GetData("LRtempCR");
-            LRwearL = (Single)sdk.GetData("LRwearL");
-            LRwearM = (Single)sdk.GetData("LRwearM");
-            LRwearR = (Single)sdk.GetData("LRwearR");
-            RRtempCL = (Single)sdk.GetData("RRtempCL");
-            RRtempCM = (Single)sdk.GetData("RRtempCM");
-            RRtempCR = (Single)sdk.GetData("RRtempCR");
-            RRwearL = (Single)sdk.GetData("RRwearL");
-            RRwearM = (Single)sdk.GetData("RRwearM");
-            RRwearR = (Single)sdk.GetData("RRwearR");
+            LFtempCL = (Single)read("LFtempCL");
+            LFtempCM = (Single)read("LFtempCM");
+            LFtempCR = (Single)read("LFtempCR");
+            LFwearL = (Single)read("LFwearL");
+            LFwearM = (Single)read("LFwearM");
+            LFwearR = (Single)read("LFwearR");
+            RFtempCL = (Single)read("RFtempCL");
+            RFtempCM = (Single)read("RFtempCM");
+            RFtempCR = (Single)read("RFtempCR");
+            RFwearL = (Single)read("RFwearL");
+            RFwearM = (Single)read("RFwearM");
+            RFwearR = (Single)read("RFwearR");
+            LRtempCL = (Single)read("LRtempCL");
+            LRtempCM = (Single)read("LRtempCM");
+            LRtempCR = (Single)read("LRtempCR");
+            LRwearL = (Single)read("LRwearL");
+            LRwearM = (Single)read("LRwearM");
+            LRwearR = (Single)read("LRwearR");
+            RRtempCL = (Single)read("RRtempCL");
+            RRtempCM = (Single)read("RRtempCM");
+            RRtempCR = (Single)read("RRtempCR");
+            RRwearL = (Single)read("RRwearL");
+            RRwearM = (Single)read("RRwearM");
+            RRwearR = (Single)read("RRwearR");
 
             if (Is360HzTelemetry)
             {
-                _VertAccel = (System.Single[])sdk.GetData("VertAccel");
-                _LatAccel = (System.Single[])sdk.GetData("LatAccel");
-                _LongAccel = (System.Single[])sdk.GetData("LongAccel");
+                _VertAccel = (System.Single[])read("VertAccel");
+                _LatAccel = (System.Single[])read("LatAccel");
+                _LongAccel = (System.Single[])read("LongAccel");
 
                 /*
                 _RRshockDefl = (System.Single[])sdk.GetData("RRshockDefl");
@@ -146,11 +149,11 @@ namespace CrewChiefV4.iRacing
             else
             {
                 _VertAccel = new System.Single[1];
-                _VertAccel[0] =  (System.Single)sdk.GetData("VertAccel");
+                _VertAccel[0] =  (System.Single)read("VertAccel");
                 _LatAccel = new System.Single[1];
-                _LatAccel[0] = (System.Single)sdk.GetData("LatAccel");
+                _LatAccel[0] = (System.Single)read("LatAccel");
                 _LongAccel = new System.Single[1];
-                _LongAccel[0] = (System.Single)sdk.GetData("LongAccel");
+                _LongAccel[0] = (System.Single)read("LongAccel");
 
                 /*
                 _RRshockDefl = new System.Single[1];
@@ -175,28 +178,28 @@ namespace CrewChiefV4.iRacing
                 */
 
             }
-            PitSvFlags = (CrewChiefV4.iRacing.PitServiceFlags)sdk.GetData("PitSvFlags");
-            PitSvLFP = (System.Single)sdk.GetData("PitSvLFP");
-            PitSvRFP = (System.Single)sdk.GetData("PitSvRFP");
-            PitSvLRP = (System.Single)sdk.GetData("PitSvLRP");
-            PitSvRRP = (System.Single)sdk.GetData("PitSvRRP");
-            PitSvFuel = (System.Single)sdk.GetData("PitSvFuel");
-            PitRepairLeft = (System.Single)sdk.GetData("PitRepairLeft");
-            PitOptRepairLeft = (System.Single)sdk.GetData("PitOptRepairLeft");
-            PlayerCarTowTime = (System.Single)sdk.GetData("PlayerCarTowTime");
-            PlayerCarInPitStall = (System.Boolean)sdk.GetData("PlayerCarInPitStall");
-            PlayerCarPitSvStatus = (CrewChiefV4.iRacing.PitSvStatus)sdk.GetData("PlayerCarPitSvStatus");
-            PlayerTireCompound = (System.Int32)sdk.GetData("PlayerTireCompound");
-            PitSvTireCompound = (System.Int32)sdk.GetData("PitSvTireCompound");
+            PitSvFlags = (CrewChiefV4.iRacing.PitServiceFlags)read("PitSvFlags");
+            PitSvLFP = (System.Single)read("PitSvLFP");
+            PitSvRFP = (System.Single)read("PitSvRFP");
+            PitSvLRP = (System.Single)read("PitSvLRP");
+            PitSvRRP = (System.Single)read("PitSvRRP");
+            PitSvFuel = (System.Single)read("PitSvFuel");
+            PitRepairLeft = (System.Single)read("PitRepairLeft");
+            PitOptRepairLeft = (System.Single)read("PitOptRepairLeft");
+            PlayerCarTowTime = (System.Single)read("PlayerCarTowTime");
+            PlayerCarInPitStall = (System.Boolean)read("PlayerCarInPitStall");
+            PlayerCarPitSvStatus = (CrewChiefV4.iRacing.PitSvStatus)read("PlayerCarPitSvStatus");
+            PlayerTireCompound = (System.Int32)read("PlayerTireCompound");
+            PitSvTireCompound = (System.Int32)read("PitSvTireCompound");
 
-            PaceMode = (PaceMode)sdk.GetData("PaceMode");
-            CarIdxPaceLine = (System.Int32[])sdk.GetData("CarIdxPaceLine");
-            CarIdxPaceRow = (System.Int32[])sdk.GetData("CarIdxPaceRow");
-            CarIdxPaceFlags = (PaceFlags[])sdk.GetData("CarIdxPaceFlags");
+            PaceMode = (PaceMode)read("PaceMode");
+            CarIdxPaceLine = (System.Int32[])read("CarIdxPaceLine");
+            CarIdxPaceRow = (System.Int32[])read("CarIdxPaceRow");
+            CarIdxPaceFlags = (PaceFlags[])read("CarIdxPaceFlags");
 
-            if (sdk.VarHeaders.ContainsKey("dcBrakeBias"))
+            if (variables.ContainsKey("dcBrakeBias"))
             {
-                dcBrakeBias = (Single)sdk.GetData("dcBrakeBias");
+                dcBrakeBias = (Single)read("dcBrakeBias");
             }
         }
         public iRacingData() {}

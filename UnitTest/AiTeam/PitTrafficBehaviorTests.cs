@@ -69,6 +69,16 @@ namespace UnitTest.AiTeamTests
         public void A_genuinely_slow_outlap_or_inlap_is_recognized(bool outlap,bool inlap)
         {var s=State();Assert.IsNotNull(Drive(s,Car(s,outlap,inlap),220,20));}
 
+        [TestCase(SessionType.Practice, true)]
+        [TestCase(SessionType.Qualify, false)]
+        public void Sustained_fast_on_track_closing_is_a_practice_hint_and_not_a_hazard(SessionType type, bool expected)
+        {
+            var state = State(type);
+            var call = Drive(state, Car(state), 120, 35);
+            Assert.AreEqual(expected, call != null);
+            if (expected) Assert.AreEqual("traffic-closing-ahead", call.Topic);
+        }
+
         [Test]
         public void A_crawling_car_can_be_reported_without_inventing_its_lap_status()
         {var s=State();var call=Drive(s,Car(s),280,5);Assert.IsNotNull(call);StringAssert.DoesNotContain("Auslaufrunde",call.Text);}

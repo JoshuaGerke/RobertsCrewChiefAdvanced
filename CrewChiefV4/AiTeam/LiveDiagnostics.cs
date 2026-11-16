@@ -58,9 +58,9 @@ namespace CrewChiefV4.AiTeam
         private static readonly HashSet<string> allowed = new HashSet<string>((
             "stage status reason topic text transcript speaker routing confidence_available model service error_type http_status duration_ms " +
             "clip_id message_name message_id priority immediate queue_length sound_key audio_backend measurement bytes samples cpu_percent working_set_bytes private_bytes " +
-            "dropped queued capture_limit_bytes folder_limit_bytes segment_limit_bytes stopwatch_frequency process_id schema_version " +
+            "dropped queued capture_limit_bytes folder_limit_bytes segment_limit_bytes stopwatch_frequency process_id schema_version event_id rrca_build " +
             "native_laps_remaining timed_extra_laps gap_source game track car session_type phase session_seconds lap lap_valid current_lap_valid class_best_s personal_best_s cut_warnings off_racing_surface in_pit speed_mps distance_m throttle brake gear fuel_l fuel_active refuel_allowed " +
-            "reader_revision workload_mode workload_index input_hz pace_avg_s front_pace_delta_s rear_pace_delta_s gap_front_s gap_behind_s opponent_front opponent_behind position flag tyre_wear_pct tyre_temp_c tyre_wear_active " +
+            "reader_revision workload_mode workload_index input_hz pace_avg_s front_pace_delta_s rear_pace_delta_s gap_front_s gap_behind_s opponent_front opponent_behind position flag dnf disqualified tyre_wear_pct tyre_temp_c tyre_wear_active " +
             "lap_time_s fuel_used_l fuel_per_lap_l laps_remaining time_remaining_s laps_comparable lap_times_s fuel_used_window_l " +
             "overlap_left overlap_right telemetry_age_s api_calls budget radio_mode deadline_s correlation_parent utterance_sequence " +
             "prompt_tokens completion_tokens finish_reason reasoning_tokens content_chars completion_limit sample_count input_ticks duplicate late silence_s source trigger result " +
@@ -276,6 +276,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var next = new DiagnosticRecorder(folder ?? DefaultFolder, limits, new[]{AiSecretStore.Load(),AiSecretStore.LoadElevenLabs()});
                 last = next; Interlocked.Exchange(ref lastSample,0); Interlocked.Exchange(ref lastTrackSampleTicks,0); Volatile.Write(ref recorder,next);
+                next.TryRecord("capture.build", Data("rrca_build", RrcaForm.Version()));
                 return "Lokale Diagnose aktiv: " + next.Folder;
             }
             catch (Exception e) { return "Diagnose konnte nicht starten: " + e.GetType().Name; }
@@ -292,11 +293,13 @@ namespace CrewChiefV4.AiTeam
         {
             var d = new Dictionary<string,object>(); for(int i=0;i+1<pairs.Length;i+=2)d[(string)pairs[i]]=pairs[i+1]; return d;
         }
-        public static void Decision(string topic,string status,string reason,string text=null)
+        public static void Decision(string topic,string status,string reason,string text=null,string eventId=null)
         {
-            if(status=="detected" || status=="delivered")
+            if(status=="detected" || status=="delivered" || status=="suppressed" && eventId!=null &&
+                (topic=="position" || topic=="status" || topic=="formation" || topic=="rear-pressure" ||
+                    topic=="near-best" || topic=="own-lap" || topic=="field-fastest" || topic=="field-fastest-overall"))
                 DriverMemory.RememberObservation(topic,status,reason,text,CrewChief.currentGameState==null?int.MinValue:CrewChief.currentGameState.SessionData.SessionId);
-            if(Enabled)Emit("decision",Data("topic",topic,"status",status,"reason",reason,"text",text));
+            if(Enabled)Emit("decision",Data("topic",topic,"status",status,"reason",reason,"text",text,"event_id",eventId),eventId);
         }
         public static string NoTrend(string topic,string reason) { Decision(topic,"rejected",reason); return null; }
         public static void Sample(GameStateData previous,GameStateData current)
@@ -323,6 +326,7 @@ namespace CrewChiefV4.AiTeam
                 "timed_extra_laps",s.ExtraLapsAfterTimedSessionComplete,"session_seconds",s.SessionTimeRemaining));
             Emit("telemetry",Data("session_type",s.SessionType.ToString(),"phase",s.SessionPhase.ToString(),"session_seconds",s.SessionRunningTime,"lap",s.CompletedLaps,"lap_valid",s.PreviousLapWasValid,"current_lap_valid",s.CurrentLapIsValid,"class_best_s",s.PlayerClassSessionBestLapTime,"personal_best_s",s.PlayerLapTimeSessionBest,"cut_warnings",current.PenaltiesData.CutTrackWarnings,"off_racing_surface",current.PenaltiesData.IsOffRacingSurface,
                 "in_pit",current.PitData.InPitlane,"speed_mps",current.PositionAndMotionData.CarSpeed,"distance_m",current.PositionAndMotionData.DistanceRoundTrack,
+                "dnf",s.IsDNF,"disqualified",s.IsDisqualified,
                 "throttle",current.ControlData.ThrottlePedal,"brake",current.ControlData.BrakePedal,"gear",current.TransmissionData.Gear,"fuel_l",current.FuelData.FuelLeft,"fuel_active",current.FuelData.FuelUseActive,"refuel_allowed",current.PitData.IsRefuellingAllowed,
                 "gap_front_s",s.TimeDeltaFront,"gap_behind_s",s.TimeDeltaBehind,"opponent_front",s.OpponentKeyInFront,"opponent_behind",s.OpponentKeyBehind,"position",s.ClassPosition,"flag",s.Flag.ToString(),"lap_time_s",s.LapTimePrevious,"laps_remaining",s.SessionLapsRemaining,"time_remaining_s",s.SessionTimeRemaining,
                 "tyre_wear_active",t.TyreWearActive,"tyre_wear_pct",t.TyreWearActive?new[]{t.FrontLeftPercentWear,t.FrontRightPercentWear,t.RearLeftPercentWear,t.RearRightPercentWear}:null,
@@ -383,28 +387,30 @@ namespace CrewChiefV4.AiTeam
         }
         public static void Audio(string stage,string clip,string key,string text,int priority=0,string path=null,int messageId=0)
         {
-            if(Enabled && clip != null)Emit("audio."+stage,Data("clip_id",clip,"sound_key",key,"text",text,"priority",priority,"message_id",messageId,"_sound_path",path),clip);
+            if(Enabled && clip != null)Emit("audio."+stage,Data("clip_id",clip,"sound_key",key,"text",text,"priority",priority,"message_id",messageId,"_sound_path",path,
+                "event_id",AiAudioStore.GetEventId(clip)),clip);
         }
         public static void RememberSecret(string secret) { DriverMemory.RememberSecret(secret); var r=Volatile.Read(ref recorder);if(r!=null&&r.Accepting)r.RememberSecret(secret); }
         public static void Queue(string stage,string name,int priority,int length,string reason=null,int messageId=0)
         {
             if(!Enabled)return;
             string clip=name!=null&&name.StartsWith("ai_team_")&&name.Length>=32?name.Substring(name.Length-32):null;
-            Emit("queue."+stage,Data("message_name",name,"clip_id",clip,"priority",priority,"queue_length",length,"reason",reason,"message_id",messageId),clip);
+            Emit("queue."+stage,Data("message_name",name,"clip_id",clip,"priority",priority,"queue_length",length,"reason",reason,"message_id",messageId,
+                "event_id",AiAudioStore.GetEventId(clip)),clip);
         }
-        public static DiagnosticScope Begin(string kind,Dictionary<string,object> fields=null)
+        public static DiagnosticScope Begin(string kind,Dictionary<string,object> fields=null,string parentEventId=null)
         {
-            return Enabled?new DiagnosticScope(kind,fields):DiagnosticScope.Disabled;
+            return Enabled?new DiagnosticScope(kind,fields,parentEventId):DiagnosticScope.Disabled;
         }
         public sealed class DiagnosticScope:IDisposable
         {
             public static readonly DiagnosticScope Disabled=new DiagnosticScope();
             private readonly string kind,id,parent; private readonly long started; private string outcome="completed";
             private DiagnosticScope(){}
-            internal DiagnosticScope(string kind,Dictionary<string,object> fields)
+            internal DiagnosticScope(string kind,Dictionary<string,object> fields,string parentEventId)
             {
                 this.kind=kind;id=Guid.NewGuid().ToString("N");parent=flow.Value;flow.Value=id;started=Stopwatch.GetTimestamp();
-                fields=fields??new Dictionary<string,object>();fields["correlation_parent"]=parent;Emit(kind+".start",fields,id);
+                fields=fields??new Dictionary<string,object>();fields["correlation_parent"]=parentEventId??parent;Emit(kind+".start",fields,id);
             }
             public void Fail(Exception e)
             {

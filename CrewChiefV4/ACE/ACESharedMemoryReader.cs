@@ -27,6 +27,28 @@ namespace CrewChiefV4.ACE
 {
     public class ACESharedMemoryReader : GameDataReader
     {
+        internal static int VehicleCount(ACEShared data)
+        {
+            if(data==null || data.aceGraphic.carIds==null || data.aceGraphic.carCoordinates==null)return 0;
+            return (int)Math.Min(data.aceGraphic.totalDrivers,(uint)Math.Min(aceConstant.MaxVehicles,
+                Math.Min(data.aceGraphic.carIds.Length,data.aceGraphic.carCoordinates.Length)));
+        }
+        internal static int PlayerIndex(ACEShared data)
+        {
+            if(data==null || data.aceGraphic.playerCarIdA==0 && data.aceGraphic.playerCarIdB==0)return -1;
+            int found=-1;
+            for(int i=0;i<VehicleCount(data);i++)
+                if(data.aceGraphic.carIds[i].carIdA==data.aceGraphic.playerCarIdA && data.aceGraphic.carIds[i].carIdB==data.aceGraphic.playerCarIdB)
+                { if(found>=0)return -1; found=i; }
+            return found;
+        }
+        internal static aceVehicleInfo GeometryVehicle(ACEShared data,int index)
+        {
+            var id=data.aceGraphic.carIds[index];
+            return new aceVehicleInfo {carId=id,worldPosition=data.aceGraphic.carCoordinates[index],
+                isConnected=id.carIdA!=0 || id.carIdB!=0?1:0,driverName=new byte[64],carModel=new byte[64],
+                speedMS=-1,spLineLength=-1,bestLapMS=-1,lastLapTimeMS=-1,isCarInPitlane=-1};
+        }
         private MemoryMappedFile memoryMappedPhysicsFile;
         private int sharedmemoryPhysicssize;
         private byte[] sharedMemoryPhysicsReadBuffer;
@@ -77,10 +99,15 @@ namespace CrewChiefV4.ACE
             Debug.Assert(Marshal.SizeOf<SPageFileStaticEvo>() == aceConstant.MM_STATIC_STRUCT_SIZE, $"Size of SPageFileStatic struct is {Marshal.SizeOf<SPageFileStaticEvo>()}, should be {aceConstant.MM_STATIC_STRUCT_SIZE} bytes");
         }
 
+        private readonly AiTeam.TelemetrySourceClock graphicsClock = new AiTeam.TelemetrySourceClock();
+        private readonly AiTeam.TelemetrySourceClock physicsClock = new AiTeam.TelemetrySourceClock();
+
         public class ACEStructWrapper
         {
             public long ticksWhenRead;
             public ACEShared data;
+            public bool nativeSourceClock;
+            public long graphicsSampleTicks, physicsSampleTicks;
         }
 
         public static void clearSyncData()
@@ -187,6 +214,20 @@ namespace CrewChiefV4.ACE
             return Encoding.ASCII.GetBytes(name);
         }
 
+        internal void ObserveSourceProgress(ACEStructWrapper frame, bool physicsPresent)
+        {
+            frame.nativeSourceClock = true;
+            var data = frame.data;
+            if (data.aceGraphic.status != ACEVO_STATUS.AC_LIVE || !(PlayerIndex(data) >= 0)) return;
+            int session = 0;
+            int status = (int)data.aceGraphic.status;
+            frame.graphicsSampleTicks = graphicsClock.Observe(unchecked((uint)data.aceGraphic.packetId),
+                session, status, data.aceGraphic.playerCarIdA, data.aceGraphic.playerCarIdB, frame.ticksWhenRead);
+            if (physicsPresent)
+                frame.physicsSampleTicks = physicsClock.Observe(unchecked((uint)data.acePhysics.packetId),
+                    session, status, data.aceGraphic.playerCarIdA, data.aceGraphic.playerCarIdB, frame.ticksWhenRead);
+        }
+
         public override Object ReadGameData(Boolean forSpotter)
         {
             lock (this)
@@ -232,50 +273,41 @@ namespace CrewChiefV4.ACE
                     }
 
                     {
-                        uint _numberOfDrivers = Math.Min(aceShared.aceGraphic.totalDrivers, aceShared.aceGraphic.totalDrivers);
-                        _numberOfDrivers = Math.Max(_numberOfDrivers, 1);
+                        int _numberOfDrivers = VehicleCount(aceShared);
                         aceShared.aceChief = new SPageFileCrewChief
                         {
                             vehicle = new aceVehicleInfo[_numberOfDrivers]
                         };
-                        Random rand = new Random();
                         for (int i = 0; i < _numberOfDrivers; i++)
-                        { // Semi-fake opponent data
-                            aceShared.aceChief.vehicle[i].worldPosition = aceShared.aceGraphic.carCoordinates[i];
-                            aceShared.aceChief.vehicle[i].isConnected = 1; // TBD EVO
-                            var randomDriver = rand.Next(SoundCache.availableDriverNames.Count);
-                            aceShared.aceChief.vehicle[i].driverName = getBytesFromString(SoundCache.availableDriverNames.ToArray()[randomDriver]); // TBD EVO
-                            aceShared.aceChief.vehicle[i].carModel = getBytesFromString(aceShared.aceGraphic.carModel); // TBD EVO
-                            aceShared.aceChief.vehicle[i].carLeaderboardPosition = i; // TBD EVO
-                            aceShared.aceChief.vehicle[i].carId = aceShared.aceGraphic.carIds[i];
+                        { // Coordinates and IDs are observed; missing identity/timing/speed must stay unknown.
+                            aceShared.aceChief.vehicle[i] = GeometryVehicle(aceShared,i);
 #if TRACK_SPLINE
                             var projection = TrackSplineManager.Project(aceShared.aceChief.vehicle[i].worldPosition, previousSplineLength[i]);
                             aceShared.aceChief.vehicle[i].spLineLength = projection.spLineLength;
-                            // Stationary or a long way from the spline, maybe in the pits?
-                            aceShared.aceChief.vehicle[i].isCarInPitlane = (previousSplineLength[i] == aceShared.aceChief.vehicle[i].spLineLength) ||
-                                projection.distanceToSpline > 20.0f ? 1 : 0;
+                            // Neither standstill nor distance from the racing line proves a pit visit.
+                            // Keep opponents unknown; the player's native pit flag is assigned below.
                             previousSplineLength[i] = aceShared.aceChief.vehicle[i].spLineLength;
 #else
-                            aceShared.aceChief.vehicle[i].spLineLength = (float)rand.NextDouble(); // TBD EVO - this is just to get some data in there
+                            aceShared.aceChief.vehicle[i].spLineLength = -1;
 #endif
-                            aceShared.aceChief.vehicle[i].speedMS = (float)rand.NextDouble() * 70;
                         }
                         // TBD EVO Load player's vehicle with data
-                        aceShared.aceChief.playerIndex = 0;
+                        aceShared.aceChief.playerIndex = PlayerIndex(aceShared);
                         var playerCarId = new carId
                         {
                             carIdA = aceShared.aceGraphic.playerCarIdA,
                             carIdB = aceShared.aceGraphic.playerCarIdB
                         };
-                        int indexInCoordsArray = Array.IndexOf(aceShared.aceGraphic.carIds, playerCarId);
-                        if (indexInCoordsArray > -1 && indexInCoordsArray < aceShared.aceGraphic.carCoordinates.Length)
+                        int indexInCoordsArray = aceShared.aceChief.playerIndex;
+                        if (indexInCoordsArray > -1 && indexInCoordsArray < _numberOfDrivers)
                         {
                             aceShared.aceChief.playerIndex = indexInCoordsArray;
                             Log.DontSpam("Player car ID " + playerCarId.carIdA + " found in carIds array at index " + indexInCoordsArray, 30).Verbose();
                         }
                         else
                         {
-                            Log.Commentary("Player car ID " + playerCarId.carIdA + " not found in carIds array, defaulting to index 0");
+                            Log.DontSpam("ACE: Player car ID missing or ambiguous; retaining previous state.",30).Verbose();
+                            return previousACEStructWrapper;
                         }
                         int playerIndex = aceShared.aceChief.playerIndex;
                         aceShared.aceChief.vehicle[playerIndex].tyreInflation = new float[4];
@@ -326,6 +358,7 @@ namespace CrewChiefV4.ACE
                         || aceShared.acePhysics.fuel != 0
                         || aceShared.acePhysics.heading != 0
                         || aceShared.acePhysics.pitch != 0;
+                    ObserveSourceProgress(structWrapper, hasPhysicsData);
                     if (!hasPhysicsData && previousACEStructWrapper != null && previousACEStructWrapper.data != null)
                     {
                         structWrapper.data.acePhysics = previousACEStructWrapper.data.acePhysics;
@@ -899,6 +932,9 @@ namespace CrewChiefV4.ACE
                 catch (Exception e) {Log.Exception(e);}
             }
 #endif
+            graphicsClock.Reset();
+            physicsClock.Reset();
+            previousACEStructWrapper = null;
             initialised = false;
         }
     }

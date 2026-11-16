@@ -3,9 +3,13 @@
   const root = document.getElementById('rrca-design');
   const $ = s => root.querySelector(s), $$ = s => Array.from(root.querySelectorAll(s));
   const bridge = window.chrome && window.chrome.webview;
-  const send = (cmd, data) => { if (bridge) bridge.postMessage(Object.assign({ cmd, uiLanguage: I.language }, data || {})); };
+  let initialized = false;
+  const send = (cmd, data) => {
+    if (bridge && (initialized || cmd === 'ready')) bridge.postMessage(Object.assign({ cmd, uiLanguage: I.language }, data || {}));
+  };
   const I = window.RRCAI18n, t = text => I.t(text);
   let lastLive = null;
+  let timelineKey;
   const members = ['ben', 'mik', 'sara'];
   const idle = { ben: 'Beobachtet die Strategie', mik: 'Beobachtet das Fahrzeug', sara: 'Hat die Seiten im Blick' };
   let state = { roles: { ben: true, mik: true, sara: true } }, noticeTimer, noticeText;
@@ -99,6 +103,7 @@
   $('#rrca-mik-numbers').addEventListener('click', () => send('testMikNumbers', { spelled: false }));
   $('#rrca-mik-numbers-spelled').addEventListener('click', () => send('testMikNumbers', { spelled: true }));
 
+
   function applyInit(d) {
     state = d;
     syncAudioLevels(d.audioLevels);
@@ -108,7 +113,8 @@
     syncRoles(null);
     fillVoices(null, d.voices);
     fillSelect($('#rrca-mic'), [{ id: '', name: t('Windows-Standardgerät'), ui:'Windows-Standardgerät' }].concat(d.microphones.map(m => ({ id: m, name: m }))), d.microphone);
-    $('#rrca-ptt').value = d.ptt;
+    $('#rrca-ptt').dataset.uiValue = d.ptt;
+    $('#rrca-ptt').value = t(d.ptt);
     $('#rrca-radio-effect').checked = d.radioEffect;
     $('#rrca-spotter-mode').value = d.realisticMode ? 'realistic' : 'normal';
     $('#rrca-recorder').checked = d.recorder;
@@ -117,6 +123,9 @@
     $('#rrca-memory-status').textContent = t(t(d.memoryStatus || ''));
     $('#rrca-memory-folder').textContent = d.memoryFolder || '';
     $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    if (typeof d.probe === 'boolean') $('#rrca-probe').checked = d.probe;
+    if (d.probeStatus != null) $('#rrca-probe-status').textContent = t(d.probeStatus);
+    applyRecords(d);
     $('#key-openrouter').textContent = t(d.keys.openrouter || 'kein Schlüssel hinterlegt');
     $('#key-elevenlabs').textContent = t(d.keys.elevenlabs || 'kein Schlüssel hinterlegt');
     if (!d.keys.openrouter || !d.keys.elevenlabs) $('#rrca-keys').open = true;
@@ -129,10 +138,52 @@
     });
     updateGreetingPreview();
     buildSchedule(d.topics);
+    initialized = true;
+    $('#rrca-save').disabled = false;
   }
+
+  // Bestzeiten-Datenbank: je Simulation getrennt, Schalter, Übersicht und Bereinigen mit Sicherheitsabfrage.
+  let recordSims = [];
+  function renderRecords() {
+    const status = $('#rrca-records-status');
+    if (!status) return;
+    status.textContent = recordSims.length === 0 ? t('Noch keine Bestzeiten gespeichert.')
+      : t('Gespeichert') + ': ' + recordSims.map(s => s.game + ' · ' + s.count + ' ' + t(s.count === 1 ? 'Kombination' : 'Kombinationen')).join(' | ');
+    const scope = $('#rrca-records-scope'), current = scope.value;
+    scope.innerHTML = '';
+    const all = document.createElement('option'); all.value = ''; all.textContent = t('Alle Simulationen'); scope.appendChild(all);
+    recordSims.forEach(s => { const o = document.createElement('option'); o.value = s.game; o.textContent = s.game; scope.appendChild(o); });
+    scope.value = recordSims.some(s => s.game === current) ? current : '';
+    $('#rrca-records-clear').disabled = recordSims.length === 0;
+  }
+  function applyRecords(d) {
+    if (typeof d.records === 'boolean') $('#rrca-records').checked = d.records;
+    if (Array.isArray(d.recordSims)) { recordSims = d.recordSims; renderRecords(); }
+  }
+  let confirmDialog = null;
+  function confirmClearRecords() {
+    const game = $('#rrca-records-scope').value;
+    if (!confirmDialog) {
+      confirmDialog = document.createElement('dialog'); confirmDialog.className = 'help-dialog'; confirmDialog.id = 'rrca-records-confirm';
+      confirmDialog.innerHTML = '<h2></h2><p></p><div class="row" style="justify-content:flex-end;gap:10px"><button type="button" class="button" data-answer="no"></button><button type="button" class="button primary" data-answer="yes"></button></div>';
+      document.body.appendChild(confirmDialog);
+      confirmDialog.querySelector('[data-answer=no]').addEventListener('click', () => confirmDialog.close());
+      confirmDialog.querySelector('[data-answer=yes]').addEventListener('click', () => { send('clearRecords', { game: confirmDialog.dataset.game || null }); confirmDialog.close(); });
+    }
+    confirmDialog.dataset.game = game;
+    confirmDialog.querySelector('h2').textContent = t('Bestzeiten löschen');
+    confirmDialog.querySelector('p').textContent = (game ? t('Sicher alle Bestzeiten dieser Simulation löschen?') + ' (' + game + ')' : t('Sicher alle Daten löschen? Alle Bestzeiten aller Simulationen werden entfernt.')) +
+      ' ' + t('Das kann nicht rückgängig gemacht werden.');
+    confirmDialog.querySelector('[data-answer=no]').textContent = t('Abbrechen');
+    confirmDialog.querySelector('[data-answer=yes]').textContent = t('Ja, löschen');
+    confirmDialog.showModal(); confirmDialog.querySelector('[data-answer=no]').focus(); // sicherer Standard: Abbrechen
+  }
+  document.addEventListener('rrca-language-changed', renderRecords);
 
   function applyLive(d) {
     lastLive=d;
+    applyRecords(d);
+    if (typeof d.autoDetect === 'boolean') $('#rrca-auto').checked = d.autoDetect;
     syncAudioLevels(d.audioLevels);
     state.voiceReadiness = d.voiceReadiness;
     if (typeof d.memoryEnabled === 'boolean') $('#rrca-memory').checked = d.memoryEnabled;
@@ -141,6 +192,26 @@
     if (d.memoryFolder != null) $('#rrca-memory-folder').textContent = d.memoryFolder;
     if (typeof d.recorder === "boolean") $('#rrca-recorder').checked = d.recorder;
     if (d.recorderStatus != null) $('#rrca-diag-status').textContent = t(d.recorderStatus);
+    if (typeof d.probe === 'boolean') $('#rrca-probe').checked = d.probe;
+    if (d.probeStatus != null) $('#rrca-probe-status').textContent = t(d.probeStatus);
+    const liveRadio = $('#rrca-live-radio-status');
+    const radioStatus = d.radioStatus;
+    liveRadio.hidden = !d.telemetrySource && !radioStatus;
+    const statusParts = [];
+    if (d.telemetrySource) statusParts.push(t('Datenquelle') + ' · ' + d.telemetrySource);
+    if (radioStatus) {
+      const holds = { Corner:'Kurven-Sperre', Battle:'Zweikampf', Crisis:'Vorfall' };
+      statusParts.push(t(radioStatus.routineOpen ? 'Routinefunk frei' : (holds[radioStatus.mode] || 'Routinefunk wartet')));
+      if (Number.isFinite(radioStatus.inputHz)) statusParts.push(radioStatus.inputHz + ' Hz ' + t('beobachtet'));
+      if (radioStatus.chaseActive) statusParts.push(t('Aufholphase läuft'));
+      const pit = { clear:'Freie Lücke wahrscheinlich', traffic:'Verkehr möglich', unknown:'Schätzung offen' };
+      if (pit[radioStatus.pitExit]) statusParts.push(t('Boxenausfahrt') + ' · ' + t(pit[radioStatus.pitExit]));
+      if (Number.isFinite(radioStatus.fuelTarget)) {
+        const target = new Intl.NumberFormat(I.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(radioStatus.fuelTarget);
+        statusParts.push(t('Aktives Sparziel') + ' ' + target + ' ' + t('Liter pro Runde'));
+      }
+    }
+    liveRadio.textContent = statusParts.join(' · ');
     $('#rrca-conn').textContent = t(d.connected ? d.game : (d.sourceStatus || 'Kein Spiel verbunden'));
     const run = $('#rrca-run'), game = $('#rrca-game');
     run.textContent = t(d.running ? 'Stopp' : 'Start');
@@ -149,10 +220,12 @@
     if (d.game && document.activeElement !== game) game.value = d.game;
     $('#rrca-conn-dot').classList.toggle('off', !d.connected);
     $('#rrca-rail-hint').textContent = t(d.connected ? 'Live-Daten vom Spiel' : (d.sourceStatus ? 'Quelle erreichbar · Fahrdaten fehlen' : 'Wartet auf das Spiel'));
-    $('#rrca-where').textContent = t(d.connected ? [d.game, d.track, d.session].filter(Boolean).join(' · ') : (d.sourceStatus || 'Kein Spiel verbunden'));
-    $('#rrca-sub').textContent = t(d.connected ? [d.driver, d.carClass, d.lastLap ? 'Letzte Runde ' + d.lastLap : ''].filter(Boolean).join(' · ')
-      : !d.running ? ($('#rrca-auto').checked ? 'Automatische Spielerkennung ist aktiv. Ein eindeutig laufendes Spiel wird auch im Hintergrund erkannt. Bei mehreren laufenden Sims das gewünschte Spiel in den Vordergrund holen.' : 'Spiel auswählen und Start drücken. Die automatische Spielerkennung ist ausgeschaltet.')
+    $('#rrca-where').textContent = d.connected ? [d.game, d.track, t(d.session)].filter(Boolean).join(' · ') : t(d.sourceStatus || 'Kein Spiel verbunden');
+    const sub = $('#rrca-sub');
+    sub.textContent = d.connected ? [d.driver, d.carClass, d.lastLap ? t('Letzte Runde ' + d.lastLap) : ''].filter(Boolean).join(' · ')
+      : t(!d.running ? ($('#rrca-auto').checked ? 'Automatische Spielerkennung ist aktiv. Ein eindeutig laufendes Spiel wird auch im Hintergrund erkannt. Bei mehreren laufenden Sims das gewünschte Spiel in den Vordergrund holen.' : 'Spiel auswählen und Start drücken. Die automatische Spielerkennung ist ausgeschaltet.')
       : (d.sourceStatus ? d.sourceHint : 'Die Crew läuft. Spiel starten und ins Auto setzen, damit Fahrdaten ankommen.'));
+    if (d.connected && d.saraSideStatus) sub.textContent += ' · ' + t(d.saraSideStatus);
     $('#m-pos').textContent = d.position > 0 ? 'P' + d.position : '–';
     $('#m-pos-sub').textContent = t(d.position > 0 && d.cars > 0 ? 'von ' + d.cars + ' in deiner Klasse' : ' ');
     $('#m-lap-label').textContent = t(d.timed ? 'Restzeit' : 'Runde');
@@ -169,14 +242,24 @@
     }
 
     const radio = d.radio || [];
-    const tl = $('#rrca-timeline'); tl.innerHTML = '';
-    if (!radio.length) {const row=document.createElement('div');row.className='timeline empty';row.textContent=t('Noch nichts gefunkt.');tl.appendChild(row);}
-    radio.slice().reverse().forEach(r => {
-      const row = document.createElement('div'); row.className = 'timeline';
-      row.innerHTML = '<time></time><b></b><span></span>';
-      row.children[0].textContent = r.time; row.children[1].textContent = r.member.toUpperCase(); row.children[2].textContent = r.text;
-      tl.appendChild(row);
-    });
+    const nextTimelineKey = JSON.stringify(radio.length ? radio : [I.language]);
+    if (timelineKey !== nextTimelineKey) {
+      timelineKey = nextTimelineKey;
+      const tl = $('#rrca-timeline');
+      const rows = document.createDocumentFragment();
+      if (!radio.length) {
+        const row = document.createElement('div'); row.className = 'timeline empty';
+        row.textContent = t('Noch nichts gefunkt.'); rows.appendChild(row);
+      }
+      for (let i = radio.length - 1; i >= 0; i--) {
+        const r = radio[i], row = document.createElement('div');
+        row.className = 'timeline';
+        row.innerHTML = '<time></time><b></b><span></span>';
+        row.children[0].textContent = r.time; row.children[1].textContent = r.member.toUpperCase(); row.children[2].textContent = r.text;
+        rows.appendChild(row);
+      }
+      tl.replaceChildren(rows);
+    }
     const last = radio[radio.length - 1];
     $('#rrca-speaker').textContent = t(last ? last.member + (d.speaking ? ' · funkt gerade' : ' · zuletzt ' + last.time) : 'Funk');
     $('#rrca-quote').textContent = last ? last.text : t('Noch kein Funkspruch.');
@@ -217,6 +300,9 @@
   $('#rrca-send-names').addEventListener('change', e => send('setSendNames', { on: e.target.checked }));
   $('#rrca-memory').addEventListener('change', e => send('setMemory', { on: e.target.checked }));
   $('#rrca-recorder').addEventListener('change', e => send('setRecorder', { on: e.target.checked }));
+  $('#rrca-probe').addEventListener('change', e => send('setProbe', { on: e.target.checked }));
+  $('#rrca-records').addEventListener('change', e => send('setRecords', { on: e.target.checked }));
+  $('#rrca-records-clear').addEventListener('click', confirmClearRecords);
   $$('[data-key-save]').forEach(b => b.addEventListener('click', () => {
     const input = $('#key-' + b.dataset.keySave + '-input'); const key = input.value.trim();
     if (!key) { notify('Erst den Schlüssel einfügen.'); return; }
@@ -243,15 +329,17 @@
   if (bridge) {
     bridge.addEventListener('message', e => {
       const d = e.data;
-      if (d.type === 'init') applyInit(d);
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'handshake') send('ready', { navigation: d.navigation });
+      else if (d.type === 'init') applyInit(d);
       else if (d.type === 'live') applyLive(d);
+      else if (d.type === 'records') applyRecords(d);
       else if (d.type === 'audioLevels') syncAudioLevels(d.audioLevels);
       else if (d.type === 'voices') fillVoices(d.list, d.current);
       else if (d.type === 'notice') notify(d.text);
       else if (d.type === 'document') I.openDocument(d.title,d.text);
       else if (d.type === 'update') { const b = $('#rrca-update'); b.dataset.version = d.version; b.textContent = I.pick('Update auf ', 'Install update ', 'Actualizar a ') + d.version; b.hidden = false; if (d.ask) setTimeout(() => b.click(), 600); document.addEventListener('rrca-language-changed', () => { b.textContent = I.pick('Update auf ', 'Install update ', 'Actualizar a ') + b.dataset.version; }); }
     });
-    send('ready');
   } else {
     notify('Diese Seite läuft nur im RRCA-Fenster von Crew Chief.');
   }
@@ -259,6 +347,11 @@
     updateGreetingPreview();syncRoles(null);
     if(noticeText && !$('#rrca-notice').hidden)$('#rrca-notice').textContent=t(noticeText);
     $$('[data-ui-text]').forEach(el=>el.textContent=t(el.dataset.uiText));
+    $$('[data-ui-value]').forEach(el=>el.value=t(el.dataset.uiValue));
+    if (state.keys) {
+      $('#key-openrouter').textContent = t(state.keys.openrouter || 'kein Schlüssel hinterlegt');
+      $('#key-elevenlabs').textContent = t(state.keys.elevenlabs || 'kein Schlüssel hinterlegt');
+    }
     $$('#rrca-schedule .schedule-row').forEach(row=>{row.firstElementChild.firstChild.nodeValue=t(row.dataset.label);row.title=t(row.dataset.hint);row.querySelectorAll('input').forEach(i=>i.setAttribute('aria-label',t(row.dataset.label)+' · '+({on:t('An'),seconds:t('Alle / s'),minus:'− / s',plus:'+ / s'}[i.dataset.part])));});
     $('#rrca-topic-count').textContent=t($$('#rrca-schedule .schedule-row').length+' Themen');
     if(lastLive)applyLive(lastLive);

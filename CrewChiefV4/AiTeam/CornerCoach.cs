@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using CrewChiefV4.GameState;
 using Newtonsoft.Json.Linq;
 
 namespace CrewChiefV4.AiTeam
@@ -23,6 +24,7 @@ namespace CrewChiefV4.AiTeam
         public float ExitSpeedKmh = float.NaN;
         public float FullThrottleAfterEntryM = float.NaN;
         public float TimeS = float.NaN;                    // von 100 m vor bis 100 m nach der Kurve
+        internal bool FullWindow;
         public int MinGear;                                // kleinster Vorwärtsgang in der Kurve, 0 = unbekannt
         public bool Complete { get { return !float.IsNaN(TimeS) && !float.IsNaN(MinSpeedKmh); } }
     }
@@ -32,6 +34,7 @@ namespace CrewChiefV4.AiTeam
         public int LapNumber;
         public float LapTime;
         public bool Valid;
+        internal bool Green;
         public Dictionary<int, CornerPass> Corners = new Dictionary<int, CornerPass>();
     }
 
@@ -56,6 +59,17 @@ namespace CrewChiefV4.AiTeam
         private CornerLap currentLap = new CornerLap();
         private readonly Dictionary<int, CornerTracker> trackers = new Dictionary<int, CornerTracker>();
         private readonly Dictionary<int, int> lastHintLap = new Dictionary<int, int>();
+        private readonly RadioVariantCursor improvementVariants = new RadioVariantCursor();
+        private int trackRevision, validFollowLaps, lastFollowLap;
+        private CoachingHint deliveredHint;
+        private DateTime lastImprovement;
+
+        internal sealed class CoachingHint
+        {
+            public int Revision, Corner, AfterLap;
+            public string Name, Evidence;
+            public float SegmentAverage, LapAverage;
+        }
         private bool pedalsSeen;
 
         private class CornerTracker
@@ -71,6 +85,28 @@ namespace CrewChiefV4.AiTeam
         public bool HasCorners { get { lock (sync) { return corners.Count > 0; } } }
         public bool PedalDataAvailable { get { return pedalsSeen; } }
 
+        internal bool RadioBrakingWindow(float distance, float speed)
+        {
+            if (!(speed >= 30 && speed <= 120) || !(distance >= 0)) return false;
+            lock (sync)
+            {
+                if (!(distance < trackLength)) return false;
+                var last = laps.LastOrDefault(lap => lap.Valid);
+                for (int index = 0; index < corners.Count; index++)
+                {
+                    var corner = corners[index];
+                    float brake = corner.Start;
+                    if (last != null && last.Corners.TryGetValue(index, out var pass) &&
+                        pass.BrakePointBeforeEntryM >= 0 && pass.BrakePointBeforeEntryM <= WindowBeforeM)
+                        brake -= pass.BrakePointBeforeEntryM;
+                    float toBrake = (brake - distance + trackLength) % trackLength;
+                    float fromBrake = (distance - brake + trackLength) % trackLength;
+                    if (toBrake <= speed * 3.2f || fromBrake < corner.End - brake) return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>Strecke setzen (bei neuer Session). Gerade Abschnitte werden ignoriert.</summary>
         public void SetTrack(IEnumerable<CornerDefinition> definitions, float length)
         {
@@ -82,6 +118,8 @@ namespace CrewChiefV4.AiTeam
                 laps.Clear();
                 trackers.Clear();
                 lastHintLap.Clear();
+                trackRevision++;
+                deliveredHint = null;
                 currentLap = new CornerLap();
                 pedalsSeen = false;
             }
@@ -125,11 +163,13 @@ namespace CrewChiefV4.AiTeam
                         t = new CornerTracker();
                         trackers[i] = t;
                     }
+                    float priorRel = t.LastRel;
                     t.LastRel = rel;
 
                     if (float.IsNaN(t.EnterTime) && rel >= -TimingMarginM)
                     {
                         t.EnterTime = sessionTime;
+                        t.Pass.FullWindow = !float.IsNaN(priorRel) && priorRel < -TimingMarginM;
                     }
                     // nur ein neuer Tritt zählt, nicht Restbremsung aus der Kurve davor
                     if (brake >= BrakeThreshold && t.PrevBrake < BrakeThreshold && !t.Braking && float.IsNaN(t.Pass.BrakePointBeforeEntryM) && rel <= length / 2)
@@ -175,13 +215,14 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Rundenende: Messungen dieser Runde ablegen.</summary>
-        public void CompleteLap(int lapNumber, float lapTime, bool valid)
+        public void CompleteLap(int lapNumber, float lapTime, bool valid, bool green = true)
         {
             lock (sync)
             {
                 currentLap.LapNumber = lapNumber;
                 currentLap.LapTime = lapTime;
                 currentLap.Valid = valid && lapTime > 0;
+                currentLap.Green = green;
                 if (currentLap.Corners.Count > 0)
                 {
                     laps.Add(currentLap);
@@ -254,11 +295,13 @@ namespace CrewChiefV4.AiTeam
         /// Für proaktive Hinweise: eine Kurve, in der die letzten zwei gültigen Runden jeweils deutlich Zeit gegenüber
         /// der Bestrunde verloren haben. Pro Kurve höchstens alle 5 Runden. null = nichts Auffälliges.
         /// </summary>
-        public string FindConsistentLoss(float minLossS = 0.2f)
+        public string FindConsistentLoss(float minLossS = 0.2f) => FindCoachingHint(minLossS)?.Evidence;
+
+        internal CoachingHint FindCoachingHint(float minLossS = 0.2f)
         {
             lock (sync)
             {
-                var valid = laps.Where(l => l.Valid).ToList();
+                var valid = laps.Where(l => l.Valid && l.Green).ToList();
                 if (valid.Count < 3)
                 {
                     return null;
@@ -282,6 +325,9 @@ namespace CrewChiefV4.AiTeam
                     {
                         continue;
                     }
+                    var corner = corners[p.Index];
+                    if (!recent.All(l => l.Corners[p.Index].FullWindow) ||
+                        corner.Start < TimingMarginM || corner.End + TimingMarginM >= trackLength) continue;
                     lastHintLap[p.Index] = recent[1].LapNumber;
                     var de = CultureInfo.GetCultureInfo("de-DE");
                     string text = p.Name + ": in den letzten zwei Runden jeweils " + earlier.TimeLossS.ToString("0.00", de) + " und " +
@@ -306,11 +352,64 @@ namespace CrewChiefV4.AiTeam
                     {
                         text += ", im Scheitel " + p.Gear + ". Gang statt " + p.BestGear + ". Gang wie in der Bestrunde";
                     }
-                    return text + ".";
+                    return new CoachingHint { Revision=trackRevision, Corner=p.Index, AfterLap=recent[1].LapNumber, Name=p.Name,
+                        Evidence=text + ".", SegmentAverage=recent.Average(l=>l.Corners[p.Index].TimeS),
+                        LapAverage=recent.Average(l=>l.LapTime) };
                 }
                 return null;
             }
         }
+
+        internal void RememberDeliveredHint(CoachingHint hint)
+        {
+            lock (sync)
+            {
+                if (hint.Revision != trackRevision) return;
+                deliveredHint = hint;
+                validFollowLaps = 0;
+                lastFollowLap = hint.AfterLap;
+            }
+        }
+
+        internal ObservedRaceCall TakeImprovement(GameStateData current, LapRecord record, DateTime now)
+        {
+            lock (sync)
+            {
+                var hint = deliveredHint;
+                var session = current.SessionData;
+                int completed = session.CompletedLaps;
+                if (hint == null || completed <= lastFollowLap || record == null ||
+                    record.LapNumber != completed || !record.Valid || !record.Green || record.InPitLap) return null;
+                lastFollowLap = completed;
+                var lap = laps.LastOrDefault();
+                validFollowLaps++;
+                CornerPass pass = null;
+                bool improved = lap != null && lap.LapNumber == completed && lap.Valid && lap.Green &&
+                    lap.Corners.TryGetValue(hint.Corner, out pass) && pass.Complete && pass.FullWindow &&
+                    pass.TimeS > 0 && hint.SegmentAverage - pass.TimeS >= .15f && lap.LapTime <= hint.LapAverage + .5f;
+                if (validFollowLaps >= 3 || improved) deliveredHint = null;
+                if (!improved || now - lastImprovement < TimeSpan.FromMinutes(10) || !CanFollow(current) || session.SectorNumber <= 0)
+                    return null;
+                lastImprovement = now;
+                int sector = session.SectorNumber;
+                const string group = "corner-improvement";
+                var catalog = RadioPhraseCatalog.Current;
+                int index = improvementVariants.Select(group, catalog.Count(group));
+                string gain = GermanRadioText.Interval(hint.SegmentAverage - pass.TimeS);
+                var call = new ObservedRaceCall { Topic=group, Text=catalog.Format(group,index,hint.Name,gain),
+                    Evidence="same_corner_gain_vs_two_pre_hint_laps", Member=TeamMember.Mik, Priority=3, Position=-1,
+                    SessionId=session.SessionId, SessionType=session.SessionType, CompletedLaps=completed,
+                    DetectedUtc=now, ExpiresUtc=now.AddSeconds(10),
+                    AdditionalValidity=live=>CanFollow(live) && live.SessionData.PreviousLapWasValid &&
+                        live.SessionData.SectorNumber==sector && System.Threading.Volatile.Read(ref trackRevision)==hint.Revision };
+                call.BindVariant(improvementVariants,group,index);
+                return call;
+            }
+        }
+
+        internal static bool CanFollow(GameStateData live) => live.SessionData.SessionPhase == SessionPhase.Green &&
+            live.SessionData.CurrentLapIsValid && !live.FlagData.isLocalYellow && !live.PitData.InPitlane &&
+            !live.PitData.OnInLap && !live.PitData.OnOutLap;
 
         private class CornerDelta
         {

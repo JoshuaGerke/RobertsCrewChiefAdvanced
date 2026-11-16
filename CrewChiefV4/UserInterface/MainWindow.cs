@@ -184,7 +184,7 @@ namespace CrewChiefV4
         // recognizeAsync, and another delay between releasing the button and calling recognizeAsync
         private readonly int sreWaitTime = UserSettings.GetUserSettings().getInt("sre_wait_time");
 
-        public static float currentMessageVolume = -1;
+        public static volatile float currentMessageVolume = -1;
         private NotifyIcon notificationTrayIcon;
         private ToolStripItem contextMenuStartItem;
         private ToolStripItem contextMenuStopItem;

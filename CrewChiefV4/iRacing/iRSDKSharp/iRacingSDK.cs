@@ -212,12 +212,16 @@ namespace iRSDKSharp
                 CVarHeader header = null;
                 if (VarHeaders.TryGetValue(name, out header))
                 {
+                    int bufferOffset = Header.Buffer;
                     int varOffset = header.Offset;
+                    if (bufferOffset < 0 || varOffset < 0 || header.Count < 1 ||
+                        bufferOffset + (long)varOffset + (long)header.Count * header.Bytes > FileMapView.Capacity)
+                        return 0;
                     int count = header.Count;                    
                     if (header.Name == "PlayerTrackSurface" || header.Name == "CarIdxTrackSurface")
                     {
                         TrackSurfaces[] data = new TrackSurfaces[count];
-                        FileMapView.ReadArray<TrackSurfaces>(Header.Buffer + varOffset, data, 0, count);
+                        FileMapView.ReadArray<TrackSurfaces>(bufferOffset + varOffset, data, 0, count);
                         if (count > 1)
                         {
                             return data;
@@ -230,7 +234,7 @@ namespace iRSDKSharp
                     else if (header.Name == "PlayerTrackSurfaceMaterial" || header.Name == "CarIdxTrackSurfaceMaterial")
                     {
                         TrackSurfaceMaterial[] data = new TrackSurfaceMaterial[count];
-                        FileMapView.ReadArray<TrackSurfaceMaterial>(Header.Buffer + varOffset, data, 0, count);
+                        FileMapView.ReadArray<TrackSurfaceMaterial>(bufferOffset + varOffset, data, 0, count);
                         if (count > 1)
                         {
                             return data;
@@ -243,7 +247,7 @@ namespace iRSDKSharp
                     else if(header.Name == "PlayerCarPitSvStatus")
                     {
                         PitSvStatus[] data = new PitSvStatus[count];
-                        FileMapView.ReadArray<PitSvStatus>(Header.Buffer + varOffset, data, 0, count);
+                        FileMapView.ReadArray<PitSvStatus>(bufferOffset + varOffset, data, 0, count);
                         if (count > 1)
                         {
                             return data;
@@ -255,28 +259,28 @@ namespace iRSDKSharp
                     }
                     else if (header.Name == "SessionState")
                     {
-                        return (SessionStates)FileMapView.ReadInt32(Header.Buffer + varOffset);
+                        return (SessionStates)FileMapView.ReadInt32(bufferOffset + varOffset);
                     }
                     else if (header.Name == "DisplayUnits")
                     {
-                        return (DisplayUnits)FileMapView.ReadInt32(Header.Buffer + varOffset);
+                        return (DisplayUnits)FileMapView.ReadInt32(bufferOffset + varOffset);
                     }
                     else if (header.Name == "WeatherType")
                     {
-                        return (WeatherType)FileMapView.ReadInt32(Header.Buffer + varOffset);
+                        return (WeatherType)FileMapView.ReadInt32(bufferOffset + varOffset);
                     }
                     else if (header.Name == "Skies")
                     {
-                        return (Skies)FileMapView.ReadInt32(Header.Buffer + varOffset);
+                        return (Skies)FileMapView.ReadInt32(bufferOffset + varOffset);
                     }
                     else if (header.Name == "DRS_Status")
                     {
-                        return (DrsStatus)FileMapView.ReadInt32(Header.Buffer + varOffset);
+                        return (DrsStatus)FileMapView.ReadInt32(bufferOffset + varOffset);
                     }
                     else if (header.Type == CVarHeader.VarType.irChar)
                     {
                         byte[] data = new byte[count];
-                        FileMapView.ReadArray<byte>(Header.Buffer + varOffset, data, 0, count);
+                        FileMapView.ReadArray<byte>(bufferOffset + varOffset, data, 0, count);
                         return System.Text.Encoding.Default.GetString(data).TrimEnd(new char[] { '\0' });
                     }
                     else if (header.Type == CVarHeader.VarType.irBool)
@@ -284,12 +288,12 @@ namespace iRSDKSharp
                         if (count > 1)
                         {
                             bool[] data = new bool[count];
-                            FileMapView.ReadArray<bool>(Header.Buffer + varOffset, data, 0, count);
+                            FileMapView.ReadArray<bool>(bufferOffset + varOffset, data, 0, count);
                             return data;
                         }
                         else
                         {
-                            return FileMapView.ReadBoolean(Header.Buffer + varOffset);
+                            return FileMapView.ReadBoolean(bufferOffset + varOffset);
                         }
                     }
                     else if (header.Type == CVarHeader.VarType.irInt)
@@ -297,47 +301,47 @@ namespace iRSDKSharp
                         if (count > 1)
                         {
                             int[] data = new int[count];
-                            FileMapView.ReadArray<int>(Header.Buffer + varOffset, data, 0, count);
+                            FileMapView.ReadArray<int>(bufferOffset + varOffset, data, 0, count);
                             return data;
                         }
                         else
                         {
-                            return FileMapView.ReadInt32(Header.Buffer + varOffset);
+                            return FileMapView.ReadInt32(bufferOffset + varOffset);
                         }
                     }
                     else if (header.Type == CVarHeader.VarType.irBitField)
                     {
                         if (header.Name == "SessionFlags")
                         {
-                            return FileMapView.ReadUInt32(Header.Buffer + varOffset);
+                            return FileMapView.ReadUInt32(bufferOffset + varOffset);
                         }
                         else if (header.Name == "EngineWarnings")
                         {
-                            return (EngineWarnings)FileMapView.ReadUInt32(Header.Buffer + varOffset);
+                            return (EngineWarnings)FileMapView.ReadUInt32(bufferOffset + varOffset);
                         }
                         else if (header.Name == "CarLeftRight")
                         {
-                            return (CarLeftRight)FileMapView.ReadInt32(Header.Buffer + varOffset);
+                            return (CarLeftRight)FileMapView.ReadInt32(bufferOffset + varOffset);
                         }
                         else if (header.Name == "PitSvFlags")
                         {
-                            return (PitServiceFlags)FileMapView.ReadUInt32(Header.Buffer + varOffset);
+                            return (PitServiceFlags)FileMapView.ReadUInt32(bufferOffset + varOffset);
                         }
                         else if (header.Name == "CamCameraState")
                         {
-                            return (CameraStates)FileMapView.ReadUInt32(Header.Buffer + varOffset);
+                            return (CameraStates)FileMapView.ReadUInt32(bufferOffset + varOffset);
                         }                            
                         else
                         {
                             if (count > 1)
                             {
                                 int[] data = new int[count];
-                                FileMapView.ReadArray<int>(Header.Buffer + varOffset, data, 0, count);
+                                FileMapView.ReadArray<int>(bufferOffset + varOffset, data, 0, count);
                                 return data;
                             }
                             else
                             {
-                                return FileMapView.ReadInt32(Header.Buffer + varOffset);
+                                return FileMapView.ReadInt32(bufferOffset + varOffset);
                             }
                         }
                     }
@@ -346,12 +350,12 @@ namespace iRSDKSharp
                         if (count > 1)
                         {
                             float[] data = new float[count];
-                            FileMapView.ReadArray<float>(Header.Buffer + varOffset, data, 0, count);
+                            FileMapView.ReadArray<float>(bufferOffset + varOffset, data, 0, count);
                             return data;
                         }
                         else
                         {
-                            return FileMapView.ReadSingle(Header.Buffer + varOffset);
+                            return FileMapView.ReadSingle(bufferOffset + varOffset);
                         }
                     }
                     else if (header.Type == CVarHeader.VarType.irDouble)
@@ -359,17 +363,146 @@ namespace iRSDKSharp
                         if (count > 1)
                         {
                             double[] data = new double[count];
-                            FileMapView.ReadArray<double>(Header.Buffer + varOffset, data, 0, count);
+                            FileMapView.ReadArray<double>(bufferOffset + varOffset, data, 0, count);
                             return data;
                         }
                         else
                         {
-                            return FileMapView.ReadDouble(Header.Buffer + varOffset);
+                            return FileMapView.ReadDouble(bufferOffset + varOffset);
                         }
                     }
                 }
             }
             return 0;
+        }
+
+        internal bool TryReadFrame(int previousSessionUpdate, out byte[] telemetry,
+            out int sessionUpdate, out string sessionInfo)
+        {
+            telemetry = null;
+            sessionInfo = null;
+            sessionUpdate = 0;
+            if (!IsConnected()) return false;
+
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                int update = Header.SessionInfoUpdate;
+                byte[] sample = CopyPublishedTelemetry(FileMapView, Header);
+                if (sample == null) continue;
+
+                string yaml = null;
+                if (update != previousSessionUpdate)
+                {
+                    byte[] info = CopySessionInfo(FileMapView, Header, update);
+                    if (info == null) continue;
+                    yaml = Encoding.Default.GetString(info).TrimEnd('\0');
+                    if (string.IsNullOrWhiteSpace(yaml)) continue;
+                }
+
+                if (!IsConnected() || Header.SessionInfoUpdate != update) continue;
+                telemetry = sample;
+                sessionUpdate = update;
+                sessionInfo = yaml;
+                return true;
+            }
+            return false;
+        }
+
+        internal static byte[] CopyPublishedTelemetry(MemoryMappedViewAccessor view, CiRSDKHeader header)
+        {
+            if (!header.buffer.TryGetLatest(out int descriptor, out int tick, out int offset))
+                return null;
+            int length = header.BufferLength;
+            if (!ValidSlice(view, offset, length, 1024 * 1024)) return null;
+
+            var sample = new byte[length];
+            int copied = view.ReadArray(offset, sample, 0, length);
+            // The SDK publishes the slot tick after writing its telemetry.
+            // Recheck the chosen slot, even when a different slot is now latest.
+            return copied == length && header.BufferLength == length &&
+                header.buffer.IsStillPublished(descriptor, tick, offset) ? sample : null;
+        }
+
+        internal static byte[] CopySessionInfo(MemoryMappedViewAccessor view, CiRSDKHeader header, int update)
+        {
+            if (header.SessionInfoUpdate != update) return null;
+            int offset = header.SessionInfoOffset;
+            int length = header.SessionInfoLength;
+            if (!ValidSlice(view, offset, length, 4 * 1024 * 1024)) return null;
+            var data = new byte[length];
+            int copied = view.ReadArray(offset, data, 0, length);
+            return copied == length && header.SessionInfoOffset == offset &&
+                header.SessionInfoLength == length && header.SessionInfoUpdate == update ? data : null;
+        }
+
+        private static bool ValidSlice(MemoryMappedViewAccessor view, int offset, int length, int limit)
+        {
+            return offset > 0 && length > 0 && length <= limit && offset + (long)length <= view.Capacity;
+        }
+
+        internal static object DecodeTelemetry(byte[] sample, CVarHeader variable)
+        {
+            int offset = variable.Offset;
+            int count = variable.Count;
+            int width = variable.Bytes;
+            if (offset < 0 || count < 1 || width < 1 || offset + (long)width * count > sample.Length)
+                throw new System.IO.InvalidDataException("Invalid iRacing telemetry variable: " + variable.Name);
+
+            if (variable.Type == CVarHeader.VarType.irChar)
+                return Encoding.Default.GetString(sample, offset, count).TrimEnd('\0');
+
+            if (count > 1)
+            {
+                switch (variable.Type)
+                {
+                    case CVarHeader.VarType.irBool: return CopyArray<bool>(sample, offset, count, width);
+                    case CVarHeader.VarType.irFloat: return CopyArray<float>(sample, offset, count, width);
+                    case CVarHeader.VarType.irDouble: return CopyArray<double>(sample, offset, count, width);
+                    default:
+                        int[] values = CopyArray<int>(sample, offset, count, width);
+                        if (variable.Name == "CarIdxTrackSurface")
+                            return Array.ConvertAll(values, value => (TrackSurfaces)value);
+                        if (variable.Name == "CarIdxTrackSurfaceMaterial")
+                            return Array.ConvertAll(values, value => (TrackSurfaceMaterial)value);
+                        if (variable.Name == "CarIdxPaceFlags")
+                            return Array.ConvertAll(values, value => (PaceFlags)value);
+                        return values;
+                }
+            }
+
+            switch (variable.Type)
+            {
+                case CVarHeader.VarType.irBool: return sample[offset] != 0;
+                case CVarHeader.VarType.irFloat: return BitConverter.ToSingle(sample, offset);
+                case CVarHeader.VarType.irDouble: return BitConverter.ToDouble(sample, offset);
+            }
+            int raw = BitConverter.ToInt32(sample, offset);
+            switch (variable.Name)
+            {
+                case "PlayerTrackSurface": return (TrackSurfaces)raw;
+                case "PlayerTrackSurfaceMaterial": return (TrackSurfaceMaterial)raw;
+                case "PlayerCarPitSvStatus": return (PitSvStatus)raw;
+                case "SessionState": return (SessionStates)raw;
+                case "DisplayUnits": return (DisplayUnits)raw;
+                case "WeatherType": return (WeatherType)raw;
+                case "Skies": return (Skies)raw;
+                case "DRS_Status": return (DrsStatus)raw;
+                case "SessionFlags": return unchecked((uint)raw);
+                case "EngineWarnings": return (EngineWarnings)raw;
+                case "CarLeftRight": return (CarLeftRight)raw;
+                case "PitSvFlags": return (PitServiceFlags)raw;
+                case "CamCameraState": return (CameraStates)raw;
+                case "PaceMode": return (PaceMode)raw;
+                case "TrackWetness": return (TrackWetness)raw;
+                default: return raw;
+            }
+        }
+
+        private static T[] CopyArray<T>(byte[] sample, int offset, int count, int width)
+        {
+            var values = new T[count];
+            System.Buffer.BlockCopy(sample, offset, values, 0, count * width);
+            return values;
         }
 
         public string GetSessionInfoString()

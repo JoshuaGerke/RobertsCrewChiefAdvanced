@@ -117,7 +117,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         public async Task<JObject> ChatAsync(string model, JArray messages, JArray tools, string reasoningEffort,
-            int maxCompletionTokens, bool jsonMode, CancellationToken ct)
+            int maxCompletionTokens, bool jsonMode, CancellationToken ct, string toolChoice = "auto")
         {
             using (var diagnosticSpan = LiveDiagnostics.Begin("api", LiveDiagnostics.Data("service","chat","model",model)))
             {
@@ -132,7 +132,7 @@ namespace CrewChiefV4.AiTeam
             if (tools != null && tools.Count > 0)
             {
                 body["tools"] = tools;
-                body["tool_choice"] = "auto";
+                body["tool_choice"] = string.IsNullOrEmpty(toolChoice) ? "auto" : toolChoice;
             }
             if (!string.IsNullOrWhiteSpace(reasoningEffort))
             {

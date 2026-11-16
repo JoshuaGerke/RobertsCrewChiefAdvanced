@@ -15,20 +15,24 @@ namespace CrewChiefV4.AiTeam
     {
         private readonly object sync = new object();
         private sealed class Feedback
-        { public string Text, Game, Track; public HashSet<string> Terms; }
+        { public string Text, Game, Track; public HashSet<string> Terms; public bool GeneralSpeechStyle; }
         private readonly List<Feedback> feedback = new List<Feedback>();
         private static readonly HashSet<string> filler = new HashSet<string>(new[] {
             "mochte", "bitte", "immer", "meine", "meinen", "meiner", "unser", "unsere", "diese", "dieser",
             "diesem", "wichtig", "sollst", "sagen", "kannst", "konnen", "nicht", "keine", "mehr", "weniger",
-            "beim", "nachsten", "kunftig", "zukunft", "gerne", "will", "bevorzuge", "erinnere"
+            "beim", "nachsten", "kunftig", "zukunft", "gerne", "will", "bevorzuge", "erinnere", "jetzt", "sofort"
         });
         private static string Topic(string word)
         {
             if (word.StartsWith("bestzeit") || word.StartsWith("rekord")) return "bestzeit";
-            if (word.StartsWith("sprit") || word.StartsWith("kraftstoff") || word.StartsWith("benzin")) return "kraftstoff";
+            if (word.StartsWith("sprit") || word.StartsWith("kraftstoff") || word.StartsWith("benzin") || word.StartsWith("fuel")) return "kraftstoff";
             if (word.StartsWith("schad") || word.StartsWith("beschad")) return "schaden";
-            if (word.StartsWith("reif")) return "reifen";
+            if (word.StartsWith("reif") || word.StartsWith("tyre") || word.StartsWith("tire")) return "reifen";
             if (word.StartsWith("brems")) return "bremsen";
+            if (word.StartsWith("rundenzeit") || word == "pace") return "pace";
+            if (word.StartsWith("abstand") || word.StartsWith("lucke") || word == "gaps") return "abstand";
+            if (word.StartsWith("uberhol") || word.StartsWith("platzgewinn") || word.StartsWith("positionsgewinn")) return "uberholen";
+            if (word.StartsWith("wetter") || word.StartsWith("regen")) return "wetter";
             if (word.StartsWith("funk") || word.StartsWith("ansag") || word.StartsWith("meldung")) return "funk";
             return word;
         }
@@ -38,9 +42,26 @@ namespace CrewChiefV4.AiTeam
             return new HashSet<string>(Regex.Matches(normalized, @"\p{L}{4,}").Cast<Match>().Select(m => m.Value)
                 .Where(w => !filler.Contains(w)).Select(Topic));
         }
+        private static bool GeneralSpeechStyle(string text)
+        {
+            string normalized=(text ?? "").ToLowerInvariant().Replace("ä","a").Replace("ö","o").Replace("ü","u").Replace("ß","ss");
+            var words=Regex.Matches(normalized,@"\p{L}{4,}").Cast<Match>().Select(m=>m.Value).ToArray();
+            bool speech=words.Any(w=>w.StartsWith("sprich") || w.StartsWith("sprech") || w.StartsWith("antwort") ||
+                w.StartsWith("funk") || w.StartsWith("formulier") || w.StartsWith("ansag"));
+            bool style=words.Any(w=>w.StartsWith("kurz") || w.StartsWith("knapp") || w.StartsWith("ausfuhrlich") ||
+                w.StartsWith("naturlich") || w.StartsWith("menschlich"));
+            // A wish about a particular incident must not become a general radio policy.
+            bool specific=words.Any(w=>w.StartsWith("bestzeit") || w.StartsWith("rundenzeit") || w.StartsWith("sprit") ||
+                w.StartsWith("kraftstoff") || w.StartsWith("reifen") || w.StartsWith("schad") || w.StartsWith("abstand") ||
+                w.StartsWith("uberhol") || w.StartsWith("unfall") || w.StartsWith("gefahr") || w.StartsWith("flagge") ||
+                w.StartsWith("wetter") || w.StartsWith("regen"));
+            return speech && style && !specific;
+        }
         private string[] secrets;
         private readonly DiagnosticRecorder journal;
         public readonly RaceFactStore Facts;
+        private readonly StintReferenceStore stints;
+        internal readonly DriverRadioPreferences RadioPreferences;
         private readonly object factSync=new object();
         private string factSessionUid,factSessionType;
         private int factSimulatorSession;
@@ -51,15 +72,17 @@ namespace CrewChiefV4.AiTeam
         public string Status { get { return journal==null ? "Textarchiv voll oder nicht beschreibbar; Notizen bleiben erhalten" : journal.Status; } }
         public long Dropped { get { return journal==null ? 0 : journal.Dropped; } }
         private const int NoteLimit = 128 * 1024;
-        private static readonly Regex wishes = new Regex(@"\b(merk[e]? dir|erinnere dich|ich möchte|ich will|ich bevorzuge|mir ist wichtig|du sollst|bitte immer|bitte künftig|in zukunft|beim nächsten mal|das war falsch|stimmt nicht)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        private static readonly Regex wishes = new Regex(@"\b(merk[e]? dir|erinnere dich|ich m(?:ö|oe|o)chte|ich w(?:ü|ue|u)nsche|ich will|ich bevorzuge|mir ist wichtig|du sollst|bitte immer|bitte k(?:ü|ue|u)nftig|in zukunft|beim n(?:ä|ae|a)chsten mal|ab jetzt|ab sofort|von nun an|das war falsch|stimmt nicht)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         public DriverMemoryStore(string folder, string[] knownSecrets = null, string legacyNotes = null, DiagnosticLimits limits = null)
         {
             Folder=Path.GetFullPath(folder); secrets=knownSecrets ?? new string[0];
             Directory.CreateDirectory(Folder);
+            RadioPreferences=new DriverRadioPreferences(Folder);
             ImportLegacy(legacyNotes);
             RecoverFeedback();
             Facts=new RaceFactStore(Folder);
+            stints=new StintReferenceStore(Folder);
             try {
                 journal=new DiagnosticRecorder(Path.Combine(Folder,"Gespraeche"), limits ?? new DiagnosticLimits {
                     QueueCapacity=128, SegmentBytes=1024*1024, CaptureBytes=8*1024*1024, FolderBytes=128*1024*1024, RecordResources=false
@@ -122,7 +145,7 @@ namespace CrewChiefV4.AiTeam
                 {"speaker",member.ToString()},{"transcript",q},{"text",a},{"game",game},{"track",track},
                 {"source",candidate?"driver_feedback":"dialogue"},{"result",proposedAnswer==null?"driver_input_only":"generated_or_queued_not_audible_proof"}
             },sessionId:sessionId,epoch:Volatile.Read(ref sessionEpoch));
-            if(accepted && candidate) RememberFeedback(q,game,track);
+            if(candidate) RememberFeedback(q,game,track);
             return accepted;
         }
 
@@ -162,7 +185,7 @@ namespace CrewChiefV4.AiTeam
             {
                 string label = FeedbackText(text,game,track);
                 feedback.RemoveAll(s=>string.Equals(s.Text,label,StringComparison.OrdinalIgnoreCase));
-                feedback.Add(new Feedback { Text=label, Game=Clean(game), Track=Clean(track), Terms=Terms(text) });
+                feedback.Add(new Feedback { Text=label, Game=Clean(game), Track=Clean(track), Terms=Terms(text), GeneralSpeechStyle=GeneralSpeechStyle(text) });
                 if(feedback.Count>128) feedback.RemoveAt(0);
             }
         }
@@ -199,11 +222,13 @@ namespace CrewChiefV4.AiTeam
                 if(File.Exists(NotesPath) && new FileInfo(NotesPath).Length<=NoteLimit)
                     notes=string.Join("\n",File.ReadAllLines(NotesPath,Encoding.UTF8).Where(s=>!string.IsNullOrWhiteSpace(s)).Reverse().Take(30).Reverse().Select(Clean));
                 var words=Terms(question);
-                var relevant=feedback.Select((item,index)=>new {item,index,score=words.Count(item.Terms.Contains),
+                var candidates=feedback.Select((item,index)=>new {item,index,score=words.Count(item.Terms.Contains),
                     context=(game!=null && string.Equals(game,item.Game,StringComparison.OrdinalIgnoreCase)?2:0)+
-                        (track!=null && string.Equals(track,item.Track,StringComparison.OrdinalIgnoreCase)?1:0)})
-                    .Where(x=>x.score>0).OrderByDescending(x=>x.score).ThenByDescending(x=>x.context).ThenByDescending(x=>x.index)
-                    .Take(4).Select(x=>x.item.Text.Length>220?x.item.Text.Substring(0,220):x.item.Text);
+                        (track!=null && string.Equals(track,item.Track,StringComparison.OrdinalIgnoreCase)?1:0)}).ToArray();
+                var general=candidates.Where(x=>x.item.GeneralSpeechStyle).OrderByDescending(x=>x.index).Take(1);
+                var relevant=general.Concat(candidates.Where(x=>x.score>0 && !x.item.GeneralSpeechStyle)
+                    .OrderByDescending(x=>x.score).ThenByDescending(x=>x.context).ThenByDescending(x=>x.index).Take(3))
+                    .Select(x=>x.item.Text.Length>220?x.item.Text.Substring(0,220):x.item.Text);
                 if(notes.Length>1800)notes=notes.Substring(notes.Length-1800);
                 string history=string.Join("\n",relevant);
                 if(notes.Length==0 && history.Length==0)return "";
@@ -215,6 +240,7 @@ namespace CrewChiefV4.AiTeam
         public void BeginMeasuredSession(RaceFactContext context,string type,int session)
         {
             lock(factSync) {
+                stints.EndStint();
                 factContext=context;factSessionType=type;factSimulatorSession=session;
                 factSessionUid=Facts.BeginSession(context,type,session);
             }
@@ -225,10 +251,14 @@ namespace CrewChiefV4.AiTeam
                 // Initialization runs asynchronously and may complete after the first session tick.
                 if(factSessionUid==null || factSessionType!=type || factSimulatorSession!=session ||
                     factContext==null || !factContext.SameVehicleTrack(context))BeginMeasuredSession(context,type,session);
-                Facts.ObserveCompletedLap(context,lap,factSessionUid,type,session);
+                if (Facts.ObserveCompletedLap(context,lap,factSessionUid,type,session))
+                    stints.Observe(context,factSessionUid,lap);
             }
         }
-        public void Dispose() { if(journal!=null)journal.Dispose(); if(Facts!=null)Facts.Dispose(); }
+        internal void EndMeasuredStint() { lock(factSync) stints.EndStint(); }
+        internal JObject PreviousStint(RaceFactContext context, int measuredLaps, DateTime now)
+        { lock(factSync) return stints.Previous(context,factSessionUid,measuredLaps,now); }
+        public void Dispose() { if(journal!=null)journal.Dispose(); Facts.Dispose(); stints.Dispose(); }
     }
 
     public static class DriverMemory
@@ -292,6 +322,19 @@ namespace CrewChiefV4.AiTeam
         public static void RememberMeasuredLap(RaceFactContext context,LapRecord lap,string type,int session)
         {var current=Volatile.Read(ref store);if(enabled && current!=null)current.RecordMeasuredLap(context,lap,type,session);}
 
+        internal static void EndMeasuredStint()
+        { var current=Volatile.Read(ref store); if(enabled && current!=null) current.EndMeasuredStint(); }
+
+        internal static JObject PreviousStint(RaceDataContext context)
+        {
+            var current = Volatile.Read(ref store);
+            if (!enabled || current == null || context?.GameState == null || context.Memory == null ||
+                context.TelemetryAgeSeconds < 0 || context.TelemetryAgeSeconds > 1) return null;
+            int measured = context.Memory.GetLaps().Count(lap => lap.Valid && !lap.InPitLap && lap.LapTime >= 5 && lap.LapTime <= 7200);
+            return measured >= 3 ? null : current.PreviousStint(
+                RaceFactContext.FromGameState(context.GameName,context.GameState,context.NowUtc),measured,context.NowUtc);
+        }
+
         public static string FactPromptBlock(RaceDataContext context)
         {
             var current=Volatile.Read(ref store);
@@ -327,11 +370,49 @@ namespace CrewChiefV4.AiTeam
             catch(UnauthorizedAccessException) { noteError="Notizordner ist nicht beschreibbar";return false; }
         }
 
+        public static double RoutineIntervalScale(string topic)
+        {
+            var current=Volatile.Read(ref store);
+            return enabled && current!=null ? current.RadioPreferences.IntervalScale(topic) : 1;
+        }
+        public static int RearTrafficAlertSeconds
+        {
+            get
+            {
+                var current = Volatile.Read(ref store);
+                return enabled && current != null ? current.RadioPreferences.RearTrafficSeconds :
+                    DriverRadioPreferences.DefaultRearTrafficSeconds;
+            }
+        }
+
+        public static bool QualifyingSectorRadioEnabled
+        {
+            get
+            {
+                var current = Volatile.Read(ref store);
+                return !enabled || current == null || current.RadioPreferences.QualifyingSectors;
+            }
+        }
+        public static bool TryRadioPreference(string question,out string reply)
+        {
+            reply=null;
+            if(!DriverRadioPreferences.IsCommand(question))return false;
+            var current=Volatile.Read(ref store);
+            if(!enabled || current==null) { reply="Das Fahrergedächtnis ist ausgeschaltet oder noch nicht bereit. Der Funkwunsch wurde nicht übernommen."; return true; }
+            return current.RadioPreferences.TryCommand(question,out reply);
+        }
+
         public static void BeginSession(string game,string track,string car,string sessionType,int sessionId)
         { var current=Volatile.Read(ref store);if(enabled && current!=null)current.BeginSession(game,track,car,sessionType,sessionId); }
 
         public static void RememberDialogue(TeamMember member,string question,string answer,string game,string track,int sessionId)
-        { var current=Volatile.Read(ref store);if(enabled && current!=null)current.RecordDialogue(member,question,answer,game,track,sessionId); }
+        {
+            var current=Volatile.Read(ref store);
+            if(!enabled || current==null) return;
+            bool queued = current.RecordDialogue(member,question,answer,game,track,sessionId);
+            LiveDiagnostics.Emit("memory.archive", LiveDiagnostics.Data("status", queued ? "queued" : "not_queued",
+                "stage", answer == null ? "driver_input" : "dialogue", "speaker", member.ToString()));
+        }
 
         public static void RememberLap(string game,string track,string car,LapRecord lap,int sessionId)
         { var current=Volatile.Read(ref store);if(enabled && current!=null)current.RecordLap(game,track,car,lap,sessionId); }

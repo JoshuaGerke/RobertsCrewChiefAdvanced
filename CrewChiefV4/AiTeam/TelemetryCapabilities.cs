@@ -14,7 +14,7 @@ namespace CrewChiefV4.AiTeam
         {
             if(ctx==null || ctx.GameState==null)return new JObject { ["verfuegbar"]=false };
             var gs=ctx.GameState;var s=gs.SessionData;
-            var cars=gs.OpponentData.Values.Where(o=>o!=null).Take(256).ToArray();
+            var cars=gs.OpponentData.Values.Where(o=>o!=null && o.IsActive).Take(256).ToArray();
             var c=gs.Conditions.LatestConditions;
             var spatial=ctx.Tracks==null?null:ctx.Tracks.Snapshot;
             int sectors=cars.Count(o=>o.OpponentLapData.Skip(Math.Max(0,o.OpponentLapData.Count-3)).Any(l=>l.SectorTimes.Any(t=>Good(t,.001f,3600))));
@@ -23,12 +23,16 @@ namespace CrewChiefV4.AiTeam
                 ["vollstaendiger_roh_sdk_audit"]=false,
                 ["eigene_position"]=s.ClassPosition>0,
                 ["eigene_bestzeit"]=Good(s.PlayerLapTimeSessionBest,.001f,3600),
+                ["eigene_laufende_sektoren"]=RaceDataTools.CurrentSectors(ctx)!=null,
                 ["klassenbestzeit"]=Good(s.PlayerClassSessionBestLapTime,.001f,3600),
                 ["erfasste_gegner"]=cars.Length,
                 ["gegner_mit_letzter_rundenzeit"]=cars.Count(o=>Good(o.LastLapTime,.001f,3600)),
                 ["gegner_mit_bestzeit"]=cars.Count(o=>Good(o.CurrentBestLapTime,.001f,3600)),
                 ["gegner_mit_erfassten_sektoren"]=sectors,
                 ["gegner_mit_namen"]=ctx.SendDriverNames?cars.Count(o=>!string.IsNullOrWhiteSpace(o.DriverRawName)):(JToken)null,
+                ["beobachtetes_quell_utc"]=gs.SourceTelemetryUtc==DateTime.MinValue?null:gs.SourceTelemetryUtc.ToString("o"),
+                ["pedale"]=TelemetryMeasurementTools.Read(ctx,"control."),
+                ["gegner_mit_eigener_positionszeit"]=cars.Count(o=>o.NativePositionUtc!=DateTime.MinValue),
                 ["raeumliche_beobachtung_frisch"]=spatial!=null && spatial.IsCurrent(ctx),
                 ["tankinhalt"]=gs.FuelData.FuelUseActive && Good(gs.FuelData.FuelLeft,0,10000),
                 ["schadensmodell_aktiv"]=gs.CarDamageData.DamageEnabled,

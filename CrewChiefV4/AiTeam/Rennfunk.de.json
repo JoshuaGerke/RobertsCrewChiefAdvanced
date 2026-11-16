@@ -1,6 +1,238 @@
 {
   "version": 1,
   "groups": {
+    "crew-thermal-pit-handover": [
+      "Das Fenster ist offen. Bei einem Stopp jetzt sieht die Ausfahrt frei aus.",
+      "Wenn wir den Stopp vorziehen, ist die Ausfahrt voraussichtlich frei.",
+      "Wir können den früheren Stopp prüfen. Die Ausfahrt sieht frei aus.",
+      "Für einen frühen Stopp sieht die Lücke an der Boxenausfahrt gut aus."
+    ],
+    "reader-temperature-context": [
+      "{heat} {trend}",
+      "{trend} {heat}",
+      "Kurzes Update. {heat} {trend}",
+      "Pass auf. {heat} {trend}"
+    ],
+    "pit-exit-forecast": [
+      "Wenn wir jetzt stoppen. {forecast}",
+      "Blick auf den Verkehr nach dem Stopp. {forecast}",
+      "Kurze Boxenprognose. {forecast}",
+      "Für einen Stopp auf dieser Runde gilt. {forecast}"
+    ],
+    "race-chase-review": [
+      "Zwei saubere Runden. {result}",
+      "Kurzes Update nach vorn. {result}",
+      "{result} Zwei volle Runden gemessen.",
+      "Nach dem letzten Funk sind zwei saubere Runden durch. {result}"
+    ],
+    "rival-sector-loss": [
+      "{opponent} war in Sektor {sector} {interval} über seinem Schnitt. Bleib dran.",
+      "Sektor {sector}: {opponent} lässt {interval} liegen. Die Lücke ist klein.",
+      "{opponent} hat im Sektor {sector} {interval} auf seine übliche Zeit verloren.",
+      "In Sektor {sector} war {opponent} {interval} langsamer als üblich. Dranbleiben.",
+      "{opponent} verliert {interval} auf seinen Schnitt in Sektor {sector}. Setz ihn ruhig unter Druck.",
+      "{opponent} liegt in Sektor {sector} {interval} über seiner normalen Zeit. Bleib in Reichweite."
+    ],
+    "fuel-saving-review": [
+      "Über zwei grüne Runden waren es {average} Liter pro Runde. {comparison}",
+      "Die letzten zwei sauberen Runden im Schnitt: {average} Liter. {comparison}",
+      "Zwei volle Runden gemessen, {average} Liter pro Runde. {comparison}",
+      "Kurzer Spritcheck: {average} Liter im Schnitt über zwei Runden. {comparison}",
+      "{average} Liter pro Runde über die letzten zwei sauberen Runden. {comparison}",
+      "Im Mittel {average} Liter pro Runde. {comparison}"
+    ],
+    "race-disqualified": [
+      "Oh nein{driver}, du bist disqualifiziert. Das Rennen ist vorbei.",
+      "Das war’s{driver}, die Rennleitung hat dich disqualifiziert. Tut mir leid.",
+      "Bitter{driver}, du bist disqualifiziert. Beim nächsten Mal greifen wir wieder an.",
+      "Disqualifiziert{driver}. Tut mir leid, so wollen wir das Rennen nicht beenden.",
+      "Das Rennen ist für uns vorbei{driver}, Disqualifikation. Das schauen wir uns später in Ruhe an.",
+      "Du bist raus{driver}, disqualifiziert. Kopf hoch, beim nächsten Mal machen wir’s besser."
+    ],
+    "corner-improvement": [
+      "{corner} war diesmal {gain} schneller als dein Schnitt davor. Sauber.",
+      "Gut getroffen. In {corner} hast du {gain} gefunden.",
+      "{gain} gewonnen in {corner}, verglichen mit den Runden davor.",
+      "Das war besser in {corner}. {gain} rausgeholt.",
+      "Der Abschnitt {corner} ging {gain} schneller. Gut umgesetzt.",
+      "Schöner Fortschritt in {corner}. {gain} unter deinem bisherigen Schnitt."
+    ],
+    "pit-undercut-overcut-result": [
+      "Beide Stopps sind durch. {opponent}. {result} {interval} {change}",
+      "Boxenbilanz. {opponent}. {result} {interval} {change}",
+      "{opponent}. Hier ist die Bilanz nach den Stopps. {result} {interval} {change}",
+      "Beide wieder draußen. {opponent}. {result} {interval} {change}",
+      "Die Stopps sind erledigt. {opponent}. {result} {interval} {change}",
+      "Kurzes Boxenfazit. {opponent}. {result} {interval} {change}"
+    ],
+    "stint-consistency": [
+      "Vier Runden eng beieinander um {time}. Sehr sauber{driver}.",
+      "Guter Rhythmus{driver}. Schnitt {time} über vier enge Runden.",
+      "Im Schnitt {time}. Vier Runden mit sehr gleichmäßiger Pace{driver}.",
+      "Saubere Serie{driver}. Deine letzten vier Runden liegen um {time}.",
+      "Vier konstante Runden, im Mittel {time}. Halt den Rhythmus{driver}.",
+      "Das war konstant{driver}. Vier Runden um {time}."
+    ],
+    "race-defense-hold": [
+      "Stark verteidigt{driver}. Drei Runden Platz gehalten. {opponent} liegt {interval} zurück.",
+      "Gut gehalten{driver}. {opponent} ist seit drei Runden dahinter. Abstand {interval}.",
+      "Du hältst den Platz{driver}. {opponent} liegt nach drei engen Runden {interval} zurück.",
+      "Drei enge Runden, Platz gehalten{driver}. {opponent} ist {interval} hinter dir.",
+      "{opponent} ist weiter hinter dir, {interval}. Drei Runden sauber verteidigt{driver}.",
+      "Drei Runden unter Druck, gut gehalten{driver}. {opponent} bleibt {interval} hinter dir."
+    ],
+    "own-sector-best": [
+      "Deine Bestzeit in Sektor {sector}. {time} Sekunden.",
+      "Starker Sektor {sector}. Persönliche Bestzeit mit {time} Sekunden.",
+      "{time} Sekunden. Das war dein bester Sektor {sector}.",
+      "In Sektor {sector} hast du dich verbessert. {time} Sekunden.",
+      "Sektor {sector} in {time} Sekunden. Persönliche Bestmarke.",
+      "Sauberer Sektor {sector}. Deine beste Zwischenzeit hier: {time} Sekunden."
+    ],
+    "own-sector-best-push": [
+      "Bleib fokussiert, daraus kann deine Topzeit werden.",
+      "Jetzt sauber weiter, die Runde lebt.",
+      "Genau so weiter, das riecht nach Bestzeit.",
+      "Konzentriert bleiben, da geht heute was.",
+      "Nicht nachlassen, die Runde kann richtig gut werden.",
+      "Ruhig bleiben und durchziehen, das wird stark."
+    ],
+    "own-best-pace": [
+      "Nach zwei Sektoren {delta} unter deiner Bestzeit. Bleib dran.",
+      "Du bist {delta} schneller als auf deiner Bestzeit. Jetzt den letzten Sektor sauber fahren.",
+      "{delta} Vorsprung auf deine Bestzeit. Ruhig zu Ende fahren.",
+      "Guter Zwischensplit. {delta} unter deiner Bestzeit.",
+      "Du hast {delta} auf deine Bestzeitrunde gutgemacht. Jetzt sauber ins Ziel.",
+      "Zweiter Split ist durch. {delta} Vorsprung auf deine eigene Bestzeit."
+    ],
+    "race-overall-best": [
+      "Neue Gesamtbestzeit. {opponent} fährt {time}.",
+      "{opponent} hat die schnellste Rennrunde im Feld. {time}.",
+      "{time} von {opponent}. Das ist die neue Gesamtbestzeit.",
+      "{opponent} ist jetzt der Schnellste im Feld. {time}.",
+      "Die schnellste Runde im ganzen Feld geht an {opponent}. {time}.",
+      "{opponent}, {time}. Keiner im Feld war bisher schneller."
+    ],
+    "race-rear-pressure": [
+      "{opponent} schließt auf. Nur noch {interval} hinter dir.",
+      "{opponent} macht Druck. Der Abstand ist auf {interval} geschrumpft.",
+      "{opponent} kommt näher. Noch {interval} nach hinten.",
+      "{opponent} hat aufgeholt. Jetzt {interval} Abstand.",
+      "{opponent} rückt näher. Das Polster ist noch {interval}.",
+      "Blick nach hinten. {opponent} hat auf {interval} verkürzt."
+    ],
+    "race-class-best": [
+      "{opponent} setzt die Klassenbestzeit: {time}.",
+      "Neue Bestzeit in deiner Klasse. {opponent}, {time}.",
+      "{time} von {opponent}. Klassenbestzeit.",
+      "Klassenrekord für {opponent}. {time}.",
+      "{opponent}, {time}. Schnellste Runde der Klasse.",
+      "Schnellste Runde in deiner Klasse geht an {opponent}, mit {time}."
+    ],
+    "race-position-loss": [
+      "Wir sind von Platz {from} auf {position} zurückgefallen.",
+      "Jetzt Platz {position}. Vorhin lagen wir auf {from}.",
+      "Die Wertung zeigt Platz {position}, von {from} zurück.",
+      "Platz {from} haben wir verloren. Jetzt sind wir auf {position}.",
+      "Von Platz {from} zurück auf {position}. Jetzt wieder in den Rhythmus kommen.",
+      "Wir lagen auf {from}. In der Wertung stehen wir jetzt auf {position}."
+    ],
+    "lap-first-valid": [
+      "Erste gültige Zeit steht: {time}.",
+      "{time}. Damit steht deine erste gültige Runde.",
+      "Die erste gültige Runde ist drin. {time}.",
+      "Zeit gesetzt. {time} für deine erste gültige Runde.",
+      "Sauber, die erste Zeit zählt. {time}.",
+      "{time} steht. Deine erste gewertete Runde."
+    ],
+    "lap-near-best": [
+      "Knapp dran: {delta} Sekunden über deiner Bestzeit. Bleib bei deinem Rhythmus.",
+      "Deine Bestzeit hält. Nur {delta} Sekunden haben gefehlt.",
+      "Das war nah dran. {delta} Sekunden über deiner besten Runde.",
+      "Fast deine Bestzeit. Es fehlen {delta} Sekunden.",
+      "{delta} Sekunden fehlen zur Bestmarke. Dranbleiben.",
+      "Deine Bestzeit war nur {delta} Sekunden schneller. Du bist nah dran."
+    ],
+    "quali-sector-comparison": [
+      "Sektor {sector}, {time} Sekunden. {delta} {direction} als {opponent}.",
+      "{time} Sekunden in Sektor {sector}. {delta} {direction} als {opponent}.",
+      "Sektor {sector} ist durch. {time} Sekunden, {delta} {direction} als {opponent}.",
+      "Im Sektor {sector} stehen {time} Sekunden. {delta} {direction} als {opponent}.",
+      "Sektor {sector}: {time} Sekunden. Damit {delta} {direction} als {opponent}.",
+      "Für Sektor {sector} stehen {time} Sekunden. {delta} {direction} als {opponent}."
+    ],
+    "race-last": [
+      "Letzte Runde, {driver}. Bleib konzentriert.",
+      "{driver}, noch diese Runde. Sauber bis zur Linie.",
+      "Eine Runde noch, {driver}. Bleib bei deinem Rhythmus.",
+      "{driver}, die letzte Runde läuft. Fokus bis zum Schluss.",
+      "Nur noch diese Runde, {driver}. Bring sie sauber heim.",
+      "{driver}, eine Runde bis zur Flagge. Bleib bei dir."
+    ],
+    "race-closing": [
+      "Noch {laps} Runden, {driver}. Bleib bei deinem Rhythmus.",
+      "{driver}, {laps} Runden verbleiben. Konzentriert zu Ende fahren.",
+      "{laps} Runden noch, {driver}. Sauber weiter.",
+      "{driver}, noch {laps} Runden bis zum Ziel. Behalte deinen Fokus.",
+      "{driver}, die Flagge kommt in {laps} Runden. Sauber bis zum Schluss.",
+      "Wir haben noch {laps} Runden, {driver}. Halt deinen Rhythmus."
+    ],
+    "quali-first": [
+      "Platz {position}. Ganz vorne! Stark gemacht.",
+      "Platz {position}. Jawohl, genau da wollten wir hin!",
+      "Platz {position}. Sehr gut. Jetzt sammeln wir uns fürs Rennen.",
+      "Platz {position}. Klasse gemacht. Den Schwung nehmen wir mit.",
+      "Du stehst vorne auf Platz {position}. Sehr sauber abgeliefert.",
+      "Das ist Platz {position}. Gut gearbeitet, jetzt wieder sammeln."
+    ],
+    "quali-top3": [
+      "Platz {position}. Unter den ersten drei, stark gemacht.",
+      "Platz {position}. Top drei. Sehr gute Arbeit!",
+      "Platz {position}. Top drei gesichert. Jetzt kurz durchatmen.",
+      "Platz {position}. Unter den ersten drei. Darauf bauen wir auf.",
+      "Platz {position} steht. Eine starke Ausgangslage.",
+      "Unter den ersten drei auf Platz {position}. Gute Arbeit."
+    ],
+    "quali-field": [
+      "Platz {position}. Jetzt richten wir den Fokus aufs Rennen.",
+      "Platz {position}. Danke für deinen Einsatz. Weiter geht's im Rennen.",
+      "Platz {position}. Einmal durchatmen, dann bereiten wir das Rennen vor.",
+      "Platz {position}. Das steht. Jetzt machen wir uns fürs Rennen bereit.",
+      "Es ist Platz {position}. Wir gehen von da ins Rennen.",
+      "Die Wertung steht. Platz {position}. Jetzt Blick nach vorn."
+    ],
+    "quali-provisional": [
+      "Aktuell Platz {position}. Das Ergebnis ist noch vorläufig.",
+      "Vorläufig Platz {position}. Wir warten die übrigen Runden ab.",
+      "Im Moment Platz {position}. Noch vorläufig, die Wertung kann sich ändern.",
+      "Stand jetzt Platz {position}. Das ist noch vorläufig.",
+      "In der vorläufigen Wertung bist du auf Platz {position}.",
+      "Platz {position} im Moment. Die endgültige Wertung kommt noch."
+    ],
+    "quali-unknown": [
+      "Dein Platz ist noch nicht bestätigt.",
+      "Die Platzierung ist noch nicht bestätigt. Wir warten auf die Wertung.",
+      "Dein Ergebnis ist noch nicht bestätigt.",
+      "Der Platz ist noch nicht bestätigt. Die Wertung fehlt noch.",
+      "Wir warten noch auf deinen bestätigten Platz.",
+      "Die endgültige Platzierung steht noch aus."
+    ],
+    "gap-front-measured": [
+      "{opponent} liegt {interval} vor dir.",
+      "Nach vorn zu {opponent}: {interval}.",
+      "Auf {opponent} fehlen dir {interval}.",
+      "{interval} Abstand zu {opponent} vor dir.",
+      "Nach vorne sind es {interval} auf {opponent}.",
+      "{interval} fehlen dir bis zu {opponent}."
+    ],
+    "gap-rear-measured": [
+      "{opponent} liegt {interval} hinter dir.",
+      "Nach hinten auf {opponent}: {interval}.",
+      "Du hast {interval} Vorsprung auf {opponent}.",
+      "{interval} Abstand zu {opponent} hinter dir.",
+      "Hinter dir ist {opponent}. Abstand {interval}.",
+      "Nach hinten bleiben {interval} auf {opponent}."
+    ],
     "pass-first": [
       "Sauber, {driver}. Einen Platz gutgemacht. Jetzt auf Position {position}.",
       "Gut durchgezogen, {driver}. Jetzt auf Position {position}.",
@@ -111,19 +343,35 @@
     ],
     "pace-front-faster": [
       "Auf {opponent} fährst du im Schnitt {delta} Sekunden pro Runde schneller.",
-      "Dein Schnitt ist {delta} Sekunden schneller als bei {opponent}."
+      "Dein Schnitt ist {delta} Sekunden schneller als bei {opponent}.",
+      "Im Rundenschnitt sind wir {delta} Sekunden schneller als {opponent}.",
+      "Deine letzten Runden waren im Mittel {delta} Sekunden schneller als die von {opponent}.",
+      "Gutes Tempo. Im Schnitt bist du {delta} Sekunden schneller als {opponent}.",
+      "Der Vergleich zu {opponent}: Wir sind im Schnitt {delta} Sekunden pro Runde schneller."
     ],
     "pace-front-slower": [
       "{opponent} ist im Schnitt {delta} Sekunden pro Runde schneller.",
-      "Im Rundenschnitt fehlen {delta} Sekunden auf {opponent}."
+      "Im Rundenschnitt fehlen {delta} Sekunden auf {opponent}.",
+      "Verglichen mit {opponent} sind wir im Schnitt {delta} Sekunden pro Runde langsamer.",
+      "{opponent} fährt die Runden im Mittel {delta} Sekunden schneller als wir.",
+      "Unser Rundenschnitt liegt {delta} Sekunden über dem von {opponent}.",
+      "Zum Tempo von {opponent} fehlen uns im Schnitt {delta} Sekunden pro Runde."
     ],
     "pace-rear-faster": [
       "Dein Rundenschnitt ist {delta} Sekunden schneller als bei {opponent}.",
-      "Auf {opponent} hast du im Schnitt {delta} Sekunden pro Runde gutgemacht."
+      "Dein Rundenschnitt gegenüber {opponent}: {delta} Sekunden schneller.",
+      "Verglichen mit {opponent} hinter dir sind wir im Schnitt {delta} Sekunden schneller.",
+      "Deine letzten Runden waren im Mittel {delta} Sekunden schneller als die von {opponent}.",
+      "Wir fahren im Schnitt {delta} Sekunden pro Runde schneller als {opponent} hinter uns.",
+      "Gutes Tempo. Im Rundenschnitt liegen wir {delta} Sekunden vor {opponent}."
     ],
     "pace-rear-slower": [
       "{opponent} hinter dir fährt im Schnitt {delta} Sekunden pro Runde schneller.",
-      "Im Rundenschnitt ist {opponent} hinter dir {delta} Sekunden schneller."
+      "Im Rundenschnitt ist {opponent} hinter dir {delta} Sekunden schneller.",
+      "{opponent} hinter uns fährt im Schnitt {delta} Sekunden pro Runde schneller.",
+      "Der Rundenschnitt von {opponent} hinter dir ist {delta} Sekunden schneller als deiner.",
+      "Verglichen mit {opponent} hinter uns verlieren wir im Schnitt {delta} Sekunden pro Runde.",
+      "Unser Rundenschnitt liegt {delta} Sekunden über dem von {opponent} hinter dir."
     ],
     "lap-best": [
       "Sauber, neue Bestzeit. {time}.",
@@ -147,9 +395,9 @@
       "Podium, richtig stark!",
       "Das ist ein Podestplatz. Glückwunsch!",
       "Auf dem Podium. Stark gemacht!",
-      "Podestplatz im Ziel. Freu dich darüber!",
+      "Jawohl, das Treppchen gehört dir!",
       "Jawohl, Podium! Glückwunsch!",
-      "Unter den Top Drei im Ziel. Klasse!",
+      "Top drei! Das hast du dir verdient.",
       "Das Podium ist geschafft. Sehr gut!",
       "Ein Platz auf dem Treppchen. Stark!",
       "Glückwunsch zum Podestplatz!",

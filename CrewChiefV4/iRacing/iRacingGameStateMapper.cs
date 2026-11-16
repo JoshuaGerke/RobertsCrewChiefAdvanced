@@ -80,6 +80,8 @@ namespace CrewChiefV4.iRacing
             CrewChiefV4.iRacing.iRacingSharedMemoryReader.iRacingStructWrapper wrapper = (CrewChiefV4.iRacing.iRacingSharedMemoryReader.iRacingStructWrapper)memoryMappedFileStruct;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
             currentGameState.rawGameData = wrapper;
+            if(wrapper.sourceSampleTicks>0 && wrapper.sourceSampleTicks<=wrapper.ticksWhenRead)
+                currentGameState.SourceTelemetryUtc=new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc);
             Sim shared = wrapper.data;
 
             if (shared.Telemetry.IsReplayPlaying)
@@ -460,6 +462,9 @@ namespace CrewChiefV4.iRacing
             currentGameState.ControlData.BrakePedal = shared.Telemetry.Brake;
             currentGameState.ControlData.HandBrake = shared.Telemetry.HandBrake;
             currentGameState.ControlData.SteeringWheelAngle = shared.Telemetry.SteeringWheelAngle;
+            if (wrapper.sourceSampleTicks > 0)
+                TelemetryMeasurements.Pedals(currentGameState, "iRacing.SDK", currentGameState.SourceTelemetryUtc,
+                    "Throttle", "Brake", "Clutch");
             currentGameState.ControlData.BrakeBias = shared.Telemetry.dcBrakeBias;
             currentGameState.TransmissionData.Gear = shared.Telemetry.Gear;
 

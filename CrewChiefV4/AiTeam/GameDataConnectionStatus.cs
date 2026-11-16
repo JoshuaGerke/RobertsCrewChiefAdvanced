@@ -10,7 +10,18 @@ namespace CrewChiefV4.AiTeam
         private static Read latest;
 
         public static void Record(string game, DateTime utc)
-        { Volatile.Write(ref latest, new Read { Game=game, Utc=utc }); }
+        {
+            // Keep the reachability badge fresh without allocating a new record for every physics packet.
+            var read = Volatile.Read(ref latest);
+            if (read != null && read.Game == game && utc >= read.Utc &&
+                utc - read.Utc < TimeSpan.FromMilliseconds(100)) return;
+            Volatile.Write(ref latest, new Read { Game=game, Utc=utc });
+        }
+
+        public static void Clear()
+        {
+            Volatile.Write(ref latest, null);
+        }
 
         public static string SourceAt(DateTime utc)
         {

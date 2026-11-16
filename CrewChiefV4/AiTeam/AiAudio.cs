@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -20,6 +21,8 @@ namespace CrewChiefV4.AiTeam
         {
             public byte[] Wav;
             public string Subtitle;
+            public string EventId;
+            public string Topic;
             public DateTime CreatedUtc;
             public Func<bool> IsValid;
             public Action Started;
@@ -31,12 +34,12 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly ConcurrentDictionary<string, Entry> clips = new ConcurrentDictionary<string, Entry>();
 
-        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null)
+        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null, string eventId = null, string topic = null)
         {
             if (wav == null || wav.Length == 0 || wav.Length > 16 * 1024 * 1024) throw new ArgumentException("Ungültiger Audioclip.");
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, Topic = topic, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
             // Bound unplayed audio even if a backend rejects its queue entry without requesting it.
             foreach (var old in clips.OrderBy(kv => kv.Value.CreatedUtc).ToArray())
             {
@@ -45,6 +48,10 @@ namespace CrewChiefV4.AiTeam
             }
             return id;
         }
+
+        internal static string GetEventId(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.EventId : null;
+
+        internal static string GetTopic(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.Topic : null;
 
         public static bool TryGet(string id, out byte[] wav, out string subtitle)
         {
@@ -304,47 +311,46 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly object directSync = new object();
         private static WaveOutEvent directOut;
-        private static TeamMember directMember;
 
-        /// <summary>
-        /// Spielt einen Clip direkt ab. Nur für Tests im KI-Team-Fenster, solange Crew Chief nicht gestartet ist
-        /// (dann verwirft die Crew-Chief-Audioengine alle Ansagen). Im Rennen läuft alles über Crew Chief.
-        /// </summary>
-        private static float DirectPlaybackVolume()
-        {
-            float volume = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume :
-                UserSettings.GetUserSettings().getFloat("messages_volume");
-            return float.IsNaN(volume) || float.IsInfinity(volume) ? 0 : Math.Max(0, Math.Min(1, volume)) * CrewVoiceLevels.Get(directMember.ToString().ToLowerInvariant());
-        }
-
-        public static void RefreshDirectVolume()
-        {
-            lock (directSync) { if (directOut != null) directOut.Volume = DirectPlaybackVolume(); }
-        }
-
+        /// <summary>Voice test while the Crew Chief playback monitor is stopped.</summary>
         public static void PlayDirect(byte[] wav, int deviceNumber, TeamMember member = TeamMember.Ben)
         {
             lock (directSync)
             {
-                if (directOut != null)
+                directOut?.Stop();
+                var input = new MemoryStream(wav);
+                WaveFileReader reader = null;
+                WaveOutEvent output = null;
+                int closed = 0;
+                Action release = () =>
                 {
-                    directOut.Stop();
-                }
-                directMember = member;
-                var reader = new WaveFileReader(new MemoryStream(wav));
-                var output = new WaveOutEvent { DeviceNumber = deviceNumber, Volume = DirectPlaybackVolume() };
-                output.PlaybackStopped += (s, e) =>
-                {
-                    lock (directSync)
-                    {
-                        if (ReferenceEquals(directOut, output)) directOut = null;
-                        output.Dispose();
-                        reader.Dispose();
-                    }
+                    if (Interlocked.Exchange(ref closed, 1) != 0) return;
+                    Interlocked.CompareExchange(ref directOut, null, output);
+                    try { output?.Dispose(); }
+                    finally { try { reader?.Dispose(); } finally { input.Dispose(); } }
                 };
-                output.Init(reader);
-                directOut = output;
-                output.Play();
+                try
+                {
+                    reader = new WaveFileReader(input);
+                    output = new WaveOutEvent { DeviceNumber = deviceNumber };
+                    string role = member.ToString().ToLowerInvariant();
+                    float savedVolume = MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume :
+                        UserSettings.GetUserSettings().getFloat("messages_volume");
+                    var provider = new CrewChiefV4.Audio.RadioGainSampleProvider(reader.ToSampleProvider(), () =>
+                        (MainWindow.currentMessageVolume >= 0 ? MainWindow.currentMessageVolume : savedVolume) * CrewVoiceLevels.Get(role));
+                    output.PlaybackStopped += (s, e) => ThreadPool.QueueUserWorkItem(_ =>
+                    {
+                        try { release(); } catch (Exception error) { Log.Exception(error); }
+                    });
+                    output.Init(provider);
+                    directOut = output;
+                    output.Play();
+                }
+                catch
+                {
+                    release();
+                    throw;
+                }
             }
         }
 

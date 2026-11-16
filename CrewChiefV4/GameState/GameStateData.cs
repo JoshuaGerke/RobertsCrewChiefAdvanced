@@ -1055,6 +1055,8 @@ namespace CrewChiefV4.GameState
 
         // 0 means we don't know what sector we're in. This is 1-indexed
         public int SectorNumber;
+        // Equal-distance fallback sectors do not establish the simulator's timing lines.
+        public bool SectorTimingEstimated;
 
         public Boolean IsNewSector;
 
@@ -1611,6 +1613,7 @@ namespace CrewChiefV4.GameState
 
     public class OpponentData
     {
+        internal DateTime NativePositionUtc;
         // Sometimes the name is corrupted with previous session's data. Worst case is that the name is entirely readable
         // but completely invalid. We must prevent such names being read.
         public Boolean CanUseName = true;
@@ -1681,6 +1684,7 @@ namespace CrewChiefV4.GameState
         public Boolean IsStartLapInserted = false;
 
         public int r3eUserId = -1;
+        public int r3eSlotId = -1;
 
         private List<LapData> _OpponentLapData;
         public List<LapData> OpponentLapData
@@ -4169,6 +4173,7 @@ namespace CrewChiefV4.GameState
 
         public DateTime Now;
         public DateTime SourceTelemetryUtc=DateTime.MinValue;
+        internal bool RequiresNativeSourceClock;
         public readonly Dictionary<string,TelemetryMeasurement> Measurements = new Dictionary<string,TelemetryMeasurement>();
 
         // ACC has a Clock field which is the time of day in the game world, in milliseconds

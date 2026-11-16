@@ -44,7 +44,10 @@ namespace CrewChiefV4.assetto
         public override Tuple<GridSide, Dictionary<int, GridSide>> getGridSide(Object currentStateObj)
         {
             ACEShared latestRawData = ((ACESharedMemoryReader.ACEStructWrapper)currentStateObj).data;
-            aceVehicleInfo playerData = latestRawData.aceChief.vehicle[latestRawData.aceChief.playerIndex];
+            int playerIndex=ACESharedMemoryReader.PlayerIndex(latestRawData);
+            if(playerIndex<0 || latestRawData.aceChief.vehicle==null || playerIndex>=latestRawData.aceChief.vehicle.Length)
+                return new Tuple<GridSide,Dictionary<int,GridSide>>(GridSide.UNKNOWN,new Dictionary<int,GridSide>());
+            aceVehicleInfo playerData = latestRawData.aceChief.vehicle[playerIndex];
             float playerRotation = latestRawData.acePhysics.heading;
             if (playerRotation < 0)
             {
@@ -83,11 +86,15 @@ namespace CrewChiefV4.assetto
             }
             ACEShared currentState = ((ACESharedMemoryReader.ACEStructWrapper)currentStateObj).data;
             ACEShared lastState = ((ACESharedMemoryReader.ACEStructWrapper)lastStateObj).data;
+            int currentIndex=ACESharedMemoryReader.PlayerIndex(currentState), previousIndex=ACESharedMemoryReader.PlayerIndex(lastState);
+            if(currentIndex<0 || previousIndex<0 || currentState.aceChief.vehicle==null || lastState.aceChief.vehicle==null ||
+                currentIndex>=currentState.aceChief.vehicle.Length || previousIndex>=lastState.aceChief.vehicle.Length ||
+                !currentState.aceChief.vehicle[currentIndex].carId.Equals(lastState.aceChief.vehicle[previousIndex].carId))return;
 
             if (!enabled || currentState.aceGraphic.totalDrivers <= 1 ||
                 currentState.aceGraphic.status == ACEVO_STATUS.AC_REPLAY || currentState.aceGraphic.status == ACEVO_STATUS.AC_OFF ||
-                (mapToFloatTime(currentState.aceChief.vehicle[currentState.aceChief.playerIndex].currentLapTimeMS) < timeAfterRaceStartToActivate &&
-                currentState.aceChief.vehicle[currentState.aceChief.playerIndex].lapCount <= 0))
+                (mapToFloatTime(currentState.aceChief.vehicle[currentIndex].currentLapTimeMS) < timeAfterRaceStartToActivate &&
+                currentState.aceChief.vehicle[currentIndex].lapCount <= 0))
             { 
                return;  
             }
@@ -97,8 +104,8 @@ namespace CrewChiefV4.assetto
             float timeDiffSeconds;
             try
             {
-                currentPlayerData = currentState.aceChief.vehicle[currentState.aceChief.playerIndex];
-                previousPlayerData = lastState.aceChief.vehicle[currentState.aceChief.playerIndex];
+                currentPlayerData = currentState.aceChief.vehicle[currentIndex];
+                previousPlayerData = lastState.aceChief.vehicle[previousIndex];
                 timeDiffSeconds = ((float)(now - previousTime).TotalMilliseconds) / 1000f;
                 previousTime = now;
                 if (timeDiffSeconds <= 0)
@@ -130,8 +137,9 @@ namespace CrewChiefV4.assetto
                 playerVelocityData[1] = (currentPlayerData.worldPosition.x - previousPlayerData.worldPosition.x) / timeDiffSeconds;
                 playerVelocityData[2] = (currentPlayerData.worldPosition.z - previousPlayerData.worldPosition.z) / timeDiffSeconds;
 
-                for (int i = 1; i < Math.Min(currentState.aceGraphic.totalDrivers, assettoConstant.MaxVehicles); i++)
+                for (int i = 0; i < Math.Min(currentState.aceChief.vehicle.Length, assettoConstant.MaxVehicles); i++)
                 {
+                    if(i==currentIndex)continue;
                     aceVehicleInfo vehicle = currentState.aceChief.vehicle[i];
                     if (vehicle.carId.carIdA == 0 || vehicle.isCarInPitlane == 1 || vehicle.isCarInPitlane == 1 || vehicle.isConnected != 1)
                     {

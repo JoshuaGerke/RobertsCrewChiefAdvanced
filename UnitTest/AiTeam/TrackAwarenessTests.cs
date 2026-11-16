@@ -33,10 +33,150 @@ namespace UnitTest.AiTeamTests
         {return new RaceDataContext {GameState=s,Tracks=tracks,NowUtc=now,LastTelemetryUtc=now,SendDriverNames=true,GameName="Synthetic"};}
         private static void Move(GameStateData s,OpponentData car,double seconds,float initialGap=100,float rivalSpeed=35)
         {
+            s.Now=T.AddSeconds(seconds);
             s.PositionAndMotionData.DistanceRoundTrack=1000+(float)seconds*40;
             s.PositionAndMotionData.WorldPosition=new[]{s.PositionAndMotionData.DistanceRoundTrack,0f,0f};
             car.DistanceRoundTrack=1000+initialGap+(float)seconds*rivalSpeed;car.Speed=rivalSpeed;
             car.WorldPosition=new[]{car.DistanceRoundTrack,0f};
+        }
+
+        [Test]
+        public void Gleicher_Quellframe_wird_nicht_als_neue_Streckenposition_veroeffentlicht()
+        {
+            var state = State();
+            Add(state);
+            var tracks = new TrackAwareness();
+            state.SourceTelemetryUtc = T;
+            Assert.IsTrue(tracks.Observe(state, T));
+            Assert.IsFalse(tracks.Observe(state, T.AddMilliseconds(100)));
+            Assert.AreEqual(T, tracks.Snapshot.Utc);
+            Assert.IsFalse(tracks.Observe(state, T.AddSeconds(2)));
+            Assert.IsNull(tracks.Snapshot);
+        }
+
+        [Test]
+        public void Kartenabstand_zu_anderer_Klasse_wird_in_Metern_genannt()
+        {
+            var state = State();
+            var car = Add(state, "Keller", 1075);
+            car.CarClass = new CarData.CarClass { carClassEnum = CarData.CarClassEnum.GT3 };
+            var tracks = new TrackAwareness();
+            tracks.Observe(state, T);
+            var ctx = Context(state, tracks, T);
+            StringAssert.Contains("Keller ist auf der Strecke etwa 75 Meter vor dir",
+                LocalAnswers.TrackNeighbour("wer ist auf der Strecke vor mir?", ctx));
+            car.r3eSlotId = 23;
+            StringAssert.DoesNotContain("Keller", LocalAnswers.TrackNeighbour("wer ist auf der Strecke vor mir?", ctx));
+        }
+
+        [Test]
+        public void Quali_Verkehrsfrage_nennt_lokal_den_Fahrer_und_prueft_seine_Identitaet()
+        {
+            var state = State(SessionType.Qualify);
+            var rival = Add(state, "serrano7", 1075);
+            var tracks = new TrackAwareness();
+            tracks.Observe(state, T);
+            var context = Context(state, tracks, T);
+            const string question = "Fährt aktuell jemand vor mir?";
+            Assert.AreEqual("serrano7 fährt vor dir.", LocalAnswers.TrackNeighbour(question, context, out var identity));
+            Assert.IsNotNull(identity);
+            context.SendDriverNames = false;
+            StringAssert.DoesNotContain("serrano7", LocalAnswers.TrackNeighbour(question, context));
+            context.SendDriverNames = true;
+            rival.r3eSlotId = 23;
+            StringAssert.DoesNotContain("serrano7", LocalAnswers.TrackNeighbour(question, context, out identity));
+            Assert.IsNull(identity);
+        }
+
+        [Test]
+        public void Routinefunk_wartet_bis_hinter_dem_Kurvenausgang()
+        {
+            var coach = new CornerCoach();
+            coach.SetTrack(new[] { new CornerDefinition { Name = "Kurve", Start = 1000, End = 1100 } }, 5000);
+            Assert.IsFalse(coach.RadioBrakingWindow(800, 50));
+            Assert.IsTrue(coach.RadioBrakingWindow(850, 50));
+            Assert.IsTrue(coach.RadioBrakingWindow(1070, 50));
+            Assert.IsFalse(coach.RadioBrakingWindow(1105, 50));
+        }
+
+        [Test]
+        public void Quali_Sektor_vergleicht_die_bestaetigte_Bestrunde_des_eindeutigen_Fuehrenden()
+        {
+            var before = State(SessionType.Qualify);
+            before.SessionData.SectorNumber = 1;
+            var after = State(SessionType.Qualify);
+            after.SessionData.SectorNumber = 2;
+            var leader = Add(after, "Keller");
+            leader.ClassPosition = 1;
+            leader.CurrentBestLapTime = 117;
+            leader.OpponentLapData.Add(new LapData { LapNumber = 2, LapTime = 117, SectorTimes = new[] { 35.612f, 40, 41.388f } });
+            after.SessionData.PlayerLapData.Add(new LapData { LapNumber = 3, SectorTimes = new[] { 35.170f, 0, 0 } });
+            var observer = new SessionLapObserver();
+            observer.Observe(before, null, T, true);
+            observer.Observe(after, null, T.AddMilliseconds(100), true, before);
+            var call = observer.Take(after, T.AddMilliseconds(100), false);
+            Assert.IsNotNull(call);
+            StringAssert.Contains("35,170", call.Text);
+            StringAssert.Contains("0,442 schneller als Keller", call.Text);
+            leader.r3eSlotId = 23;
+            Assert.IsFalse(call.IsValid(after, T.AddMilliseconds(200)));
+        }
+
+        [Test]
+        public void Rennen_vergleicht_korrespondierende_saubere_Runden_und_respektiert_die_Namensfreigabe()
+        {
+            var state = State(SessionType.Race);
+            state.SessionData.SessionPhase = SessionPhase.Finished;
+            state.SessionData.ClassPosition = 4;
+            var leader = Add(state, "Keller");
+            leader.ClassPosition = 1;
+            for (int lap = 1; lap <= 6; lap++)
+            {
+                state.SessionData.PlayerLapData.Add(new LapData { LapNumber = lap, LapTime = 100, IsValid = lap != 5,
+                    SectorTimes = new[] { 30f, 35f, 35f } });
+                leader.OpponentLapData.Add(new LapData { LapNumber = lap, LapTime = 99, InLap = lap == 6,
+                    SectorTimes = new[] { 29f, 35f, 35f } });
+            }
+            var ctx = Context(state, null, T);
+            var row = RaceDataTools.RacePaceReview(ctx)["fahrer"][0];
+            Assert.AreEqual("Keller", (string)row["name"]);
+            Assert.AreEqual(3, (int)row["vergleichbare_runden"]);
+            Assert.AreEqual(1, (double)row["rueckstand_s_pro_runde"]);
+            Assert.AreEqual(1, (double)row["sektorrueckstand_s"][0]);
+            var call = RaceDataTools.RacePaceRadio(ctx);
+            StringAssert.Contains("Keller", call.Text);
+            Assert.IsTrue(call.StillCurrent(state, T));
+            leader.r3eSlotId = 13;
+            Assert.IsFalse(call.StillCurrent(state, T));
+            ctx.SendDriverNames = false;
+            StringAssert.DoesNotContain("Keller", RaceDataTools.RacePaceRadio(ctx).Text);
+            leader.OpponentLapData.Add(new LapData { LapNumber = 2, LapTime = 99 });
+            Assert.IsNull(RaceDataTools.RacePaceRadio(ctx));
+        }
+
+        [Test]
+        public void Quali_Varianten_rotieren_erst_nach_abgeschlossener_Wiedergabe()
+        {
+            var cursor = new RadioVariantCursor();
+            var catalog = RadioPhraseCatalog.Current;
+            const string group = "lap-first-valid";
+            var state = State(SessionType.Qualify);
+            var variants = new HashSet<string>();
+            for (int index = 0; index < 5; index++)
+            {
+                var utc = T.AddSeconds(index);
+                var call = new ObservedRaceCall { Topic = "own-lap", VariantCursor = cursor, DetectedUtc = utc, ExpiresUtc = utc.AddSeconds(1) };
+                Assert.IsTrue(variants.Add(catalog.Format(group, cursor.Heard, "1:57,120")));
+                Assert.IsTrue(call.TryReserve(utc));
+                call.MarkPlaybackStarted(utc);
+                call.MarkPlaybackFinished(utc, interrupted: true);
+                Assert.AreEqual(index, cursor.Heard);
+                var next = new ObservedRaceCall { Topic = "own-lap", VariantCursor = cursor, DetectedUtc = utc, ExpiresUtc = utc.AddSeconds(1) };
+                Assert.IsTrue(next.TryReserve(utc));
+                next.MarkPlaybackStarted(utc);
+                next.MarkPlaybackFinished(utc, interrupted: false);
+            }
+            Assert.AreEqual(5, variants.Count);
         }
 
         [Test]

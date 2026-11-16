@@ -267,9 +267,10 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
-        public static string DamageReport(CarDamageData d, bool brief = false)
+        public static string DamageReport(CarDamageData d, bool brief = false, bool includeAdvice = true)
         {
-            var numeric = NumericDamageWatch.Report(d);
+            // Im kurzen Routinebericht nur Werte ab 1 Prozent; die ausführliche Auskunft nennt weiter alles ab 0,05.
+            var numeric = brief ? NumericDamageWatch.Report(d, 1f) : NumericDamageWatch.Report(d);
             if (!d.DamageEnabled) return numeric;
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
@@ -298,15 +299,32 @@ namespace CrewChiefV4.AiTeam
             if (parts.Count == 0)
             {
                 if(d.OverallAeroDamage==DamageLevel.UNKNOWN || d.OverallEngineDamage==DamageLevel.UNKNOWN || d.OverallTransmissionDamage==DamageLevel.UNKNOWN)
-                    return RadioLanguage.T("Für eine vollständige Schadensbewertung fehlen Messwerte.", "Missing data for a full damage assessment.", "Faltan datos para valorar los daños por completo.");
+                    // Rob 16.11.: „fehlen Messwerte“ half nicht weiter. Gemeldetes sagen, Fehlendes ehrlich und mit Handlungshinweis.
+                    return d.OverallAeroDamage == DamageLevel.NONE || d.OverallEngineDamage == DamageLevel.NONE || d.OverallTransmissionDamage == DamageLevel.NONE
+                        ? RadioLanguage.T("Das Spiel meldet keinen Schaden, soweit es Werte liefert. Fühlt sich das Auto komisch an, sag Bescheid.",
+                            "The game reports no damage as far as it gives data. If the car feels odd, tell me.",
+                            "El juego no indica daños hasta donde da datos. Si notas algo raro, dímelo.")
+                        : RadioLanguage.T("Schadenswerte liefert das Spiel hier nicht. Fühlt sich das Auto komisch an, sag Bescheid.",
+                            "The game doesn't give damage values here. If the car feels odd, tell me.",
+                            "El juego no da valores de daño aquí. Si notas algo raro, dímelo.");
                 return brief ? RadioLanguage.T("Aero, Motor und Getriebe laut Meldung unauffällig.", "Aero, engine and gearbox reported clear.", "Aerodinámica, motor y caja de cambios sin incidencias según los datos.") :
                     RadioLanguage.T("Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.",
                         "No significant damage reported to aero, engine or gearbox. Brakes and suspension can only be judged as far as the game reports them.",
                         "Sin daños relevantes en aerodinámica, motor y caja de cambios. Frenos y suspensión solo se pueden valorar hasta donde informa el juego.");
             }
             string text = string.Join(", ", parts) + ".";
-            return serious ? text + RadioLanguage.T(" Wenn sich das Auto komisch anfühlt, komm an die Box.", " If the car feels strange, box.", " Si notas el coche raro, entra a boxes.") : text;
+            return serious && includeAdvice ? text + RadioLanguage.T(" Wenn sich das Auto komisch anfühlt, komm an die Box.", " If the car feels strange, box.", " Si notas el coche raro, entra a boxes.") : text;
         }
+
+        internal static string PitAdviceAfterDamage(GameStateData state)
+        {
+            if (state == null || state.SessionData.SessionType != SessionType.Race || state.SessionData.SessionPhase != SessionPhase.Green ||
+                state.FlagData.isLocalYellow || state.PitData.InPitlane || state.PitData.PitWindow != PitWindow.Open ||
+                state.PitData.HasRequestedPitStop || !state.CarDamageData.DamageEnabled) return null;
+            return IsSerious(state.CarDamageData) ? DamagePitAdvicePhrase : null;
+        }
+
+        internal const string DamagePitAdvicePhrase = "Box diese Runde. Wir prüfen den Schaden.";
 
         public static bool DamageIncreased(CarDamageData before, CarDamageData now)
         {

@@ -77,6 +77,7 @@ namespace CrewChiefV4.AMS2
         private DateTime nextDebugCheckeredToFinishMessageTime = DateTime.MinValue;
 
         private static int lastGuessAtPlayerIndex = -1;
+        private static string lastPlayingDriverName;
 
         Dictionary<string, DateTime> lastActiveTimeForOpponents = new Dictionary<string, DateTime>();
         DateTime nextOpponentCleanupTime = DateTime.MinValue;
@@ -145,6 +146,8 @@ namespace CrewChiefV4.AMS2
 
         public static int getPlayerIndex(ams2APIStruct ams2APIStruct)
         {
+            if (!ValidParticipantIndex(ams2APIStruct, ams2APIStruct.mViewedParticipantIndex))
+                return -1;
             // we have no idea where in the participants array the local player is. No idea at all. And there's no way to work it out.
             // Offline it's generally 0. Online it can be anything. We can't use mViewedParticipantIndex here because monitoring other
             // cars will fck up the internal state. mViewedParticipantIndex is random and wrong when you first enter a session so we 
@@ -154,6 +157,7 @@ namespace CrewChiefV4.AMS2
             if (ams2APIStruct.mGameState == (uint)eGameState.GAME_INGAME_PLAYING)
             {
                 lastGuessAtPlayerIndex = ams2APIStruct.mViewedParticipantIndex;
+                lastPlayingDriverName = StructHelper.getNameFromBytes(ams2APIStruct.mParticipantData[lastGuessAtPlayerIndex].mName);
                 //Console.WriteLine("Playing, updating player index guess to " + ams2APIStruct.mViewedParticipantIndex + 
                 //    " player name " + StructHelper.getNameFromBytes(ams2APIStruct.mParticipantData[lastGuessAtPlayerIndex].mName));                
             }
@@ -163,7 +167,18 @@ namespace CrewChiefV4.AMS2
                 // all we can do here is report what the game tells us, even though it'll be wrong
                 return ams2APIStruct.mViewedParticipantIndex;
             }
+            if (!ValidParticipantIndex(ams2APIStruct, lastGuessAtPlayerIndex)) return -1;
+            // A slot can be reassigned while the user stays in the menu. Never inherit that driver's telemetry.
+            if (!string.IsNullOrEmpty(lastPlayingDriverName) && !string.Equals(lastPlayingDriverName,
+                StructHelper.getNameFromBytes(ams2APIStruct.mParticipantData[lastGuessAtPlayerIndex].mName), StringComparison.Ordinal)) return -1;
             return lastGuessAtPlayerIndex;
+        }
+
+        internal static bool ValidParticipantIndex(ams2APIStruct data, int index)
+        {
+            return data.mParticipantData != null && data.mNumParticipants > 0 && data.mNumParticipants <= 64 &&
+                data.mNumParticipants <= data.mParticipantData.Length && index >= 0 && index < data.mNumParticipants &&
+                data.mParticipantData[index].mIsActive;
         }
 
         /// <summary>MMF publishes the live lap timer directly. UDP has only per-sector timers;
@@ -210,7 +225,7 @@ namespace CrewChiefV4.AMS2
                 CrewChief.trackName = StructHelper.getNameFromBytes(shared.mTrackLocation) + ":" + StructHelper.getNameFromBytes(shared.mTrackVariation);
                 CrewChief.carClass = CarData.getCarClassForClassNameOrCarName(StructHelper.getNameFromBytes(shared.mCarClassName)).carClassEnum;
                 CrewChief.viewingReplay = true;
-                if (shared.mViewedParticipantIndex != -1)
+                if (ValidParticipantIndex(shared, shared.mViewedParticipantIndex))
                 {
                     CrewChief.distanceRoundTrack = shared.mParticipantData[shared.mViewedParticipantIndex].mCurrentLapDistance;
                 }
@@ -371,6 +386,7 @@ namespace CrewChiefV4.AMS2
                 )
             {
                 lastGuessAtPlayerIndex = -1;
+                lastPlayingDriverName = null;
                 lastActiveTimeForOpponents.Clear();
                 nextOpponentCleanupTime = currentGameState.Now + opponentCleanupInterval;
                 Console.WriteLine("New session, trigger...");
@@ -629,6 +645,9 @@ namespace CrewChiefV4.AMS2
             currentGameState.ControlData.BrakePedal = shared.mBrake;
             currentGameState.ControlData.HandBrake = shared.mHandBrake;
             currentGameState.ControlData.SteeringWheelAngle = shared.mSteering;
+            if (wrapper.sourceSampleTicks > 0)
+                TelemetryMeasurements.Pedals(currentGameState, "AMS2.SharedMemory", currentGameState.SourceTelemetryUtc,
+                    "mThrottle", "mBrake", "mClutch");
 
             //------------------- Variable session data ---------------------------
             if (currentGameState.SessionData.SessionHasFixedTime)
@@ -740,6 +759,8 @@ namespace CrewChiefV4.AMS2
             }
 
             currentGameState.SessionData.LapTimeCurrent = CurrentLapSeconds(shared,playerIndex,wrapper.sdk14LayoutSelected);
+            FillMissingPlayerBestsFromSimulator(currentGameState.SessionData, shared.mPersonalFastestLapTime,
+                shared.mPersonalFastestSector1Time, shared.mPersonalFastestSector2Time, shared.mPersonalFastestSector3Time);
 
             currentGameState.SessionData.TimeDeltaBehind = shared.mSplitTimeBehind;
             currentGameState.SessionData.TimeDeltaFront = shared.mSplitTimeAhead;
@@ -877,6 +898,7 @@ namespace CrewChiefV4.AMS2
                                             currentGameState.SessionData.SessionHasFixedTime, currentGameState.SessionData.SessionTimeRemaining,
                                             lastSectorTime, shared.mLapsInvalidated[i] == 1, currentGameState.SessionData.TrackDefinition.distanceForNearPitEntryChecks,
                                             currentGameState.TimingData, currentGameState.carClass);
+                                    FillMissingLapTimesFromSimulator(currentOpponentData, shared.mFastestLapTimes, shared.mLastLapTimes, i);
 
                                     currentOpponentData.DeltaTime.SetNextDeltaPoint(currentOpponentLapDistance, currentOpponentData.CompletedLaps,
                                         currentOpponentData.Speed, currentGameState.Now);
@@ -1391,6 +1413,41 @@ namespace CrewChiefV4.AMS2
             // for the session
             // return clutchOverheated ? DamageLevel.MINOR : DamageLevel.NONE;
             return DamageLevel.NONE;
+        }
+
+        /// <summary>
+        /// RRCA: AMS2 meldet Bestzeit und letzte Runde jedes Teilnehmers selbst. Wer seine Zeiten gefahren hat, bevor
+        /// Crew Chief verbunden war (oder zuletzt in der Box stand), hätte sonst keine Zeiten. Nur Lücken füllen –
+        /// eine selbst beobachtete Zeit wird nie ersetzt, und es entsteht kein neues Rundenereignis.
+        /// </summary>
+        /// <summary>
+        /// RRCA: Nach einem Neustart von Crew Chief mitten in der Sitzung fehlen die eigenen Bestwerte, obwohl AMS2 sie kennt.
+        /// Nur Lücken füllen; selbst gemessene Werte haben Vorrang. Die Bestzeit gilt als Ausgangswert, nicht als neues Ereignis.
+        /// </summary>
+        internal static void FillMissingPlayerBestsFromSimulator(SessionData s, float lap, float sector1, float sector2, float sector3)
+        {
+            if (s == null) return;
+            if (s.PlayerLapTimeSessionBest <= 0 && Plausible(lap)) s.PlayerLapTimeSessionBest = lap;
+            if (s.PlayerBestSector1Time <= 0 && Plausible(sector1)) s.PlayerBestSector1Time = sector1;
+            if (s.PlayerBestSector2Time <= 0 && Plausible(sector2)) s.PlayerBestSector2Time = sector2;
+            if (s.PlayerBestSector3Time <= 0 && Plausible(sector3)) s.PlayerBestSector3Time = sector3;
+        }
+
+        private static bool Plausible(float seconds) { return !float.IsNaN(seconds) && !float.IsInfinity(seconds) && seconds > 1 && seconds < 3600; }
+
+        internal static void FillMissingLapTimesFromSimulator(OpponentData opponent, float[] fastestLapTimes, float[] lastLapTimes, int index)
+        {
+            if (opponent == null || index < 0) return;
+            float best = Plausible(fastestLapTimes, index), last = Plausible(lastLapTimes, index);
+            if (best > 0 && opponent.CurrentBestLapTime <= 0) opponent.CurrentBestLapTime = best;
+            if (last > 0 && opponent.LastLapTime <= 0) opponent.LastLapTime = last;
+        }
+
+        private static float Plausible(float[] values, int index)
+        {
+            if (values == null || index >= values.Length) return -1;
+            float v = values[index];
+            return float.IsNaN(v) || float.IsInfinity(v) || v <= 10 || v >= 3600 ? -1 : v;
         }
 
         private void updateOpponentData(OpponentData opponentData, int racePosition, int completedLaps, int sector, Boolean isEnteringPits,

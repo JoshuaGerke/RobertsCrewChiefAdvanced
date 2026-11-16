@@ -11,6 +11,93 @@ namespace UnitTest.AiTeamTests
     [TestFixture,Category("AiTeam"),NonParallelizable]
     public class LiveRaceReliabilityTests
     {
+        [TestCase(100, 103, 101, 102, 1)]
+        [TestCase(104, 103, 102, 101, 0)]
+        [TestCase(100, 101, 102, 103, 3)]
+        [TestCase(100, 101, 104, 103, 2)]
+        [TestCase(100, 103, 103, 102, 1)]
+        [TestCase(int.MaxValue - 1, int.MaxValue, int.MinValue, int.MinValue + 1, 3)]
+        public void IRacing_buffer_selection_uses_highest_tick_not_last_tick_above_first(
+            int first, int second, int third, int fourth, int expectedIndex)
+        {
+            using (var map = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(null, 4096))
+            using (var view = map.CreateViewAccessor())
+            {
+                view.Write(iRSDKSharp.CiRSDKHeader.HNumBufOffset, 4);
+                var header = new iRSDKSharp.CiRSDKHeader(view);
+                var ticks = new[] { first, second, third, fourth };
+                for (int i = 0; i < ticks.Length; i++)
+                {
+                    int descriptor = header.buffer.VarBufOffset + i * header.buffer.VarBufSize;
+                    view.Write(descriptor + iRSDKSharp.CVarBuf.VarTickCountOffset, ticks[i]);
+                    view.Write(descriptor + iRSDKSharp.CVarBuf.VarBufOffsetOffset, 1024 + i * 128);
+                }
+                Assert.AreEqual(1024 + expectedIndex * 128, header.Buffer);
+            }
+        }
+
+        [Test]
+        public void IRacing_frame_copies_the_selected_slot_and_preserves_its_values_after_rotation()
+        {
+            using (var map = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(null, 4096))
+            using (var view = map.CreateViewAccessor())
+            {
+                var header = new iRSDKSharp.CiRSDKHeader(view);
+                int slot = header.buffer.VarBufOffset;
+                view.Write(iRSDKSharp.CiRSDKHeader.HNumBufOffset, 2);
+                view.Write(iRSDKSharp.CiRSDKHeader.HBufLenOffset, 16);
+                view.Write(slot, 20);
+                view.Write(slot + 4, 1024);
+                view.Write(slot + header.buffer.VarBufSize, 19);
+                view.Write(slot + header.buffer.VarBufSize + 4, 2048);
+                view.Write(1024, 7);
+                view.Write(1028, 3);
+                view.Write(1032, 2);
+                view.Write(1036, 0.25f);
+
+                var sample = iRSDKSharp.iRacingSDK.CopyPublishedTelemetry(view, header);
+                Assert.IsNotNull(sample);
+                view.Write(slot, 22);
+                view.Write(1024, 99);
+                view.Write(1028, 99);
+                Assert.IsFalse(header.buffer.IsStillPublished(slot, 20, 1024));
+
+                var driver = new iRSDKSharp.CVarHeader(2, 0, 1, "PlayerCarIdx", "", "");
+                var position = new iRSDKSharp.CVarHeader(2, 4, 2, "CarIdxPosition", "", "");
+                var lapProgress = new iRSDKSharp.CVarHeader(4, 12, 1, "LapDistPct", "", "");
+                Assert.AreEqual(7, iRSDKSharp.iRacingSDK.DecodeTelemetry(sample, driver));
+                Assert.AreEqual(new[] { 3, 2 }, iRSDKSharp.iRacingSDK.DecodeTelemetry(sample, position));
+                Assert.AreEqual(0.25f, iRSDKSharp.iRacingSDK.DecodeTelemetry(sample, lapProgress));
+                var outside = new iRSDKSharp.CVarHeader(2, 15, 1, "Invalid", "", "");
+                Assert.Throws<System.IO.InvalidDataException>(() => iRSDKSharp.iRacingSDK.DecodeTelemetry(sample, outside));
+
+                view.Write(slot + 4, 4090);
+                Assert.IsNull(iRSDKSharp.iRacingSDK.CopyPublishedTelemetry(view, header));
+                view.Write(iRSDKSharp.CiRSDKHeader.HNumBufOffset, 5);
+                Assert.IsNull(iRSDKSharp.iRacingSDK.CopyPublishedTelemetry(view, header));
+            }
+        }
+
+        [Test]
+        public void IRacing_session_info_copy_rejects_a_superseded_generation_and_out_of_range_slice()
+        {
+            using (var map = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateNew(null, 4096))
+            using (var view = map.CreateViewAccessor())
+            {
+                var header = new iRSDKSharp.CiRSDKHeader(view);
+                byte[] yaml = System.Text.Encoding.ASCII.GetBytes("SessionInfo:");
+                view.Write(iRSDKSharp.CiRSDKHeader.HSesInfoUpdateOffset, 4);
+                view.Write(iRSDKSharp.CiRSDKHeader.HSesInfoLenOffset, yaml.Length);
+                view.Write(iRSDKSharp.CiRSDKHeader.HSesInfoOffsetOffset, 1024);
+                view.WriteArray(1024, yaml, 0, yaml.Length);
+                Assert.AreEqual(yaml, iRSDKSharp.iRacingSDK.CopySessionInfo(view, header, 4));
+                view.Write(iRSDKSharp.CiRSDKHeader.HSesInfoUpdateOffset, 5);
+                Assert.IsNull(iRSDKSharp.iRacingSDK.CopySessionInfo(view, header, 4));
+                view.Write(iRSDKSharp.CiRSDKHeader.HSesInfoOffsetOffset, 4095);
+                Assert.IsNull(iRSDKSharp.iRacingSDK.CopySessionInfo(view, header, 5));
+            }
+        }
+
         private static readonly DateTime T=new DateTime(2026,11,1,12,0,0,DateTimeKind.Utc);
         private static GameStateData State()
         {
@@ -64,6 +151,77 @@ namespace UnitTest.AiTeamTests
             Assert.IsTrue(valid(s,T.AddSeconds(3.5)));
             Assert.IsFalse(valid(s,T.AddSeconds(4.1)),"A stale numeric distance must never survive to playback.");
         }
+
+        [Test]
+        public void Hazard_section_requires_an_unambiguous_map_and_a_ready_clip()
+        {
+            var state = State();
+            var rival = Car(state);
+            state.SessionData.TrackDefinition.trackLandmarks = new System.Collections.Generic.List<TrackLandmark> {
+                new TrackLandmark { landmarkNames = new System.Collections.Generic.List<string> { "turn4" },
+                    distanceRoundLapStart = 1250, distanceRoundLapEnd = 1350 }
+            };
+            var call = Traffic(state, rival, 300, 0, out _, out _);
+            Assert.IsNotNull(call);
+            var now = T.AddSeconds(3.5);
+            string section = TrackAwareness.ConfirmedSection(state.SessionData.TrackDefinition, rival.DistanceRoundTrack);
+            Assert.AreEqual("Kurve 4", section);
+            Assert.AreEqual(call.Text, call.ComposePreparedDetail(state, now, _ => false, out _));
+            string detailed = call.ComposePreparedDetail(state, now, _ => true, out var verify);
+            StringAssert.Contains("Kurve 4", detailed);
+            Assert.IsTrue(verify(state, now));
+            rival.DistanceRoundTrack = 900;
+            Assert.IsFalse(verify(state, now));
+        }
+
+        [Test]
+        public void Hazard_repeat_keys_tie_the_native_and_spatial_feeds_to_the_same_car()
+        {
+            var spatial = new ObservedRaceCall { Topic="race-hazard-ahead", HazardIdentity="rival-1" };
+            var native = new ObservedRaceCall { Topic="warning-native-incident-rival", HazardIdentity="rival-1" };
+            var other = new ObservedRaceCall { Topic="race-hazard-ahead", HazardIdentity="rival-2" };
+            Assert.AreEqual(AiTeamService.RepeatKey(spatial, out var window), AiTeamService.RepeatKey(native, out _));
+            Assert.AreNotEqual(AiTeamService.RepeatKey(spatial, out _), AiTeamService.RepeatKey(other, out _));
+            Assert.IsFalse(AiTeamService.Covers(spatial, T, native, window, T.AddSeconds(1)));
+        }
+
+        [Test]
+        public void Gefahr_enthaelt_den_geprueften_Namensclip_und_bleibt_bei_neuem_Abstand_gueltig()
+        {
+            var state = State();
+            var rival = Car(state);
+            rival.DriverRawName = "PolleteBMX";
+            var call = Traffic(state, rival, 300, 0, out var tracks, out var watch);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("Das ist PolleteBMX.", call.OpponentNameClip);
+            var later = T.AddSeconds(3.9);
+            Move(state, rival, 3.9, 300, 0);
+            tracks.Observe(state, later);
+            watch.Observe(tracks, state, later);
+            Assert.IsTrue(call.IsValid(state, later));
+            rival.r3eSlotId = 12;
+            Assert.IsFalse(call.IsValid(state, later));
+        }
+
+        // Measurement pairs documented in the 2026-11-07 RaceRoom report, embedded in
+        // synthetic continuous motion. This is not a replay of the complete raw recording.
+        [TestCase(91.5,3.70,false)]
+        [TestCase(76.6,0.095,true)]
+        [TestCase(58.3,0.62,true)]
+        public void Recorded_raceroom_hazard_ranges_are_detected_with_consistent_motion(double gap,double speed,bool stopped)
+        {
+            var s=State();var c=Car(s);TrackAwareness tracks;RaceTrafficWatch watch;
+            var call=Traffic(s,c,gap+(50-speed)*3.5,speed,out tracks,out watch);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("race-hazard-ahead",call.Topic);
+            Assert.IsTrue(call.IsValid(s,T.AddSeconds(3.5)));
+            Func<GameStateData,DateTime,bool> valid;
+            string detail=call.ComposePreparedDetail(s,T.AddSeconds(3.5),text=>true,out valid);
+            int rounded=(int)Math.Round(gap/20,MidpointRounding.AwayFromZero)*20;
+            Assert.AreEqual(RaceTrafficWatch.DistancePhrase(rounded,stopped),detail);
+            c.InPits=true;
+            Assert.IsFalse(call.IsValid(s,T.AddSeconds(3.5)),"A newly confirmed pit vehicle is no longer an on-track hazard.");
+        }
         [Test]
         public void Hazard_distance_is_invalid_when_same_slot_changes_driver_before_next_track_tick()
         {
@@ -73,6 +231,18 @@ namespace UnitTest.AiTeamTests
             call.ComposePreparedDetail(s,T.AddSeconds(3.5),text=>true,out valid);Assert.IsNotNull(valid);
             c.DriverRawName="Replacement Driver";
             Assert.IsFalse(valid(s,T.AddSeconds(3.5)));
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void RaceRoom_hazard_is_withdrawn_when_identity_changes_before_next_track_tick(bool userChanged)
+        {
+            var s=State();var c=Car(s);c.r3eUserId=101;c.r3eSlotId=3;
+            TrackAwareness tracks;RaceTrafficWatch watch;
+            var call=Traffic(s,c,300,0,out tracks,out watch);
+            Assert.IsNotNull(call);Assert.IsTrue(call.IsValid(s,T.AddSeconds(3.5)));
+            if(userChanged)c.r3eUserId=102;else c.r3eSlotId=4;
+            Assert.IsFalse(call.IsValid(s,T.AddSeconds(3.5)),"Same name and number do not prove the same car.");
         }
         [Test]
         public void Numeric_hazard_retry_uses_generic_warning_after_changed_distance()
@@ -222,6 +392,26 @@ namespace UnitTest.AiTeamTests
             var gap=gaps.Read(s,c,true,T.AddSeconds(6));Assert.AreEqual(RaceGapKind.InterpolatedTiming,gap.Kind);
             Assert.That(gap.Seconds,Is.EqualTo(4d/3).Within(.02));
             Assert.That(gap.Seconds,Is.Not.EqualTo((c.DistanceRoundTrack-s.PositionAndMotionData.DistanceRoundTrack)/50).Within(.1));
+        }
+        [Test]
+        public void Reused_slot_with_same_name_and_number_but_different_car_invalidates_interval()
+        {
+            var s=State();var c=Car(s);var gaps=new RaceGapTracker();
+            for(int i=0;i<=60;i++){Move(s,c,i*.1,100,50,1000);gaps.Observe(s,T.AddSeconds(i*.1));}
+            Assert.AreEqual(RaceGapKind.InterpolatedTiming,gaps.Read(s,c,true,T.AddSeconds(6)).Kind);
+            c.CostId++;
+            Assert.IsFalse(gaps.Read(s,c,true,T.AddSeconds(6)).HasValue);
+        }
+        [Test]
+        public void Gap_read_rejects_changed_stale_source_before_next_observer_update()
+        {
+            var s=State();var c=Car(s);var gaps=new RaceGapTracker();
+            for(int i=0;i<=60;i++){Move(s,c,i*.1,100,50,1000);gaps.Observe(s,T.AddSeconds(i*.1));}
+            Assert.IsTrue(gaps.Read(s,c,true,T.AddSeconds(6)).HasValue);
+            s.SourceTelemetryUtc=T;
+            Assert.IsFalse(gaps.Read(s,c,true,T.AddSeconds(6)).HasValue);
+            s.SourceTelemetryUtc=T.AddSeconds(7);
+            Assert.IsFalse(gaps.Read(s,c,true,T.AddSeconds(6)).HasValue);
         }
         [Test]
         public void Repeated_position_polls_do_not_move_the_last_actual_opponent_measurement_time()
@@ -408,6 +598,74 @@ namespace UnitTest.AiTeamTests
             if(position==3)Assert.IsTrue(final.Text.Contains("ersten drei") || final.Text.Contains("Top drei"));
             s.SessionData.SessionType=SessionType.Race;s.SessionData.SessionPhase=SessionPhase.Green;
             Assert.IsFalse(final.IsValid(s,T.AddSeconds(3)),"Never announce an old qualifying result in active racing.");
+        }
+
+        [Test]
+        public void Eigene_Quali_Ziellinie_wird_auch_bei_weiterhin_laufender_Feldwertung_gemeldet()
+        {
+            var before = State();
+            before.SessionData.SessionType = SessionType.Qualify;
+            before.SessionData.SessionPhase = SessionPhase.Checkered;
+            before.SessionData.CompletedLaps = 3;
+            before.SessionData.ClassPosition = 7;
+            var watch = new QualifyingResultWatch();
+            watch.Observe(before, T, "Rob");
+            var provisional = watch.Take(before, T, false, true);
+            provisional.MarkPlaybackStarted(T);
+            var after = State();
+            after.SessionData.SessionType = SessionType.Qualify;
+            after.SessionData.SessionPhase = SessionPhase.Checkered;
+            after.SessionData.CompletedLaps = 4;
+            after.SessionData.ClassPosition = 7;
+            after.SessionData.IsNewLap = true;
+            watch.Observe(after, T.AddSeconds(1), "Rob", before);
+            var result = watch.Take(after, T.AddSeconds(1), false, true);
+            Assert.IsNotNull(result);
+            StringAssert.Contains("deine Quali ist durch", result.Text);
+            StringAssert.Contains("aktuell auf Platz 7", result.Text);
+        }
+
+        [TestCase(SessionType.Qualify)]
+        [TestCase(SessionType.PrivateQualify)]
+        public void Late_qualifying_rank_is_reported_after_unknown_result_once(SessionType type)
+        {
+            var s=State();s.SessionData.SessionType=type;s.SessionData.SessionPhase=SessionPhase.Finished;
+            s.SessionData.ClassPosition=0;s.PitData.InPitlane=true;
+            var watch=new QualifyingResultWatch();watch.Observe(s,T,"Alex");
+            var unknown=watch.Take(s,T,false,true);Assert.IsNotNull(unknown);
+            unknown.MarkPlaybackStarted(T);unknown.MarkPlaybackFinished(T.AddSeconds(1),false);
+            watch.Observe(s,T.AddSeconds(2),"Alex");Assert.IsNull(watch.Take(s,T.AddSeconds(2),false,true));
+            s.SessionData.ClassPosition=3;watch.Observe(s,T.AddSeconds(3),"Alex");
+            var result=watch.Take(s,T.AddSeconds(3),false,true);Assert.IsNotNull(result);
+            StringAssert.Contains("Platz 3",result.Text);StringAssert.StartsWith("Alex,",result.Text);
+            result.MarkPlaybackStarted(T.AddSeconds(3));watch.Observe(s,T.AddSeconds(4),"Alex");
+            Assert.IsNull(watch.Take(s,T.AddSeconds(4),false,true));
+        }
+
+        [Test]
+        public void Queued_unknown_qualifying_result_is_invalid_when_rank_arrives()
+        {
+            var s=State();s.SessionData.SessionType=SessionType.Qualify;s.SessionData.SessionPhase=SessionPhase.Finished;
+            s.SessionData.ClassPosition=0;var watch=new QualifyingResultWatch();watch.Observe(s,T,"Alex");
+            var unknown=watch.Take(s,T,false,true);Assert.IsNotNull(unknown);
+            s.SessionData.ClassPosition=12;Assert.IsFalse(unknown.IsValid(s,T.AddSeconds(1)));
+            watch.Observe(s,T.AddSeconds(1),"Alex");var result=watch.Take(s,T.AddSeconds(1),false,true);
+            Assert.IsNotNull(result);StringAssert.Contains("Platz 12",result.Text);
+        }
+
+        [TestCase(1,"quali-first")]
+        [TestCase(3,"quali-top3")]
+        [TestCase(12,"quali-field")]
+        public void Qualifying_variants_keep_driver_class_rank_without_best_time_claim(int position,string group)
+        {
+            var seen=new System.Collections.Generic.HashSet<string>();
+            for(int i=0;i<RadioPhraseCatalog.Current.Count(group);i++)
+            {
+                var text=QualifyingResultWatch.Compose("Alex",position,true,i,true);
+                StringAssert.StartsWith("Alex,",text);StringAssert.Contains("Platz "+position+" in deiner Klasse",text);
+                StringAssert.DoesNotContain("Bestzeit",text);StringAssert.DoesNotContain("Rob",text);
+                Assert.IsTrue(seen.Add(text));
+            }
         }
     }
 }

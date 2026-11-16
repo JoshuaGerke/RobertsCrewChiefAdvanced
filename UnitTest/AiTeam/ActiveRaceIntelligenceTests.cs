@@ -33,6 +33,35 @@ namespace UnitTest.AiTeamTests
         private static ObservedRaceCall Take(ActiveRaceObserver d, GameStateData gs, double seconds = .35, bool overlap = false)
         { return d.Take(gs, Now.AddSeconds(seconds), overlap, false, false, 120, null, "Rob"); }
 
+        [Test]
+        public void Recorded_pass_survives_unplayed_radio_and_a_counterpass()
+        {
+            var state = Race();
+            var observer = new ActiveRaceObserver();
+            var memory = new AiRaceMemory();
+            observer.Observe(state, Now, "Rob", 120, memory, true);
+            Change(state);
+            foreach (int ms in new[] { 100, 200, 350 })
+                observer.Observe(state, Now.AddMilliseconds(ms), "Rob", 120, memory, true);
+            state.SessionData.ClassPosition = 10;
+            state.OpponentData["timo"].ClassPosition = 9;
+            state.OpponentData["timo"].DistanceRoundTrack = 1010;
+            foreach (int ms in new[] { 600, 750, 950 })
+                observer.Observe(state, Now.AddMilliseconds(ms), "Rob", 120, memory, true);
+            var ctx = Context(state);
+            ctx.Memory = memory;
+            ctx.NowUtc = ctx.LastTelemetryUtc = Now.AddSeconds(1);
+            var events = RaceDataTools.RecentRaceActions(ctx);
+            Assert.AreEqual(2, events.Count);
+            StringAssert.Contains("Timo Glock", (string)events[0]["befund"]);
+            Assert.AreEqual("confirmed-position-loss", (string)events[1]["typ"]);
+            string spoken = LocalAnswers.RecentOwnPass("Habt ihr das gesehen? Ich habe Timo Glock überholt.", ctx);
+            StringAssert.Contains("an Timo Glock vorbeigegangen", spoken);
+            StringAssert.Contains("Jetzt Platz 10", spoken);
+            ctx.SendDriverNames = false;
+            StringAssert.DoesNotContain("Glock", RaceDataTools.RecentRaceActions(ctx).ToString());
+        }
+
         [TestCase("fresh", true)]
         [TestCase("names_off", false)]
         [TestCase("stale", false)]
@@ -114,7 +143,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("own-lap", call.Topic);
             StringAssert.Contains("2:06,650", call.Text);
             Assert.AreEqual(TeamMember.Mik, call.Member);
-            Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(11)));
+            Assert.IsTrue(call.IsValid(gs, Now.AddSeconds(11)), "A valid PB can wait behind a driver reply.");
+            Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(25)), "The old PB must expire even if its lap did not change.");
         }
 
         [Test]
@@ -263,10 +293,12 @@ namespace UnitTest.AiTeamTests
 
             var context = Context(gs);
             StringAssert.Contains("Timo Glock ist in der Box", call.ComposeForDelivery(context, out var current));
+            Assert.AreEqual(RadioPhraseCatalog.Current.ReferenceFor("pit-gain",0),call.ReferenceTemplate);
             Assert.IsTrue(current(gs, at));
             context.SendDriverNames = false;
             StringAssert.DoesNotContain("Timo", call.ComposeForDelivery(context, out _));
             Assert.AreEqual(call.Text, call.ComposeForDelivery(context, out _, standalonePitClaimed: true));
+            Assert.IsNull(call.ReferenceTemplate,"A generic fallback must not claim the unused pit template.");
             rival.CarNumber = "99";
             Assert.IsFalse(current(gs, at));
             Assert.IsFalse(observer.CoversPit(pit, gs, at));
@@ -427,7 +459,7 @@ namespace UnitTest.AiTeamTests
             gs.EngineData.EngineWaterTemp=94;gs.TyreData.TyreWearActive=true;gs.TyreData.FrontLeftPercentWear=21;
             string text=AiRadioSchedule.VehicleReport(gs);
             StringAssert.Contains("94,0",text);StringAssert.Contains("21,0",text);
-            StringAssert.Contains("fehlen Messwerte",text);StringAssert.DoesNotContain("alles",text);
+            StringAssert.Contains("sag Bescheid",text);StringAssert.DoesNotContain("alles",text);
         }
     }
 }

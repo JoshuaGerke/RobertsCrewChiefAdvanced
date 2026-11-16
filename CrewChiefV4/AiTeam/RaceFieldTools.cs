@@ -98,6 +98,41 @@ namespace CrewChiefV4.AiTeam
             return result;
         }
 
+        internal static JObject TopClassPace(GameStateData state, IReadOnlyList<LapRecord> own)
+        {
+            if (state.SessionData.SessionType != SessionType.Race || state.SessionData.SessionPhase != SessionPhase.Green ||
+                state.SessionData.NumCarsInPlayerClass < 5 || state.carClass == null || own.Count < 2) return null;
+            var previous = own[own.Count - 2];
+            var recent = own[own.Count - 1];
+            if (!previous.Green || !recent.Green || previous.LapNumber + 1 != recent.LapNumber) return null;
+            int ownRank = state.SessionData.ClassPosition;
+            if (ownRank < 1) return null;
+            var leaders = state.OpponentData.Values.Where(o => o != null && o.IsActive && !o.InPits &&
+                o.ClassPosition >= 1 && o.ClassPosition <= 5 && o.ClassPosition != ownRank && o.CarClass != null &&
+                CarData.IsCarClassEqual(state.carClass, o.CarClass, false)).ToArray();
+            int expected = ownRank <= 5 ? 4 : 5;
+            if (leaders.Length != expected || leaders.Select(o => o.ClassPosition).Distinct().Count() != expected) return null;
+            double before = 0, after = 0;
+            foreach (var car in leaders)
+            {
+                var oldLap = car.OpponentLapData.LastOrDefault(l => l.LapNumber == previous.LapNumber);
+                var newLap = car.OpponentLapData.LastOrDefault(l => l.LapNumber == recent.LapNumber);
+                if (!ComparablePaceLap(oldLap) || !ComparablePaceLap(newLap)) return null;
+                before += oldLap.LapTime;
+                after += newLap.LapTime;
+            }
+            double ownDelta = recent.LapTime - previous.LapTime;
+            double classDelta = (after - before) / expected;
+            return new JObject { ["runde"] = recent.LapNumber, ["referenzrunde"] = previous.LapNumber,
+                ["andere_fahrer_aus_klassen_top5"] = expected, ["klassenschnitt_s"] = Math.Round(after / expected, 3),
+                ["delta_klasse_s"] = Math.Round(classDelta, 3), ["delta_eigen_s"] = Math.Round(ownDelta, 3),
+                ["delta_eigen_relativ_zur_klasse_s"] = Math.Round(ownDelta - classDelta, 3),
+                ["ursache_bestaetigt"] = false };
+        }
+
+        private static bool ComparablePaceLap(LapData lap) => lap != null && lap.IsValid && !lap.InLap && !lap.OutLap &&
+            !lap.hasMissingSectors && TrackAwareness.InRange(lap.LapTime, 10, 3600).HasValue;
+
         private static JObject Describe(OpponentData o, RaceDataContext ctx)
         {
             var result = RaceDataTools.Describe(o, ctx, ctx.GameState.SessionData);
@@ -108,7 +143,37 @@ namespace CrewChiefV4.AiTeam
             result["runden_absolviert"] = o.CompletedLaps;
             var lap = o.OpponentLapData.LastOrDefault(l => l.LapTime > 0);
             result["letzte_runde_gueltig"] = lap != null ? (JToken)lap.IsValid : null;
+            var rating = BestLapRating(o, ctx.GameState);
+            if (rating != null) result["bestzeit_einordnung"] = rating;
             return result;
+        }
+
+        /// <summary>
+        /// Rob 16.11.2026 (Mosport): „Wer ist dieser Nox? Ist die Runde gut, schlecht oder mittelmäßig?“ – Einordnung der Bestzeit eines
+        /// Gegners in der eigenen Klasse: Rang, Anzahl gezeiteter Fahrer, Abstand zur Klassenbestzeit und zu Robs Bestzeit.
+        /// </summary>
+        internal static JObject BestLapRating(OpponentData o, GameStateData gs)
+        {
+            float best = o.CurrentBestLapTime;
+            if (gs == null || !(best > 10 && best < 3600)) return null;
+            var times = gs.OpponentData.Values.Where(c => c != null && c.CurrentBestLapTime > 10 && c.CurrentBestLapTime < 3600 &&
+                    (gs.carClass == null || c.CarClass == null || CarData.IsCarClassEqual(gs.carClass, c.CarClass, false)))
+                .Select(c => c.CurrentBestLapTime).ToList();
+            float own = gs.SessionData.PlayerLapTimeSessionBest;
+            if (own > 10 && own < 3600) times.Add(own);
+            if (times.Count < 2) return null;
+            times.Sort();
+            int rank = times.FindIndex(t => t >= best - .0005f) + 1;
+            float classBest = times[0];
+            string verdict = rank == 1 ? "schnellste der Klasse" : rank <= (int)Math.Ceiling(times.Count / 3.0) ? "vorderes Drittel" :
+                rank <= (int)Math.Ceiling(times.Count * 2 / 3.0) ? "Mittelfeld" : "hinteres Drittel";
+            return new JObject
+            {
+                ["rang"] = rank, ["gezeitete_fahrer"] = times.Count, ["einordnung"] = verdict,
+                ["abstand_zur_klassenbestzeit_s"] = Math.Round(best - classBest, 3),
+                ["abstand_zu_rob_s"] = own > 10 && own < 3600 ? (JToken)Math.Round(best - own, 3) : null,
+                ["hinweis"] = "Aus den gemeldeten Bestzeiten dieser Sitzung in Robs Klasse; positiv = langsamer als die Klassenbestzeit bzw. als Rob."
+            };
         }
 
         public static string Normalize(string value)

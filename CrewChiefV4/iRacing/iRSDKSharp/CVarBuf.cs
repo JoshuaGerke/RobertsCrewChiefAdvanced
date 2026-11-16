@@ -30,25 +30,38 @@ namespace iRSDKSharp
         }
         public int OffsetLatest
         {
-            get
+            get { return TryGetLatest(out _, out _, out int offset) ? offset : -1; }
+        }
+
+        internal bool TryGetLatest(out int descriptor, out int tick, out int offset)
+        {
+            descriptor = -1;
+            tick = 0;
+            offset = -1;
+            int count = Header.BufferCount;
+            if (count < 1 || count > Defines.MaxBufs ||
+                VarBufOffset + (long)count * VarBufSize > FileMapView.Capacity)
+                return false;
+
+            for (int i = 0; i < count; i++)
             {
-                int bufCount = Header.BufferCount;
-                int[] ticks = new int[Header.BufferCount];
-                for (int i = 0; i < bufCount; i++)
+                int address = VarBufOffset + i * VarBufSize;
+                int candidate = FileMapView.ReadInt32(address + VarTickCountOffset);
+                // A difference between concurrent slots is small even across int wrap.
+                if (i == 0 || unchecked(candidate - tick) > 0)
                 {
-                    ticks[i] = FileMapView.ReadInt32(VarBufOffset + ((i * VarBufSize) + VarTickCountOffset));
+                    descriptor = address;
+                    tick = candidate;
                 }
-                int latestTick = ticks[0];
-                int latest = 0;
-                for (int i = 0; i < bufCount; i++)
-                {
-                    if (latestTick < ticks[i])
-                    {
-                        latest = i;
-                    }
-                }
-                return FileMapView.ReadInt32(VarBufOffset + ((latest * VarBufSize) + VarBufOffsetOffset));
             }
+            offset = FileMapView.ReadInt32(descriptor + VarBufOffsetOffset);
+            return IsStillPublished(descriptor, tick, offset);
+        }
+
+        internal bool IsStillPublished(int descriptor, int tick, int offset)
+        {
+            return FileMapView.ReadInt32(descriptor + VarBufOffsetOffset) == offset &&
+                FileMapView.ReadInt32(descriptor + VarTickCountOffset) == tick;
         }
     }
 }

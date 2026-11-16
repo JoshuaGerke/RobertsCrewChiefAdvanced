@@ -68,11 +68,11 @@ namespace CrewChiefV4.AiTeam
         private SessionType type=SessionType.Unavailable;
         private string track;
         private float reportedLimit=-1,lastSpeed,lastSessionSeconds=float.NaN;
-        private bool initialized,wasInPits,approachHandled,departureHandled,wasNewSession,lastPitRequest;
+        private bool initialized,wasInPits,approachHandled,departureHandled,wasNewSession,lastPitRequest,limitCallBeforeLane,remindedThisVisit;
         private DateTime speedingSince=DateTime.MinValue,lastWarning=DateTime.MinValue,lastProgress=DateTime.MinValue,lastTick=DateTime.MinValue,lastReminder=DateTime.MinValue;
         private ObservedRaceCall limitCall,speedCall;
         public void Reset()
-        {epoch++;session=int.MinValue;type=SessionType.Unavailable;track=null;reportedLimit=-1;lastSpeed=0;initialized=wasInPits=approachHandled=departureHandled=wasNewSession=lastPitRequest=false;
+        {epoch++;session=int.MinValue;type=SessionType.Unavailable;track=null;reportedLimit=-1;lastSpeed=0;initialized=wasInPits=approachHandled=departureHandled=wasNewSession=lastPitRequest=limitCallBeforeLane=remindedThisVisit=false;
             speedingSince=lastWarning=lastProgress=lastTick=lastReminder=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
         private static bool Speeding(GameStateData gs,float limit)
         {return gs!=null && gs.PitData.InPitlane && Known(gs.PitData.PitSpeedLimit) && Math.Abs(gs.PitData.PitSpeedLimit-limit)<.1f && gs.PositionAndMotionData.CarSpeed>limit+.5f && gs.PositionAndMotionData.CarSpeed<=180;}
@@ -100,7 +100,12 @@ namespace CrewChiefV4.AiTeam
             {Reset();session=s.SessionId;type=s.SessionType;track=currentTrack;}
             if(float.IsNaN(lastSessionSeconds) || s.SessionRunningTime>lastSessionSeconds) lastProgress=now;
             lastSessionSeconds=s.SessionRunningTime;lastTick=now;wasNewSession=s.IsNewSession;
-            if(limitCall!=null && limitCall.DeliveryStartedUtc!=DateTime.MinValue) lastReminder=limitCall.DeliveryStartedUtc;
+            if(limitCall!=null && limitCall.DeliveryStartedUtc!=DateTime.MinValue)
+            {
+                lastReminder=limitCall.DeliveryStartedUtc;
+                // Rob 16.11.: Wer vor der Boxengasse schon erinnert wurde, braucht beim Einfahren keine zweite Ansage.
+                if(limitCallBeforeLane) remindedThisVisit=true;
+            }
             if(now-lastProgress>TimeSpan.FromSeconds(1.5)) {speedingSince=DateTime.MinValue;limitCall=speedCall=null;return;}
             bool inPits=gs.PitData.InPitlane,approach=Approaching(gs);
             float limit=gs.PitData.PitSpeedLimit,speed=gs.PositionAndMotionData.CarSpeed;
@@ -112,7 +117,7 @@ namespace CrewChiefV4.AiTeam
             if(!inPits && !approach)
             {
                 approachHandled=false;departureHandled=false;
-                if(!gs.PitData.HasRequestedPitStop) {reportedLimit=-1;limitCall=null;}
+                if(!gs.PitData.HasRequestedPitStop) {reportedLimit=-1;limitCall=null;remindedThisVisit=false;}
             }
             bool requestRaised=gs.PitData.HasRequestedPitStop && !lastPitRequest && !inPits && TrackAwareness.InRange(speed,2,180).HasValue;
             lastPitRequest=gs.PitData.HasRequestedPitStop;
@@ -136,7 +141,7 @@ namespace CrewChiefV4.AiTeam
                 bool recentlyReminded=lastReminder!=DateTime.MinValue && now-lastReminder<TimeSpan.FromSeconds(20);
                 bool newLimit=Known(limit) && Math.Abs(reportedLimit-limit)>.1f;
                 // One current reminder covers entry/departure. Never restart it every tick.
-                if(newLimit || entered && !recentlyReminded || leavingBox && limitCall==null && !recentlyReminded)
+                if(newLimit || entered && !recentlyReminded && !remindedThisVisit || leavingBox && limitCall==null && !recentlyReminded)
                 {
                     if(leavingBox) departureHandled=true;
                     limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit");
@@ -158,21 +163,31 @@ namespace CrewChiefV4.AiTeam
             }
             wasInPits=inPits;lastSpeed=speed;initialized=true;
         }
+        private static readonly string[] RequestConfirmDe={"Box, Box, Rob. Wir sind bereit.","Verstanden, wir erwarten dich in der Box.","Boxenstopp ist eingetragen.","Alles klar, die Crew steht bereit."};
+        private static readonly string[] RequestConfirmEn={"Box, box, Rob. We're ready.","Copy, we're expecting you in the pits.","Pit stop is booked.","All right, the crew is ready."};
+        private static readonly string[] RequestConfirmEs={"Box, box, Rob. Estamos listos.","Entendido, te esperamos en boxes.","La parada está anotada.","Vale, el equipo está listo."};
+        /// <summary>Kurze Bestätigung der Boxenanforderung (Rob 16.11.); sagt bewusst nicht „diese/nächste Runde“.</summary>
+        public static string[] RequestConfirmations => RadioLanguage.Pick(RequestConfirmDe,RequestConfirmEn,RequestConfirmEs);
+        private int confirmVariant;
         private ObservedRaceCall Reminder(GameStateData gs,DateTime now,float limit,int priority,bool approach,string evidence,bool request=false)
         {
             var phrases=Phrases(limit).ToArray();
-            return Call(gs,now,"pit-limit",phrases[variant++%phrases.Length],priority,
+            string text=phrases[variant++%phrases.Length];
+            if(request){var confirm=RequestConfirmations;text=confirm[confirmVariant++%confirm.Length]+" "+text;}
+            limitCallBeforeLane=!gs.PitData.InPitlane;
+            return Call(gs,now,"pit-limit",text,priority,
                 live=>(approach?Approaching(live) || request && live.PitData.HasRequestedPitStop && !live.PitData.InPitlane:live.PitData.InPitlane) &&
                     (Known(limit)?Known(live.PitData.PitSpeedLimit) && Math.Abs(live.PitData.PitSpeedLimit-limit)<.1f:!Known(live.PitData.PitSpeedLimit)),evidence);
         }
         private ObservedRaceCall Call(GameStateData gs,DateTime now,string topic,string text,int priority,Func<GameStateData,bool> valid,string evidence)
         {
             int callEpoch=epoch;
-            LiveDiagnostics.Decision(topic,"detected",evidence,text);
-            return new ObservedRaceCall {Topic=topic,Text=text,Evidence=evidence,Member=TeamMember.Mik,Priority=priority,
+            var call = new ObservedRaceCall {Topic=topic,Text=text,Evidence=evidence,Member=TeamMember.Mik,Priority=priority,
                 Position=-1,SessionId=gs.SessionData.SessionId,SessionType=gs.SessionData.SessionType,DetectedUtc=now,
                 ExpiresUtc=now.AddSeconds(priority>=7?5:10),AllowPitlane=true,AdditionalValidity=valid,
                 TimedValidity=(live,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && utc>=lastProgress && utc-lastProgress<=TimeSpan.FromSeconds(1.5)};
+            LiveDiagnostics.Decision(topic,"detected",evidence,text,call.EventId);
+            return call;
         }
         public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,int minimumPriority=0)
         {

@@ -16,7 +16,7 @@ namespace CrewChiefV4.AiTeam
     /// <summary>
     /// Neue Oberfläche nach Robs Designentwurf (AiTeam/ui), dargestellt per WebView2.
     /// Die Seite schickt Befehle, das Fenster speichert sie wie das alte KI-Team-Fenster und liefert
-    /// zweimal pro Sekunde Live-Daten. Das alte Fenster bleibt über "Altes Fenster" erreichbar.
+    /// bei Änderungen Live-Daten in einem Intervall von 200 Millisekunden. Das alte Fenster bleibt über "Altes Fenster" erreichbar.
     /// </summary>
     public sealed class RrcaForm : Form
     {
@@ -25,7 +25,12 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] MemberIds = { "ben", "mik", "sara" };
 
         private readonly WebView2 web = new WebView2 { Dock = DockStyle.Fill };
-        private readonly System.Windows.Forms.Timer live = new System.Windows.Forms.Timer { Interval = 500 };
+        private const string PageAddress = "https://rrca.app/rrca.html";
+        private readonly System.Windows.Forms.Timer live = new System.Windows.Forms.Timer { Interval = 200 };
+        private ulong navigationId;
+        private int pageGeneration;
+        private bool navigationSucceeded, bridgeReady;
+        private JObject lastLive;
         private readonly AiTeamService service = AiTeamService.Instance;
         private bool saraPackCurrent;
         private DateTime saraPackCheckedUtc = DateTime.MinValue;
@@ -118,7 +123,7 @@ namespace CrewChiefV4.AiTeam
             Controls.Add(web);
             live.Tick += (s, e) => PushLive();
             service.StatusChanged += OnStatus;
-            FormClosed += (s, e) => { live.Stop(); service.StatusChanged -= OnStatus; ShowMainWindow(); };
+            FormClosed += (s, e) => { live.Dispose(); service.StatusChanged -= OnStatus; ShowMainWindow(); };
             Load += async (s, e) => await InitAsync();
         }
 
@@ -130,33 +135,61 @@ namespace CrewChiefV4.AiTeam
                 // Benutzerdaten nicht neben die exe legen, die kann schreibgeschützt liegen
                 string data = DataFiles.IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RCCA", "WebView2") : Path.Combine(DataFiles.IsolatedRoot, "WebView2");
                 var env = await CoreWebView2Environment.CreateAsync(null, data);
+                if (IsDisposed || Disposing) return;
                 await web.EnsureCoreWebView2Async(env);
+                if (IsDisposed || Disposing) return;
+                var core = web.CoreWebView2;
+                core.Settings.AreDefaultContextMenusEnabled = false;
+                core.Settings.IsStatusBarEnabled = false;
+                core.SetVirtualHostNameToFolderMapping("rrca.app", ui, CoreWebView2HostResourceAccessKind.DenyCors);
+                core.WebMessageReceived += OnMessage;
+                core.NewWindowRequested += (s, e) => e.Handled = true;
+                core.NavigationStarting += (s, e) =>
+                {
+                    if (!string.Equals(e.Uri, PageAddress, StringComparison.Ordinal)) { e.Cancel = true; return; }
+                    navigationId = e.NavigationId;
+                    Interlocked.Increment(ref pageGeneration);
+                    navigationSucceeded = bridgeReady = false;
+                    lastLive = null;
+                    live.Stop();
+                };
+                core.NavigationCompleted += (s, e) =>
+                {
+                    if (e.NavigationId != navigationId || IsDisposed || Disposing) return;
+                    if (!e.IsSuccess)
+                    {
+                        Log.Warning("RRCA WebView2 navigation failed: " + e.WebErrorStatus);
+                        PostToUi(() => { OpenOld(); Close(); });
+                        return;
+                    }
+                    navigationSucceeded = true;
+                    Post(new JObject { ["type"] = "handshake", ["navigation"] = e.NavigationId.ToString(CultureInfo.InvariantCulture) });
+                };
+                core.Navigate(PageAddress);
             }
             catch (Exception e)
             {
+                if (IsDisposed || Disposing) return;
                 MessageBox.Show(this, "Die neue Oberfläche braucht die Microsoft-Edge-WebView2-Runtime (bei Windows 11 dabei). " +
                     "Es öffnet sich das bisherige Fenster.\n\n" + e.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                BeginInvoke(new Action(() => { OpenOld(); Close(); }));
-                return;
+                PostToUi(() => { OpenOld(); Close(); });
             }
-            var core = web.CoreWebView2;
-            core.Settings.AreDefaultContextMenusEnabled = false;
-            core.Settings.IsStatusBarEnabled = false;
-            core.SetVirtualHostNameToFolderMapping("rrca.app", ui, CoreWebView2HostResourceAccessKind.DenyCors);
-            core.WebMessageReceived += OnMessage;
-            // externe Links nie im Fenster öffnen
-            core.NewWindowRequested += (s, e) => e.Handled = true;
-            core.NavigationStarting += (s, e) => { if (!e.Uri.StartsWith("https://rrca.app/")) e.Cancel = true; };
-            core.Navigate("https://rrca.app/rrca.html");
         }
 
         private void OnMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
+            if (!navigationSucceeded || !string.Equals(e.Source, PageAddress, StringComparison.Ordinal)) return;
             JObject m;
-            try { m = JObject.Parse(e.WebMessageAsJson); } catch (Exception) { return; }
+            try { m = JObject.Parse(e.WebMessageAsJson); } catch (JsonException) { return; }
             string cmd = (string)m["cmd"];
             try
             {
+                if (cmd == "ready")
+                {
+                    if (bridgeReady || (string)m["navigation"] != navigationId.ToString(CultureInfo.InvariantCulture)) return;
+                    bridgeReady = true;
+                }
+                else if (!bridgeReady) return;
                 Handle(cmd, m);
             }
             catch (Exception ex)
@@ -248,6 +281,31 @@ namespace CrewChiefV4.AiTeam
                 case "setRecorder":
                     if ((bool)m["on"]) Notice(LiveDiagnostics.Start()); else { LiveDiagnostics.Stop(); Notice("Diagnose gestoppt."); }
                     break;
+                case "setProbe":
+                    if ((bool)m["on"]) Notice(Probe.TelemetryProbe.Start()); else { Probe.TelemetryProbe.Stop(); Notice("Telemetrie-Messung gestoppt; Bericht wird geschrieben."); }
+                    break;
+                case "setRecords":
+                    PersonalBestStore.Enabled = (bool)m["on"];
+                    Notice(PersonalBestStore.Enabled ? "Bestzeiten-Datenbank eingeschaltet." : "Bestzeiten-Datenbank ausgeschaltet. Gespeicherte Zeiten bleiben erhalten.");
+                    Post(RecordsState(new JObject { ["type"] = "records" }));
+                    break;
+                case "clearRecords":
+                {
+                    // Die Sicherheitsabfrage („Sicher alle Daten löschen?“) zeigt die Oberfläche vor diesem Befehl.
+                    string game = (string)m["game"];
+                    int removed = PersonalBestStore.Clear(string.IsNullOrWhiteSpace(game) ? null : game);
+                    Notice(removed == 0 ? "Keine gespeicherten Bestzeiten gefunden." : string.IsNullOrWhiteSpace(game) ? "Alle Bestzeiten gelöscht." : "Bestzeiten gelöscht: " + game);
+                    Post(RecordsState(new JObject { ["type"] = "records" }));
+                    break;
+                }
+                case "openRecords":
+                    Directory.CreateDirectory(PersonalBestStore.Folder);
+                    System.Diagnostics.Process.Start("explorer.exe", "\"" + PersonalBestStore.Folder + "\"");
+                    break;
+                case "openProbe":
+                    Directory.CreateDirectory(Probe.TelemetryProbe.Folder);
+                    System.Diagnostics.Process.Start("explorer.exe", "\"" + Probe.TelemetryProbe.Folder + "\"");
+                    break;
                 case "setMemory":
                     service.SetPersistentMemory((bool)m["on"]);
                     break;
@@ -284,7 +342,7 @@ namespace CrewChiefV4.AiTeam
                         UserSettings.GetUserSettings().saveUserSettings();
                     }
                     Notice(autoDetect ? "Spielerkennung ist sofort aktiv. Ein laufendes Spiel wird auch im Hintergrund erkannt." : "Spielerkennung ist ausgeschaltet. Die laufende Crew bleibt unverändert.");
-                    Post(BuildInit());
+                    PushLive();
                     break;
                 case "fixVoices":
                     FixVoicesAndRestart();
@@ -383,6 +441,10 @@ namespace CrewChiefV4.AiTeam
                 ["memoryFolder"] = DriverMemory.Folder,
                 ["recorder"] = LiveDiagnostics.Enabled,
                 ["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status,
+                ["probe"] = Probe.TelemetryProbe.Enabled,
+                ["probeStatus"] = Probe.TelemetryProbe.Status,
+                ["records"] = PersonalBestStore.Enabled,
+                ["recordSims"] = RecordSims(),
                 ["keys"] = new JObject
                 {
                     ["openrouter"] = string.IsNullOrEmpty(openRouter) ? null : "hinterlegt " + AiSecretStore.Mask(openRouter),
@@ -419,13 +481,19 @@ namespace CrewChiefV4.AiTeam
 
         private void PushLive()
         {
+            if (!bridgeReady) return;
             var gs = CrewChief.currentGameState;
+            var now = DateTime.UtcNow;
             var tick = service.Memory.LastTickUtc;
-            bool connected = gs != null && tick != DateTime.MinValue && (DateTime.UtcNow - tick).TotalSeconds < 5;
-            string source = GameDataConnectionStatus.SourceAt(DateTime.UtcNow);
+            bool connected = gs != null && tick != DateTime.MinValue && now >= tick && now - tick < TimeSpan.FromSeconds(5);
+            string source = GameDataConnectionStatus.SourceAt(now);
             var o = new JObject { ["type"] = "live", ["connected"] = connected, ["audioLevels"] = AudioLevels(), ["sendDriverNames"] = service.Settings.SendDriverNames,
+                ["autoDetect"] = UserSettings.GetUserSettings().getBoolean("enable_auto_detect"),
                 ["sourceStatus"] = !connected && source != null ? source + ": Datenquelle erreichbar" : null,
-                ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein." };
+                ["sourceHint"] = "Noch keine gültigen Fahrdaten. Die Simulation kann im Menü, in der Garage oder pausiert sein.",
+                ["telemetrySource"] = source,
+                ["radioStatus"] = connected && now - tick <= TimeSpan.FromSeconds(1) && service.Settings.Enabled ?
+                    service.LiveRadioStatus(gs, now) : null };
             if (MainWindow.instance != null)
             {
                 o["running"] = MainWindow.instance.IsAppRunning;
@@ -434,6 +502,10 @@ namespace CrewChiefV4.AiTeam
             o["memoryEnabled"]=service.Settings.PersistentMemory;o["memoryStatus"]=DriverMemory.Status;o["memoryFolder"]=DriverMemory.Folder;
             if (connected)
             {
+                var spotter = MainWindow.instance?.crewChief?.GetSpotterSnapshot() ?? SpotterSnapshot.None;
+                o["saraSideStatus"] = !service.Settings.Enabled || !service.Settings.SaraEnabled ? "Sara: Seitenwarnungen aus" :
+                    spotter.IsFresh(DateTime.UtcNow) ? "Sara: Seitenwarnungen aktiv" :
+                    "Sara: Warte auf aktuelle Seitendaten";
                 var s = gs.SessionData;
                 o["game"] = CrewChief.gameDefinition != null ? CrewChief.gameDefinition.friendlyName : "";
                 o["track"] = s.TrackDefinition != null ? s.TrackDefinition.name : "";
@@ -482,7 +554,6 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
-            var now = DateTime.UtcNow;
             var radio = service.Memory.GetRadio(TimeSpan.FromHours(3), now);
             var list = new JArray();
             foreach (var r in radio.Skip(Math.Max(0, radio.Count - 6)))
@@ -507,6 +578,11 @@ namespace CrewChiefV4.AiTeam
             o["warning"] = Warning(readiness);
             o["recorder"] = LiveDiagnostics.Enabled;
             o["recorderStatus"] = "Diagnose: " + LiveDiagnostics.Status;
+            o["probe"] = Probe.TelemetryProbe.Enabled;
+            o["probeStatus"] = Probe.TelemetryProbe.Status;
+            RecordsState(o);
+            if (JToken.DeepEquals(lastLive, o)) return;
+            lastLive = o;
             Post(o);
         }
 
@@ -685,13 +761,11 @@ namespace CrewChiefV4.AiTeam
                 CrewVoiceLevels.Set(channel, volume);
                 user.setProperty("ai_team_volume_" + channel, volume);
                 if (persist) user.saveUserSettings();
-                AiAudio.RefreshDirectVolume();
             }
             else if (channel == "messages")
             {
                 if (main != null) main.updateMessagesVolume(volume, persist, true);
                 else { MainWindow.currentMessageVolume = volume; user.setProperty("messages_volume", volume); if (persist) user.saveUserSettings(); }
-                AiAudio.RefreshDirectVolume();
             }
             else if (main != null) main.updateBackgroundVolume(volume, persist, true);
             else { user.setProperty("background_volume", volume); if (persist) user.saveUserSettings(); }
@@ -729,6 +803,16 @@ namespace CrewChiefV4.AiTeam
                 : member == TeamMember.Sara ? "Sara hier. Ich hab die Seiten im Blick."
                 : "Mik hier. Funk steht, ich hab das Auto im Blick.";
             Run(service.SpeakAsync(member, text, true, CancellationToken.None).ContinueWith(t => t.Exception == null ? null : t.Exception.GetBaseException().Message));
+        }
+
+        private static JArray RecordSims() =>
+            new JArray(PersonalBestStore.OverviewCached().Select(p => new JObject { ["game"] = p.Key, ["count"] = p.Value }));
+
+        private static JObject RecordsState(JObject o)
+        {
+            o["records"] = PersonalBestStore.Enabled;
+            o["recordSims"] = RecordSims();
+            return o;
         }
 
         private void SaveProperty(string name, object value)
@@ -805,13 +889,22 @@ namespace CrewChiefV4.AiTeam
 
         private void Post(JObject message)
         {
-            if (IsDisposed || !IsHandleCreated) return;
-            if (InvokeRequired)
+            int generation = Volatile.Read(ref pageGeneration);
+            PostToUi(() =>
             {
-                try { BeginInvoke(new Action(() => Post(message))); } catch (Exception) { }
-                return;
-            }
-            if (web.CoreWebView2 != null) web.CoreWebView2.PostWebMessageAsJson(message.ToString(Formatting.None));
+                if (!navigationSucceeded || generation != pageGeneration ||
+                    !bridgeReady && (string)message["type"] != "handshake") return;
+                try { web.CoreWebView2?.PostWebMessageAsJson(message.ToString(Formatting.None)); }
+                catch (InvalidOperationException e) { Log.Warning("RRCA WebView2 send: " + e.Message); }
+                catch (System.Runtime.InteropServices.COMException e) { Log.Warning("RRCA WebView2 send: " + e.Message); }
+            });
+        }
+
+        private void PostToUi(Action action)
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            try { BeginInvoke(new Action(() => { if (!IsDisposed && !Disposing) action(); })); }
+            catch (InvalidOperationException) { /* The window handle was destroyed during shutdown. */ }
         }
 
         private static TeamMember Member(string id)
@@ -848,7 +941,7 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private static string Version()
+        internal static string Version()
         {
             try
             {

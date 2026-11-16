@@ -69,6 +69,7 @@ namespace CrewChiefV4.Audio
         internal static DateTime lastSwearyMessageTime = DateTime.MinValue;
 
         internal static SpeechSynthesizer synthesizer;
+        internal static readonly object LegacySynthesisSync = new object();
 
         public static Boolean hasSuitableTTSVoice = false;
 
@@ -78,6 +79,7 @@ namespace CrewChiefV4.Audio
         private static Dictionary<String, Tuple<int, int>> varietyData = new Dictionary<string, Tuple<int, int>>();
 
         internal static SingleSound currentlyPlayingSound;
+    internal static bool SafetyRadioActive => Volatile.Read(ref currentlyPlayingSound)?.IsSafetyRadio == true;
 
         // cacheSoundsThread is initialized on the main thread only, so it is safe to sync on the main thread.
         public static Thread cacheSoundsThread;
@@ -483,6 +485,11 @@ namespace CrewChiefV4.Audio
         /// <returns>true if a TTS voice is available.</returns>
         public static bool SetUpTTS()
         {
+            lock (LegacySynthesisSync) return SetUpTTSLocked();
+        }
+
+        private static bool SetUpTTSLocked()
+        {
             string ttsVoice = null;
             try
             {
@@ -581,14 +588,30 @@ namespace CrewChiefV4.Audio
                 sound.Stop();
         }
 
-        public static void InterruptCurrentlyPlayingSound(Boolean blockBeeps)
+        internal static void InterruptForAiResult(string nextTopic)
         {
-            // only works with nAudio
-            if (AudioPlayer.playWithNAudio && currentlyPlayingSound != null)
+            var sound = System.Threading.Volatile.Read(ref currentlyPlayingSound);
+            if (AudioPlayer.playWithNAudio && sound != null &&
+                AiTeam.CrewSpeechPolicy.CanInterruptForResult(sound.isAiAudio, sound.isSpotter, sound.isBleep,
+                    sound.playbackPriority, sound.AiAudioTopic, nextTopic))
+                sound.Stop();
+        }
+
+        internal static void InterruptForSpotter()
+    {
+        var sound = Volatile.Read(ref currentlyPlayingSound);
+        if (AudioPlayer.playWithNAudio && sound != null && !sound.IsSafetyRadio && !sound.isBleep)
+            sound.Stop();
+    }
+
+    public static void InterruptCurrentlyPlayingSound(Boolean blockBeeps)
+        {
+            var sound = Volatile.Read(ref currentlyPlayingSound);
+            if (AudioPlayer.playWithNAudio && sound != null)
             {
-                if (blockBeeps || !currentlyPlayingSound.isBleep)
+                if (blockBeeps || !sound.isBleep)
                 {
-                    Boolean blockedABeep = currentlyPlayingSound.Stop();
+                    Boolean blockedABeep = sound.Stop();
                     if (blockedABeep)
                     {
                         PlaybackModerator.BlockNAudioPlaybackFor(500);
@@ -1781,7 +1804,8 @@ namespace CrewChiefV4.Audio
         internal SoundSet prefixSoundSet = null;
         internal SoundSet suffixSoundSet = null;
 
-        private NAudioOut nAudioOut = null;
+        private readonly object outputSync = new object();
+        private NAudioOut nAudioOut;
         private NAudio.Wave.WaveFileReader reader = null;
         // When using nAudio, we wait for a playbackEnded callback. Sometimes this doesn't trigger so limit
         // how long we'll wait for this event
@@ -1790,7 +1814,6 @@ namespace CrewChiefV4.Audio
         // only used for bleeps
         private int deviceIdWhenCached = 0;
         // note the volume level when the beep was cached so we can reload the sound if the volume has changed
-        private float volumeWhenCached = 0;
 
         AutoResetEvent playWaitHandle = new AutoResetEvent(false);
 
@@ -1820,11 +1843,14 @@ namespace CrewChiefV4.Audio
         internal Boolean isAiAudio = false;
         internal int playbackPriority;
         private String aiAudioId;
+        internal string AiAudioTopic => AiTeam.AiAudioStore.GetTopic(aiAudioId);
         private string diagnosticClip;
         private string diagnosticKey;
         private int diagnosticPriority;
         private int diagnosticMessageId;
-        private bool diagnosticInterrupted;
+        private volatile bool diagnosticInterrupted;
+        internal bool IsSafetyRadio => isSpotter || isAiAudio && playbackPriority >= 8 &&
+            subtitle.StartsWith("Sara: ", StringComparison.Ordinal);
 
         internal SingleSound(byte[] wavBytes, String subtitle, String aiAudioId)
         {
@@ -1976,21 +2002,26 @@ namespace CrewChiefV4.Audio
                             }
                             else
                             {
-                                MemoryStream rawStream = new MemoryStream();
-                                SoundCache.synthesizer.SetOutputToWaveStream(rawStream);
-                                SoundCache.synthesizer.Speak(ttsString);
-                                rawStream.Position = 0;
-                                try
+                                using (var rawStream = new MemoryStream())
                                 {
-                                    this.fileBytes = ConvertTTSWaveStreamToBytes(rawStream, SoundCache.ttsTrimStartMilliseconds, SoundCache.ttsTrimEndMilliseconds);
+                                    lock (SoundCache.LegacySynthesisSync)
+                                    {
+                                        SoundCache.synthesizer.SetOutputToWaveStream(rawStream);
+                                        try { SoundCache.synthesizer.Speak(ttsString); }
+                                        finally { SoundCache.synthesizer.SetOutputToNull(); }
+                                    }
+                                    rawStream.Position = 0;
+                                    try
+                                    {
+                                        this.fileBytes = ConvertTTSWaveStreamToBytes(rawStream,
+                                            SoundCache.ttsTrimStartMilliseconds, SoundCache.ttsTrimEndMilliseconds);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Log.Exception(e, "Failed to pre-process TTS audio data: ");
+                                        this.fileBytes = rawStream.ToArray();
+                                    }
                                 }
-                                catch (Exception e)
-                                {
-                                    // unable to trim and convert the tts stream, so save the raw stream and use that instead
-                                    Log.Exception(e, "Failed to pre-process TTS audio data: ");
-                                    this.memoryStream = rawStream;
-                                }
-                                SoundCache.synthesizer.SetOutputToNull();
                             }
                         }
                         else
@@ -2029,28 +2060,13 @@ namespace CrewChiefV4.Audio
                 if (AudioPlayer.playWithNAudio)
                 {
                     if (loadedSoundPlayer &&
-                        (AudioPlayer.naudioMessagesPlaybackDeviceId != deviceIdWhenCached || this.getVolume(1f) != volumeWhenCached))
+                        AudioPlayer.naudioMessagesPlaybackDeviceId != deviceIdWhenCached)
                     {
-                        // naudio device ID or volume has changed since the beep was cached, so unload and re-cache it
-                        try
-                        {
-                            this.reader.Dispose();
-                        }
-                        catch (Exception e) { Log.Exception(e); }
-                        try
-                        {
-                            if (this.eventHandler != null) this.nAudioOut.SubscribePlaybackStopped(this.eventHandler);
-                            this.nAudioOut.Stop();
-                            this.nAudioOut.Dispose();
-                        }
-                        catch (Exception e) {Log.Exception(e);}
-                        loadedSoundPlayer = false;
+                        ReleaseNAudio();
                     }
                     if (!loadedSoundPlayer)
                     {
-                        volumeWhenCached = getVolume(1f);
-                        LoadNAudioWaveOut();
-                        loadedSoundPlayer = true;
+                        LoadNAudioWaveOut(fromFile: false);
                         deviceIdWhenCached = AudioPlayer.naudioMessagesPlaybackDeviceId;
                     }
                     else
@@ -2120,17 +2136,14 @@ namespace CrewChiefV4.Audio
             {
                 GameOrVoipVolume.DuckGameAudio();
             }
-            if (AudioPlayer.playWithNAudio)
+            try
             {
-                PlayNAudio(soundMetadata.isListenStartBeep);
+                if (AudioPlayer.playWithNAudio) PlayNAudio(soundMetadata != null && soundMetadata.isListenStartBeep);
+                else PlaySoundPlayer();
             }
-            else
+            finally
             {
-                PlaySoundPlayer();
-            }
-            if (GameOrVoipVolume.AudioDuckingEnabled)
-            {
-                GameOrVoipVolume.UnDuckGameAudio();
+                if (GameOrVoipVolume.AudioDuckingEnabled) GameOrVoipVolume.UnDuckGameAudio();
             }
             if (isAiAudio)
             {
@@ -2185,6 +2198,9 @@ namespace CrewChiefV4.Audio
                         this.soundPlayer.Dispose();
                     }
                     catch (Exception e) {Log.Exception(e);}
+                    this.soundPlayer = null;
+                    this.memoryStream?.Dispose();
+                    this.memoryStream = null;
                     this.loadedSoundPlayer = false;
                     SoundCache.activeSoundPlayerObjects--;
                 }
@@ -2193,123 +2209,117 @@ namespace CrewChiefV4.Audio
 
         // if the sound is a listen start beep and caching the file data is enabled, we don't
         // wait for the sound to finish playing before returning control to the caller.
-        private void PlayNAudio(Boolean isListenStartBeep)
+        private void PlayNAudio(bool isListenStartBeep)
         {
-            float volume = getVolume(isSpotter ? SoundCache.spotterVolumeBoost : 1f);
-            if (volume == 0)
+            if (getVolume() == 0)
             {
                 SoundCache.CompletePlayback(this);
                 return;
             }
-            if (!cacheFileData)
+            lock (this)
             {
-                // if caching is switched off, load and play the file
-                NAudioOut uncachedNAudioOut = NAudioOut.CreateOutput();
-                WaveFileReader uncachedReader = new WaveFileReader(fullPath);
-                setAllowedPlayTimeForNAudio(uncachedReader.Length, uncachedReader.WaveFormat);
-                this.eventHandler = new EventHandler<StoppedEventArgs>(playbackStopped);
-                uncachedNAudioOut.SubscribePlaybackStopped(this.eventHandler);
-                ISampleProvider sampleProvider = createSampleProvider(uncachedReader, volume);
+                bool asynchronousBeep = isListenStartBeep && cacheFileData;
                 try
                 {
-                    uncachedNAudioOut.Init(sampleProvider);
-                    SoundCache.currentlyPlayingSound = this;
-                    this.playbackStartTime = DateTime.UtcNow;
-                    uncachedNAudioOut.Play();
-                    if (!this.playWaitHandle.WaitOne(this.allowedPlayTimeForNAudio))
+                    if (cacheFileData) LoadAndCacheSound();
+                    else LoadNAudioWaveOut(fromFile: true);
+                    var output = nAudioOut;
+                    if (output == null) return;
+                    reader.CurrentTime = TimeSpan.Zero;
+                    playWaitHandle.Reset();
+                    Action start = () =>
+                    {
+                        lock (outputSync)
+                        {
+                            SoundCache.currentlyPlayingSound = this;
+                            playbackStartTime = DateTime.UtcNow;
+                            AiTeam.LiveDiagnostics.Audio("driver_submit", diagnosticClip, diagnosticKey, subtitle, diagnosticPriority, fullPath, diagnosticMessageId);
+                            output.Play();
+                        }
+                    };
+                    if (isAiAudio)
+                    {
+                        if (!AiTeam.AiAudioStore.TryStart(aiAudioId, start)) return;
+                    }
+                    else start();
+
+                    if (!asynchronousBeep && !playWaitHandle.WaitOne(allowedPlayTimeForNAudio))
                     {
                         Log.Warning("Gave up waiting for nAudio playbackStopped callback");
-                        SoundCache.CompletePlayback(this);
+                        ReleaseNAudio();
                     }
-                    uncachedNAudioOut.UnsubscribePlaybackStopped(this.playbackStopped);
                 }
                 catch (Exception e)
                 {
-                    Log.Exception(e, "Exception ");
+                    Log.Exception(e, "nAudio playback");
+                    ReleaseNAudio();
                 }
-                try
+                finally
                 {
-                    uncachedReader.Dispose();
-                }
-                catch (Exception e) {Log.Exception(e);}
-                try
-                {
-                    uncachedNAudioOut.Dispose();
-                }
-                catch (Exception e) {Log.Exception(e);}
-            }
-            else
-            {
-                // ensure the file is loaded then play it
-                lock (this)
-                {
-                    try
+                    if (!asynchronousBeep)
                     {
-                        LoadAndCacheSound();
-                        this.reader.CurrentTime = TimeSpan.Zero;
-                        SoundCache.currentlyPlayingSound = this;
-                        this.playbackStartTime = DateTime.UtcNow;
-                        if (isAiAudio)
-                        {
-                            if (!AiTeam.AiAudioStore.TryStart(aiAudioId, () => {
-                                SoundCache.currentlyPlayingSound=this; this.playbackStartTime=DateTime.UtcNow;
-                                AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
-                                this.nAudioOut.Play();
-                            }))
-                            { SoundCache.CompletePlayback(this); return; }
-                        }
-                        else
-                        {
-                            AiTeam.LiveDiagnostics.Audio("driver_submit",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
-                            this.nAudioOut.Play();
-                        }
-                        // Special case for the listen start beep - don't wait for it to finish playing before returning
-                        if (!isListenStartBeep)
-                        {
-                            if (!this.playWaitHandle.WaitOne(allowedPlayTimeForNAudio))
-                            {
-                                Log.Warning("Gave up waiting for nAudio playbackStopped callback");
-                                SoundCache.CompletePlayback(this);
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Exception(e, "Exception ");
+                        if (!cacheSoundPlayer) ReleaseNAudio();
+                        SoundCache.CompletePlayback(this);
                     }
                 }
             }
         }
 
-        private void LoadNAudioWaveOut()
+        private void LoadNAudioWaveOut(bool fromFile)
         {
-            this.nAudioOut = NAudioOut.CreateOutput();
-            float volumeBoost = isSpotter ? SoundCache.spotterVolumeBoost : 1f;
-            // if we have file bytes, load them
-            if (this.fileBytes != null)
+            if (!fromFile && fileBytes == null) return;
+            try
             {
-                this.memoryStream = new MemoryStream(this.fileBytes);
-            }
-            // if we have the TTS memory stream, use it
-            else if (this.memoryStream != null && this.ttsString != null)
-            {
-                volumeBoost = SoundCache.ttsVolumeBoost;
-                this.memoryStream.Position = 0;
-            }
-            else
-            {
-                Console.WriteLine("No sound data available");
-                return;
-            }
-            this.reader = new NAudio.Wave.WaveFileReader(this.memoryStream);
-            setAllowedPlayTimeForNAudio(this.reader.Length, this.reader.WaveFormat);
-            this.eventHandler = new EventHandler<NAudio.Wave.StoppedEventArgs>(playbackStopped);
-            this.nAudioOut.SubscribePlaybackStopped(this.eventHandler);
-            float volume = getVolume(volumeBoost);
+                reader = fromFile ? new WaveFileReader(fullPath) : new WaveFileReader(memoryStream = new MemoryStream(fileBytes));
+                setAllowedPlayTimeForNAudio(reader.Length, reader.WaveFormat);
+                ISampleProvider samples = new NAudio.Wave.SampleProviders.SampleChannel(reader, SoundCache.forceStereoPlayback);
+                if (SoundCache.forceResamplePlayback > 500 && SoundCache.forceResamplePlayback <= 48000)
+                    samples = new NAudio.Wave.SampleProviders.WdlResamplingSampleProvider(samples, SoundCache.forceResamplePlayback);
 
-            ISampleProvider sampleProvider = createSampleProvider(this.reader, volume);
-            this.nAudioOut.Init(sampleProvider);
-            this.reader.CurrentTime = TimeSpan.Zero;
+                lock (outputSync) nAudioOut = NAudioOut.CreateOutput();
+                var owned = nAudioOut;
+                eventHandler = (sender, e) =>
+                {
+                    if (ReferenceEquals(Volatile.Read(ref nAudioOut), owned)) playbackStopped(sender, e);
+                };
+                nAudioOut.SubscribePlaybackStopped(eventHandler);
+                nAudioOut.Init(new RadioGainSampleProvider(samples, getVolume));
+                loadedSoundPlayer = true;
+            }
+            catch
+            {
+                ReleaseNAudio();
+                throw;
+            }
+        }
+
+        private void ReleaseNAudio()
+        {
+            NAudioOut output;
+            lock (outputSync)
+            {
+                output = nAudioOut;
+                nAudioOut = null;
+            }
+            if (output != null)
+            {
+                try
+                {
+                    if (eventHandler != null) output.UnsubscribePlaybackStopped(eventHandler);
+                    if (output.PlaybackState != PlaybackState.Stopped) output.Stop();
+                }
+                catch (Exception e) { Log.Exception(e); }
+                finally
+                {
+                    try { output.Dispose(); } catch (Exception e) { Log.Exception(e); }
+                }
+            }
+            eventHandler = null;
+            try { reader?.Dispose(); } catch (Exception e) { Log.Exception(e); }
+            reader = null;
+            memoryStream?.Dispose();
+            memoryStream = null;
+            loadedSoundPlayer = false;
         }
 
         // If we don't get a playbackStopped event we'll give up waiting - base this wait time on the expected file play time + some buffer
@@ -2319,17 +2329,6 @@ namespace CrewChiefV4.Audio
             // we should never really need this value. Set the grace period to 300ms because reasons. As we're including the wav header in
             // the size calculation this will be a bit less than 300ms grace period
             this.allowedPlayTimeForNAudio = 300 + (int)(8000f * (float)fileLength / (float)(waveFormat.SampleRate * waveFormat.Channels * waveFormat.BitsPerSample));
-        }
-
-        private ISampleProvider createSampleProvider(WaveFileReader reader, float volume)
-        {
-            ISampleProvider sampleProvider = new NAudio.Wave.SampleProviders.SampleChannel(this.reader, SoundCache.forceStereoPlayback);
-            ((NAudio.Wave.SampleProviders.SampleChannel)sampleProvider).Volume = volume;
-            if (SoundCache.forceResamplePlayback > 500 && SoundCache.forceResamplePlayback <= 48000)
-            {
-                sampleProvider = new NAudio.Wave.SampleProviders.WdlResamplingSampleProvider(sampleProvider, SoundCache.forceResamplePlayback);
-            }
-            return sampleProvider;
         }
 
         private void playbackStopped(object sender, NAudio.Wave.StoppedEventArgs e)
@@ -2346,175 +2345,89 @@ namespace CrewChiefV4.Audio
             finally { this.playWaitHandle.Set(); }
         }
 
-        private float getVolume(float boost)
+        private float getVolume()
         {
-            float volume = MainWindow.currentMessageVolume * boost * AiTeam.CrewVoiceLevels.ForSound(isSpotter, isAiAudio ? subtitle : null);
-            // volume can be higher than 1, it seems. Not sure if this is device dependent
-            /*if (volume > 1)
-            {
-                volume = 1;
-            }*/
-            if (volume < 0)
-            {
-                volume = 0;
-            }
-            return volume;
+            float boost = isSpotter ? SoundCache.spotterVolumeBoost : 1f;
+            return RadioGainSampleProvider.Clamp(MainWindow.currentMessageVolume * boost *
+                AiTeam.CrewVoiceLevels.ForSound(isSpotter, isAiAudio ? subtitle : null));
         }
 
-        internal Boolean UnLoad()
+        internal bool UnLoad()
         {
-            Boolean unloaded = false;
-            lock(this)
+            lock (this)
             {
-                if (this.soundPlayer != null)
+                bool unloaded = loadedSoundPlayer;
+                if (nAudioOut != null || reader != null) ReleaseNAudio();
+                if (soundPlayer != null)
                 {
-                    this.soundPlayer.Stop();
-                }
-                if (this.nAudioOut != null && this.nAudioOut.PlaybackState != NAudio.Wave.PlaybackState.Stopped)
-                {
-                    this.nAudioOut.Stop();
-                }
-                if (this.memoryStream != null)
-                {
-                    try
-                    {
-                        this.memoryStream.Dispose();
-                    }
-                    catch (Exception e) {Log.Exception(e);}
-                }
-                if (this.soundPlayer != null)
-                {
-                    try
-                    {
-                        this.soundPlayer.Dispose();
-                    }
-                    catch (Exception e) {Log.Exception(e);}
-                    this.loadedSoundPlayer = false;
-                    unloaded = true;
+                    try { soundPlayer.Stop(); soundPlayer.Dispose(); }
+                    catch (Exception e) { Log.Exception(e); }
+                    soundPlayer = null;
                     SoundCache.activeSoundPlayerObjects--;
                 }
-                if (this.reader != null)
-                {
-                    try
-                    {
-                        this.reader.Dispose();
-                    }
-                    catch (Exception e) { Log.Exception(e); }
-                }
-                if (this.nAudioOut != null)
-                {
-                    try
-                    {
-                        this.nAudioOut.Dispose();
-                    }
-                    catch (Exception e) {Log.Exception(e);}
-                    this.loadedSoundPlayer = false;
-                    unloaded = true;
-                }
+                memoryStream?.Dispose();
+                memoryStream = null;
+                loadedSoundPlayer = false;
+                return unloaded;
             }
-            return unloaded;
         }
 
-        internal Boolean Stop()
+        internal bool Stop()
         {
-            Boolean blockedABeep = false;
-            if (AudioPlayer.playWithNAudio && this.nAudioOut != null && this.nAudioOut.PlaybackState == NAudio.Wave.PlaybackState.Playing)
+            if (AudioPlayer.playWithNAudio)
             {
-                if (this.isBleep)
+                lock (outputSync)
                 {
-                    blockedABeep = true;
+                    if (nAudioOut == null || nAudioOut.PlaybackState != PlaybackState.Playing) return false;
+                    diagnosticInterrupted = true;
+                    AiTeam.LiveDiagnostics.Audio("interrupt_request", diagnosticClip, diagnosticKey, subtitle, diagnosticPriority, fullPath, diagnosticMessageId);
+                    nAudioOut.Stop();
+                    return isBleep;
                 }
-                diagnosticInterrupted=true;
-                AiTeam.LiveDiagnostics.Audio("interrupt_request",diagnosticClip,diagnosticKey,subtitle,diagnosticPriority,fullPath,diagnosticMessageId);
-                this.nAudioOut.Stop();
-                Console.WriteLine($"Stopping sound: {fullPath}");
             }
-            else if (!AudioPlayer.playWithNAudio && this.soundPlayer != null)
-            {
-                this.soundPlayer.Stop();
-            }
-            return blockedABeep;
+            soundPlayer?.Stop();
+            return false;
         }
 
-        private byte[] ConvertTTSWaveStreamToBytes(MemoryStream inputStream, int startMillisecondsToTrim, int endMillisecondsToTrim)
+        private static byte[] ConvertTTSWaveStreamToBytes(MemoryStream input, int trimStart, int trimEnd)
         {
-            NAudio.Wave.WaveFileReader reader = new NAudio.Wave.WaveFileReader(inputStream);
-            // can only do volume stuff if it's a 16 bit wav stream (which it should be)
-            Boolean canProcessVolume = reader.WaveFormat.BitsPerSample == 16;
-
-            // work out how many bytes to trim off the start and end
-            int totalMilliseconds = (int)reader.TotalTime.TotalMilliseconds;
-
-            // don't trim the start if the resulting sound file would be < 1 second long - some issue prevents nAudio loading the byte array
-            // if the start is trimmed and the sound is very short
-            if (totalMilliseconds - startMillisecondsToTrim - endMillisecondsToTrim < 1000)
+            using (var reader = new WaveFileReader(input))
+            using (var output = new MemoryStream())
             {
-                startMillisecondsToTrim = 0;
-            }
-            double bytesPerMillisecond = (double)reader.WaveFormat.AverageBytesPerSecond / 1000d;
-            int startPos = (int)(startMillisecondsToTrim * bytesPerMillisecond);
-            startPos = startPos - startPos % reader.WaveFormat.BlockAlign;
-
-            int endBytesToTrim = (int)(endMillisecondsToTrim * bytesPerMillisecond);
-            endBytesToTrim = endBytesToTrim - endBytesToTrim % reader.WaveFormat.BlockAlign;
-            int endPos = (int)reader.Length - endBytesToTrim;
-
-            if (startPos > endPos)
-            {
-                startPos = 0;
-            }
-
-            byte[] buffer = new byte[reader.BlockAlign * 100];
-            MemoryStream outputStream = new MemoryStream();
-
-            // process the wave file header
-            int headerLength = (int) (inputStream.Length - reader.Length);  // PCM wave file header size should be 46 bytes, the last 4 bytes are the sample count
-            byte[] header = new byte[headerLength];
-            outputStream.SetLength((endPos - startPos) + headerLength);
-            inputStream.Position = 0;
-            inputStream.Read(header, 0, headerLength);
-            uint dataSize = BitConverter.ToUInt32(header, headerLength - 4);
-            dataSize = dataSize - ((uint)endBytesToTrim + (uint)startPos);
-            byte[] newSize = BitConverter.GetBytes(dataSize);
-            header[headerLength - 4] = newSize[0];
-            header[headerLength - 3] = newSize[1];
-            header[headerLength - 2] = newSize[2];
-            header[headerLength - 1] = newSize[3];
-            outputStream.Write(header, 0, headerLength);
-            reader.Position = startPos;
-            while (reader.Position < endPos)
-            {
-                int bytesRequired = (int)(endPos - reader.Position);
-                if (bytesRequired > 0)
+                var format = reader.WaveFormat;
+                long BytesFor(int milliseconds)
                 {
-                    int bytesToRead = Math.Min(bytesRequired, buffer.Length);
-                    int bytesRead = reader.Read(buffer, 0, bytesToRead);
-
-                    if (canProcessVolume)
+                    long count = Math.Max(0, milliseconds) * (long)format.AverageBytesPerSecond / 1000;
+                    return count - count % format.BlockAlign;
+                }
+                long end = reader.Length - BytesFor(trimEnd);
+                if (end <= 0) return input.ToArray();
+                long start = reader.TotalTime.TotalMilliseconds - trimStart - trimEnd < 1000 ? 0 : BytesFor(trimStart);
+                reader.Position = start < end ? start : 0;
+                var buffer = new byte[format.BlockAlign * 256];
+                using (var writer = new WaveFileWriter(output, format))
+                {
+                    while (reader.Position < end)
                     {
-                        for (int i = 0; i < buffer.Length; i+=2)
+                        int read = reader.Read(buffer, 0, (int)Math.Min(buffer.Length, end - reader.Position));
+                        if (read == 0) break;
+                        if (format.BitsPerSample == 16)
                         {
-                            Int16 sample = BitConverter.ToInt16(buffer, i);
-                            if (sample > 0)
+                            float boost = SoundCache.ttsVolumeBoost;
+                            for (int i = 0; i + 1 < read; i += 2)
                             {
-                                sample = (short)Math.Min(short.MaxValue, sample * SoundCache.ttsVolumeBoost);
+                                short raw = (short)(buffer[i] | buffer[i + 1] << 8);
+                                float scaled = raw / 32768f * boost;
+                                int sample = (int)(RadioGainSampleProvider.Limit(scaled) * short.MaxValue);
+                                buffer[i] = (byte)sample;
+                                buffer[i + 1] = (byte)(sample >> 8);
                             }
-                            else
-                            {
-                                sample = (short)Math.Max(short.MinValue, sample * SoundCache.ttsVolumeBoost);
-                            }
-                            byte[] bytes = BitConverter.GetBytes(sample);
-                            buffer[i] = bytes[0];
-                            buffer[i+1] = bytes[1];
                         }
-                    }
-                    if (bytesRead > 0)
-                    {
-                        outputStream.Write(buffer, 0, bytesRead);
+                        writer.Write(buffer, 0, read);
                     }
                 }
+                return output.ToArray();
             }
-            return outputStream.ToArray();
         }
     }
 

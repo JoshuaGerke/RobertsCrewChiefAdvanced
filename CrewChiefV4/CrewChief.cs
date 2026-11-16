@@ -62,6 +62,13 @@ namespace CrewChiefV4
         private static GameDefinition traceGameDefinition;  // The game that was used to record a trace
         public static Rf2ChatTransceiver rf2ChatTransceiver;
 
+        private static bool IsLiveTransportError(Exception error)
+        {
+            return error is GameDataReadException || error is System.IO.IOException ||
+                error is System.Net.Sockets.SocketException || error is UnauthorizedAccessException ||
+                error is ObjectDisposedException;
+        }
+
         private const int IRACING_INTERVAL = 16;               // always use 60Hz for iracing
         private const int DEFAULT_START_LIGHTS_INTERVAL = 10;  // default 10ms during race countdown
         private static int startLightsInterval;
@@ -659,7 +666,8 @@ namespace CrewChiefV4
                                 runSpotterThread = false;
                             }
                         }
-                        lastSpotterState = currentSpotterState;
+                        if (currentSpotterState != null)
+                            lastSpotterState = currentSpotterState;
                     }
                     Thread.Sleep(spotterInterval);
                 }
@@ -872,8 +880,16 @@ namespace CrewChiefV4
                         && gameDefinition.HasAnyProcessNameAssociated())
                     {
                         CrewChief.gameExeParentDirectory = null;
-                        gameDataReader.DisconnectFromProcess();
                         mapped = false;
+                        AiTeam.GameDataConnectionStatus.Clear();
+                        try
+                        {
+                            gameDataReader.DisconnectFromProcess();
+                        }
+                        catch (Exception error) when (IsLiveTransportError(error))
+                        {
+                            Log.DontSpam("Live telemetry disconnect: " + error.Message).Commentary();
+                        }
                     }
 
                     if (!gameDefinition.HasAnyProcessNameAssociated()  // Network data case.
@@ -881,7 +897,14 @@ namespace CrewChiefV4
                     {
                         if (!mapped)
                         { // The game has started
-                            mapped = gameDataReader.Initialise();
+                            try
+                            {
+                                mapped = gameDataReader.Initialise();
+                            }
+                            catch (Exception error) when (IsLiveTransportError(error))
+                            {
+                                Log.DontSpam("Live telemetry connection pending: " + error.Message).Commentary();
+                            }
 
                             // Instead of stressing process to death on failed mapping,
                             // give a it a break.
@@ -971,13 +994,16 @@ namespace CrewChiefV4
 
                             latestRawGameData = gameDataReader.ReadGameData(false);
                             if (latestRawGameData != null)
-                                AiTeam.GameDataConnectionStatus.Record(gameDefinition.friendlyName, DateTime.UtcNow);
+                                AiTeam.GameDataConnectionStatus.Record(
+                                    gameDataReader is PMR.PMRUDPReader pmr && pmr.UsesLoopback ? gameDefinition.friendlyName + " · UDP Loopback" :
+                                        gameDefinition.friendlyName, DateTime.UtcNow);
                             ticksWhenRead = DateTime.UtcNow.Ticks; // Not exact but close enough for speech trace
                         }
-                        catch (GameDataReadException e) when (Debug.LogException(e))
+                        catch (Exception error) when (IsLiveTransportError(error))
                         {
-                            Log.Exception(e, "Error reading live game data " + e.Message);
-                            continue; // while(running)
+                            Log.DontSpam("Live telemetry read deferred: " + error.Message).Commentary();
+                            Thread.Sleep(100);
+                            continue;
                         }
                     }
                     // another Thread may have stopped the app - check here before processing the game data
@@ -1326,7 +1352,7 @@ namespace CrewChiefV4
                                         audioPlayer);
                                 }
                                 if (spotter != null && GlobalBehaviourSettings.spotterEnabled && !spotterIsRunning &&
-                                    (Game.F1_20S || Debug.PlaybackSpotter))
+                                    (Game.F1_20S || Debug.PlaybackSpotter || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse))
                                 {
                                     Console.WriteLine("********** starting spotter***********");
                                     spotter.clearState();
@@ -1384,6 +1410,13 @@ namespace CrewChiefV4
                     {
                         sharedMemoryManager.UpdateVariable("phraseIsPlaying", new bool[1] { audioPlayer.isChannelOpen() });
                         sharedMemoryManager.Tick(interval);
+                    }
+                    if (AiTeam.TelemetrySourceClock.SupportsNativeCadence(Game.game) && mapped && AiTeam.AiTeamService.NativeIntakeEnabled &&
+                        currentGameState != null && (currentGameState.SessionData.SessionPhase == SessionPhase.Green ||
+                            currentGameState.SessionData.SessionPhase == SessionPhase.FullCourseYellow))
+                    {
+                        interval = AiTeam.TelemetrySourceClock.NativePollDelay(interval, now, DateTime.UtcNow,
+                            currentGameState.SourceTelemetryUtc);
                     }
                     Thread.Sleep(interval);
                 }

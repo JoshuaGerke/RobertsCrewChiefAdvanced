@@ -28,6 +28,13 @@ namespace CrewChiefV4.AiTeam
                 values[p.Key]=Describe(p.Value,ctx.NowUtc);
             return values;
         }
+        internal static float FreshControl(GameStateData state, string id, float fallback, DateTime now)
+        {
+            if (!state.Measurements.TryGetValue(id, out var sample)) return fallback >= 0 && fallback <= 1 ? fallback : -1;
+            return sample.Value.HasValue && sample.SampleUtc != DateTime.MinValue &&
+                now >= sample.SampleUtc && now - sample.SampleUtc <= TimeSpan.FromSeconds(1) ? (float)sample.Value.Value : -1;
+        }
+
         public static JToken Number(RaceDataContext ctx,string id,float fallback)
         {
             TelemetryMeasurement m;

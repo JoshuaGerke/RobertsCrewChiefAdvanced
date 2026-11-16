@@ -403,6 +403,10 @@ namespace CrewChiefV4.rFactor2
             var shared = memoryMappedFileStruct as RF2_LMUSharedMemoryReader.RF2_LMUStructWrapper;
             var cgs = new GameStateData(shared.ticksWhenRead);
             cgs.rawGameData = shared;
+            // If both channel clocks are known, neither may hide a stalled counterpart.
+            // Old recordings without the new clock keep their existing scoring semantics.
+            if (shared.OldestKnownSourceTicks > 0)
+                cgs.SourceTelemetryUtc = new DateTime(shared.OldestKnownSourceTicks, DateTimeKind.Utc);
             //
             // This block has two purposes:
             //
@@ -1173,6 +1177,10 @@ namespace CrewChiefV4.rFactor2
             cgs.ControlData.BrakePedal = (float)playerTelemetry.mUnfilteredBrake;
             cgs.ControlData.ThrottlePedal = (float)playerTelemetry.mUnfilteredThrottle;
             cgs.ControlData.ClutchPedal = (float)playerTelemetry.mUnfilteredClutch;
+            DateTime playerSampleUtc = AiTeam.TelemetrySourceClock.SampleUtc(shared.playerTelemetrySampleTicks, shared.ticksWhenRead);
+            if (playerSampleUtc != DateTime.MinValue)
+                TelemetryMeasurements.Pedals(cgs, Game.LMU ? "LMU.SharedMemory.Telemetry" : "RF2.SharedMemory.Telemetry",
+                    playerSampleUtc, "mUnfilteredThrottle", "mUnfilteredBrake", "mUnfilteredClutch");
 
             // --------------------------------
             // damage

@@ -235,7 +235,9 @@ namespace UnitTest.AiTeamTests
                 s.SessionData.IsNewLap = true;
                 Assert.AreEqual(remainingLaps, LapWatch.LapsLeft(s.SessionData));
                 Assert.IsTrue(LapWatch.LapsAreEstimated(s.SessionData));
-                StringAssert.StartsWith("Voraussichtlich", new LapWatch().Evaluate(before, s, -1, -1, false));
+                string radio = new LapWatch().Evaluate(before, s, -1, -1, false);
+                if (remainingLaps == 1) Assert.IsNull(radio, "A fuel estimate cannot cue the last lap.");
+                else StringAssert.StartsWith("Voraussichtlich", radio);
             });
         }
 

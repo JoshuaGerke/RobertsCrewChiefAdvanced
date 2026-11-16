@@ -42,21 +42,22 @@ namespace CrewChiefV4.AiTeam
         };
         internal static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
         private static readonly string[] ApproachingPhrasesDe = {
-            "Ein deutlich schnellerer Wagen kommt von hinten. Bleib berechenbar.",
-            "Schneller Verkehr direkt hinter dir. Behalte deine Linie bei.",
-            "Von hinten kommt ein schnellerer Wagen heran. Keine plötzlichen Manöver."
+            "Schneller Wagen von hinten.",
+            "Schneller Verkehr hinter dir.",
+            "Von hinten kommt ein schnellerer Wagen."
         };
         private static readonly string[] ApproachingPhrasesEn = {
-            "A much faster car is coming up behind. Stay predictable.",
-            "Fast traffic right behind you. Hold your line.",
-            "Faster car closing from behind. No sudden moves."
+            "Fast car coming from behind.",
+            "Fast traffic behind you.",
+            "Faster car closing from behind."
         };
         private static readonly string[] ApproachingPhrasesEs = {
-            "Viene un coche bastante más rápido por detrás. Sé predecible.",
-            "Tráfico rápido justo detrás de ti. Mantén tu trazada.",
-            "Se acerca un coche más rápido por detrás. Nada de maniobras bruscas."
+            "Coche rápido por detrás.",
+            "Tráfico rápido detrás de ti.",
+            "Se acerca un coche más rápido por detrás."
         };
         internal static string[] ApproachingPhrases => RadioLanguage.Pick(ApproachingPhrasesDe, ApproachingPhrasesEn, ApproachingPhrasesEs);
+        internal static string ClosingAheadPhrase => RadioLanguage.T("Du holst auf den Wagen vor dir auf.", "You're catching the car ahead.", "Estás alcanzando al coche de delante.");
         public const double AlertSeconds=6;
         private readonly Dictionary<string,DateTime> last=new Dictionary<string,DateTime>();
         private DateTime lastAny=DateTime.MinValue, lastTick=DateTime.MinValue;
@@ -76,18 +77,22 @@ namespace CrewChiefV4.AiTeam
             return Math.Abs(car.ClosingMps.Value-expected)<=Math.Max(5,ownSpeed*.15);
         }
         public Func<string,bool> CoveredAhead;
-        private static bool Relevant(TrackCarPosition car,double ownSpeed,bool ahead,double upperSeconds)
+        private static bool Relevant(TrackCarPosition car,double ownSpeed,bool ahead,double upperSeconds, bool ordinaryClosing = false)
         {
             if(!Usable(car) || ownSpeed<5 || car.ClosingMps<(ahead?8:3) || !MotionPlausible(car,ownSpeed,ahead) || Math.Abs(car.RouteGapM.Value)<15) return false;
             if(ahead ? car.RouteGapM<=0 : car.RouteGapM>=0) return false;
             double seconds=Math.Abs(car.RouteGapM.Value)/car.ClosingMps.Value;
             if(seconds<.5 || seconds>upperSeconds) return false;
-            if(!ahead) return car.SpeedMps>=ownSpeed+3 && car.SpeedMps>=ownSpeed*1.1;
+            if(!ahead) return car.SpeedMps>=ownSpeed+3 && car.SpeedMps>=ownSpeed*1.1 &&
+                (!car.TrackIntervalSeconds.HasValue || car.TrackIntervalSeconds.Value <= upperSeconds);
             // A normal braking car or a small pace difference is not slow traffic.
+            if (ordinaryClosing) return car.SpeedMps >= 30 && ownSpeed >= 45 && car.ClosingMps >= 12 &&
+                car.SpeedMps <= ownSpeed * .8 && seconds >= 3 && seconds <= upperSeconds && !car.OnOutLap && !car.OnInLap;
             return car.SpeedMps<=1 || car.SpeedMps<=ownSpeed*.6 &&
                 ownSpeed-car.SpeedMps>=8 && (car.OnOutLap || car.OnInLap || car.SpeedMps<=5);
         }
-        public ObservedRaceCall Evaluate(TrackAwareness observer,GameStateData state,DateTime now)
+        public ObservedRaceCall Evaluate(TrackAwareness observer,GameStateData state,DateTime now,
+            double rearAlertSeconds = AlertSeconds)
         {
             var s=observer==null?null:observer.Snapshot;
             if(state==null || s==null) return null;
@@ -106,36 +111,45 @@ namespace CrewChiefV4.AiTeam
                 state.SessionData.SessionId!=s.SessionId || state.SessionData.SessionType!=s.SessionType ||
                 state.SessionData.SessionPhase!=SessionPhase.Green || state.PitData.InPitlane || !s.PlayerSpeedMps.HasValue ||
                 pending!=null || now<lastAny || now-lastAny<TimeSpan.FromSeconds(4)) return null;
-            var candidates=s.Cars.Where(c=>(c.RouteGapM<=0 || CoveredAhead==null || !CoveredAhead(c.Key)) && Relevant(c,s.PlayerSpeedMps.Value,c.RouteGapM>0,AlertSeconds))
+            var candidates=s.Cars.Where(c=>(c.RouteGapM<=0 || CoveredAhead==null || !CoveredAhead(c.Key)) &&
+                (Relevant(c,s.PlayerSpeedMps.Value,c.RouteGapM>0,c.RouteGapM>0 ? AlertSeconds : rearAlertSeconds) ||
+                    state.SessionData.SessionType == SessionType.Practice && Relevant(c,s.PlayerSpeedMps.Value,true,AlertSeconds,true)))
                 .OrderBy(c=>Math.Abs(c.RouteGapM.Value)/c.ClosingMps.Value);
             foreach(var car in candidates)
             {
-                string topic=car.RouteGapM>0?"traffic-catching":"traffic-approaching";
+                bool ordinaryClosing = car.RouteGapM > 0 && !Relevant(car,s.PlayerSpeedMps.Value,true,AlertSeconds);
+                string topic=ordinaryClosing ? "traffic-closing-ahead" : car.RouteGapM>0?"traffic-catching":"traffic-approaching";
                 string key=car.Id+"|"+topic;DateTime previous;
                 if(last.TryGetValue(key,out previous) && (now<previous || now-previous<TimeSpan.FromSeconds(90))) continue;
                 string[] phrases=topic=="traffic-approaching"?ApproachingPhrases:car.SpeedMps<=1?StoppedPhrases:CatchingPhrases;
-                string text=phrases[variant++%phrases.Length];int id=car.Id;string opponentKey=car.Key;bool stopped=topic=="traffic-catching" && car.SpeedMps<=1;int callEpoch=epoch;
+                string text=ordinaryClosing ? ClosingAheadPhrase : phrases[variant++%phrases.Length];
+                int id=car.Id;string opponentKey=car.Key;bool stopped=topic=="traffic-catching" && car.SpeedMps<=1;int callEpoch=epoch;
                 pending=new ObservedRaceCall {
-                    Topic=topic,Text=text,Evidence="practice_quali;continuous_route_positions_1.5s;speed_vs_route_consistent;intercept_within_6s;"+(topic=="traffic-catching"?"slow_ahead_closing_at_least_8mps":"faster_rear_closing_at_least_3mps"),
+                    Topic=topic,Text=text,Evidence="practice_quali;continuous_route_positions_1.5s;speed_vs_route_consistent;intercept_within_" +
+                        (topic=="traffic-approaching" ? rearAlertSeconds : AlertSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture) + "s;"+
+                        (ordinaryClosing ? "ahead_closing_at_least_12mps_in_practice" : topic=="traffic-catching"?"slow_ahead_closing_at_least_8mps":"faster_rear_closing_at_least_3mps"),
                     Member=TeamMember.Ben,Priority=4,Position=-1,SessionId=s.SessionId,SessionType=s.SessionType,
+                    OpponentNameClip=string.IsNullOrWhiteSpace(car.Name)?null:RaceTrafficWatch.NameClipText(car.Name),
                     DetectedUtc=now,ExpiresUtc=now.AddSeconds(3),
-                    TimedValidity=(gs,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && StillRelevant(observer,gs,opponentKey,id,topic,utc,CoveredAhead) &&
+                    TimedValidity=(gs,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && StillRelevant(observer,gs,opponentKey,id,topic,utc,CoveredAhead,rearAlertSeconds) &&
                         (!stopped || gs.OpponentData.ContainsKey(opponentKey) && gs.OpponentData[opponentKey].Speed<=1)
                 };
-                pendingKey=key;LiveDiagnostics.Decision(topic,"detected",pending.Evidence,text);return pending;
+                pendingKey=key;LiveDiagnostics.Decision(topic,"detected",pending.Evidence,text,pending.EventId);return pending;
             }
             return null;
         }
-        public static bool StillRelevant(TrackAwareness observer,GameStateData gs,string key,int id,string topic,DateTime now,Func<string,bool> covered=null)
+        public static bool StillRelevant(TrackAwareness observer,GameStateData gs,string key,int id,string topic,DateTime now,Func<string,bool> covered=null,double rearAlertSeconds=AlertSeconds)
         {
             var s=observer==null?null:observer.Snapshot;
             if(s==null || gs==null || !Supported(s.SessionType) || now<s.Utc || now-s.Utc>TimeSpan.FromSeconds(1) ||
                 gs.SessionData.SessionId!=s.SessionId || gs.SessionData.SessionType!=s.SessionType ||
                 gs.SessionData.SessionPhase!=SessionPhase.Green || gs.PitData.InPitlane || !s.PlayerSpeedMps.HasValue) return false;
             var car=s.Cars.FirstOrDefault(c=>c.Id==id && c.Key==key);OpponentData live;
-            if(car==null || !gs.OpponentData.TryGetValue(key,out live) || !live.IsActive || live.InPits) return false;
-            if(topic=="traffic-catching" && covered!=null && covered(key))return false;
-            return Relevant(car,s.PlayerSpeedMps.Value,topic=="traffic-catching",AlertSeconds);
+            if(car==null || !gs.OpponentData.TryGetValue(key,out live) || live==null || !live.IsActive || live.InPits ||
+                RaceReader.Identity("",live)!=car.NativeIdentity) return false;
+            bool ahead = topic != "traffic-approaching";
+            if(ahead && covered!=null && covered(key))return false;
+            return Relevant(car,s.PlayerSpeedMps.Value,ahead,ahead ? AlertSeconds : rearAlertSeconds,topic=="traffic-closing-ahead");
         }
     }
 }

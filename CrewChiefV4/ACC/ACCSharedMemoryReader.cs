@@ -56,10 +56,15 @@ namespace CrewChiefV4.ACC
 
         private DateTime nextUDPDebugDueAt = DateTime.MinValue;
 
+        private readonly AiTeam.TelemetrySourceClock graphicsClock = new AiTeam.TelemetrySourceClock();
+        private readonly AiTeam.TelemetrySourceClock physicsClock = new AiTeam.TelemetrySourceClock();
+
         public class ACCStructWrapper
         {
             public long ticksWhenRead;
             public ACCShared data;
+            public bool nativeSourceClock;
+            public long graphicsSampleTicks, physicsSampleTicks;
         }
 
         public static void clearSyncData()
@@ -152,6 +157,20 @@ namespace CrewChiefV4.ACC
             return Encoding.Unicode.GetString(name);
         }
 
+        internal void ObserveSourceProgress(ACCStructWrapper frame, bool physicsPresent)
+        {
+            frame.nativeSourceClock = true;
+            var data = frame.data;
+            if (data.accGraphic.status != AC_STATUS.AC_LIVE || !(data.accGraphic.playerCarID >= 0)) return;
+            int session = (int)data.accGraphic.session;
+            int status = (int)data.accGraphic.status;
+            frame.graphicsSampleTicks = graphicsClock.Observe(unchecked((uint)data.accGraphic.packetId),
+                session, status, (ulong)data.accGraphic.playerCarID, 0, frame.ticksWhenRead);
+            if (physicsPresent)
+                frame.physicsSampleTicks = physicsClock.Observe(unchecked((uint)data.accPhysics.packetId),
+                    session, status, (ulong)data.accGraphic.playerCarID, 0, frame.ticksWhenRead);
+        }
+
         public override Object ReadGameData(Boolean forSpotter)
         {
             lock (this)
@@ -214,6 +233,7 @@ namespace CrewChiefV4.ACC
                         || accShared.accPhysics.fuel != 0
                         || accShared.accPhysics.heading != 0
                         || accShared.accPhysics.pitch != 0;
+                    ObserveSourceProgress(structWrapper, hasPhysicsData);
                     if (!hasPhysicsData && previousAACStructWrapper != null && previousAACStructWrapper.data != null)
                     {
                         structWrapper.data.accPhysics = previousAACStructWrapper.data.accPhysics;
@@ -782,6 +802,9 @@ namespace CrewChiefV4.ACC
                 }
                 catch (Exception e) {Log.Exception(e);}
             }
+            graphicsClock.Reset();
+            physicsClock.Reset();
+            previousAACStructWrapper = null;
             initialised = false;
         }
     }

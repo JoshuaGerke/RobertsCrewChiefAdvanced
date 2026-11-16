@@ -85,6 +85,7 @@ namespace CrewChiefV4.iRacing
         public class iRacingStructWrapper
         {
             public long ticksWhenRead;
+            public long sourceSampleTicks;
             public Sim data;
 
         }
@@ -93,6 +94,7 @@ namespace CrewChiefV4.iRacing
             public long ticksWhenRead;
             public iRacingData data;
         }
+        private readonly CrewChiefV4.AiTeam.TelemetrySourceClock sourceClock = new CrewChiefV4.AiTeam.TelemetrySourceClock();
         public override void DumpRawGameData()
         {            
             if (dumpToFile && dataToDump != null && dataToDump.Count > 0 && filenameToDump != null)
@@ -321,45 +323,36 @@ namespace CrewChiefV4.iRacing
                             return (int)sdk.GetData("CarLeftRight");
                         }
 
-                        _DriverId = (int)sdk.GetData("PlayerCarIdx");
+                        if (!sdk.TryReadFrame(lastUpdate, out byte[] sample, out int sessionUpdate, out string yaml))
+                            return null;
 
-                        int newUpdate = sdk.Header.SessionInfoUpdate;
-                        bool hasNewSessionData = false;
-                        bool isNewSession = false;
-                        if (newUpdate != lastUpdate)
+                        iRacingData irData;
+                        try
                         {
-                            var sessionNum = TryGetSessionNum();
-                            if(sessionNum != null)
-                            {
-                                string sessionInfoUnFiltred = sdk.GetSessionInfoString();
-                                if(sessionInfoUnFiltred == null)
-                                {
-                                    return null;
-                                }
-                                System.Double SessionTimeRemain = (System.Double)sdk.GetData("SessionTimeRemain");
-                                System.Double SessionTime = (System.Double)sdk.GetData("SessionTime");
-                                System.Boolean IsOnTrack = (System.Boolean)sdk.GetData("IsOnTrack");
-
-                                string sessionInfoFiltred = new SessionInfo(sessionInfoUnFiltred).Yaml;
-                                isNewSession = sim.SdkOnSessionInfoUpdated(sessionInfoFiltred, (int)sessionNum, DriverId, SessionTimeRemain, SessionTime, IsOnTrack);
-                                /*if (isNewSession) 
-                                {
-                                    File.WriteAllText(DataFiles.session_info_dump, sessionInfoFiltred);
-                                }*/
-                                lastUpdate = newUpdate;
-                                hasNewSessionData = true;
-                            }
-                            else
-                            {
-                                return null;
-                            }
+                            irData = new iRacingData(sample, sdk.VarHeaders, sessionUpdate, is360HzTelemetry);
                         }
-                        iRacingData irData = new iRacingData(sdk, hasNewSessionData && dumpToFile, isNewSession, is360HzTelemetry);
+                        catch (Exception ex) when (ex is InvalidCastException || ex is System.IO.InvalidDataException)
+                        {
+                            Log.DontSpam("Invalid iRacing telemetry frame: " + ex.Message).Warning();
+                            return null;
+                        }
+
+                        if (yaml != null)
+                        {
+                            string filtered = new SessionInfo(yaml).Yaml;
+                            irData.IsNewSession = sim.SdkOnSessionInfoUpdated(filtered, irData.SessionNum,
+                                irData.PlayerCarIdx, irData.SessionTimeRemain, irData.SessionTime, irData.IsOnTrack);
+                            if (dumpToFile) irData.SessionInfo = filtered;
+                            lastUpdate = sessionUpdate;
+                        }
+                        _DriverId = irData.PlayerCarIdx;
 
                         sim.SdkOnTelemetryUpdated(irData);
 
                         iRacingStructWrapper structWrapper = new iRacingStructWrapper();
                         structWrapper.ticksWhenRead = DateTime.UtcNow.Ticks;
+                        structWrapper.sourceSampleTicks=sourceClock.Observe(irData.SessionTick,irData.SessionNum,
+                            (int)irData.SessionState,irData.PlayerCarIdx,structWrapper.ticksWhenRead);
                         structWrapper.data = sim;
 
                         if (currentlyTracingGameData && dataToDump != null)
@@ -403,6 +396,7 @@ namespace CrewChiefV4.iRacing
                 if (initialised)
                 {
                     lastUpdate = -1;
+                    sourceClock.Reset();
                     _DriverId = -1;
                     initialised = false;
                     Console.WriteLine("Disconnected from iRacing Shared Memory");

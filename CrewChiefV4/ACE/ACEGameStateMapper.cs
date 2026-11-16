@@ -857,7 +857,9 @@ namespace CrewChiefV4.assetto
         public override void versionCheck(Object memoryMappedFileStruct)
         {
 
-            ACEShared shared = ((ACESharedMemoryReader.ACEStructWrapper)memoryMappedFileStruct).data;
+            var versionWrapper=memoryMappedFileStruct as ACESharedMemoryReader.ACEStructWrapper;
+            if(versionWrapper==null || versionWrapper.data==null)return;
+            ACEShared shared = versionWrapper.data;
             String currentVersion = shared.aceStatic.smVersion;
             if (currentVersion.Length != 0 && versionChecked == false)
             {
@@ -888,7 +890,14 @@ namespace CrewChiefV4.assetto
         public override GameStateData mapToGameStateData(Object memoryMappedFileStruct, GameStateData previousGameState)
         {
             ACESharedMemoryReader.ACEStructWrapper wrapper = (ACESharedMemoryReader.ACEStructWrapper)memoryMappedFileStruct;
+            if(wrapper==null || wrapper.data==null)return previousGameState;
+            int playerIndex=ACESharedMemoryReader.PlayerIndex(wrapper.data);
+            if(playerIndex<0 || wrapper.data.aceChief.vehicle==null || playerIndex>=wrapper.data.aceChief.vehicle.Length)return previousGameState;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
+            currentGameState.RequiresNativeSourceClock = wrapper.nativeSourceClock;
+            currentGameState.SourceTelemetryUtc = AiTeam.TelemetrySourceClock.SampleUtc(
+                Math.Min(wrapper.graphicsSampleTicks, wrapper.physicsSampleTicks), wrapper.ticksWhenRead);
+            currentGameState.rawGameData=wrapper;
             ACEShared shared = wrapper.data;
             ACEVO_STATUS status = shared.aceGraphic.status;
             /*if (status == ACEVO_STATUS.AC_OFF)
@@ -901,14 +910,14 @@ namespace CrewChiefV4.assetto
                 CrewChief.trackName = shared.aceStatic.track + ":" + shared.aceStatic.trackConfiguration;
                 CrewChief.carClass = CarData.getCarClassForClassNameOrCarName(shared.aceGraphic.carModel).carClassEnum;
                 CrewChief.viewingReplay = true;
-                CrewChief.distanceRoundTrack = spLineLengthToDistanceRoundTrack(shared.aceChief.vehicle[0].spLineLength, shared.aceStatic.trackLengthM);
+                CrewChief.distanceRoundTrack = spLineLengthToDistanceRoundTrack(shared.aceChief.vehicle[playerIndex].spLineLength, shared.aceStatic.trackLengthM);
             }
 
             if (status == ACEVO_STATUS.AC_REPLAY || status == ACEVO_STATUS.AC_OFF || shared.aceGraphic.totalDrivers <= 0)
             {
                 return previousGameState;
             }
-            aceVehicleInfo playerVehicle = shared.aceChief.vehicle[0];
+            aceVehicleInfo playerVehicle = shared.aceChief.vehicle[playerIndex];
 
             Boolean isOnline = shared.aceStatic.isOnline;
             Boolean isSinglePlayerPracticeSession = shared.aceGraphic.totalDrivers == 1 && !isOnline && shared.aceStatic.session == ACEVO_SESSION_TYPE.AC_HOT_STINT;
@@ -1006,7 +1015,7 @@ namespace CrewChiefV4.assetto
             }
 
 
-            int realTimeLeaderBoardValid = 1; //TBD EVO isCarRealTimeLeaderBoardValid(shared.aceChief.vehicle, Math.Min((int)shared.aceGraphic.totalDrivers, aceConstant.MaxVehicles));
+            int realTimeLeaderBoardValid = 0; // EVO currentPos is already one-based, unlike the old AC-derived placeholder.
             ACEVO_FLAG_TYPE currentFlag = shared.aceGraphic.flag;
             if (sessionType == ACEVO_SESSION_TYPE.AC_HOT_STINT || sessionType == ACEVO_SESSION_TYPE.AC_TIME_ATTACK)
             {
@@ -1124,13 +1133,13 @@ namespace CrewChiefV4.assetto
                 // no tyre data in the block so get the default tyre types for this car
                 defaultTyreTypeForPlayersCar = CarData.getDefaultTyreType(currentGameState.carClass);
 
-                for (int i = 0; i < Math.Min(shared.aceGraphic.totalDrivers, aceConstant.MaxVehicles); i++)
+                for (int i = 0; i < Math.Min(shared.aceChief.vehicle.Length, aceConstant.MaxVehicles); i++)
                 {
                     aceVehicleInfo participantStruct = shared.aceChief.vehicle[i];
                     if (participantStruct.isConnected == 1)
                     {
                         String participantName = getNameFromBytes(participantStruct.driverName);
-                        if (i != 0 && participantName != null && participantName.Length > 0)
+                        if (i != playerIndex && participantName != null && participantName.Length > 0)
                         {
                             CarData.CarClass opponentCarClass = CarData.getCarClassForClassNameOrCarName("", getNameFromBytes(participantStruct.carModel));
                             addOpponentForName(participantName, createOpponentData(participantStruct, false, opponentCarClass, shared.aceStatic.trackLengthM, false), currentGameState);
@@ -1348,6 +1357,7 @@ namespace CrewChiefV4.assetto
                     currentGameState.SessionData.SessionRunningTime = (float)(currentGameState.Now - currentGameState.SessionData.SessionStartTime).TotalSeconds;
                 }
 
+                currentGameState.SessionData.SectorTimingEstimated = currentGameState.SessionData.TrackDefinition.unknownTrack;
                 if (logUnknownTrackSectors && !isOnline && !isSinglePlayerPracticeSession)
                 {
                     currentGameState.SessionData.SectorNumber = 0; //TBD EVO shared.aceGraphic.currentSectorIndex + 1;
@@ -1686,6 +1696,9 @@ namespace CrewChiefV4.assetto
             currentGameState.ControlData.BrakePedal = shared.acePhysics.brake;
             currentGameState.ControlData.ThrottlePedal = shared.acePhysics.gas;
             currentGameState.ControlData.ClutchPedal = shared.acePhysics.clutch;
+            if (wrapper.nativeSourceClock)
+                TelemetryMeasurements.Pedals(currentGameState, "ACE.SharedMemory.Physics",
+                    AiTeam.TelemetrySourceClock.SampleUtc(wrapper.physicsSampleTicks, wrapper.ticksWhenRead), "gas", "brake", "clutch");
             currentGameState.ControlData.SteeringWheelAngle = shared.acePhysics.steerAngle;
 
             // penalty data
@@ -1951,7 +1964,24 @@ namespace CrewChiefV4.assetto
 
             currentGameState.PositionAndMotionData.WorldPosition = new float[] { playerVehicle.worldPosition.x, playerVehicle.worldPosition.y, playerVehicle.worldPosition.z };
 
+#if !EVO_BROADCAST
+            ClearUnavailableOpponentTiming(currentGameState);
+#endif
+
             return currentGameState;
+        }
+
+        internal static void ClearUnavailableOpponentTiming(GameStateData state)
+        {
+            // This shared-memory adapter has geometry, not a verified opponent timing/classification channel.
+            state.OpponentData.Clear();
+            var session=state.SessionData;
+            session.ClassPosition=0; session.NumCarsInPlayerClass=0;
+            session.TimeDeltaFront=-1; session.TimeDeltaBehind=-1;
+            session.OpponentKeyInFront=null; session.OpponentKeyBehind=null;
+            session.OpponentsLapTimeSessionBestOverall=-1; session.OpponentsLapTimeSessionBestPlayerClass=-1;
+            session.PlayerClassSessionBestLapTime=-1; session.OverallSessionBestLapTime=-1;
+            session.SessionFastestLapTimeFromGamePlayerClass=-1;
         }
 
         /// <summary>

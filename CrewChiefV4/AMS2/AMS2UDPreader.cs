@@ -53,6 +53,7 @@ namespace CrewChiefV4.AMS2
         private ams2APIStruct previousGameState = new ams2APIStruct();
 
         private byte[] receivedDataBuffer;
+        private readonly bool[] rejectedPacketReported = new bool[256];
 
         private IPEndPoint broadcastAddress;
         private UdpClient udpClient;
@@ -165,7 +166,7 @@ namespace CrewChiefV4.AMS2
                     {
                         try
                         {
-                            readRawData(this.receivedDataBuffer);
+                            readRawData(this.receivedDataBuffer, received);
                         }
                         catch (Exception e)
                         {
@@ -220,8 +221,38 @@ namespace CrewChiefV4.AMS2
             return structWrapper;
         }
 
-        private int readRawData(byte[] rawData)
+        internal static bool PacketFitsDeclaredLayout(byte[] rawData, int received)
         {
+            if(rawData==null || received<12 || received>rawData.Length)return false;
+            int expected;Type layout;
+            switch((EUDPStreamerPacketHandlerType)rawData[10])
+            {
+                case EUDPStreamerPacketHandlerType.eCarPhysics: expected=UDPPacketSizes.telemetryPacketSize;layout=typeof(sTelemetryData);break;
+                case EUDPStreamerPacketHandlerType.eRaceDefinition: expected=UDPPacketSizes.raceDataPacketSize;layout=typeof(sRaceData);break;
+                case EUDPStreamerPacketHandlerType.eParticipants: expected=UDPPacketSizes.participantsDataPacketSize;layout=typeof(sParticipantsData);break;
+                case EUDPStreamerPacketHandlerType.eTimings: expected=UDPPacketSizes.timingsDataPacketSize;layout=typeof(sTimingsData);break;
+                case EUDPStreamerPacketHandlerType.eGameState: expected=UDPPacketSizes.gameStateDataPacketSize;layout=typeof(sGameStateData);break;
+                case EUDPStreamerPacketHandlerType.eTimeStats: expected=UDPPacketSizes.timeStatsPacketSize;layout=typeof(sTimeStatsData);break;
+                case EUDPStreamerPacketHandlerType.eParticipantVehicleNames: expected=UDPPacketSizes.participantVehicleNamesPacketSize;layout=typeof(sParticipantVehicleNamesData);break;
+                default:return false;
+            }
+            // Never marshal beyond the copied datagram. A conflicting legacy layout needs an SDK fix,
+            // not zero padding or bytes left behind in the reusable receive buffer.
+            return received==expected && Marshal.SizeOf(layout)==expected;
+        }
+
+        private int readRawData(byte[] rawData, int received)
+        {
+            if(!PacketFitsDeclaredLayout(rawData,received))
+            {
+                if(rawData!=null && received>=12 && received<=rawData.Length && !rejectedPacketReported[rawData[10]])
+                {
+                    rejectedPacketReported[rawData[10]]=true;
+                    Console.WriteLine("AMS2 UDP: ignoring unsupported or incompatible packet type " + rawData[10] +
+                        ", received bytes " + received + ". No telemetry is inferred from this packet.");
+                }
+                return 0;
+            }
             // unpack the packet header manually before attempting to load into a struct
             uint packetNumber = BitConverter.ToUInt32(rawData, 0);
             uint categoryPacketNumber = BitConverter.ToUInt32(rawData, 4);

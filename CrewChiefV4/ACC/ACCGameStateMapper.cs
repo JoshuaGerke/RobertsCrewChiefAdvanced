@@ -217,6 +217,9 @@ namespace CrewChiefV4.ACC
         {
             ACCSharedMemoryReader.ACCStructWrapper wrapper = (ACCSharedMemoryReader.ACCStructWrapper)memoryMappedFileStruct;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
+            currentGameState.RequiresNativeSourceClock = wrapper.nativeSourceClock;
+            currentGameState.SourceTelemetryUtc = AiTeam.TelemetrySourceClock.SampleUtc(
+                Math.Min(wrapper.graphicsSampleTicks, wrapper.physicsSampleTicks), wrapper.ticksWhenRead);
             ACCShared shared = wrapper.data;
 
             if (shared == null || shared.accChief == null)
@@ -1067,6 +1070,9 @@ namespace CrewChiefV4.ACC
             currentGameState.ControlData.BrakePedal = shared.accPhysics.brake;
             currentGameState.ControlData.ThrottlePedal = shared.accPhysics.gas;
             currentGameState.ControlData.ClutchPedal = shared.accPhysics.clutch;
+            if (wrapper.nativeSourceClock)
+                TelemetryMeasurements.Pedals(currentGameState, "ACC.SharedMemory.Physics",
+                    AiTeam.TelemetrySourceClock.SampleUtc(wrapper.physicsSampleTicks, wrapper.ticksWhenRead), "gas", "brake", "clutch");
 
             // penalty data
             PenatiesData.DetailedPenaltyType previousPenaltyType = previousGameState == null ? PenatiesData.DetailedPenaltyType.NONE :

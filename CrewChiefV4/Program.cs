@@ -62,6 +62,7 @@ namespace CrewChiefV4
             Application.ThreadException += new System.Threading.ThreadExceptionEventHandler(ThreadExceptionHandler);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ApplicationExit += (s, e) => CrewChiefV4.AiTeam.LiveDiagnostics.Shutdown();
+            Application.ApplicationExit += (s, e) => CrewChiefV4.AiTeam.Probe.TelemetryProbe.Shutdown();
 
             BootTrace("0");
             CrewChief.Debug = new Debugging();

@@ -80,9 +80,10 @@ namespace CrewChiefV4.AiTeam
         }
         private sealed class Pending
         {
-            public string Topic,Text,Evidence;public TeamMember Member;public int Priority,Session,Lap=-1;
+            public string Topic,Text,Evidence,OpponentNameClip,HazardIdentity;public TeamMember Member;public int Priority,Session,Lap=-1;
             public SessionType Type;public Func<GameStateData,bool> Relevant;
             public Func<GameStateData,DateTime,bool> TimedRelevant;
+            public Func<GameStateData,DateTime,PreparedRadioDetail> PreparedDetail;
             public ObservedRaceCall Call;public DateTime CapturedUtc,RetryAfter;
             public Action<DateTime> Delivered;
         }
@@ -117,7 +118,8 @@ namespace CrewChiefV4.AiTeam
             return true;
         }
         public void Offer(string topic,string text,TeamMember member,int priority,GameStateData gs,DateTime now,
-            Func<GameStateData,bool> relevant,string evidence,int lap=-1,Func<GameStateData,DateTime,bool> timed=null,Action<DateTime> onDelivered=null)
+            Func<GameStateData,bool> relevant,string evidence,int lap=-1,Func<GameStateData,DateTime,bool> timed=null,Action<DateTime> onDelivered=null,
+            string opponentNameClip=null, string hazardIdentity=null, Func<GameStateData,DateTime,PreparedRadioDetail> preparedDetail=null)
         {
             if(gs==null || string.IsNullOrWhiteSpace(text) || relevant==null || !relevant(gs))return;
             DateTime last;
@@ -135,7 +137,8 @@ namespace CrewChiefV4.AiTeam
             if(topic=="warning-tracklimit" && pending.TryGetValue("warning-invalid-lap",out old) && old.Relevant(gs))return;
             if(pending.Count>=16){LiveDiagnostics.Decision(topic,"suppressed","warning_capacity");return;}
             pending[topic]=new Pending {Topic=topic,Text=text,Member=member,Priority=priority,Session=gs.SessionData.SessionId,
-                Type=gs.SessionData.SessionType,Lap=lap,Relevant=relevant,TimedRelevant=timed,CapturedUtc=now,Evidence=evidence,Delivered=onDelivered};
+                Type=gs.SessionData.SessionType,Lap=lap,Relevant=relevant,TimedRelevant=timed,CapturedUtc=now,Evidence=evidence,
+                Delivered=onDelivered,OpponentNameClip=opponentNameClip,HazardIdentity=hazardIdentity,PreparedDetail=preparedDetail};
             LiveDiagnostics.Decision(topic,"detected",evidence,text);
         }
         private static bool Hot(GameStateData gs,bool oil,float captured)
@@ -196,7 +199,8 @@ namespace CrewChiefV4.AiTeam
                     delivered.Any(d=>d.Key.StartsWith("warning-native-incident-",StringComparison.Ordinal) && now-d.Value<TimeSpan.FromSeconds(10)))continue;
                 if(p.Call==null)p.Call=new ObservedRaceCall {Topic=p.Topic,Text=p.Text,Member=p.Member,Priority=p.Priority,
                     Position=-1,SessionId=p.Session,SessionType=p.Type,CompletedLaps=p.Lap,DetectedUtc=now,
-                    ExpiresUtc=now.AddSeconds(8),AdditionalValidity=p.Relevant,TimedValidity=p.TimedRelevant,Evidence=p.Evidence};
+                    ExpiresUtc=now.AddSeconds(8),AdditionalValidity=p.Relevant,TimedValidity=p.TimedRelevant,Evidence=p.Evidence,
+                    OpponentNameClip=p.OpponentNameClip,HazardIdentity=p.HazardIdentity,PreparedDetail=p.PreparedDetail};
                 if(p.Call.IsValid(gs,now) && p.Call.TryReserve(now))return p.Call;
             }
             return null;

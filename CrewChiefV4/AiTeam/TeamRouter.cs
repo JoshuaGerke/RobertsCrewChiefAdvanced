@@ -59,6 +59,10 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
+            // Explicit routine preferences belong to the pit wall, even after a conversation with Sara.
+            if (DriverRadioPreferences.IsCommand(text))
+                return new RoutedRequest { Member = TeamMember.Ben, Question = text, AddressedByName = false };
+
             string lower = " " + text.ToLowerInvariant() + " ";
             TeamMember? byTopic = null;
             if (IsSideQuestion(lower))

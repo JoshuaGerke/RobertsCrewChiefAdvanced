@@ -161,5 +161,45 @@ namespace UnitTest.AiTeamTests
             using(var store=new DriverMemoryStore(folder,limits:Limits()))
                 StringAssert.Contains("Bestzeiten sofort",store.PromptBlock("Bestzeiten"));
         }
+
+        [Test]
+        public void Explicit_future_wish_is_recovered_and_matched_to_the_english_race_topic()
+        {
+            string folder=Root();
+            using(var store=new DriverMemoryStore(folder,limits:Limits()))
+                Assert.IsTrue(store.RecordDialogue(TeamMember.Mik,"Ab jetzt bitte den Sprit früher melden.",null));
+            using(var reopened=new DriverMemoryStore(folder,limits:Limits()))
+                StringAssert.Contains("Sprit früher",reopened.PromptBlock("fuel trend"));
+        }
+
+        [Test]
+        public void Ordinary_one_off_question_is_not_treated_as_a_permanent_wish()
+        {
+            string folder=Root();
+            using(var store=new DriverMemoryStore(folder,limits:Limits()))
+                Assert.IsTrue(store.RecordDialogue(TeamMember.Mik,"Wie viel Sprit haben wir noch?",null));
+            using(var reopened=new DriverMemoryStore(folder,limits:Limits()))
+                Assert.AreEqual("",reopened.PromptBlock("fuel trend"));
+        }
+
+        [Test]
+        public void General_speech_wish_remains_available_for_unrelated_future_race_situations()
+        {
+            string folder=Root();
+            using(var store=new DriverMemoryStore(folder,limits:Limits()))
+                Assert.IsTrue(store.RecordDialogue(TeamMember.Mik,"Ab jetzt bitte kürzer sprechen.",null,"AMS2","Monza"));
+            using(var reopened=new DriverMemoryStore(folder,limits:Limits()))
+                StringAssert.Contains("kürzer sprechen",reopened.PromptBlock("Kraftstofftrend","RaceRoom","Imola"));
+        }
+
+        [Test]
+        public void Specific_tyre_wish_is_not_applied_to_an_unrelated_fuel_situation()
+        {
+            string folder=Root();
+            using(var store=new DriverMemoryStore(folder,limits:Limits()))
+                Assert.IsTrue(store.RecordDialogue(TeamMember.Mik,"Ab jetzt bei Reifen kürzer sprechen.",null));
+            using(var reopened=new DriverMemoryStore(folder,limits:Limits()))
+                Assert.AreEqual("",reopened.PromptBlock("Was soll ich jetzt zum Kraftstoff wissen?"));
+        }
     }
 }

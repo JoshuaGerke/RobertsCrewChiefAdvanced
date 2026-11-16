@@ -50,7 +50,8 @@ namespace CrewChiefV4.AiTeam
         public static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
         private static readonly string[] SlowPhrasesDe = {
             "Achtung, sehr langsames Fahrzeug voraus.", "Vor dir fährt ein Wagen deutlich langsamer. Bleib aufmerksam.",
-            "Vorsicht, langsamer Verkehr direkt voraus."
+            "Vorsicht, langsamer Verkehr direkt voraus.", "Pass auf, der Wagen vor dir ist sehr langsam.",
+            "Achtung voraus, du läufst auf einen sehr langsamen Wagen auf."
         };
         private static readonly string[] SlowPhrasesEn = {
             "Watch out, very slow car ahead.", "Car ahead is going much slower. Stay alert.",
@@ -63,7 +64,9 @@ namespace CrewChiefV4.AiTeam
         public static string[] SlowPhrases => RadioLanguage.Pick(SlowPhrasesDe, SlowPhrasesEn, SlowPhrasesEs);
         private static readonly string[] RearPhrasesDe = {
             "Schnelleres Fahrzeug von hinten. Bleib berechenbar.", "Von hinten kommt schneller Verkehr. Behalte deine Linie bei.",
-            "Ein schnellerer Wagen läuft von hinten auf. Bleib berechenbar."
+            "Ein schnellerer Wagen läuft von hinten auf. Bleib berechenbar.",
+            "Schneller Verkehr kommt näher. Bleib auf einer berechenbaren Linie.",
+            "Achte auf den Spiegel, ein schnellerer Wagen kommt von hinten."
         };
         private static readonly string[] RearPhrasesEn = {
             "Faster car from behind. Stay predictable.", "Fast traffic coming from behind. Hold your line.",
@@ -91,14 +94,75 @@ namespace CrewChiefV4.AiTeam
             "Vorsicht, in etwa "+metres+" Metern "+(stopped?"steht ein Fahrzeug.":"ein sehr langsames Fahrzeug."),
             "Careful, "+(stopped?"stopped car":"very slow car")+" in about "+metres+" metres.",
             "Cuidado, a unos "+metres+" metros hay un coche "+(stopped?"parado.":"muy lento."));
+        internal static string SectionPhrase(string section) => RadioLanguage.T(
+            "Achtung, Gefahr voraus. Abschnitt " + section + ".",
+            "Careful, hazard ahead. Section " + section + ".",
+            "Cuidado, peligro delante. Tramo " + section + ".");
+
+        internal static IEnumerable<string> SectionPhrases(TrackDefinition track, double startingDistance)
+        {
+            if (track?.trackLandmarks == null || track.trackLength < 100 || !RaceFactContext.Finite(track.trackLength) ||
+                !TrackAwareness.ValidDistance(startingDistance, track.trackLength).HasValue) return Enumerable.Empty<string>();
+            return track.trackLandmarks.Where(landmark => !landmark.isStraight && !string.IsNullOrWhiteSpace(landmark.landmarkNames?.FirstOrDefault()) &&
+                    TrackAwareness.ValidDistance(landmark.distanceRoundLapStart, track.trackLength).HasValue)
+                .OrderBy(landmark => (landmark.distanceRoundLapStart - startingDistance + track.trackLength) % track.trackLength)
+                .Select(landmark => SectionPhrase(CornerCoach.FriendlyName(landmark.landmarkNames[0], 0)))
+                .Distinct().Take(8);
+        }
+
         public static string[] DistancePhrases => Enumerable.Range(1,12).SelectMany(i=>new[]{DistancePhrase(i*20,true),DistancePhrase(i*20,false)}).ToArray();
-        public static IEnumerable<string> PreparedPhrases { get { return DistancePhrases.Concat(StoppedPhrases).Concat(SlowPhrases).Concat(RearPhrases).Concat(RearGroupPhrases); } }
+        public static IEnumerable<string> PreparedPhrases { get { return DistancePhrases.Concat(StoppedPhrases).Concat(SlowPhrases).Concat(RearPhrases).Concat(RearGroupPhrases).Concat(StillTherePhrases); } }
+        internal static string ForecastMerge(RaceDataContext context, TrackPositionSnapshot map, double exit, double horizon, out int covered)
+        {
+            covered = 0;
+            var state = context.GameState;
+            double length = map.LengthM.GetValueOrDefault();
+            if (!TrackAwareness.ValidDistance(exit, length).HasValue || !TrackAwareness.InRange(horizon, 0, 100).HasValue) return "unknown";
+            int expected = 0;
+            bool close = false, marginal = false, unresolvedPitTraffic = false;
+            double allowance = 3 + horizon * .18;
+            foreach (var car in map.Cars)
+            {
+                if (car.InPits) { unresolvedPitTraffic = true; continue; }
+                expected++;
+                if (!car.SpatiallyConsistent || !car.LapDistanceM.HasValue || car.OpponentSampleUtc == DateTime.MinValue ||
+                    context.NowUtc < car.OpponentSampleUtc || context.NowUtc-car.OpponentSampleUtc > TimeSpan.FromSeconds(1) ||
+                    !state.OpponentData.TryGetValue(car.Key, out var opponent) || opponent == null ||
+                    RaceReader.Identity("", opponent) != car.NativeIdentity)
+                    continue;
+                var laps = opponent.OpponentLapData.Where(l => l.IsValid && !l.InLap && !l.OutLap &&
+                    TrackAwareness.InRange(l.LapTime, 15, 3600).HasValue).Reverse().Take(2).ToArray();
+                if (laps.Length != 2 || Math.Abs(laps[0].LapTime-laps[1].LapTime) > 5 || car.SpeedMps.GetValueOrDefault() < 10)
+                    continue;
+                double period = laps.Average(l => l.LapTime);
+                var speed = TrackAwareness.InRange(length / period, 10, 120);
+                if (!speed.HasValue || horizon > period) continue;
+                covered++;
+                double distance = (exit-car.LapDistanceM.Value+length)%length;
+                double untilMerge = distance / speed.Value;
+                double closest = Math.Min(Math.Abs(untilMerge-horizon), Math.Abs(untilMerge+period-horizon));
+                close |= closest <= allowance;
+                marginal |= closest <= allowance + 4;
+            }
+            // Incomplete coverage may confirm a traffic risk, but can never certify an empty gap.
+            if (close) return "traffic";
+            return expected > 0 && covered == expected && !marginal && !unresolvedPitTraffic &&
+                state.SessionData.NumCarsOverall > 1 && map.Cars.Count >= state.SessionData.NumCarsOverall - 1 ? "clear" : "unknown";
+        }
+
         private sealed class Reference { public float Speed; public int Lap; public DateTime Utc; }
         private sealed class Facts { public DateTime Utc; public int Epoch, Session; public TrackCarPosition[] Cars; }
         private Facts facts;
         private readonly Dictionary<int,Reference> reference = new Dictionary<int,Reference>();
         private readonly Dictionary<string,DateTime> reported = new Dictionary<string,DateTime>();
         private readonly Dictionary<string,DateTime> nativeRear = new Dictionary<string,DateTime>();
+        // Rob 16.11.: Ein Auto, das dauerhaft an derselben Stelle steht, wird einmal gemeldet, dann einmal kurz erinnert, dann nicht mehr.
+        private sealed class Parked { public int Cell; public int Reports; }
+        private readonly Dictionary<string,Parked> parked = new Dictionary<string,Parked>();
+        private static readonly string[] StillThereDe = { "Der stehende Wagen ist noch an derselben Stelle.", "Das Auto steht immer noch da, gleiche Stelle." };
+        private static readonly string[] StillThereEn = { "The stopped car is still in the same place.", "That car is still stopped, same spot." };
+        private static readonly string[] StillThereEs = { "El coche parado sigue en el mismo sitio.", "Ese coche sigue parado, mismo lugar." };
+        public static string[] StillTherePhrases => RadioLanguage.Pick(StillThereDe, StillThereEn, StillThereEs);
         private TrackAwareness tracks;
         private ObservedRaceCall pending;
         private string pendingKey, track;
@@ -106,7 +170,7 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastTick, lastRadio;
         public void Reset()
         {
-            reference.Clear(); reported.Clear(); nativeRear.Clear(); pending=null; tracks=null;
+            reference.Clear(); reported.Clear(); nativeRear.Clear(); parked.Clear(); pending=null; tracks=null;
             session=int.MinValue; track=null; lastTick=lastRadio=DateTime.MinValue; epoch++;
             Volatile.Write(ref facts,null);
         }
@@ -149,26 +213,52 @@ namespace CrewChiefV4.AiTeam
                 if (reported.TryGetValue(key,out previous) && now-previous<TimeSpan.FromSeconds(60)) continue;
                 bool group=rear && candidates.Count(c=>c.RouteGapM<0)>1;
                 var phrases=rear?(group?RearGroupPhrases:RearPhrases):stopped?StoppedPhrases:SlowPhrases;
+                bool reminder=false;
+                if (stopped && car.LapDistanceM.HasValue)
+                {
+                    int cell=(int)(car.LapDistanceM.Value/100); Parked spot;
+                    if (parked.TryGetValue(car.Key,out spot) && Math.Abs(spot.Cell-cell)<=1)
+                    {
+                        if (spot.Reports>=2) continue;      // bekannt und unverändert: nicht mehr melden
+                        reminder=spot.Reports==1;           // zweites Mal: nur kurz
+                        spot.Reports++;
+                    }
+                    else parked[car.Key]=new Parked{Cell=cell,Reports=1};
+                    if (reminder) phrases=StillTherePhrases;
+                }
+                else if (!rear && parked.ContainsKey(car.Key)) parked.Remove(car.Key); // fährt wieder
                 int id=car.Id, generation=epoch; string opponentKey=car.Key;
                 pending=new ObservedRaceCall {
                     Topic=rear?"race-traffic-rear":"race-hazard-ahead", Text=phrases[variant++%phrases.Length],
                     Member=TeamMember.Ben, Priority=7, Position=-1, SessionId=s.SessionId, SessionType=s.SessionType,
                     DetectedUtc=now, ExpiresUtc=now.AddSeconds(3),
+                    HazardIdentity=rear ? null : car.NativeIdentity,
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
-                if(!rear) pending.PreparedDetail=(live,at)=>generation==epoch?DistanceDetail(live,at,opponentKey,id,stopped):null;
-                pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text); break;
+                if (!group && !reminder && !string.IsNullOrWhiteSpace(car.Name))
+                    pending.OpponentNameClip = NameClipText(car.Name);
+                if(!rear && !reminder) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
+                pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();
         }
-        private PreparedRadioDetail DistanceDetail(GameStateData gs,DateTime now,string key,int id,bool stopped)
+        internal static string NameClipText(string name) => RadioLanguage.T("Das ist ", "That's ", "Es ") + name + ".";
+
+        private PreparedRadioDetail HazardDetail(GameStateData gs,DateTime now,string key,int id,bool stopped)
         {
             if(!ValidNow(gs,now,key,id,stopped,false))return null;
             var sample=Volatile.Read(ref facts);
             if(sample==null || now<sample.Utc || now-sample.Utc>TimeSpan.FromMilliseconds(500))return null;
             var car=sample.Cars.FirstOrDefault(c=>c.Id==id && c.Key==key);
-            if(car==null || !car.RouteGapM.HasValue || car.RouteGapM<40 || car.RouteGapM>240)return null;
+            if (car == null || !car.RouteGapM.HasValue) return null;
+            string section = TrackAwareness.ConfirmedSection(gs.SessionData.TrackDefinition, car.LapDistanceM);
+            if (section != null)
+                return new PreparedRadioDetail { Text = SectionPhrase(section), StillCurrent = (live, at) =>
+                    ValidNow(live, at, key, id, stopped, false) &&
+                    live.OpponentData.TryGetValue(key, out var opponent) &&
+                    TrackAwareness.ConfirmedSection(live.SessionData.TrackDefinition, opponent.DistanceRoundTrack) == section };
+            if (car.RouteGapM < 40 || car.RouteGapM > 240) return null;
             double measured=car.RouteGapM.Value;
             int rounded=(int)Math.Round(measured/20,MidpointRounding.AwayFromZero)*20;
             return new PreparedRadioDetail {Text=DistancePhrase(rounded,stopped),StillCurrent=(live,at)=>{
@@ -191,7 +281,7 @@ namespace CrewChiefV4.AiTeam
             if (c.InPits || !c.SpatiallyConsistent || !c.RouteGapM.HasValue || !c.SpeedMps.HasValue ||
                 !s.PlayerSpeedMps.HasValue || s.PlayerSpeedMps<5 || Math.Abs(c.RouteGapM.Value)<15) return false;
             bool rear=c.RouteGapM<0;
-            if(!rear && CoveredAhead!=null && CoveredAhead(c.Key))return false;
+            if (!rear && (c.RouteGapM > 600 || CoveredAhead != null && CoveredAhead(c.Key))) return false;
             if (rear && NativeConfirmed(c,now) && c.SpeedMps>=s.PlayerSpeedMps+3 && Math.Abs(c.RouteGapM.Value)<=500) return true;
             if (!c.ClosingMps.HasValue || !TrackSituationWatch.MotionPlausible(c,s.PlayerSpeedMps.Value,!rear)) return false;
             double closing=c.ClosingMps.Value;
@@ -215,7 +305,7 @@ namespace CrewChiefV4.AiTeam
                 current.Epoch!=epoch || current.Session!=s.SessionId || now<current.Utc || now-current.Utc>TimeSpan.FromSeconds(1)) return false;
             var car=current.Cars.FirstOrDefault(c=>c.Id==id && c.Key==key);
             OpponentData live;
-            return car!=null && gs.OpponentData.TryGetValue(key,out live) && live.IsActive && !live.InPits && live.DriverRawName==car.NativeName && live.CarNumber==car.NativeNumber && live.CostId==car.NativeCarId &&
+            return car!=null && gs.OpponentData.TryGetValue(key,out live) && live.IsActive && !live.InPits && RaceReader.Identity("",live)==car.NativeIdentity &&
                 (!stopped || live.Speed<=1 && car.SpeedMps<=1) && (!group || current.Cars.Count(c=>c.RouteGapM<0)>1);
         }
         public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,bool memberEnabled)

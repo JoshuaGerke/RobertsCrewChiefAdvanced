@@ -31,11 +31,22 @@ namespace CrewChiefV4.AiTeam
             string n=RadioLanguage.Num(value,"0.0");
             return RadioLanguage.T(Names[i]+"-Schadenswert "+n+" Prozent",NamesEn[i]+" damage value "+n+" percent","Valor de daño "+NamesEs[i]+" "+n+" por ciento");
         }
-        public static string Report(CarDamageData d)
+        public static string Report(CarDamageData d) => Report(d, .05f);
+
+        /// <summary>
+        /// Rob 16.11., Bathurst: Der Routinebericht las „Motor 0,1, Bremse vorne links 0,3 …“ – lauter Kleinstwerte. Mit einer
+        /// Mindestschwelle werden nur nennenswerte Werte genannt; bleibt alles darunter, genügt ein Satz.
+        /// </summary>
+        public static string Report(CarDamageData d, float minimum)
         {
-            var values=Values(d);var parts=new List<string>();
-            for(int i=0;i<values.Length;i++)if(Good(values[i]) && values[i]>=.05f)parts.Add(Part(i,values[i]));
-            return parts.Count==0?null:string.Join(", ",parts)+".";
+            var values=Values(d);var parts=new List<string>();bool trace=false;
+            for(int i=0;i<values.Length;i++)
+            {
+                if(!Good(values[i]) || values[i]<.05f)continue;
+                if(values[i]>=minimum)parts.Add(Part(i,values[i]));else trace=true;
+            }
+            if(parts.Count>0)return string.Join(", ",parts)+".";
+            return trace && minimum>.05f ? RadioLanguage.T("Nur kleine Gebrauchsspuren, kein nennenswerter Schaden.","Only minor wear, no significant damage.","Solo desgaste menor, sin daños relevantes.") : null;
         }
         public void Observe(GameStateData gs,DateTime now,LiveWarningDispatcher output)
         {

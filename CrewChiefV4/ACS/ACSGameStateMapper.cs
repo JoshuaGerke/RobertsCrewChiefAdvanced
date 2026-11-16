@@ -891,6 +891,8 @@ namespace CrewChiefV4.assetto
         {
             ACSSharedMemoryReader.ACSStructWrapper wrapper = (ACSSharedMemoryReader.ACSStructWrapper)memoryMappedFileStruct;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
+            if (wrapper.sourceSampleTicks > 0)
+                currentGameState.SourceTelemetryUtc = new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc);
             AssettoCorsaShared shared = wrapper.data;
             AC_STATUS status = shared.acsGraphic.status;
             /*if (status == AC_STATUS.AC_OFF)
@@ -1347,7 +1349,11 @@ namespace CrewChiefV4.assetto
                     currentGameState.SessionData.SessionRunningTime = (float)(currentGameState.Now - currentGameState.SessionData.SessionStartTime).TotalSeconds;
                 }
 
-                if (logUnknownTrackSectors && !isOnline && !isSinglePlayerPracticeSession)
+                bool unknownTrack = currentGameState.SessionData.TrackDefinition.unknownTrack;
+                bool nativeSector = shared.acsGraphic.currentSectorIndex >= 0 && shared.acsGraphic.currentSectorIndex < 3 &&
+                    (unknownTrack || logUnknownTrackSectors && !isOnline && !isSinglePlayerPracticeSession);
+                currentGameState.SessionData.SectorTimingEstimated = unknownTrack && !nativeSector;
+                if (nativeSector)
                 {
                     currentGameState.SessionData.SectorNumber = shared.acsGraphic.currentSectorIndex + 1;
                 }
@@ -1679,6 +1685,9 @@ namespace CrewChiefV4.assetto
             currentGameState.ControlData.ThrottlePedal = shared.acsPhysics.gas;
             currentGameState.ControlData.ClutchPedal = shared.acsPhysics.clutch;
             currentGameState.ControlData.SteeringWheelAngle = shared.acsPhysics.steerAngle;
+            if (wrapper.sourceSampleTicks > 0)
+                TelemetryMeasurements.Pedals(currentGameState, "AC.SharedMemory.Physics", currentGameState.SourceTelemetryUtc,
+                    "gas", "brake", "clutch");
 
             // penalty data
             currentGameState.PenaltiesData.HasDriveThrough = currentFlag == AC_FLAG_TYPE.AC_PENALTY_FLAG && shared.acsGraphic.penaltyTime <= 0;

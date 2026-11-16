@@ -11,14 +11,77 @@ namespace CrewChiefV4.AiTeam
 {
     internal sealed class RadioVariantCursor
     {
+        private sealed class Group
+        {
+            public readonly Queue<int> Recent = new Queue<int>(3);
+            public int Candidate = -1;
+        }
+        private static readonly Random random = new Random();
+        private readonly Dictionary<string, Group> groups = new Dictionary<string, Group>(StringComparer.Ordinal);
         private int heard;
         public int Heard => Volatile.Read(ref heard);
-        public void OnPlaybackStarted() => Interlocked.Increment(ref heard);
+        public int Select(string name, int count)
+        {
+            if (count < 2) return 0;
+            lock (groups)
+            {
+                if (!groups.TryGetValue(name, out var group)) groups[name] = group = new Group();
+                if (group.Candidate >= 0 && group.Candidate < count && !group.Recent.Contains(group.Candidate))
+                    return group.Candidate;
+                int blocked = Math.Min(3, count - 1);
+                while (group.Recent.Count > blocked) group.Recent.Dequeue();
+                if (count < 5)
+                {
+                    int next = Heard % count;
+                    while (group.Recent.Contains(next)) next = (next + 1) % count;
+                    return group.Candidate = next;
+                }
+                if (group.Recent.Count == 0) return group.Candidate = 0;
+                var available = Enumerable.Range(0, count).Where(i => !group.Recent.Contains(i)).ToArray();
+                int pick;
+                lock (random) pick = random.Next(available.Length);
+                return group.Candidate = available[pick];
+            }
+        }
+        public void OnPlaybackCompleted(string name = null, int index = -1)
+        {
+            if (name != null && index >= 0)
+            {
+                lock (groups)
+                {
+                    if (!groups.TryGetValue(name, out var group)) groups[name] = group = new Group();
+                    if (group.Recent.Count == 3) group.Recent.Dequeue();
+                    group.Recent.Enqueue(index);
+                    group.Candidate = -1;
+                }
+            }
+            Interlocked.Increment(ref heard);
+        }
     }
 
     /// <summary>Runtime text can only insert the facts declared for that situation.</summary>
     public sealed class RadioPhraseCatalog
     {
+        // Satzanfänge, die nach vorangestelltem Namen klein geschrieben werden (keine Substantive, keine Namen).
+        private static readonly HashSet<string> LowerableStarts = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Du", "Wir", "Das", "Der", "Die", "Den", "Dem", "Ein", "Eine", "Einen", "Jetzt", "Und", "Noch", "Wieder", "Gut", "Sauber", "Sauberer",
+            "Stark", "Starker", "Neue", "Neuer", "Nach", "In", "Ja", "Jawohl", "Sehr", "Deine", "Dein", "Da", "Von", "Mit", "Schnellste", "Persönliche",
+            "You", "We", "The", "A", "And", "Another", "New", "Nice", "Good", "Great", "Strong", "Back", "Fastest", "Your", "That", "Now", "One", "Clean", "Yes",
+            "Has", "Hemos", "Otra", "Otro", "Un", "Una", "El", "La", "Los", "Nueva", "Nuevo", "Bien", "Buen", "Buena", "Muy", "Ya", "Ahora", "Tu"
+        };
+
+        /// <summary>Spricht den Fahrer mit Namen an („Rob, …“). Nur bekannte Satzanfänge werden klein geschrieben; Substantive und Namen bleiben.</summary>
+        internal static string Address(string line, string name)
+        {
+            name = (name ?? "").Trim();
+            if (name.Length == 0 || string.IsNullOrEmpty(line) || line.StartsWith(name + ",", StringComparison.Ordinal)) return line;
+            int end = 0;
+            while (end < line.Length && char.IsLetter(line[end])) end++;
+            string rest = end > 0 && LowerableStarts.Contains(line.Substring(0, end)) ? char.ToLower(line[0], RadioLanguage.Culture) + line.Substring(1) : line;
+            return name + ", " + rest;
+        }
+
         public const string FileName = "Rennfunk.de.json";
         /// <summary>Katalogdatei der jeweiligen Funksprache.</summary>
         public static string FileNameFor(string language) => "Rennfunk." + language + ".json";
@@ -29,7 +92,21 @@ namespace CrewChiefV4.AiTeam
         {
             ["pass-first"] = "position|driver", ["pass-repeat"] = "position", ["pit-rival"] = "opponent",
             ["pit-gain"] = "opponent position", ["fuel-tank"] = "litres", ["fuel-range"] = "litres laps",
-            ["finish-podium"] = "", ["finish-other"] = "", ["lap-best"] = "time",
+            ["finish-podium"] = "", ["finish-other"] = "", ["race-disqualified"] = "|driver", ["lap-best"] = "time",
+            ["lap-first-valid"] = "time", ["lap-near-best"] = "delta",
+            ["quali-sector-comparison"] = "sector time delta direction opponent",
+            ["own-sector-best"] = "sector time", ["own-sector-best-push"] = "", ["own-best-pace"] = "delta",
+            ["stint-consistency"] = "time|driver", ["race-defense-hold"] = "opponent interval|driver", ["fuel-saving-review"] = "average comparison", ["race-chase-review"] = "result", ["pit-exit-forecast"] = "forecast", ["crew-thermal-pit-handover"] = "",
+            ["corner-improvement"] = "corner gain",
+            ["pit-undercut-overcut-result"] = "opponent result interval change",
+            ["race-position-loss"] = "from position",
+            ["race-class-best"] = "opponent time",
+            ["race-overall-best"] = "opponent time",
+            ["race-rear-pressure"] = "opponent interval", ["rival-sector-loss"] = "opponent sector interval", ["reader-temperature-context"] = "heat trend",
+            ["gap-front-measured"] = "interval opponent", ["gap-rear-measured"] = "interval opponent",
+            ["quali-first"] = "position", ["quali-top3"] = "position", ["quali-field"] = "position",
+            ["quali-provisional"] = "position", ["quali-unknown"] = "",
+            ["race-last"] = "driver", ["race-closing"] = "laps driver",
             ["pace-front-faster"] = "delta opponent", ["pace-front-slower"] = "delta opponent",
             ["pace-rear-faster"] = "delta opponent", ["pace-rear-slower"] = "delta opponent",
             ["gap-front-close"] = "|opponent rival target", ["gap-front-increasing"] = "|opponent rival target",
@@ -129,6 +206,11 @@ namespace CrewChiefV4.AiTeam
             char.IsLetterOrDigit(c) || c == ' ' || c == '-' || c == '\'').Take(60).ToArray()).Trim();
 
         public int Count(string group) => groups[group].Length;
+        public string ReferenceFor(string group, int variant)
+        {
+            var options=groups[group];int index=(int)((uint)variant%options.Length);
+            return "RRCA/"+group+"/"+index;
+        }
 
         public string Preview(string situation, int variant, string driverName)
         {
@@ -142,6 +224,7 @@ namespace CrewChiefV4.AiTeam
                 case "pace-front-faster": return Format("pace-front-faster", variant, RadioLanguage.Num(0.4, "0.0"), Rival);
                 case "lap-best": return Format("lap-best", variant, RadioLanguage.T("2:06,073", "2:06.073", "2:06,073"));
                 case "finish": return RadioLanguage.T("Im Ziel. Platz 3. ", "Chequered flag. P3. ", "Bandera a cuadros. Tercero. ") + Format("finish-podium", variant);
+                case "race-disqualified": return Format("race-disqualified", variant, LapWatch.DriverAddress(driverName));
                 case "pass-first": return Format("pass-first", variant, "7", SafeRivalName(driverName));
                 default: return null;
             }

@@ -105,6 +105,7 @@ namespace UnitTest.AiTeamTests
                 Assert.IsTrue((ahead ? fronts : rears).Add(call.Text));
                 StringAssert.Contains(ahead ? "4,2 Sekunden" : "5,2 Sekunden", call.Text);
                 call.MarkPlaybackStarted(s.Now);
+                call.MarkPlaybackFinished(s.Now.AddSeconds(1), false);
             }
         }
 
@@ -125,7 +126,7 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Gap_variant_advances_only_after_playback_starts()
+        public void Gap_variant_advances_only_after_playback_completes()
         {
             var q = new NativeTimingEvents();
             var s = State();
@@ -142,6 +143,7 @@ namespace UnitTest.AiTeamTests
                 {
                     Assert.AreEqual(first, call.Text);
                     call.MarkPlaybackStarted(s.Now);
+                    call.MarkPlaybackFinished(s.Now.AddSeconds(1), false);
                 }
                 if (i == 2) Assert.AreNotEqual(first, call.Text);
             }
@@ -208,7 +210,9 @@ namespace UnitTest.AiTeamTests
         public void Derived_adapter_gap_is_qualitative_without_a_valid_same_point_tracker_result()
         {
             var s = State(); s.SessionData.TimeDeltaFrontIsDerived = true; var q = Observe(s);
-            var call = q.Take(new RaceDataContext { GameState = s, NowUtc = T, LastTelemetryUtc = T, Tracks = new TrackAwareness() }, false, true, false);
+            var tracks = new TrackAwareness();
+            tracks.Observe(s, T);
+            var call = q.Take(new RaceDataContext { GameState = s, NowUtc = T, LastTelemetryUtc = T, Tracks = tracks }, false, true, false);
             Assert.IsNotNull(call); StringAssert.DoesNotContain("Sekunden", call.Text); StringAssert.DoesNotContain("4,2", call.Text);
             q = Observe(s, Fact(s, true, NativeTimingTrend.Steady)); Assert.IsNull(q.Take(s, T, false, true, false));
         }
@@ -221,7 +225,7 @@ namespace UnitTest.AiTeamTests
             {
                 Advance(s, i / 10d); s.PositionAndMotionData.DistanceRoundTrack = 1000 + i * 5;
                 s.OpponentData["original-front"].DistanceRoundTrack = 1100 + i * 5;
-                tracks.Gaps.Observe(s, s.Now);
+                tracks.Observe(s, s.Now);
             }
             var f = Fact(s); var q = Observe(s, f);
             var call = q.Take(new RaceDataContext { GameState = s, NowUtc = s.Now, LastTelemetryUtc = s.Now, Tracks = tracks }, false, true, false);

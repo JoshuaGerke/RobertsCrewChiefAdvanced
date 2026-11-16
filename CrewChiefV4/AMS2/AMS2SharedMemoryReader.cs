@@ -163,6 +163,7 @@ namespace CrewChiefV4.AMS2
                     tornFramesCount+=retries;
                     if(!stable)
                     {
+                        if (forSpotter) return null;
                         // Kein Fehler, nur ein gerade beschriebener Rahmen: der letzte saubere hat seinen alten Zeitstempel,
                         // Frischeprüfungen sehen ihn also korrekt als älter an
                         if(lastStableFrame!=null){reusedFramesCount++;return lastStableFrame;}

@@ -1623,7 +1623,8 @@ namespace CrewChiefV4.Audio
                     {
                         QueuedMessage thisMessage = (QueuedMessage)thisQueue[eventName];
                         if (AiTeam.AiAudioStore.IsMessage(eventName) &&
-                            !AiTeam.AiAudioStore.PrepareRadio(eventName, openRadioChannelInternal))
+                            !AiTeam.AiAudioStore.PrepareRadio(eventName,
+                                thisMessage.metadata.priority >= 7 ? (Action)(() => openRadioChannelInternal(false)) : openRadioChannelInternal))
                         {
                             AiTeam.LiveDiagnostics.Queue("rejected",eventName,thisMessage.metadata.priority,0,"ai_clip_missing_or_invalid_before_radio");
                             soundsProcessed.Add(eventName);
@@ -1780,7 +1781,9 @@ namespace CrewChiefV4.Audio
             return soundsProcessed;
         }
 
-        private void openRadioChannelInternal()
+        private void openRadioChannelInternal() => openRadioChannelInternal(true);
+
+        private void openRadioChannelInternal(bool playOpeningTone)
         {
             if (!channelOpen)
             {
@@ -1804,7 +1807,7 @@ namespace CrewChiefV4.Audio
                         }
                     }
                     // beeps don't play in oval spotter mode
-                    if (!GlobalBehaviourSettings.ovalSpotterMode)
+                    if (playOpeningTone && !GlobalBehaviourSettings.ovalSpotterMode)
                     {
                         if (useShortBeepWhenOpeningChannel)
                         {
@@ -2163,7 +2166,7 @@ namespace CrewChiefV4.Audio
             return true;
         }
 
-        public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false, Boolean interruptForAiHazard = false)
+        public void playMessageImmediately(QueuedMessage queuedMessage, Boolean keepChannelOpen = false, Boolean interruptForAiHazard = false, Boolean interruptForAiResult = false, string aiTopic = null)
         {
             if (blockedByFilter(queuedMessage))
             {
@@ -2221,6 +2224,8 @@ namespace CrewChiefV4.Audio
                         AiTeam.LiveDiagnostics.Queue("inserted",queuedMessage.messageName,queuedMessage.metadata.priority,immediateClips.Count,null,queuedMessage.metadata.messageId);
                         if (interruptForAiHazard && AiTeam.AiAudioStore.IsMessage(queuedMessage.messageName, true))
                             SoundCache.InterruptForAiHazard(queuedMessage.metadata.priority);
+                        else if (interruptForAiResult && AiTeam.AiAudioStore.IsMessage(queuedMessage.messageName, true))
+                            SoundCache.InterruptForAiResult(aiTopic);
 
                         // wake up the monitor thread immediately
                         monitorQueueWakeUpEvent.Set();
@@ -2266,10 +2271,7 @@ namespace CrewChiefV4.Audio
 
                         // attempt to interrupt whatever sound is currently playing when the spotter interrupts the chief (only works with nAudio)
                         // don't interrupt if the currently playing sound is a beep
-                        if (!PlaybackModerator.lastSoundWasSpotter)
-                        {
-                            SoundCache.InterruptCurrentlyPlayingSound(false);
-                        }
+                        SoundCache.InterruptForSpotter();
 
                         // wake up the monitor thread immediately
                         monitorQueueWakeUpEvent.Set();

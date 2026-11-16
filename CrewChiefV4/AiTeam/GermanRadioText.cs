@@ -16,6 +16,9 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly Regex rank = new Regex(@"\b(?<word>Platz|Position) (?<n>[0-9]{1,3})\b", RegexOptions.CultureInvariant);
         private static readonly Regex tenths = new Regex(@"(?<![\p{L}\p{N}.,-])0,(?<n>[1-9]) Sekunden\b", RegexOptions.CultureInvariant);
+        private static readonly Regex longTenths = new Regex(@"(?<![\p{L}\p{N}.,-])(?<n>[1-9]\d{0,2}(?:[,.]\d{1,2})?|[a-zäöüß]+) Zehntel\b",
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
 
         private static string Integer(int n)
         {
@@ -29,11 +32,36 @@ namespace CrewChiefV4.AiTeam
         private static string Fraction(string value)
         { return " Komma "+string.Join(" ",Array.ConvertAll(value.ToCharArray(),c=>digits[c-'0'])); }
 
+        internal static string Interval(double seconds)
+        {
+            double rounded = Math.Round(seconds, 1, MidpointRounding.AwayFromZero);
+            if (rounded == 0 && seconds > 0) return RadioLanguage.T("unter einem Zehntel", "under a tenth", "menos de una décima");
+            return rounded == 1 ? RadioLanguage.T("eine Sekunde", "one second", "un segundo") :
+                RadioLanguage.Num(rounded, "0.0") + RadioLanguage.T(" Sekunden", " seconds", " segundos");
+        }
+
+        private static string NormalizeTenths(Match match)
+        {
+            string number = match.Groups["n"].Value;
+            if (!decimal.TryParse(number.Replace('.', ','), NumberStyles.AllowDecimalPoint, German, out decimal value))
+            {
+                for (int i = 10; i < 100; i++)
+                {
+                    if (!string.Equals(Integer(i), number, StringComparison.OrdinalIgnoreCase)) continue;
+                    value = i;
+                    break;
+                }
+            }
+            if (value < 10) return match.Value;
+            return (value / 10).ToString("0.0", German) + " Sekunden";
+        }
+
         public static string Prepare(string text, bool pitWall = false)
         {
             if(string.IsNullOrEmpty(text) || text.Length>8192 || !RadioLanguage.IsGerman)return text;
             if (pitWall)
             {
+                text = longTenths.Replace(text, NormalizeTenths);
                 text = rank.Replace(text, m => m.Groups["word"].Value + " " + Integer(int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture)));
                 text = tenths.Replace(text, m => {
                     int value = m.Groups["n"].Value[0] - '0';
@@ -53,7 +81,7 @@ namespace CrewChiefV4.AiTeam
                 if(m.Groups["f"].Success)value+=Fraction(m.Groups["f"].Value);
                 string unit=m.Groups["u"].Value;
                 if(unit.Equals("km/h",StringComparison.OrdinalIgnoreCase))unit="Kilometer pro Stunde";
-                return value+" "+unit;
+                return value+" "+(unit.Equals("Sekunden", StringComparison.OrdinalIgnoreCase) && n == 1 && !m.Groups["f"].Success ? "Sekunde" : unit);
             });
         }
     }

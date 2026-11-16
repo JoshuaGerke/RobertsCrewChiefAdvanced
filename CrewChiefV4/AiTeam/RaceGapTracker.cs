@@ -37,6 +37,7 @@ namespace CrewChiefV4.AiTeam
         public void Reset()
         { cars.Clear(); own=null; session=int.MinValue; track=null; lastTick=DateTime.MinValue; Volatile.Write(ref snapshot,null); }
         private static bool Good(double x) { return !double.IsNaN(x) && !double.IsInfinity(x); }
+        private static string Identity(OpponentData car) => RaceReader.Identity("",car);
         private static History Add(History h,string identity,double progress,DateTime now)
         {
             if (h==null || h.Identity!=identity || now<h.Utc || now-h.Utc>TimeSpan.FromSeconds(.75) ||
@@ -64,7 +65,8 @@ namespace CrewChiefV4.AiTeam
         public void Observe(GameStateData gs,DateTime now)
         {
             var s=gs==null?null:gs.SessionData;
-            if (s==null || s.SessionType!=SessionType.Race || s.SessionPhase!=SessionPhase.Green || gs.PitData.InPitlane ||
+            if (s==null || gs.SourceTelemetryUtc!=DateTime.MinValue && (now<gs.SourceTelemetryUtc || now-gs.SourceTelemetryUtc>TimeSpan.FromSeconds(1)) ||
+                s.SessionType!=SessionType.Race || s.SessionPhase!=SessionPhase.Green || gs.PitData.InPitlane ||
                 s.TrackDefinition==null || !Good(s.TrackDefinition.trackLength) || s.TrackDefinition.trackLength<100)
             { Reset(); return; }
             string currentTrack=s.TrackDefinition.name;
@@ -84,7 +86,7 @@ namespace CrewChiefV4.AiTeam
                 if (c.InPits || c.CompletedLaps<0 || !Good(c.DistanceRoundTrack) || c.DistanceRoundTrack<0 || c.DistanceRoundTrack>length)
                 {cars.Remove(pair.Key);continue;}
                 retained.Add(pair.Key); History h; cars.TryGetValue(pair.Key,out h);
-                cars[pair.Key]=Add(h,(c.DriverRawName??"")+"|"+(c.CarNumber??""),c.CompletedLaps*length+c.DistanceRoundTrack,now);
+                cars[pair.Key]=Add(h,Identity(c),c.CompletedLaps*length+c.DistanceRoundTrack,now);
             }
             foreach(string key in cars.Keys.Where(k=>!retained.Contains(k)).ToArray()) cars.Remove(key);
             foreach(bool ahead in new[]{true,false})
@@ -117,11 +119,14 @@ namespace CrewChiefV4.AiTeam
         public RaceGapMeasurement Read(GameStateData gs,OpponentData car,bool ahead,DateTime now)
         {
             var s=Volatile.Read(ref snapshot);
+            // Audio validation can run before Observe sees the next source frame.
+            if(gs!=null && gs.SourceTelemetryUtc!=DateTime.MinValue &&
+                (now<gs.SourceTelemetryUtc || now-gs.SourceTelemetryUtc>TimeSpan.FromSeconds(1)))return new RaceGapMeasurement();
             if(s==null || gs==null || car==null || gs.SessionData.SessionType!=SessionType.Race || gs.SessionData.SessionPhase!=SessionPhase.Green || gs.PitData.InPitlane ||
                 gs.SessionData.SessionId!=s.Session || gs.SessionData.TrackDefinition==null || gs.SessionData.TrackDefinition.name!=s.Track ||
                 now<s.Utc || now-s.Utc>TimeSpan.FromSeconds(1) || !ReferenceEquals(car,RaceDataTools.Neighbour(gs,ahead)))return new RaceGapMeasurement();
             string key=ahead?s.AheadKey:s.BehindKey; OpponentData live; RaceGapMeasurement measurement;
-            if ((ahead?s.AheadIdentity:s.BehindIdentity)!=((car.DriverRawName??"")+"|"+(car.CarNumber??"")))return new RaceGapMeasurement();
+            if ((ahead?s.AheadIdentity:s.BehindIdentity)!=Identity(car))return new RaceGapMeasurement();
             string mappedKey=ahead?gs.SessionData.OpponentKeyInFront:gs.SessionData.OpponentKeyBehind;
             if((ahead?gs.SessionData.LapsDeltaFront:gs.SessionData.LapsDeltaBehind)!=0 || car.InPits || !car.IsActive ||
                 gs.SessionData.TrackDefinition.trackLength!=length || mappedKey!=null && mappedKey!=key ||

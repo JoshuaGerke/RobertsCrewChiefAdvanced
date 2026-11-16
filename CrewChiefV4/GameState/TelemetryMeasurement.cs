@@ -38,6 +38,14 @@ namespace CrewChiefV4.GameState
         {
             gs.Measurements[id]=new TelemetryMeasurement(raw,scale,offset,source,field,component,rawUnit??unit,unit,utc,min,max,supported,conversion);
         }
+        internal static void Pedals(GameStateData gs, string source, DateTime utc, string throttleField, string brakeField, string clutchField)
+        {
+            var controls = gs.ControlData;
+            Put(gs, "control.throttle", controls.ThrottlePedal, source, throttleField, "gas", "fraction", utc, 0, 1, controls.ThrottlePedal != -1);
+            Put(gs, "control.brake", controls.BrakePedal, source, brakeField, "bremse", "fraction", utc, 0, 1, controls.BrakePedal != -1);
+            Put(gs, "control.clutch", controls.ClutchPedal, source, clutchField, "kupplung", "fraction", utc, 0, 1, controls.ClutchPedal != -1);
+        }
+
         public static float Percentage(GameStateData gs,string id)
         {
             TelemetryMeasurement m;

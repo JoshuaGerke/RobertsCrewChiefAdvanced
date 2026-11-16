@@ -76,6 +76,9 @@ namespace CrewChiefV4.AiTeam
         internal static string MeasuredGap(bool ahead, string name, string interval, bool separateClass, int variant = 0)
         {
             bool named = !string.IsNullOrWhiteSpace(name);
+            if (named)
+                return (separateClass ? RadioLanguage.T("In deiner Klasse: ", "In your class: ", "En tu clase: ") : "") + RadioPhraseCatalog.Current.Format(
+                    ahead ? "gap-front-measured" : "gap-rear-measured", variant, interval, name);
             if (RadioLanguage.Current == RadioLanguage.English)
             {
                 if (separateClass)
@@ -117,17 +120,20 @@ namespace CrewChiefV4.AiTeam
             return opponent + " liegt " + interval + (ahead ? " vor dir." : " hinter dir.");
         }
 
+        internal static string DisqualificationCall => RadioLanguage.T("Die Rennleitung meldet eine Disqualifikation.",
+            "Race control has disqualified us.", "Dirección de carrera nos ha descalificado.");
+
         public string Finish(SessionData s)
         {
             if (s == null || s.SessionPhase != SessionPhase.Finished) return null;
             // These flags take precedence over a numeric rank left over in the game state.
             if (s.IsDNF) return RadioLanguage.T("Die Session ist beendet. Du bist als ausgefallen geführt.", "The session is over. You're classified as a retirement.", "La sesión ha terminado. Figuras como abandono.");
-            if (s.IsDisqualified) return RadioLanguage.T("Die Session ist beendet. Die Wertung meldet eine Disqualifikation.", "The session is over. The classification shows a disqualification.", "La sesión ha terminado. La clasificación indica una descalificación.");
-            if (s.ClassPosition == 1 && !SeparateClass(s)) return Select("victory", CrewSpeechPolicy.FinishPhrases);
+            if (s.IsDisqualified) return DisqualificationCall;
+            if (s.ClassPosition == 1 && !SeparateClass(s)) return (Select("victory", CrewSpeechPolicy.FinishPhrases) + " " + Debrief(s)).TrimEnd();
             string ranks = RaceRanks(s);
             if (ranks == null) return RadioLanguage.T("Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.", "Chequered flag. Final position isn't confirmed yet.", "En meta. La posición final aún no está confirmada.");
             string text = RadioLanguage.T("Im Ziel! ", "Chequered flag! ", "¡En meta! ") + ranks + ".";
-            if (s.ClassPosition == 1) return text + RadioLanguage.T(" Klassensieg. Stark gefahren!", " Class win. Strong drive!", " Victoria de clase. ¡Gran carrera!");
+            if (s.ClassPosition == 1) return (text + RadioLanguage.T(" Klassensieg. Stark gefahren!", " Class win. Strong drive!", " Victoria de clase. ¡Gran carrera!") + " " + Debrief(s)).TrimEnd();
             if (s.ClassPosition > 0 && s.SessionStartClassPosition > s.ClassPosition)
             {
                 int gain = s.SessionStartClassPosition - s.ClassPosition;
@@ -137,9 +143,29 @@ namespace CrewChiefV4.AiTeam
                     " Gained " + gain + (gain == 1 ? " place" : " places") + (separate ? " in your class." : "."),
                     " Has ganado " + gain + (gain == 1 ? " puesto" : " puestos") + (separate ? " en tu clase." : "."));
             }
+            string debrief = Debrief(s);
+            if (debrief.Length > 0) text += " " + debrief;
             string group = s.ClassPosition > 0 && s.ClassPosition <= 3 ? "finish-podium" : "finish-other";
             var catalog = RadioPhraseCatalog.Current;
-            return text + " " + Select(group, Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i)).ToArray());
+            var variants = Enumerable.Range(0, catalog.Count(group)).Select(i => catalog.Format(group, i))
+                .Where(line => !line.StartsWith("Im Ziel", StringComparison.OrdinalIgnoreCase)).ToArray();
+            return variants.Length == 0 ? text : text + " " + Select(group, variants);
+        }
+
+        /// <summary>Kurzes Rennfazit (Rob 16.11.2026): schnellste eigene Runde und Vorfallpunkte, nur aus bestätigten Werten.</summary>
+        internal static string Debrief(SessionData s)
+        {
+            var parts = new List<string>();
+            float best = s.PlayerLapTimeSessionBest;
+            if (best > 10 && best < 3600)
+                parts.Add(RadioLanguage.T("Schnellste Runde ", "Fastest lap ", "Vuelta rápida ") + LocalAnswers.LapTime(best) + ".");
+            if (IncidentPointsWatch.Known(s))
+                parts.Add(s.CurrentIncidentCount == 0
+                    ? RadioLanguage.T("Ohne einen Vorfallpunkt, sauber gefahren.", "Not a single incident point, clean drive.", "Sin un solo punto de incidente, carrera limpia.")
+                    : RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
+                        "Incident points " + s.CurrentIncidentCount + " of " + s.MaxIncidentCount + ".",
+                        "Puntos de incidente " + s.CurrentIncidentCount + " de " + s.MaxIncidentCount + "."));
+            return string.Join(" ", parts);
         }
 
         /// <summary>Use only after a same-rival on-track pass has been confirmed.</summary>
@@ -150,8 +176,10 @@ namespace CrewChiefV4.AiTeam
             if (name.Length == 0) name = "Rob";
             var catalog = RadioPhraseCatalog.Current;
             string rank = position + (classRank ? RadioLanguage.T(" in deiner Klasse", " in your class", " en tu clase") : "");
-            return confirmedPassCount == 1 ? catalog.Format("pass-first", firstVariant, rank, name) :
-                catalog.Format("pass-repeat", confirmedPassCount - 2, rank);
+            if (confirmedPassCount == 1) return catalog.Format("pass-first", firstVariant, rank, name);
+            string repeat = catalog.Format("pass-repeat", confirmedPassCount - 2, rank);
+            // Rob 16.11.: auch beim zweiten, dritten Überholen persönlich – im Wechsel mit und ohne Namen.
+            return confirmedPassCount % 2 == 0 ? RadioPhraseCatalog.Address(repeat, name) : repeat;
         }
 
     }

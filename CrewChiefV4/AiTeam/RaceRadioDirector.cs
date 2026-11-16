@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -18,6 +19,7 @@ namespace CrewChiefV4.AiTeam
         private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
         private readonly Dictionary<string, DateTime> lastTopicUtc = new Dictionary<string, DateTime>();
         private DateTime lastSampleUtc = DateTime.MinValue;
+        private DateTime lastRoutineUtc = DateTime.MinValue;
         private DateTime lastTrafficUtc = DateTime.MinValue;
         private DateTime lastAnyInsightUtc = DateTime.MinValue;
         private int lastPaceLap = -1;
@@ -32,7 +34,9 @@ namespace CrewChiefV4.AiTeam
 
         public void Reset()
         {
+            Interlocked.Exchange(ref pitHandover, null);
             lastSampleUtc = DateTime.MinValue;
+            lastRoutineUtc = DateTime.MinValue;
             lastTrafficUtc = DateTime.MinValue;
             lastAnyInsightUtc = DateTime.MinValue;
             lastPaceLap = -1;
@@ -78,6 +82,83 @@ namespace CrewChiefV4.AiTeam
             }
             return true;
         }
+
+        internal bool RoutineDue(DateTime nowUtc, GameStateData previous, GameStateData current)
+        {
+            var session = current.SessionData;
+            var prior = previous?.SessionData;
+            bool boundary = prior == null || session.SessionId != prior.SessionId ||
+                session.SessionType != prior.SessionType || session.SessionPhase != prior.SessionPhase ||
+                session.CompletedLaps != prior.CompletedLaps || session.SectorNumber != prior.SectorNumber ||
+                session.Flag != prior.Flag || current.PitData.InPitlane != previous.PitData.InPitlane;
+            if (!boundary && nowUtc >= lastRoutineUtc && nowUtc - lastRoutineUtc < TimeSpan.FromMilliseconds(125))
+                return false;
+            lastRoutineUtc = nowUtc;
+            return true;
+        }
+
+        private ObservedRaceCall pitHandover;
+        private readonly RadioVariantCursor handoverVariants = new RadioVariantCursor();
+
+        internal void OfferPitHandover(GameStateData state, DateTime completed, Func<GameStateData, DateTime, bool> evidence)
+        {
+            if (state == null || evidence == null || !evidence(state, completed)) return;
+            const string group = "crew-thermal-pit-handover";
+            var catalog = RadioPhraseCatalog.Current;
+            int variant = handoverVariants.Select(group, catalog.Count(group));
+            var message = new ObservedRaceCall {
+                Topic=group, Text=catalog.Format(group, variant), Member=TeamMember.Ben, Priority=4, Position=-1,
+                SessionId=state.SessionData.SessionId, SessionType=state.SessionData.SessionType,
+                DetectedUtc=completed.AddSeconds(2), ExpiresUtc=completed.AddSeconds(12),
+                Evidence="completed_engineer_radio;heat_still_active;open_pit_window;forecast_gap",
+                TimedValidity=evidence
+            };
+            message.BindVariant(handoverVariants, group, variant);
+            var old = Volatile.Read(ref pitHandover);
+            if (old == null || completed > old.ExpiresUtc)
+                Interlocked.CompareExchange(ref pitHandover, message, old);
+        }
+
+        internal bool PitHandoverPending(DateTime now)
+        {
+            var call = Volatile.Read(ref pitHandover);
+            return call != null && !call.DeliveryFailed && call.DeliveryStartedUtc == DateTime.MinValue && now <= call.ExpiresUtc;
+        }
+
+        internal ObservedRaceCall TakePitHandover(GameStateData state, DateTime now)
+        {
+            var call = Volatile.Read(ref pitHandover);
+            if (call == null || now < call.DetectedUtc) return null;
+            if (!PitHandoverPending(now) || !call.IsValid(state, now))
+            {
+                Interlocked.CompareExchange(ref pitHandover, null, call);
+                return null;
+            }
+            return call.TryReserve(now) ? call : null;
+        }
+
+        internal static string BackgroundPhase(RaceDataContext context)
+        {
+            var state = context?.GameState;
+            if (state == null || state.SessionData.SessionType != SessionType.Race) return null;
+            var session = state.SessionData;
+            int laps = LapWatch.LapsLeft(session);
+            if (laps > 0 && laps <= 2 && !LapWatch.LapsAreEstimated(session)) return "FinalLaps";
+            if (InBattle(RaceDataTools.ReadGap(context, RaceDataTools.Neighbour(state, true), true)) ||
+                InBattle(RaceDataTools.ReadGap(context, RaceDataTools.Neighbour(state, false), false))) return "Battle";
+            if (state.PitData.PitWindow == PitWindow.Open || state.PitData.HasRequestedPitStop) return "PitWindow";
+            return session.CompletedLaps <= 1 ? "OpeningLaps" : "StintMiddle";
+        }
+
+        internal static bool SuppressBackgroundStatistics(RaceDataContext context)
+        {
+            string phase = BackgroundPhase(context);
+            return phase == "FinalLaps" || phase == "Battle";
+        }
+
+        private static bool InBattle(RaceGapMeasurement gap) =>
+            (gap.Kind == RaceGapKind.SimulatorTiming || gap.Kind == RaceGapKind.InterpolatedTiming) &&
+            gap.Seconds > .05f && gap.Seconds < 1f;
 
         private static bool Close(float seconds)
         {

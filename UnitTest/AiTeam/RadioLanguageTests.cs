@@ -42,6 +42,23 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(RadioPhraseCatalogFor(RadioLanguage.German).Count("pass-first"), catalog.Count("pass-first"));
         }
 
+        [TestCase("de", "isqualif")]
+        [TestCase("en", "isqualif")]
+        [TestCase("es", "escalific")]
+        public void Disqualification_variants_are_personal_and_preparable_in_each_radio_language(string language, string keyword)
+        {
+            RadioLanguage.Current = language;
+            var named = LapWatch.DisqualificationPhrases("Rob").ToArray();
+            var anonymous = LapWatch.DisqualificationPhrases(null).ToArray();
+            Assert.AreEqual(6, named.Distinct().Count());
+            for (int i = 0; i < named.Length; i++)
+            {
+                StringAssert.Contains(", Rob", named[i]);
+                StringAssert.Contains(keyword, named[i]);
+                Assert.AreEqual(named[i].Replace(", Rob", ""), anonymous[i]);
+            }
+        }
+
         private static RadioPhraseCatalog RadioPhraseCatalogFor(string language)
         {
             string before = RadioLanguage.Current;
