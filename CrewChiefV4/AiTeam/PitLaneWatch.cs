@@ -44,13 +44,19 @@ namespace CrewChiefV4.AiTeam
             return RadioLanguage.Pick(
                 new[]{"Achte aufs Boxenlimit: "+number+" Kilometer pro Stunde.",
                     "Denk ans Tempo in der Box: "+number+" Kilometer pro Stunde.",
-                    "Boxenlimit beachten: "+number+" Kilometer pro Stunde."},
+                    "Boxenlimit beachten: "+number+" Kilometer pro Stunde.",
+                    "Gleich Boxengasse, Limiter auf "+number+" Kilometer pro Stunde.",
+                    "In der Box gelten "+number+" Kilometer pro Stunde – Limiter rechtzeitig rein."},
                 new[]{"Watch the pit limit: "+number+" kilometres per hour.",
                     "Mind your speed in the pits: "+number+" kilometres per hour.",
-                    "Respect the pit limit: "+number+" kilometres per hour."},
+                    "Respect the pit limit: "+number+" kilometres per hour.",
+                    "Pit lane coming up, limiter at "+number+" kilometres per hour.",
+                    "It's "+number+" kilometres per hour in the pits – limiter on in time."},
                 new[]{"Atento al límite de boxes: "+number+" kilómetros por hora.",
                     "Ojo a la velocidad en boxes: "+number+" kilómetros por hora.",
-                    "Respeta el límite de boxes: "+number+" kilómetros por hora."});
+                    "Respeta el límite de boxes: "+number+" kilómetros por hora.",
+                    "Llega el pit lane, limitador a "+number+" kilómetros por hora.",
+                    "En boxes son "+number+" kilómetros por hora, limitador a tiempo."});
         }
         public static string[] SpeedPhrases(float limit)
         {
@@ -58,11 +64,17 @@ namespace CrewChiefV4.AiTeam
             string number=Math.Round(limit*3.6f).ToString(CultureInfo.InvariantCulture);
             return RadioLanguage.Pick(
                 new[]{"Zu schnell für die Box. Hier gelten "+number+" Kilometer pro Stunde.",
-                    "Tempo runter, Boxenlimit: "+number+" Kilometer pro Stunde."},
+                    "Tempo runter, Boxenlimit: "+number+" Kilometer pro Stunde.",
+                    "Zu schnell in der Box! Limit "+number+" Kilometer pro Stunde.",
+                    "Runter auf "+number+", sonst gibt's eine Strafe."},
                 new[]{"Too fast for the pit lane. The limit here is "+number+" kilometres per hour.",
-                    "Slow down, pit limit: "+number+" kilometres per hour."},
+                    "Slow down, pit limit: "+number+" kilometres per hour.",
+                    "Too fast in the pits! Limit "+number+" kilometres per hour.",
+                    "Down to "+number+", or it's a penalty."},
                 new[]{"Demasiado rápido para boxes. Aquí el límite es de "+number+" kilómetros por hora.",
-                    "Baja la velocidad, límite de boxes: "+number+" kilómetros por hora."});
+                    "Baja la velocidad, límite de boxes: "+number+" kilómetros por hora.",
+                    "¡Demasiado rápido en boxes! Límite de "+number+" kilómetros por hora.",
+                    "Baja a "+number+", o habrá sanción."});
         }
         public static bool IsPreparedPhrase(string text)
         {
