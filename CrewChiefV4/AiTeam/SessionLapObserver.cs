@@ -39,6 +39,7 @@ namespace CrewChiefV4.AiTeam
             lastRadio = lastSectorBestCall = lastSectorTimeCall = DateTime.MinValue; firstSectorTimeCalled = false;
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
+            edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1;
         }
 
         public static bool Supported(SessionType t)
@@ -206,24 +207,60 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private static bool TryLiveSector(GameStateData state, GameStateData previous, DateTime now, out LapData lap, out int sector)
+        // Rob 17.11.: Die lila Runde in AMS2 blieb stumm. Bisher zählte nur genau der eine Takt, in dem die Sektornummer
+        // wechselte – war dort irgendetwas noch nicht frisch (gleicher Datensatz, Sektorzeit noch nicht eingetragen), war
+        // die Gelegenheit für die ganze Runde verloren, und niemand konnte sehen, warum. Jetzt merkt sich der Beobachter den
+        // Sektorwechsel und versucht es bei vorübergehenden Gründen bis zu zwei Sekunden lang weiter; jeder Grund, aus dem
+        // ein Sektor nicht ausgewertet wird, landet in der Live-Diagnose („sector-live“).
+        private int edgeLap = -1, edgeSector = -1;
+        private DateTime edgeUtc = DateTime.MinValue;
+        internal static readonly TimeSpan SectorEdgeRetry = TimeSpan.FromSeconds(2);
+
+        /// <summary>Vorübergehende Gründe: kann sich in den nächsten Takten von selbst erledigen.</summary>
+        internal static bool RetryableSectorReason(string reason) =>
+            reason == "stale_source" || reason == "duplicate_sample" || reason == "sector_time_missing";
+
+        /// <summary>Erster Grund, der eine Live-Auswertung des gerade beendeten Sektors verhindert; null = auswertbar.</summary>
+        internal static string LiveSectorBlocker(GameStateData state, GameStateData previous, DateTime now, int sector, out LapData lap)
+        {
+            var s = state.SessionData;
+            var before = previous.SessionData;
+            lap = null;
+            if (before.SessionId != s.SessionId || before.SessionType != s.SessionType) return "session_changed";
+            if (s.SessionPhase != SessionPhase.Green) return "not_green";
+            if (s.IsNewLap) return "new_lap";
+            if (s.SectorTimingEstimated || before.SectorTimingEstimated) return "sector_timing_estimated";
+            if (!s.CurrentLapIsValid) return "lap_invalid";
+            if (state.PitData.InPitlane || state.PitData.OnOutLap || state.PitData.OnInLap) return "pit_or_out_lap";
+            if (state.FlagData.isLocalYellow) return "local_yellow";
+            DateTime source = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc;
+            if (now < source || now - source > TimeSpan.FromSeconds(1)) return "stale_source";
+            if (previous.SourceTelemetryUtc != DateTime.MinValue && source <= previous.SourceTelemetryUtc) return "duplicate_sample";
+            lap = s.PlayerLapData.LastOrDefault();
+            if (lap == null || lap.LapNumber != s.CompletedLaps + 1) return "lap_record_missing";
+            if (!lap.IsValid || lap.InLap || lap.OutLap) return "lap_record_not_timed";
+            if (lap.SectorTimes == null || lap.SectorTimes.Length <= sector || !GoodSector(lap.SectorTimes[sector])) return "sector_time_missing";
+            return null;
+        }
+
+        private bool TryLiveSector(GameStateData state, GameStateData previous, DateTime now, out LapData lap, out int sector)
         {
             var s = state.SessionData;
             var before = previous?.SessionData;
             sector = s.SectorNumber - 2;
             lap = null;
-            if (before == null || sector < 0 || sector > 1 || before.SessionId != s.SessionId ||
-                before.SessionType != s.SessionType || before.SessionPhase != SessionPhase.Green ||
-                before.CompletedLaps != s.CompletedLaps || before.SectorNumber + 1 != s.SectorNumber ||
-                s.IsNewLap || s.SectorTimingEstimated || before.SectorTimingEstimated || !s.CurrentLapIsValid ||
-                state.PitData.InPitlane || state.PitData.OnOutLap ||
-                state.PitData.OnInLap || state.FlagData.isLocalYellow) return false;
-            DateTime source = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc;
-            if (now < source || now - source > TimeSpan.FromSeconds(1)) return false;
-            if (previous.SourceTelemetryUtc != DateTime.MinValue && source <= previous.SourceTelemetryUtc) return false;
-            lap = s.PlayerLapData.LastOrDefault();
-            return lap != null && lap.LapNumber == s.CompletedLaps + 1 && lap.IsValid && !lap.InLap && !lap.OutLap &&
-                lap.SectorTimes != null && lap.SectorTimes.Length > sector && GoodSector(lap.SectorTimes[sector]);
+            if (before == null || sector < 0 || sector > 1) return false;
+            bool edge = before.SectorNumber + 1 == s.SectorNumber && before.CompletedLaps == s.CompletedLaps;
+            if (edge) { edgeLap = s.CompletedLaps + 1; edgeSector = sector; edgeUtc = now; }
+            else if (edgeLap != s.CompletedLaps + 1 || edgeSector != sector || now - edgeUtc > SectorEdgeRetry) return false;
+            string reason = LiveSectorBlocker(state, previous, now, sector, out lap);
+            if (reason == null) { edgeLap = -1; return true; }
+            bool retry = RetryableSectorReason(reason) && now - edgeUtc < SectorEdgeRetry;
+            if (!retry) edgeLap = -1;
+            if (edge || !retry)
+                LiveDiagnostics.Decision("sector-live", retry ? "waiting" : "rejected", "sector_" + (sector + 1) + ":" + reason);
+            lap = null;
+            return false;
         }
 
         private bool ObserveLivePersonalBest(GameStateData state, GameStateData previous, LapData lap, int sector, DateTime now)
@@ -245,11 +282,15 @@ namespace CrewChiefV4.AiTeam
                 float previousBest = sector == 0 ? previous.SessionData.PlayerBestSector1Time : previous.SessionData.PlayerBestSector2Time;
                 float reference = GoodSector(prior) && GoodSector(previousBest) ? Math.Min(prior, previousBest) :
                     GoodSector(prior) ? prior : previousBest;
-                if (!GoodSector(reference) || reference - time < .04f) return false;
+                if (!GoodSector(reference))
+                { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":no_prior_personal_best"); return false; }
+                if (reference - time < .04f)
+                { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":not_faster_than_best_by_0.04s"); return false; }
                 evidence = "mapped_valid_sector_and_prior_personal_best";
             }
             completedSectorBest[sector] = prior > 0 ? Math.Min(prior, time) : time;
-            if (now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
+            if (now - lastSectorBestCall < TimeSpan.FromSeconds(55))
+            { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":cooldown_55s"); return false; }
             var call = OfferSectorBest(state, now, sector, time, evidence, true);
             int currentSector = state.SessionData.SectorNumber;
             call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.SessionData.SectorTimingEstimated &&
@@ -300,6 +341,8 @@ namespace CrewChiefV4.AiTeam
                 return false; // Sektor 1 läuft wie bisher; die Sammelmeldung kommt nach Sektor 2
             }
             bool s1 = flyingLap == lap.LapNumber && (flyingS1Own || flyingS1Purple);
+            if (!s1 || !(ownBest || purple))
+                LiveDiagnostics.Decision("lap-on-pace", "skipped", "sector_1_best:" + s1 + ";sector_2_own:" + ownBest + ";sector_2_purple:" + purple);
             bool bothPurple = flyingS1Purple && purple;
             flyingLap = -1;
             if (!s1 || !(ownBest || purple)) return false;
