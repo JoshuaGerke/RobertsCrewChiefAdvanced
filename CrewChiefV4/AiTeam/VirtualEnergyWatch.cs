@@ -78,13 +78,19 @@ namespace CrewChiefV4.AiTeam
                     "Energía virtual " + pct + " por ciento, aún medimos el consumo.");
             float laps = level / perLap;
             string l = RadioLanguage.Num(laps, "0.0"), p = RadioLanguage.Num(perLap, "0.0");
-            string text = ((variant % 2) + 2) % 2 == 0
-                ? RadioLanguage.T("Virtuelle Energie " + pct + " Prozent, " + p + " pro Runde – das reicht für etwa " + l + " Runden.",
+            string text = RadioVariants.At(variant,
+                RadioLanguage.T("Virtuelle Energie " + pct + " Prozent, " + p + " pro Runde – das reicht für etwa " + l + " Runden.",
                     "Virtual energy " + pct + " percent, " + p + " a lap – that's about " + l + " laps.",
-                    "Energía virtual " + pct + " por ciento, " + p + " por vuelta: da para unas " + l + " vueltas.")
-                : RadioLanguage.T("Energie reicht noch etwa " + l + " Runden: " + pct + " Prozent übrig, " + p + " pro Runde.",
+                    "Energía virtual " + pct + " por ciento, " + p + " por vuelta: da para unas " + l + " vueltas."),
+                RadioLanguage.T("Energie reicht noch etwa " + l + " Runden: " + pct + " Prozent übrig, " + p + " pro Runde.",
                     "Energy lasts about " + l + " more laps: " + pct + " percent left, " + p + " a lap.",
-                    "La energía dura unas " + l + " vueltas más: queda un " + pct + " por ciento, " + p + " por vuelta.");
+                    "La energía dura unas " + l + " vueltas más: queda un " + pct + " por ciento, " + p + " por vuelta."),
+                RadioLanguage.T("Energie-Stand: " + pct + " Prozent. Bei " + p + " pro Runde sind das rund " + l + " Runden.",
+                    "Energy status: " + pct + " percent. At " + p + " a lap that's around " + l + " laps.",
+                    "Estado de energía: " + pct + " por ciento. A " + p + " por vuelta son unas " + l + " vueltas."),
+                RadioLanguage.T("Virtuelle Energie: " + pct + " Prozent im Speicher, Reichweite etwa " + l + " Runden bei " + p + " je Runde.",
+                    "Virtual energy: " + pct + " percent in store, range about " + l + " laps at " + p + " per lap.",
+                    "Energía virtual: " + pct + " por ciento disponible, autonomía de unas " + l + " vueltas a " + p + " por vuelta."));
             if (fuelLaps > 0 && Math.Abs(fuelLaps - laps) >= .5f)
                 text += " " + (laps < fuelLaps
                     ? RadioLanguage.T("Die Energie ist knapper als der Sprit.", "Energy is tighter than fuel.", "La energía es más justa que el combustible.")
