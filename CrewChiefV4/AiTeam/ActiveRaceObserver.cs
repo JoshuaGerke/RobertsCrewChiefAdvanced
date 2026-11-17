@@ -821,12 +821,17 @@ namespace CrewChiefV4.AiTeam
             return n.Length == 0 ? "" : n;
         }
 
-        /// <summary>Platz gewonnen ohne bestätigtes Überholmanöver – fünf Varianten, teils mit Namen.</summary>
+        /// <summary>Platz gewonnen ohne bestätigtes Überholmanöver – neun Varianten (Rob 17.11.: lebendiger), teils mit Namen.</summary>
         internal static string MovedUp(SessionData s, int position, int variant, string driverName = null)
         {
             string rank = RaceRadioLanguage.Rank(s, position), n = Address(driverName);
-            switch (((variant % 5) + 5) % 5)
+            switch (((variant % 9) + 9) % 9)
             {
+                case 5: return RadioLanguage.T("Plus eins! " + rank + ".", "Plus one! " + rank + ".", "¡Uno más! " + rank + ".");
+                case 6: return n.Length > 0 ? RadioLanguage.T("Gut gemacht, " + n + ", wir liegen jetzt auf " + rank + ".", "Good job, " + n + ", we're " + rank + " now.", "Bien hecho, " + n + ", ahora vamos " + rank + ".")
+                    : RadioLanguage.T("Gut gemacht, wir liegen jetzt auf " + rank + ".", "Good job, we're " + rank + " now.", "Bien hecho, ahora vamos " + rank + ".");
+                case 7: return RadioLanguage.T(rank + ". Und der Nächste wartet schon.", rank + ". And the next one is waiting.", rank + ". Y el siguiente ya espera.");
+                case 8: return RadioLanguage.T("Wieder einer weniger vor dir. " + rank + ".", "One less in front of you. " + rank + ".", "Uno menos delante. " + rank + ".");
                 case 0: return RadioLanguage.T("Wir sind vorgerückt. Jetzt " + rank + ".", "We've moved up. Now " + rank + ".", "Hemos subido. Ahora " + rank + ".");
                 case 1: return RadioLanguage.T("Einen Platz nach vorn, jetzt " + rank + ".", "One place up, now " + rank + ".", "Un puesto más, ahora " + rank + ".");
                 case 2: return n.Length > 0 ? RadioLanguage.T("Sauber, " + n + ". " + rank + ".", "Nice, " + n + ". " + rank + ".", "Bien, " + n + ". " + rank + ".")
@@ -840,8 +845,11 @@ namespace CrewChiefV4.AiTeam
         internal static string PositionNow(SessionData s, int position, int variant)
         {
             string rank = RaceRadioLanguage.Rank(s, position);
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 6) + 6) % 6)
             {
+                case 3: return RadioLanguage.T("Zur Info: " + rank + ".", "For info: " + rank + ".", "Para que lo sepas: " + rank + ".");
+                case 4: return RadioLanguage.T("Aktuell " + rank + ".", "Currently " + rank + ".", "Actualmente " + rank + ".");
+                case 5: return RadioLanguage.T("Kurzer Stand: " + rank + ".", "Quick update: " + rank + ".", "Situación rápida: " + rank + ".");
                 case 0: return RadioLanguage.T("Stand jetzt: " + rank + ".", "Right now: " + rank + ".", "Ahora mismo: " + rank + ".");
                 case 1: return RadioLanguage.T("Du liegst auf " + rank + ".", "You're running " + rank + ".", "Vas " + rank + ".");
                 default: return RadioLanguage.T(rank + " im Moment.", rank + " at the moment.", rank + " por ahora.");
@@ -852,8 +860,13 @@ namespace CrewChiefV4.AiTeam
         internal static string PositionLost(SessionData s, int position, int variant, string driverName = null)
         {
             string rank = RaceRadioLanguage.Rank(s, position), n = Address(driverName);
-            switch (((variant % 5) + 5) % 5)
+            switch (((variant % 9) + 9) % 9)
             {
+                case 5: return RadioLanguage.T(rank + ". Nicht hinterherhetzen, die Chance kommt wieder.", rank + ". Don't chase it, the chance will come again.", rank + ". No te precipites, la ocasión volverá.");
+                case 6: return n.Length > 0 ? RadioLanguage.T("Abhaken, " + n + ". " + rank + ", wir bleiben ruhig.", "Let it go, " + n + ". " + rank + ", we stay calm.", "Olvídalo, " + n + ". " + rank + ", con calma.")
+                    : RadioLanguage.T("Abhaken. " + rank + ", wir bleiben ruhig.", "Let it go. " + rank + ", we stay calm.", "Olvídalo. " + rank + ", con calma.");
+                case 7: return RadioLanguage.T("Ein Platz weg, " + rank + ". Saubere Runden, dann kommt das zurück.", "One place gone, " + rank + ". Clean laps and it'll come back.", "Un puesto menos, " + rank + ". Vueltas limpias y volverá.");
+                case 8: return RadioLanguage.T(rank + ". Durchatmen, neu sortieren, weiter geht's.", rank + ". Breathe, reset, keep going.", rank + ". Respira, reorganiza y adelante.");
                 case 0: return RadioLanguage.T("Jetzt " + rank + ". Bleib dran.", "Now " + rank + ". Stay with it.", "Ahora " + rank + ". Sigue ahí.");
                 case 1: return RadioLanguage.T(rank + ". Kopf hoch, den holen wir uns zurück.", rank + ". Head up, we'll get that back.", rank + ". Ánimo, lo recuperamos.");
                 case 2: return n.Length > 0 ? RadioLanguage.T("Platz verloren, " + n + ", jetzt " + rank + ". Ruhig weiter.", "Lost a place, " + n + ", now " + rank + ". Stay calm.", "Perdimos un puesto, " + n + ", ahora " + rank + ". Con calma.")
@@ -867,7 +880,27 @@ namespace CrewChiefV4.AiTeam
         {
             int pos = s.ClassPosition, gained = start - pos;
             string rank = RaceRadioLanguage.Rank(s, pos), n = SafeName(name);
-            int v = ((variant % 3) + 3) % 3;
+            int v = ((variant % 5) + 5) % 5;
+            if (v == 3)
+            {
+                if (gained > 0) return RadioLanguage.T("Sehr gut, " + n + "! " + (gained == 1 ? "Einer" : gained.ToString()) + " mehr nach dem Start, " + rank + ". Jetzt Ruhe reinbringen.",
+                    "Very good, " + n + "! " + gained + " up after the start, " + rank + ". Now settle in.",
+                    "¡Muy bien, " + n + "! " + gained + " más tras la salida, " + rank + ". Ahora tranquilidad.");
+                if (gained < 0) return RadioLanguage.T(n + ", der Start war nicht ideal, " + rank + ". Wir haben noch viele Runden.",
+                    n + ", the start wasn't ideal, " + rank + ". We've got plenty of laps.", n + ", la salida no fue ideal, " + rank + ". Quedan muchas vueltas.");
+                return RadioLanguage.T(n + ", gut durch die erste Runde gekommen, " + rank + ".",
+                    n + ", good first lap, " + rank + ".", n + ", buena primera vuelta, " + rank + ".");
+            }
+            if (v == 4)
+            {
+                if (gained > 0) return RadioLanguage.T("Das war ein Start nach Maß, " + n + ". " + rank + ", " + (gained == 1 ? "ein Platz" : gained + " Plätze") + " besser.",
+                    "That was a textbook start, " + n + ". " + rank + ", " + gained + (gained == 1 ? " place" : " places") + " better.",
+                    "Salida de manual, " + n + ". " + rank + ", " + gained + (gained == 1 ? " puesto" : " puestos") + " mejor.");
+                if (gained < 0) return RadioLanguage.T(n + ", " + rank + " nach dem Start. Kopf frei, Schritt für Schritt zurück nach vorn.",
+                    n + ", " + rank + " after the start. Clear head, step by step back to the front.", n + ", " + rank + " tras la salida. Cabeza fría, paso a paso hacia delante.");
+                return RadioLanguage.T(n + ", sauber durchgekommen, " + rank + " gehalten. Jetzt finden wir unseren Rhythmus.",
+                    n + ", through cleanly, holding " + rank + ". Now let's find our rhythm.", n + ", has pasado limpio, mantienes " + rank + ". Ahora a buscar el ritmo.");
+            }
             if (v == 1)
             {
                 if (gained > 0) return RadioLanguage.T("Starker Start, " + n + ". Plus " + gained + ", du bist jetzt " + rank + ".",
