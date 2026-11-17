@@ -324,6 +324,45 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Drop, judge(RacePhase.LastLap, RaceAttention.Calm));
         }
 
+        [Test]
+        public void Sim_impact_time_counts_only_with_a_noticeable_loss_of_speed()
+        {
+            var gs = Race(); gs.CarDamageData.LastImpactTime = 0; gs.PositionAndMotionData.CarSpeed = 50;
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.CarDamageData.LastImpactTime = 61.2f;                  // Einschlag gemeldet, Tempo bleibt (Kerb-Kontakt)
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(1));
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(2));
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(12));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(12), false, true), "ohne Tempoverlust kein Mitgefühl");
+
+            gs = Race(); gs.CarDamageData.LastImpactTime = 0; gs.PositionAndMotionData.CarSpeed = 50;
+            watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.CarDamageData.LastImpactTime = 61.2f;
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(1));
+            gs.PositionAndMotionData.CarSpeed = 30;                   // 20 m/s verloren
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(1.5));
+            gs.PositionAndMotionData.CarSpeed = 40;
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(11));
+            var call = watch.Take(gs, T.AddSeconds(11), false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("judge-impact", call.Topic);
+        }
+
+        [Test]
+        public void Impact_value_present_at_session_start_is_only_a_baseline()
+        {
+            var gs = Race(); gs.CarDamageData.LastImpactTime = 33f; gs.PositionAndMotionData.CarSpeed = 50;
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.PositionAndMotionData.CarSpeed = 20;
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(1));
+            gs.PositionAndMotionData.CarSpeed = 40;
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(11));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(11), false, true));
+        }
+
         // ---------- Lila Sektoren ----------
 
         [Test]

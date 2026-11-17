@@ -187,6 +187,10 @@ namespace CrewChiefV4.AiTeam
         private DateTime impactUtc = DateTime.MinValue;
         private bool impactRepeated;
         private int lastIncidents = -1;
+        private float lastImpactTime = -1;
+        private bool impactBaseline;
+        private DateTime impactCandidateUtc = DateTime.MinValue;
+        private readonly Queue<KeyValuePair<DateTime, float>> speeds = new Queue<KeyValuePair<DateTime, float>>();
         private readonly Queue<KeyValuePair<DateTime, float>> damage = new Queue<KeyValuePair<DateTime, float>>();
         private ObservedRaceCall call;
 
@@ -201,6 +205,7 @@ namespace CrewChiefV4.AiTeam
         {
             session = int.MinValue; lastPosition = -1; lastConsistencyLap = lastSlideLap = lastDefenceLap = -100; overtakeCount = spokenCount = 0;
             defendedAttacker = null; overtake = null; impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
+            lastImpactTime = -1; impactBaseline = false; impactCandidateUtc = DateTime.MinValue; speeds.Clear();
             lastPraise = lastAny = lastImpact = lastImpactCall = DateTime.MinValue; lastVariant.Clear(); call = null;
         }
 
@@ -333,6 +338,20 @@ namespace CrewChiefV4.AiTeam
             bool hit = false;
             if (incidents >= 0 && lastIncidents >= 0 && incidents - lastIncidents >= 2) hit = true; // Kontaktwertung, nicht nur Streckenverlassen
             lastIncidents = incidents;
+            // Einschlag-Zeitpunkt, den Crew Chief je Simulation schon pflegt (LMU/rF2: Zeitpunkt des letzten Einschlags aus der
+            // Telemetrie; AMS2: Kollision über Schwelle; iRacing: Reparatur nötig). Damit nicht jeder Kerb-Kontakt Mitgefühl
+            // auslöst, zählt er erst mit spürbarem Tempoverlust (≥ 5 m/s binnen 2 s) oder neuem Schaden.
+            float impactTime = gs.CarDamageData == null ? -1 : gs.CarDamageData.LastImpactTime;
+            if (impactBaseline && impactTime > 0 && impactTime != lastImpactTime) impactCandidateUtc = now;
+            lastImpactTime = impactTime; impactBaseline = true; // erster Wert ist nur Ausgangslage (Einschlag vor Sitzungsbeginn)
+            float speed = gs.PositionAndMotionData.CarSpeed;
+            while (speeds.Count > 0 && now - speeds.Peek().Key > TimeSpan.FromSeconds(3)) speeds.Dequeue();
+            speeds.Enqueue(new KeyValuePair<DateTime, float>(now, speed));
+            if (impactCandidateUtc != DateTime.MinValue)
+            {
+                if (now - impactCandidateUtc > TimeSpan.FromSeconds(2)) impactCandidateUtc = DateTime.MinValue;
+                else if (SpeedLoss(speeds, impactCandidateUtc) >= 5f) { hit = true; impactCandidateUtc = DateTime.MinValue; }
+            }
             float d = ImpactDamage(gs.CarDamageData);
             while (damage.Count > 0 && now - damage.Peek().Key > TimeSpan.FromSeconds(3)) damage.Dequeue();
             if (d >= 0)
@@ -343,7 +362,16 @@ namespace CrewChiefV4.AiTeam
             if (!hit || !green || s.SessionType != SessionType.Race && s.SessionType != SessionType.Practice && s.SessionType != SessionType.Qualify) return;
             if (now - lastImpact < TimeSpan.FromSeconds(10)) { lastImpact = now; return; } // derselbe Abflug
             impactRepeated = lastImpact != DateTime.MinValue && now - lastImpact < TimeSpan.FromMinutes(4);
-            lastImpact = now; impactUtc = now; overtake = null; damage.Clear();
+            lastImpact = now; impactUtc = now; overtake = null; damage.Clear(); impactCandidateUtc = DateTime.MinValue;
+        }
+
+        /// <summary>Höchstes Tempo kurz vor dem Einschlag minus geringstes Tempo danach (m/s).</summary>
+        internal static float SpeedLoss(IEnumerable<KeyValuePair<DateTime, float>> samples, DateTime impact)
+        {
+            var list = samples.ToList();
+            var before = list.Where(p => p.Key <= impact && impact - p.Key <= TimeSpan.FromSeconds(1)).Select(p => p.Value).ToList();
+            var after = list.Where(p => p.Key >= impact).Select(p => p.Value).ToList();
+            return before.Count == 0 || after.Count == 0 ? 0 : before.Max() - after.Min();
         }
 
         private void ObserveOvertake(GameStateData gs, IList<LapRecord> laps, bool names, DateTime now, bool green)
