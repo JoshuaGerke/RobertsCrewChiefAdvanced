@@ -134,7 +134,7 @@ namespace CrewChiefV4.AiTeam
             string bias = rear
                 ? RadioLanguage.T("Wenn's so bleibt: Bremsbalance einen Klick nach vorn.", "If it stays like that: brake bias one click forward.", "Si sigue así: reparto de frenada un clic hacia delante.")
                 : RadioLanguage.T("Wenn's so bleibt: Bremsbalance einen Klick nach hinten.", "If it stays like that: brake bias one click rearward.", "Si sigue así: reparto de frenada un clic hacia atrás.");
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T("Beim Anbremsen " + place + " blockiert " + wheel + ", " + Laps(laps) + ". Den Druck beim Einlenken etwas früher abbauen.",
                     "Braking " + place + " the " + wheel + " is locking, " + Laps(laps) + ". Ease off the pressure a bit earlier as you turn in.",
@@ -142,6 +142,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Mik hier: " + Up(wheel) + " steht " + place + " kurz still. Das kostet Zeit und Gummi. " + bias,
                     "Mik here: the " + wheel + " stops turning " + place + ". That costs time and rubber. " + bias,
                     "Aquí Mik: la " + wheel + " se para " + place + ". Eso cuesta tiempo y goma. " + bias);
+                case 3: return RadioLanguage.T("Bremszone " + place + ": " + Up(wheel) + " blockiert, " + Laps(laps) + ". Etwas weniger Spitzendruck, dafür länger tragen.",
+                    "Braking zone " + place + ": the " + wheel + " is locking, " + Laps(laps) + ". A little less peak pressure, carry it longer.",
+                    "Zona de frenada " + place + ": se bloquea la " + wheel + ", " + Laps(laps) + ". Algo menos de presión punta y alárgala.");
                 default: return RadioLanguage.T("Kleiner Hinweis: " + Up(place) + " blockiert " + wheel + " regelmäßig. Etwas dosierter rein, dann bleibt der Reifen heil.",
                     "Quick note: " + place + " the " + wheel + " keeps locking. A touch more progressive on the brake and the tyre stays healthy.",
                     "Un apunte: " + place + " se bloquea la " + wheel + " a menudo. Algo más progresivo con el freno y el neumático aguanta.");
@@ -151,7 +154,7 @@ namespace CrewChiefV4.AiTeam
         internal static string Wheelspin(string place, bool rear, int laps, int variant)
         {
             string axle = rear ? RadioLanguage.T("die Hinterräder", "the rears", "las traseras") : RadioLanguage.T("die Vorderräder", "the fronts", "las delanteras");
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T(Up(place) + " drehen " + axle + " durch, " + Laps(laps) + ". Etwas sanfter ans Gas, dann kommst du schneller raus.",
                     Up(place) + " " + axle + " are spinning up, " + Laps(laps) + ". Squeeze the throttle and you'll come out faster.",
@@ -159,6 +162,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Zu viel Schlupf " + place + ". Gas progressiver – das schont auch die Reifen.",
                     "Too much wheelspin " + place + ". Feed the throttle in, it saves the tyres too.",
                     "Demasiado patinaje " + place + ". Gas más progresivo, también cuida los neumáticos.");
+                case 3: return RadioLanguage.T(Up(place) + " verlierst du Traktion: " + axle + " drehen durch. Kurzschalten oder später voll aufs Gas.",
+                    Up(place) + " you're losing traction: " + axle + " are spinning. Short-shift or go full throttle later.",
+                    Up(place) + " pierdes tracción: patinan " + axle + ". Cambia antes o pisa a fondo más tarde.");
                 default: return RadioLanguage.T("Traktion ist das Thema " + place + ". Erst die Lenkung öffnen, dann voll aufs Gas.",
                     "Traction is the issue " + place + ". Open the steering first, then full throttle.",
                     "La tracción es el problema " + place + ". Primero abre la dirección y luego gas a fondo.");
@@ -171,7 +177,7 @@ namespace CrewChiefV4.AiTeam
             string w = wheels >= 4 ? RadioLanguage.T("mit allen vier Rädern", "with all four wheels", "con las cuatro ruedas")
                 : wheels == 3 ? RadioLanguage.T("mit drei Rädern", "with three wheels", "con tres ruedas")
                 : RadioLanguage.T("mit zwei Rädern", "with two wheels", "con dos ruedas");
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T(Up(n + place + " warst du " + Laps(laps) + " " + w + " neben der Strecke. Da liegt Zeit – und die Track Limits zählen mit."),
                     Up(n + "you've been off " + w + " " + place + " " + Laps(laps) + ". There's time there, and track limits are counting."),
@@ -179,6 +185,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Problemstelle " + place + ": " + Laps(laps) + " raus. Lass dort einen halben Meter Reserve.",
                     "Problem spot " + place + ": off " + Laps(laps) + ". Leave half a metre of margin there.",
                     "Punto débil " + place + ": fuera " + Laps(laps) + ". Deja medio metro de margen ahí.");
+                case 3: return RadioLanguage.T(Up(n + place + " wird's immer wieder zu weit – " + Laps(laps) + ". Früher einlenken, dann passt der Ausgang."),
+                    Up(n + "you keep running too wide " + place + " – " + Laps(laps) + ". Turn in a touch earlier and the exit works."),
+                    Up(n + place + " te abres demasiado una y otra vez, " + Laps(laps) + ". Gira un poco antes y la salida encaja."));
                 default: return RadioLanguage.T("Wiederholt neben der Strecke " + place + ". Sauber und konstant bringt dort mehr als das letzte Zehntel.",
                     "Running wide again and again " + place + ". Clean and consistent gains more than the last tenth there.",
                     "Te sales una y otra vez " + place + ". Limpio y constante da más que la última décima.");
@@ -208,8 +217,9 @@ namespace CrewChiefV4.AiTeam
                     : ph == 2 ? RadioLanguage.T("Sanfter ans Gas – oder Traktionskontrolle eine Stufe höher.", "Smoother on the throttle, or traction control up a step.", "Gas más suave, o sube un punto el control de tracción.")
                     : RadioLanguage.T("Ruhiger einlenken, nicht nachlenken.", "Calmer turn-in, don't add more steering.", "Gira con más calma, sin corregir de más.");
             }
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
+                case 3: return RadioLanguage.T("Mik zum Fahrverhalten: ", "Mik on the handling: ", "Mik sobre el comportamiento: ") + Up(place) + " " + obs + ". " + advice;
                 case 0: return Up(place) + " " + obs + ", " + Laps(laps) + ". " + advice;
                 case 1: return RadioLanguage.T("Balance-Check: ", "Balance check: ", "Equilibrio: ") + Up(place) + " " + obs + ". " + advice;
                 default: return RadioLanguage.T("Aus den Daten: ", "From the data: ", "Según los datos: ") + Up(place) + " " + obs +
@@ -220,7 +230,7 @@ namespace CrewChiefV4.AiTeam
         internal static string DirtyTyres(int wheels, int variant)
         {
             bool all = wheels >= 4;
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T((all ? "Alle vier Räder waren draußen" : "Das war ein weiter Ausflug") + " – die Reifen haben Dreck aufgenommen. Die nächsten zwei Kurven etwas vorsichtiger.",
                     (all ? "All four wheels were off" : "That was a big trip off") + " – the tyres have picked up dirt. Take the next couple of corners a bit easier.",
@@ -228,6 +238,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Erst die Reifen wieder sauber fahren, dann zurück auf Tempo. Bremspunkte in den nächsten Kurven etwas früher.",
                     "Clean the tyres up first, then back to pace. Brake a little earlier for the next few corners.",
                     "Primero limpia los neumáticos y luego vuelve al ritmo. Frena un poco antes en las próximas curvas.");
+                case 3: return RadioLanguage.T("Ausflug überstanden. Reifen sind noch schmutzig – zwei, drei Kurven mit Gefühl, dann wieder angreifen.",
+                    "Trip survived. Tyres are still dirty – two or three corners with feel, then attack again.",
+                    "Salida superada. Los neumáticos siguen sucios: dos o tres curvas con tacto y luego a atacar.");
                 default: return RadioLanguage.T("Ruhig, das kostet nur kurz. Mit Dreck auf den Reifen fehlt Grip – eine halbe Runde sauber fahren, dann ist er wieder da.",
                     "Easy, that only costs a moment. Dirty tyres mean less grip – half a lap of clean driving and it's back.",
                     "Tranquilo, solo cuesta un momento. Con suciedad en los neumáticos falta agarre: media vuelta limpia y vuelve.");
@@ -237,7 +250,7 @@ namespace CrewChiefV4.AiTeam
         internal static string FlatSpot(string wheel, string corner, int variant)
         {
             string at = string.IsNullOrWhiteSpace(corner) ? "" : RadioLanguage.T(" vor " + corner, " into " + corner, " antes de " + corner);
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T("Das war ein heftiger Verbremser " + wheel + at + ". Achte auf Vibrationen – möglicher Bremsplatten.",
                     "That was a big lock-up " + wheel + at + ". Watch for vibrations, possible flat spot.",
@@ -245,6 +258,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T(Up(wheel) + " hat" + at + " lange blockiert. Wenn es jetzt vibriert, ist das ein Bremsplatten – sag Bescheid.",
                     "The " + wheel + " locked for a long time" + at + ". If it vibrates now, that's a flat spot – let us know.",
                     "La " + wheel + " se ha bloqueado mucho rato" + at + ". Si ahora vibra, es un plano: avísanos.");
+                case 3: return RadioLanguage.T("Der Verbremser " + wheel + at + " war heftig. Spürst du Vibrationen beim Bremsen, gib Bescheid.",
+                    "That lock-up " + wheel + at + " was a big one. If you feel vibrations under braking, tell us.",
+                    "Ese bloqueo " + wheel + at + " fue fuerte. Si notas vibraciones al frenar, avísanos.");
                 default: return RadioLanguage.T("Starker Blockierer " + wheel + at + ". Wir behalten den Reifen im Auge, melde dich, wenn du Vibrationen spürst.",
                     "Heavy lock-up " + wheel + at + ". We're watching that tyre, shout if you feel vibrations.",
                     "Bloqueo fuerte " + wheel + at + ". Vigilamos ese neumático, avisa si notas vibraciones.");

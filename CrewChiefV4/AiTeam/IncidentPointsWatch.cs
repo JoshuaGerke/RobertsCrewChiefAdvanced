@@ -58,48 +58,71 @@ namespace CrewChiefV4.AiTeam
         internal static string Text(int level, int count, int max, int variant)
         {
             string c = count.ToString(RadioLanguage.Culture), m = max.ToString(RadioLanguage.Culture), left = (max - count).ToString(RadioLanguage.Culture);
-            int v = ((variant % 3) + 3) % 3;
             switch (level)
             {
                 case 5:
                     if (count >= max)
-                        return RadioLanguage.T("Rob, das Vorfalllimit ist erreicht: " + c + " von " + m + ".",
-                            "Rob, the incident limit is reached: " + c + " of " + m + ".", "Rob, límite de incidentes alcanzado: " + c + " de " + m + ".");
-                    return v == 0 ? RadioLanguage.T("Achtung Rob, nur noch ein Vorfallpunkt bis zur Disqualifikation. Absolut sauber fahren.",
+                        return RadioVariants.At(variant,
+                            RadioLanguage.T("Rob, das Vorfalllimit ist erreicht: " + c + " von " + m + ".", "Rob, the incident limit is reached: " + c + " of " + m + ".", "Rob, límite de incidentes alcanzado: " + c + " de " + m + "."),
+                            RadioLanguage.T("Limit erreicht, Rob: " + c + " von " + m + " Vorfallpunkten.", "Limit reached, Rob: " + c + " of " + m + " incident points.", "Límite alcanzado, Rob: " + c + " de " + m + " puntos de incidente."),
+                            RadioLanguage.T("Rob, " + c + " von " + m + " – die Vorfallpunkte sind aufgebraucht.", "Rob, " + c + " of " + m + " – the incident points are used up.", "Rob, " + c + " de " + m + ": puntos de incidente agotados."),
+                            RadioLanguage.T("Vorfallpunkte am Anschlag: " + c + " von " + m + ".", "Incident points maxed out: " + c + " of " + m + ".", "Puntos de incidente al tope: " + c + " de " + m + "."));
+                    return RadioVariants.At(variant,
+                        RadioLanguage.T("Achtung Rob, nur noch ein Vorfallpunkt bis zur Disqualifikation. Absolut sauber fahren.",
                             "Careful Rob, one more incident point and you're disqualified. Keep it completely clean.",
-                            "Cuidado Rob, un punto de incidente más y te descalifican. Totalmente limpio.")
-                        : v == 1 ? RadioLanguage.T(c + " von " + m + " Vorfallpunkten. Noch einer, dann ist Schluss. Kein Risiko mehr.",
+                            "Cuidado Rob, un punto de incidente más y te descalifican. Totalmente limpio."),
+                        RadioLanguage.T(c + " von " + m + " Vorfallpunkten. Noch einer, dann ist Schluss. Kein Risiko mehr.",
                             c + " of " + m + " incident points. One more and it's over. No more risks.",
-                            c + " de " + m + " puntos de incidente. Uno más y se acabó. Sin riesgos.")
-                        : RadioLanguage.T("Rob, letzte Warnung: ein Punkt bleibt bis zum Limit. Lieber eine Position verlieren als rausfliegen.",
+                            c + " de " + m + " puntos de incidente. Uno más y se acabó. Sin riesgos."),
+                        RadioLanguage.T("Rob, letzte Warnung: ein Punkt bleibt bis zum Limit. Lieber eine Position verlieren als rausfliegen.",
                             "Rob, final warning: one point left to the limit. Better lose a place than get thrown out.",
-                            "Rob, último aviso: queda un punto hasta el límite. Mejor perder un puesto que quedar fuera.");
+                            "Rob, último aviso: queda un punto hasta el límite. Mejor perder un puesto que quedar fuera."),
+                        RadioLanguage.T("Ein einziger Punkt Luft, Rob. Jede Berührung, jeder Ausritt kann das Rennen beenden.",
+                            "Just one point of margin, Rob. Any contact or trip off could end your race.",
+                            "Solo un punto de margen, Rob. Cualquier toque o salida puede acabar tu carrera."));
                 case 4:
-                    return v == 0 ? RadioLanguage.T("Vorfallpunkte jetzt " + c + " von " + m + ". Nur noch " + left + " bis zum Limit, bitte sauber bleiben.",
+                    return RadioVariants.At(variant,
+                        RadioLanguage.T("Vorfallpunkte jetzt " + c + " von " + m + ". Nur noch " + left + " bis zum Limit, bitte sauber bleiben.",
                             "Incident points now " + c + " of " + m + ". Only " + left + " left to the limit, keep it clean.",
-                            "Puntos de incidente: " + c + " de " + m + ". Solo quedan " + left + ", mantente limpio.")
-                        : v == 1 ? RadioLanguage.T("Rob, " + left + " Punkte Luft bis zur Disqualifikation. Tracklimits respektieren, keine Berührungen.",
+                            "Puntos de incidente: " + c + " de " + m + ". Solo quedan " + left + ", mantente limpio."),
+                        RadioLanguage.T("Rob, " + left + " Punkte Luft bis zur Disqualifikation. Tracklimits respektieren, keine Berührungen.",
                             "Rob, " + left + " points of margin before disqualification. Respect track limits, no contact.",
-                            "Rob, " + left + " puntos de margen antes de la descalificación. Respeta los límites, sin contacto.")
-                        : RadioLanguage.T("Es wird eng mit den Vorfallpunkten: " + c + " von " + m + ". Ab jetzt lieber etwas Reserve lassen.",
+                            "Rob, " + left + " puntos de margen antes de la descalificación. Respeta los límites, sin contacto."),
+                        RadioLanguage.T("Es wird eng mit den Vorfallpunkten: " + c + " von " + m + ". Ab jetzt lieber etwas Reserve lassen.",
                             "It's getting tight on incident points: " + c + " of " + m + ". Leave some margin from here.",
-                            "Vamos justos de puntos de incidente: " + c + " de " + m + ". Deja algo de margen.");
+                            "Vamos justos de puntos de incidente: " + c + " de " + m + ". Deja algo de margen."),
+                        RadioLanguage.T(c + " von " + m + " Vorfallpunkten – nur noch " + left + " frei. Zweikämpfe mit Bedacht.",
+                            c + " of " + m + " incident points – only " + left + " left. Pick your battles.",
+                            c + " de " + m + " puntos de incidente, solo quedan " + left + ". Elige bien tus batallas."));
                 case 3:
-                    return v == 0 ? RadioLanguage.T("Drei Viertel der Vorfallpunkte sind weg: " + c + " von " + m + ". Ruhiger am Rand, Rob.",
+                    return RadioVariants.At(variant,
+                        RadioLanguage.T("Drei Viertel der Vorfallpunkte sind weg: " + c + " von " + m + ". Ruhiger am Rand, Rob.",
                             "Three quarters of the incident points are gone: " + c + " of " + m + ". Calmer at the edges, Rob.",
-                            "Tres cuartos de los puntos de incidente gastados: " + c + " de " + m + ". Más calma en los bordes, Rob.")
-                        : RadioLanguage.T(c + " von " + m + " Vorfallpunkten. Noch " + left + " frei, also kein unnötiges Risiko.",
+                            "Tres cuartos de los puntos de incidente gastados: " + c + " de " + m + ". Más calma en los bordes, Rob."),
+                        RadioLanguage.T(c + " von " + m + " Vorfallpunkten. Noch " + left + " frei, also kein unnötiges Risiko.",
                             c + " of " + m + " incident points. " + left + " left, so no unnecessary risks.",
-                            c + " de " + m + " puntos de incidente. Quedan " + left + ", nada de riesgos innecesarios.");
+                            c + " de " + m + " puntos de incidente. Quedan " + left + ", nada de riesgos innecesarios."),
+                        RadioLanguage.T("Vorfallpunkte bei " + c + " von " + m + ". Es wird Zeit, die Limits zu respektieren.",
+                            "Incident points at " + c + " of " + m + ". Time to respect the limits.",
+                            "Puntos de incidente en " + c + " de " + m + ". Toca respetar los límites."),
+                        RadioLanguage.T("Info, Rob: " + c + " von " + m + " Punkten. Noch " + left + " Reserve – gut haushalten.",
+                            "Info, Rob: " + c + " of " + m + " points. " + left + " in reserve – use them wisely.",
+                            "Info, Rob: " + c + " de " + m + " puntos. Quedan " + left + " de reserva, adminístralos bien."));
                 case 2:
-                    return v == 0 ? RadioLanguage.T("Info: Hälfte der Vorfallpunkte erreicht, " + c + " von " + m + ".",
-                            "Info: half of the incident points used, " + c + " of " + m + ".", "Info: mitad de los puntos de incidente, " + c + " de " + m + ".")
-                        : RadioLanguage.T("Halbzeit bei den Vorfallpunkten: " + c + " von " + m + ". Behalt die Tracklimits im Blick.",
+                    return RadioVariants.At(variant,
+                        RadioLanguage.T("Info: Hälfte der Vorfallpunkte erreicht, " + c + " von " + m + ".",
+                            "Info: half of the incident points used, " + c + " of " + m + ".", "Info: mitad de los puntos de incidente, " + c + " de " + m + "."),
+                        RadioLanguage.T("Halbzeit bei den Vorfallpunkten: " + c + " von " + m + ". Behalt die Tracklimits im Blick.",
                             "Halfway on incident points: " + c + " of " + m + ". Keep an eye on track limits.",
-                            "Mitad de los puntos de incidente: " + c + " de " + m + ". Ojo con los límites de pista.");
+                            "Mitad de los puntos de incidente: " + c + " de " + m + ". Ojo con los límites de pista."),
+                        RadioLanguage.T(c + " von " + m + " Vorfallpunkten – die Hälfte ist weg.", c + " of " + m + " incident points – half are gone.", c + " de " + m + " puntos de incidente: la mitad gastados."),
+                        RadioLanguage.T("Zur Info: Vorfallpunkte stehen bei " + c + " von " + m + ".", "For info: incident points at " + c + " of " + m + ".", "Para que lo sepas: puntos de incidente en " + c + " de " + m + "."));
                 default:
-                    return RadioLanguage.T("Erster Vorfallpunkt, Stand " + c + " von " + m + ".",
-                        "First incident point, now " + c + " of " + m + ".", "Primer punto de incidente: " + c + " de " + m + ".");
+                    return RadioVariants.At(variant,
+                        RadioLanguage.T("Erster Vorfallpunkt, Stand " + c + " von " + m + ".", "First incident point, now " + c + " of " + m + ".", "Primer punto de incidente: " + c + " de " + m + "."),
+                        RadioLanguage.T("Vorfallpunkte: " + c + " von " + m + ".", "Incident points: " + c + " of " + m + ".", "Puntos de incidente: " + c + " de " + m + "."),
+                        RadioLanguage.T("Ein Vorfallpunkt notiert, jetzt " + c + " von " + m + ".", "Incident point noted, now " + c + " of " + m + ".", "Punto de incidente anotado, ahora " + c + " de " + m + "."),
+                        RadioLanguage.T("Kleiner Hinweis: " + c + " von " + m + " Vorfallpunkten.", "Quick note: " + c + " of " + m + " incident points.", "Un apunte: " + c + " de " + m + " puntos de incidente."));
             }
         }
 

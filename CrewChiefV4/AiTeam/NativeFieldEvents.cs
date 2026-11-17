@@ -354,15 +354,18 @@ namespace CrewChiefV4.AiTeam
         internal static string PitConsequence(string source, SessionType type, int variant)
         {
             if (type != SessionType.Race) return "";
-            int v = ((variant % 3) + 3) % 3;
             if (source == "car_in_front_is_pitting")
-                return " " + (v == 0 ? RadioLanguage.T("Jetzt hast du freie Bahn, drück ein paar schnelle Runden.", "You've got a clear track now, push for a few quick laps.", "Ahora tienes pista libre, aprieta unas vueltas rápidas.")
-                    : v == 1 ? RadioLanguage.T("Freie Strecke vor dir, das ist die Zeit für schnelle Runden.", "Clear track ahead, this is the time for quick laps.", "Pista libre delante, es el momento de vueltas rápidas.")
-                    : RadioLanguage.T("Nutz die freie Luft, jede Zehntel zählt jetzt.", "Use the clean air, every tenth counts now.", "Aprovecha el aire limpio, cada décima cuenta ahora."));
+                return " " + RadioVariants.At(variant,
+                    RadioLanguage.T("Jetzt hast du freie Bahn, drück ein paar schnelle Runden.", "You've got a clear track now, push for a few quick laps.", "Ahora tienes pista libre, aprieta unas vueltas rápidas."),
+                    RadioLanguage.T("Freie Strecke vor dir, das ist die Zeit für schnelle Runden.", "Clear track ahead, this is the time for quick laps.", "Pista libre delante, es el momento de vueltas rápidas."),
+                    RadioLanguage.T("Nutz die freie Luft, jede Zehntel zählt jetzt.", "Use the clean air, every tenth counts now.", "Aprovecha el aire limpio, cada décima cuenta ahora."),
+                    RadioLanguage.T("Das ist dein Fenster: Qualirunden, solange er in der Box steht.", "This is your window: quali laps while he's in the pits.", "Esta es tu ventana: vueltas de clasificación mientras él está en boxes."));
             if (source == "car_behind_is_pitting")
-                return " " + (v == 0 ? RadioLanguage.T("Er versucht womöglich den Undercut, halt das Tempo hoch.", "He may be trying the undercut, keep the pace up.", "Puede que intente el undercut, mantén el ritmo.")
-                    : v == 1 ? RadioLanguage.T("Achtung Undercut, die nächsten Runden zählen.", "Watch the undercut, the next laps count.", "Ojo al undercut, las próximas vueltas cuentan.")
-                    : RadioLanguage.T("Jetzt keine Zeit verschenken, saubere schnelle Runden.", "Don't give away any time now, clean quick laps.", "No regales tiempo ahora, vueltas rápidas y limpias."));
+                return " " + RadioVariants.At(variant,
+                    RadioLanguage.T("Er versucht womöglich den Undercut, halt das Tempo hoch.", "He may be trying the undercut, keep the pace up.", "Puede que intente el undercut, mantén el ritmo."),
+                    RadioLanguage.T("Achtung Undercut, die nächsten Runden zählen.", "Watch the undercut, the next laps count.", "Ojo al undercut, las próximas vueltas cuentan."),
+                    RadioLanguage.T("Jetzt keine Zeit verschenken, saubere schnelle Runden.", "Don't give away any time now, clean quick laps.", "No regales tiempo ahora, vueltas rápidas y limpias."),
+                    RadioLanguage.T("Mit frischen Reifen wird er schnell sein – jetzt Polster aufbauen.", "On fresh tyres he'll be quick – build a cushion now.", "Con neumáticos nuevos irá rápido: haz colchón ahora."));
             return "";
         }
 
@@ -371,10 +374,26 @@ namespace CrewChiefV4.AiTeam
             string who=names?Name(f.Name):"";
             if(who.Length==0)who=RadioLanguage.T("Ein Gegner","A rival","Un rival");
             if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who) + PitConsequence(f.Source, f.Type, variant);
-            if(f.Kind=="leader")return who+RadioLanguage.T(" führt jetzt unsere Klasse an."," now leads our class."," lidera ahora nuestra clase.");
-            if(f.Kind=="retired")return who+RadioLanguage.T(" ist ausgefallen."," is out of the race."," ha abandonado.");
-            if(f.Kind=="dq")return who+RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado.");
-            if(f.Kind=="tyres")return who+RadioLanguage.T(" hat die Reifenmischung gewechselt."," has changed tyre compound."," ha cambiado de compuesto de neumáticos.");
+            if(f.Kind=="leader")return who+RadioVariants.Pick("field-leader",
+                RadioLanguage.T(" führt jetzt unsere Klasse an."," now leads our class."," lidera ahora nuestra clase."),
+                RadioLanguage.T(" ist neuer Klassenführender."," is the new class leader."," es el nuevo líder de la clase."),
+                RadioLanguage.T(" übernimmt die Spitze in unserer Klasse."," takes the lead in our class."," toma el mando en nuestra clase."),
+                RadioLanguage.T(" liegt jetzt vorn in der Klasse."," is now in front in our class."," va ahora primero en la clase."));
+            if(f.Kind=="retired")return who+RadioVariants.Pick("field-retired",
+                RadioLanguage.T(" ist ausgefallen."," is out of the race."," ha abandonado."),
+                RadioLanguage.T(" ist raus aus dem Rennen."," has retired."," se ha retirado."),
+                RadioLanguage.T(" hat aufgegeben, ein Gegner weniger."," has retired, one rival fewer."," ha abandonado, un rival menos."),
+                RadioLanguage.T(" ist nicht mehr dabei."," is no longer running."," ya no sigue en carrera."));
+            if(f.Kind=="dq")return who+RadioVariants.Pick("field-dq",
+                RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado."),
+                RadioLanguage.T(" ist disqualifiziert worden."," is disqualified."," queda descalificado."),
+                RadioLanguage.T(" bekommt die Disqualifikation."," has been handed a disqualification."," recibe la descalificación."),
+                RadioLanguage.T(" ist aus der Wertung genommen."," has been removed from the results."," queda fuera de la clasificación."));
+            if(f.Kind=="tyres")return who+RadioVariants.Pick("field-tyres",
+                RadioLanguage.T(" hat die Reifenmischung gewechselt."," has changed tyre compound."," ha cambiado de compuesto de neumáticos."),
+                RadioLanguage.T(" ist jetzt auf einer anderen Mischung unterwegs."," is now on a different compound."," rueda ahora con otro compuesto."),
+                RadioLanguage.T(" hat andere Reifen aufziehen lassen."," has gone for a different tyre."," ha montado otros neumáticos."),
+                RadioLanguage.T(" fährt jetzt eine andere Reifenmischung."," is running a different compound now."," lleva ahora otro compuesto."));
             if(f.Kind=="fastest" && f.Seconds>10 && f.Seconds<3600)
                 return RadioPhraseCatalog.Current.Format("race-class-best", variant, who, LocalAnswers.LapTime((float)f.Seconds));
             if(f.Kind=="fastest-overall" && f.Seconds>10 && f.Seconds<3600)
