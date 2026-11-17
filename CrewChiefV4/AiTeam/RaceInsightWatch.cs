@@ -24,7 +24,7 @@ namespace CrewChiefV4.AiTeam
     {
         internal const float BattleGap = 1.0f, ApproachGap = 5f, FreeAir = 6f;
         private readonly Random random;
-        private int session = int.MinValue, lastInsightLap = -100, fastestStreak, lastFastestLap = -100, lastFreeAirLap = -100, spoken;
+        private int session = int.MinValue, lastInsightLap = -100, fastestStreak, lastFastestLap = -100, lastFreeAirLap = -100, lastTargetLap = -100, spoken;
         private readonly Dictionary<string, int> lastBattleLap = new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> lastVariant = new Dictionary<string, int>(StringComparer.Ordinal);
         private ObservedRaceCall call;
@@ -35,7 +35,7 @@ namespace CrewChiefV4.AiTeam
 
         internal void Reset()
         {
-            session = int.MinValue; lastInsightLap = lastFastestLap = lastFreeAirLap = -100; fastestStreak = spoken = 0;
+            session = int.MinValue; lastInsightLap = lastFastestLap = lastFreeAirLap = lastTargetLap = -100; fastestStreak = spoken = 0;
             lastBattleLap.Clear(); lastVariant.Clear(); call = null;
         }
 
@@ -104,7 +104,18 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
-            // 2. Schnellster der Klasse zwei Runden in Folge.
+            // 2. Podium oder Führung in Reichweite: der Vordermann liegt auf Platz 3 oder 1, höchstens drei Sekunden weg und Rob kommt näher.
+            int target = s.ClassPosition - 1;
+            if ((target == 3 || target == 1) && toA > 0 && toA <= 3f && (mind == null || mind.FrontRate >= GapTrendWatch.MinRate || toA <= 1.5f) &&
+                lap - lastTargetLap >= 6)
+            {
+                lastTargetLap = lap;
+                Offer(gs, now, lap, "insight-target", TargetText(n, target, toA, mind != null && mind.FrontRate >= GapTrendWatch.MinRate ? mind.FrontRate : 0, Variant("target", 3)),
+                    "car_ahead_holds_podium_or_lead_within_three_seconds", 4);
+                return;
+            }
+
+            // 3. Schnellster der Klasse zwei Runden in Folge.
             if (fastestStreak >= 2 && lap - lastFastestLap >= 8)
             {
                 lastFastestLap = lap;
@@ -112,7 +123,7 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
 
-            // 3. Freie Fahrt mitten im Rennen.
+            // 4. Freie Fahrt mitten im Rennen.
             float ahead = s.TimeDeltaFront, behind = s.TimeDeltaBehind;
             bool middle = mind == null || mind.Phase == RacePhase.Middle;
             bool pullingAway = mind == null || mind.RearRate <= 0;
@@ -177,6 +188,27 @@ namespace CrewChiefV4.AiTeam
                 default: return RadioLanguage.T("Augen auf" + (n != null ? ", " + n : "") + ": " + pair + " sind im Clinch. Wenn einer einen Fehler macht, bist du da." + closing,
                     "Eyes open" + (n != null ? ", " + n : "") + ": " + pair + " are locked together. If one of them slips up, you're there." + closing,
                     "Atento" + (n != null ? ", " + n : "") + ": " + pair + " van pegados. Si uno falla, ahí estás tú." + closing);
+            }
+        }
+
+        internal static string TargetText(string driver, int target, float gap, float rate, int variant)
+        {
+            string n = string.IsNullOrWhiteSpace(driver) ? null : driver;
+            bool lead = target == 1;
+            string what = lead ? RadioLanguage.T("die Führung", "the lead", "el liderato") : RadioLanguage.T("das Podium", "the podium", "el podio");
+            string What = char.ToUpper(what[0], RadioLanguage.Culture) + what.Substring(1);
+            string closing = rate > 0 ? RadioLanguage.T(", und du holst " + GapTrendWatch.Rate(rate) + " pro Runde auf", ", and you're gaining " + GapTrendWatch.Rate(rate) + " a lap", ", y recortas " + GapTrendWatch.Rate(rate) + " por vuelta") : "";
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T(What + " ist nur " + Sec(gap) + " entfernt" + closing + ". Bleib dran" + (n != null ? ", " + n : "") + "!",
+                    What + " is only " + Sec(gap) + " away" + closing + ". Stay with it" + (n != null ? ", " + n : "") + "!",
+                    (lead ? "El liderato" : "El podio") + " está a solo " + Sec(gap) + closing + ". ¡No lo sueltes" + (n != null ? ", " + n : "") + "!");
+                case 1: return RadioLanguage.T((n != null ? n + ", " : "") + Sec(gap) + " bis " + (lead ? "zur Führung" : "zum Podium") + closing + ". Jetzt zählt jede Kurve.",
+                    (n != null ? n + ", " : "") + Sec(gap) + " to " + what + closing + ". Every corner counts now.",
+                    (n != null ? n + ", " : "") + Sec(gap) + " hasta " + (lead ? "el liderato" : "el podio") + closing + ". Ahora cuenta cada curva.");
+                default: return RadioLanguage.T("Da vorne wartet " + what + ": " + Sec(gap) + closing + ". Sauber bleiben, Druck aufbauen.",
+                    What + " is right there: " + Sec(gap) + closing + ". Stay clean, build the pressure.",
+                    "Ahí delante está " + what + ": " + Sec(gap) + closing + ". Limpio y metiendo presión.");
             }
         }
 

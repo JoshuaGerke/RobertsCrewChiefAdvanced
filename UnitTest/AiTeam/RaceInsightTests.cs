@@ -104,5 +104,45 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.Middle, Attention = RaceAttention.Battle }, call, T, out _));
             Assert.AreEqual(MindVerdict.Drop, RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.LastLap, Attention = RaceAttention.Calm }, call, T, out _));
         }
+
+        // ---------- Wetter nur bei Änderung ----------
+
+        private static WeatherReading W(float air, float track, bool rain = false) => new WeatherReading { Air = air, Track = track, Rain = rain };
+
+        [Test]
+        public void Weather_is_repeated_only_after_a_noticeable_change_and_names_the_direction()
+        {
+            Assert.IsFalse(W(21.2f, 25.4f).ChangedFrom(W(21.2f, 25.4f)), "Bathurst: gleiche Werte, keine zweite Meldung");
+            Assert.IsFalse(W(21.6f, 26.4f).ChangedFrom(W(21.2f, 25.4f)));
+            Assert.IsTrue(W(21.2f, 27.0f).ChangedFrom(W(21.2f, 25.4f)));
+            Assert.IsTrue(W(22.3f, 25.4f).ChangedFrom(W(21.2f, 25.4f)));
+            Assert.IsTrue(W(21.2f, 25.4f, true).ChangedFrom(W(21.2f, 25.4f)));
+            StringAssert.Contains("wärmer", W(21.2f, 27.4f).ChangeText(W(21.2f, 25.4f), 0));
+            StringAssert.Contains("kühler", W(21.2f, 23.4f).ChangeText(W(21.2f, 25.4f), 0));
+            StringAssert.Contains("Regen", W(21.2f, 25.4f, true).ChangeText(W(21.2f, 25.4f), 0));
+            Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => W(21.2f, 27.4f).ChangeText(W(21.2f, 25.4f), v)).Distinct().Count());
+        }
+
+        [Test]
+        public void Podium_within_reach_is_called_with_the_measured_gap()
+        {
+            var gs = Race(4, 8, 91f); gs.SessionData.TimeDeltaFront = 2.1f; gs.SessionData.TimeDeltaBehind = 4f;
+            Rival(gs, "Keller", 3, 90.8f); Rival(gs, "Wurz", 2, 90.9f); Rival(gs, "Mayer", 5, 91f);
+            var watch = new RaceInsightWatch(1) { Gap = (a, b) => 5f };
+            watch.Observe(gs, new RaceSituation { Phase = RacePhase.Middle, FrontRate = .3f }, "Rob", true, T, true);
+            var call = watch.Take(gs, T, false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("insight-target", call.Topic);
+            StringAssert.Contains("2,1 Sekunden", call.Text);
+            StringAssert.Contains("Podium", call.Text);
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                var texts = Enumerable.Range(0, 3).SelectMany(v => new[] { RaceInsightWatch.TargetText(v == 1 ? null : "Rob", 3, 2.1f, .3f, v), RaceInsightWatch.TargetText("Rob", 1, 1.2f, 0, v) }).ToArray();
+                Assert.AreEqual(6, texts.Distinct().Count(), lang);
+                foreach (var t in texts) Assert.IsFalse(char.IsLower(t.TrimStart('¡', '¿')[0]), t);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
     }
 }
