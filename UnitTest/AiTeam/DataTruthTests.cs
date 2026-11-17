@@ -412,5 +412,29 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(memory.SaidRecently(Said("pit", "Box diese Runde, die Reifen sind am Ende.", 6), T.AddSeconds(30)), "hohe Priorität geht immer durch");
             Assert.IsNull(CrewMemory.Normalize("Gelb."), "Kurzsätze werden nicht unterdrückt");
         }
+
+        // ---------- D: Lagewechsel mit mehr Abwechslung ----------
+
+        [Test]
+        public void Focus_briefs_offer_five_formulations_and_correct_german_cases()
+        {
+            var x = new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.Middle, Attention = RaceAttention.Open, Focus = RaceFocus.Attack,
+                GapAhead = 1.4f, FrontRate = .3f, FrontLapsToCatch = 2, GapBehind = .8f, RearRate = .3f };
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (var focus in new[] { RaceFocus.Attack, RaceFocus.Defend })
+                {
+                    var texts = Enumerable.Range(0, 5).Select(v => FocusBriefWatch.Compose(x, focus, RaceFocus.Rhythm, null, null, "Rob", v)).ToArray();
+                    Assert.AreEqual(5, texts.Distinct().Count(), lang + " " + focus);
+                    foreach (var t in texts) { Assert.IsFalse(char.IsLower(t[0]), t); StringAssert.DoesNotContain("  ", t); }
+                }
+                Assert.AreEqual(4, Enumerable.Range(0, 5).Select(v => FocusBriefWatch.Compose(x, RaceFocus.BringHome, RaceFocus.Rhythm, null, null, "Rob", v)).Distinct().Count());
+                Assert.AreEqual(4, Enumerable.Range(0, 5).Select(v => FocusBriefWatch.Compose(x, RaceFocus.Rhythm, RaceFocus.Defend, null, null, "Rob", v)).Distinct().Count());
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+            var all = Enumerable.Range(0, 5).Select(v => FocusBriefWatch.Compose(x, RaceFocus.Attack, RaceFocus.Rhythm, null, null, "Rob", v)).ToArray();
+            Assert.IsFalse(all.Any(t => t.Contains("auf der Vordermann")), "auf den Vordermann");
+        }
     }
 }
