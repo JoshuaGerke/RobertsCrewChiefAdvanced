@@ -65,6 +65,7 @@ namespace CrewChiefV4.AiTeam
         private readonly TyreWearWatch tyreWear = new TyreWearWatch();
         private readonly BackmarkerWatch backmarkers = new BackmarkerWatch();
         private readonly DriverJudgementWatch judgement = new DriverJudgementWatch();
+        private readonly CrewMemory crewMemory = new CrewMemory();
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -299,6 +300,7 @@ namespace CrewChiefV4.AiTeam
                 tyreWear.Reset();
                 backmarkers.Reset();
                 judgement.Reset();
+                crewMemory.Clear();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -2025,6 +2027,7 @@ namespace CrewChiefV4.AiTeam
 
         private void RememberLocalCall(ObservedRaceCall call, DateTime now)
         {
+            crewMemory.Remember(call, now);
             string key = RepeatKey(call, out _);
             if (key == null) return;
             lock (recentLocalCalls)
@@ -2058,6 +2061,14 @@ namespace CrewChiefV4.AiTeam
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "same_call_recently_spoken", call.Text);
+                return;
+            }
+            // C1: derselbe Satz aus einem anderen Wächter kurz nach dem ersten – nicht doppelt sprechen.
+            if (crewMemory.SaidRecently(call, DateTime.UtcNow))
+            {
+                var at = DateTime.UtcNow;
+                call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "crew_memory_same_sentence", call.Text);
                 return;
             }
             // Renningenieur-Kopf: Ist diese Info in der aktuellen Rennlage wichtig genug? Sicherheit und eigene Rennereignisse gehen immer durch.

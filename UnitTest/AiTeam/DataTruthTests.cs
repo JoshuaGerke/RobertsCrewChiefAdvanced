@@ -384,5 +384,33 @@ namespace UnitTest.AiTeamTests
             }
             finally { RadioLanguage.Current = RadioLanguage.German; }
         }
+
+        // ---------- C1: Crew-Gedächtnis ----------
+
+        private static ObservedRaceCall Said(string topic, string text, int priority = 2, TeamMember member = TeamMember.Ben) =>
+            new ObservedRaceCall { Topic = topic, Text = text, Priority = priority, Member = member, SessionId = 1, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+
+        [Test]
+        public void Same_sentence_from_another_watcher_is_not_repeated_within_four_minutes()
+        {
+            var memory = new CrewMemory();
+            memory.Remember(Said("ahead", "Rafa Rivera: 2:03,178. Die Bestzeiten liegen 1,6 Sekunden auseinander."), T);
+            Assert.IsTrue(memory.SaidRecently(Said("timing-rival", "Rafa Rivera: 2:03,178 – die Bestzeiten liegen 1,6 Sekunden auseinander!"), T.AddMinutes(2)));
+            Assert.IsFalse(memory.SaidRecently(Said("timing-rival", "Rafa Rivera: 2:02,900. Die Bestzeiten liegen 1,9 Sekunden auseinander."), T.AddMinutes(2)), "neue Zahl = neue Info");
+            Assert.IsFalse(memory.SaidRecently(Said("ahead", "Rafa Rivera: 2:03,178. Die Bestzeiten liegen 1,6 Sekunden auseinander."), T.AddMinutes(5)), "nach vier Minuten wieder erlaubt");
+        }
+
+        [Test]
+        public void Safety_and_spotter_calls_never_go_through_the_memory()
+        {
+            var memory = new CrewMemory();
+            memory.Remember(Said("warning-yellow", "Gelbe Flagge im zweiten Sektor, vorsichtig."), T);
+            Assert.IsFalse(memory.SaidRecently(Said("warning-yellow", "Gelbe Flagge im zweiten Sektor, vorsichtig."), T.AddSeconds(30)));
+            memory.Remember(Said("traffic", "Auto links neben dir, bleib auf deiner Linie.", 3, TeamMember.Sara), T);
+            Assert.IsFalse(memory.SaidRecently(Said("traffic", "Auto links neben dir, bleib auf deiner Linie.", 3, TeamMember.Sara), T.AddSeconds(30)));
+            memory.Remember(Said("pit", "Box diese Runde, die Reifen sind am Ende.", 6), T);
+            Assert.IsFalse(memory.SaidRecently(Said("pit", "Box diese Runde, die Reifen sind am Ende.", 6), T.AddSeconds(30)), "hohe Priorität geht immer durch");
+            Assert.IsNull(CrewMemory.Normalize("Gelb."), "Kurzsätze werden nicht unterdrückt");
+        }
     }
 }
