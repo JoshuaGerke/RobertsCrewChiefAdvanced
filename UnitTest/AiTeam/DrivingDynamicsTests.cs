@@ -269,6 +269,24 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(new DrivingDynamicsWatch(d.A, 1).Take(gs, T, false), "ohne Muster nichts");
         }
 
+        // ---------- Quali: Anschieben und Zwischenstand ----------
+
+        [Test]
+        public void Qualifying_lap_start_and_gap_to_best_have_six_and_five_variants()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(6, Enumerable.Range(0, 6).Select(v => SessionLapObserver.TimedLapStart(0, "Rob", v)).Distinct().Count(), lang);
+                Assert.AreEqual(6, Enumerable.Range(0, 6).Select(v => SessionLapObserver.TimedLapStart(2, "Rob", v)).Distinct().Count(), lang);
+                Assert.AreEqual(5, Enumerable.Range(0, 5).Select(v => SessionLapObserver.GapToBest(.812f, 5, "Gizmo", v)).Distinct().Count(), lang);
+                Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => SessionLapObserver.GapToBest(0, 1, null, v)).Distinct().Count(), lang);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+            StringAssert.Contains("Auf die Bestzeit fehlen dir noch 0,812 Sekunden", SessionLapObserver.GapToBest(.812f, 5, "Gizmo", 0));
+            StringAssert.Contains("So, auf geht's, Rob", SessionLapObserver.TimedLapStart(0, "Rob", 1));
+        }
+
         // ---------- Kurven-Coaching mit 100 Hz ----------
 
         /// <summary>Eine Runde auf 1000 m mit einer Kurve 400–500 m, abgetastet mit 100 Hz statt in 5-m-Schritten.</summary>
