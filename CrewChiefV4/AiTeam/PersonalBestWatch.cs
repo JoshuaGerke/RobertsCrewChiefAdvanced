@@ -109,8 +109,15 @@ namespace CrewChiefV4.AiTeam
         {
             string n = string.IsNullOrWhiteSpace(name) ? "" : name + ", ";
             string gain = RadioLanguage.Num(previous.LapSeconds - now, "0.000");
-            switch (((variant % 3) + 3) % 3)
+            string who = n.Length > 0 ? n.TrimEnd(',', ' ') : "Rob";
+            switch (((variant % 5) + 5) % 5)
             {
+                case 3: return RadioLanguage.T("Allzeit-Bestzeit! " + Time(now) + " – " + gain + " schneller als je zuvor hier. Das ist eine Ansage, " + who + ".",
+                    "All-time best! " + Time(now) + " – " + gain + " quicker than ever before here. That's a statement, " + who + ".",
+                    "¡Mejor tiempo de siempre! " + Time(now) + ": " + gain + " más rápido que nunca aquí. Eso es un aviso, " + who + ".");
+                case 4: return RadioLanguage.T("Rekordrunde, " + who + ": " + Time(now) + ". Die alte Marke von " + Time(previous.LapSeconds) + " ist Geschichte.",
+                    "Record lap, " + who + ": " + Time(now) + ". The old mark of " + Time(previous.LapSeconds) + " is history.",
+                    "Vuelta récord, " + who + ": " + Time(now) + ". La marca anterior de " + Time(previous.LapSeconds) + " es historia.");
                 case 0: return RadioLanguage.T(n + "das ist deine schnellste Runde überhaupt hier! " + Time(now) + ", " + gain + " besser als die alte Marke.",
                     n + "that's your fastest lap ever here! " + Time(now) + ", " + gain + " better than the old mark.",
                     n + "¡tu vuelta más rápida aquí! " + Time(now) + ", " + gain + " mejor que la marca anterior.");
@@ -152,8 +159,14 @@ namespace CrewChiefV4.AiTeam
         internal static string SectorLoss(int sector, float loss, int variant)
         {
             string d = loss < 1 ? RadioLanguage.Num(loss, "0.00") : GermanRadioText.Interval(loss);
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 5) + 5) % 5)
             {
+                case 3: return RadioLanguage.T("Vergleich mit deiner Bestrunde: In Sektor " + sector + " bleiben " + d + " liegen. Da schauen wir hin.",
+                    "Compared with your best lap: " + d + " left in sector " + sector + ". That's where we look.",
+                    "Comparado con tu mejor vuelta: en el sector " + sector + " se quedan " + d + ". Ahí miramos.");
+                case 4: return RadioLanguage.T("Sektor " + sector + " kostet dich gerade " + d + " auf deine Bestmarke. Ruhig rein, sauber raus.",
+                    "Sector " + sector + " is costing you " + d + " to your benchmark. Calm in, clean out.",
+                    "El sector " + sector + " te cuesta " + d + " frente a tu referencia. Tranquilo al entrar, limpio al salir.");
                 case 0: return RadioLanguage.T("Gegenüber deiner gespeicherten Bestrunde verlierst du in Sektor " + sector + " " + d + ". Da liegt die Zeit.",
                     "Against your stored best lap you're losing " + d + " in sector " + sector + ". That's where the time is.",
                     "Frente a tu mejor vuelta guardada pierdes " + d + " en el sector " + sector + ". Ahí está el tiempo.");
@@ -169,11 +182,19 @@ namespace CrewChiefV4.AiTeam
         internal static string Near(float now, PersonalBest pb, int variant)
         {
             string d = RadioLanguage.Num(now - pb.LapSeconds, "0.000");
-            return ((variant % 2) + 2) % 2 == 0
-                ? RadioLanguage.T("Nur " + d + " hinter deiner Allzeit-Bestzeit hier. Die Marke wackelt.", "Only " + d + " off your all-time best here. That mark is wobbling.",
-                    "Solo " + d + " de tu mejor tiempo histórico aquí. Esa marca tiembla.")
-                : RadioLanguage.T(d + " fehlen auf deine beste Runde überhaupt hier. Da geht was.", d + " short of your best lap ever here. There's more in it.",
+            switch (((variant % 5) + 5) % 5)
+            {
+                case 0: return RadioLanguage.T("Nur " + d + " hinter deiner Allzeit-Bestzeit hier. Die Marke wackelt.", "Only " + d + " off your all-time best here. That mark is wobbling.",
+                    "Solo " + d + " de tu mejor tiempo histórico aquí. Esa marca tiembla.");
+                case 1: return RadioLanguage.T(d + " fehlen auf deine beste Runde überhaupt hier. Da geht was.", d + " short of your best lap ever here. There's more in it.",
                     "Te faltan " + d + " para tu mejor vuelta aquí. Hay opciones.");
+                case 2: return RadioLanguage.T("Ganz knapp: " + d + " an deinem Rekord vorbei. Die nächste kann es sein.", "So close: " + d + " off your record. The next one could be it.",
+                    "Muy cerca: a " + d + " de tu récord. La próxima puede ser.");
+                case 3: return RadioLanguage.T("Deine Allzeit-Marke ist in Reichweite, nur noch " + d + ".", "Your all-time mark is within reach, just " + d + " away.",
+                    "Tu mejor marca está a tiro, solo " + d + ".");
+                default: return RadioLanguage.T("Das war " + d + " von deinem Streckenrekord entfernt. Dranbleiben!", "That was " + d + " from your track record. Keep at it!",
+                    "Eso fue a " + d + " de tu récord en esta pista. ¡Sigue así!");
+            }
         }
 
         /// <summary>Pro Tick: Bestzeit-Briefing einmal je Training/Qualifying, sobald Rob 8 s auf der Strecke fährt.</summary>
