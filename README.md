@@ -14,6 +14,8 @@ You press a button on your wheel, ask a question in plain words, and the crew an
 
 > **Test version.** The crew speaks **English, German or Spanish**, you choose. The app window is available in the same three languages and follows your Windows language. Calls can be wrong, late or missing. For racing simulators only.
 
+> **Sim focus.** Right now RRCA is being tuned for **Automobilista 2** and **RaceRoom**. **Le Mans Ultimate**, **Assetto Corsa EVO** and **iRacing** come next. Other sims that Crew Chief supports work too, but are less polished so far.
+
 **[Download the latest version](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · The download also contains an illustrated step-by-step guide: `GUIDE_RRCA_EN.pdf`.
 
 RRCA is free. If it made your race better and you have a fiver left, you can [buy us a coffee on Ko-fi](https://ko-fi.com/robertscrewchiefadvanced).

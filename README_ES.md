@@ -14,6 +14,8 @@ Pulsas un botón del volante, preguntas con palabras normales y el equipo respon
 
 > **Versión de prueba.** El equipo habla **español, inglés o alemán**, tú eliges. La ventana del programa está en los mismos tres idiomas y se adapta al idioma de Windows. Los mensajes pueden ser incorrectos, llegar tarde o faltar. Solo para simuladores de carreras.
 
+> **Simuladores.** Ahora mismo RRCA se está optimizando para **Automobilista 2** y **RaceRoom**. Después vendrán **Le Mans Ultimate**, **Assetto Corsa EVO** e **iRacing**. Los demás simuladores compatibles con Crew Chief también funcionan, pero todavía están menos pulidos.
+
 **[Descargar la versión actual](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · La descarga incluye además una guía ilustrada paso a paso: `GUIA_RRCA_ES.pdf`.
 
 RRCA es gratis. Si te ha mejorado la carrera y te sobran cinco euros, puedes [invitarnos a un café en Ko-fi](https://ko-fi.com/robertscrewchiefadvanced).
