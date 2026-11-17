@@ -67,6 +67,7 @@ namespace CrewChiefV4.AiTeam
         private readonly DriverJudgementWatch judgement = new DriverJudgementWatch();
         private readonly CrewMemory crewMemory = new CrewMemory();
         private readonly RaceInsightWatch insights = new RaceInsightWatch();
+        private readonly PitLossMeter pitLoss = new PitLossMeter();
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -602,7 +603,9 @@ namespace CrewChiefV4.AiTeam
             VirtualEnergyWatch.Current.Observe(current, VirtualEnergyWatch.Read());
             if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
                 LiveDiagnostics.Emit("data-truth", DataTruth.Current.Report());
-            insights.Observe(current, RaceMind.Latest, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now, lapCompleted);
+            if (lapCompleted && current.SessionData.SessionType == SessionType.Race) pitLoss.Observe(current.SessionData.SessionId, Memory.GetLaps());
+            insights.Observe(current, RaceMind.Latest, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now, lapCompleted,
+                pitLoss.Seconds);
             judgement.Observe(current, Memory.GetLaps(12), lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now);
             OpponentStopLog.Observe(current);
             tyreGrip.Observe(current, now);

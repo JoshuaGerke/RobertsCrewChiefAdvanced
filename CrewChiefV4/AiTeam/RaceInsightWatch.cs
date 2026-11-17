@@ -18,25 +18,30 @@ namespace CrewChiefV4.AiTeam
     /// oder kommt näher – die beiden halten sich auf, das ist seine Chance.</item>
     /// <item>Schnellster im Feld: Robs letzte zwei Runden waren jeweils die schnellsten seiner Klasse.</item>
     /// <item>Freie Fahrt: vorn und hinten mindestens sechs Sekunden Luft, hinten wachsend – Gelegenheit, Reifen und Sprit zu schonen.</item>
+    /// <item>Stopp-Bilanz: Autos vor Rob mit weniger Stopps oder Autos hinter ihm mit mehr Stopps. Ist der eigene Boxenverlust
+    /// gemessen (<see cref="PitLossMeter"/>), sagt Ben, wer rechnerisch nach den Stopps vorn liegt – als Rechnung gekennzeichnet.</item>
     /// </list>
     /// </summary>
     internal sealed class RaceInsightWatch
     {
         internal const float BattleGap = 1.0f, ApproachGap = 5f, FreeAir = 6f;
         private readonly Random random;
-        private int session = int.MinValue, lastInsightLap = -100, fastestStreak, lastFastestLap = -100, lastFreeAirLap = -100, lastTargetLap = -100, spoken;
+        private int session = int.MinValue, lastInsightLap = -100, fastestStreak, lastFastestLap = -100, lastFreeAirLap = -100, lastTargetLap = -100, lastStopsLap = -100, spoken;
+        private string lastStopsKey;
         private readonly Dictionary<string, int> lastBattleLap = new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> lastVariant = new Dictionary<string, int>(StringComparer.Ordinal);
         private ObservedRaceCall call;
         /// <summary>Abstand zwischen zwei Gegnern; austauschbar für Tests.</summary>
         internal Func<OpponentData, OpponentData, float> Gap = GapBetween;
+        /// <summary>Abstand zwischen Rob und einem Gegner derselben Runde; austauschbar für Tests.</summary>
+        internal Func<GameStateData, OpponentData, float> GapToRob = GapToPlayer;
 
         internal RaceInsightWatch(int? seed = null) { random = seed.HasValue ? new Random(seed.Value) : new Random(); }
 
         internal void Reset()
         {
-            session = int.MinValue; lastInsightLap = lastFastestLap = lastFreeAirLap = lastTargetLap = -100; fastestStreak = spoken = 0;
-            lastBattleLap.Clear(); lastVariant.Clear(); call = null;
+            session = int.MinValue; lastInsightLap = lastFastestLap = lastFreeAirLap = lastTargetLap = lastStopsLap = -100; fastestStreak = spoken = 0;
+            lastStopsKey = null; lastBattleLap.Clear(); lastVariant.Clear(); call = null;
         }
 
         private int Variant(string group, int count)
@@ -65,10 +70,38 @@ namespace CrewChiefV4.AiTeam
             catch (Exception) { return -1; }
         }
 
+        /// <summary>Abstand Rob ↔ Gegner in Sekunden (gleiche Runde, egal ob vor oder hinter Rob); -1 wenn nicht belegt.</summary>
+        internal static float GapToPlayer(GameStateData gs, OpponentData o)
+        {
+            try
+            {
+                var me = gs?.SessionData.DeltaTime;
+                if (me == null || o?.DeltaTime == null) return -1;
+                bool ahead = o.ClassPosition > 0 && o.ClassPosition < gs.SessionData.ClassPosition;
+                var d = ahead ? o.DeltaTime.GetAbsoluteTimeDeltaAllowingForLapDifferences(me) : me.GetAbsoluteTimeDeltaAllowingForLapDifferences(o.DeltaTime);
+                return d.Item1 == 0 && d.Item2 > 0 && d.Item2 < 300 ? d.Item2 : -1;
+            }
+            catch (Exception) { return -1; }
+        }
+
+        /// <summary>Gegner, deren Stopp-Bilanz von Robs abweicht: vor ihm mit weniger Stopps, hinter ihm mit mehr – nächstgelegene zuerst.</summary>
+        internal List<KeyValuePair<OpponentData, float>> StopDifference(GameStateData gs, bool ahead, float pitLoss)
+        {
+            var s = gs.SessionData;
+            int mine = gs.PitData.NumPitStops;
+            float reach = pitLoss > 0 ? pitLoss + 10 : 30;
+            return gs.OpponentData.Values
+                .Where(o => o != null && o.IsActive && !o.InPits && SameClass(gs, o) && o.ClassPosition > 0 &&
+                    (ahead ? o.ClassPosition < s.ClassPosition && o.NumPitStops < mine : o.ClassPosition > s.ClassPosition && o.NumPitStops > mine))
+                .Select(o => new KeyValuePair<OpponentData, float>(o, GapToRob(gs, o)))
+                .Where(p => p.Value > 0 && p.Value <= reach)
+                .OrderBy(p => p.Value).Take(3).ToList();
+        }
+
         private static string Name(OpponentData o, bool names) => names && o != null && o.CanUseName ? RadioPhraseCatalog.SafeRivalName(o.DriverRawName) : null;
 
         /// <summary>Nach jeder abgeschlossenen Rennrunde aufrufen.</summary>
-        internal void Observe(GameStateData gs, RaceSituation mind, string driver, bool names, DateTime now, bool lapCompleted)
+        internal void Observe(GameStateData gs, RaceSituation mind, string driver, bool names, DateTime now, bool lapCompleted, float pitLoss = -1)
         {
             if (gs == null) return;
             var s = gs.SessionData;
@@ -81,7 +114,7 @@ namespace CrewChiefV4.AiTeam
             if (!lapCompleted || s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane) return;
             int lap = s.CompletedLaps;
             UpdateFastest(gs, lap);
-            Publish(gs, s, lap, names);
+            Publish(gs, s, lap, names, pitLoss);
             if (call != null || lap < 2 || lap - lastInsightLap < 2) return;
             string n = spoken % 2 == 0 ? driver : null;
 
@@ -116,7 +149,11 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
 
-            // 3. Schnellster der Klasse zwei Runden in Folge.
+            // 3. Stopp-Bilanz: Wer vor Rob hat noch weniger gestoppt, wer hinter ihm schon öfter? Mit gemessenem Boxenverlust
+            //    rechnet Ben aus, wie es nach den Stopps aussieht – ausdrücklich als Rechnung.
+            if (StopsInsight(gs, now, lap, n, names, pitLoss)) return;
+
+            // 4. Schnellster der Klasse zwei Runden in Folge.
             if (fastestStreak >= 2 && lap - lastFastestLap >= 8)
             {
                 lastFastestLap = lap;
@@ -124,7 +161,7 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
 
-            // 4. Freie Fahrt mitten im Rennen.
+            // 5. Freie Fahrt mitten im Rennen.
             float ahead = s.TimeDeltaFront, behind = s.TimeDeltaBehind;
             bool middle = mind == null || mind.Phase == RacePhase.Middle;
             bool pullingAway = mind == null || mind.RearRate <= 0;
@@ -142,7 +179,27 @@ namespace CrewChiefV4.AiTeam
         internal static Newtonsoft.Json.Linq.JObject Latest(int sessionId) =>
             System.Threading.Volatile.Read(ref latestSession) == sessionId ? System.Threading.Volatile.Read(ref latest) : null;
 
-        private void Publish(GameStateData gs, SessionData s, int lap, bool names)
+        private bool StopsInsight(GameStateData gs, DateTime now, int lap, string n, bool names, float pitLoss)
+        {
+            if (lap < 3 || gs.PitData.OnOutLap || gs.PitData.OnInLap) return false;
+            var ahead = StopDifference(gs, true, pitLoss);
+            var behind = ahead.Count == 0 ? StopDifference(gs, false, pitLoss) : new List<KeyValuePair<OpponentData, float>>();
+            var list = ahead.Count > 0 ? ahead : behind;
+            if (list.Count == 0) return false;
+            string key = (ahead.Count > 0 ? "a:" : "b:") + string.Join("|", list.Select(p => (p.Key.DriverRawName ?? "?") + "#" + p.Key.NumPitStops).OrderBy(x => x, StringComparer.Ordinal)) + "/" + gs.PitData.NumPitStops;
+            if (key == lastStopsKey ? lap - lastStopsLap < 12 : lap - lastStopsLap < 4) return false;
+            lastStopsKey = key; lastStopsLap = lap;
+            var who = list.Select(p => Name(p.Key, names) ?? "P" + p.Key.ClassPosition).ToList();
+            // Rechnerisch: Liegt der Abstand unter dem Boxenverlust, dreht sich die Reihenfolge nach dem fehlenden Stopp.
+            var turned = pitLoss > 0 ? list.Where(p => p.Value < pitLoss - 1.5f).Select(p => Name(p.Key, names) ?? "P" + p.Key.ClassPosition).ToList() : null;
+            int variant = Variant(ahead.Count > 0 ? "stops-ahead" : "stops-behind", 3);
+            string text = ahead.Count > 0 ? StopsAheadText(n, who, turned, pitLoss, variant) : StopsBehindText(n, who, turned, pitLoss, variant);
+            Offer(gs, now, lap, ahead.Count > 0 ? "insight-stops-ahead" : "insight-stops-behind", text,
+                (ahead.Count > 0 ? "class_rivals_ahead_with_fewer_stops" : "class_rivals_behind_with_more_stops") + (pitLoss > 0 ? "_and_measured_pit_loss" : ""), 3);
+            return true;
+        }
+
+        private void Publish(GameStateData gs, SessionData s, int lap, bool names, float pitLoss)
         {
             var o = new Newtonsoft.Json.Linq.JObject { ["runde"] = lap, ["schnellste_klassenrunden_in_folge"] = fastestStreak };
             var a = AtClassPosition(gs, s.ClassPosition - 1);
@@ -161,7 +218,18 @@ namespace CrewChiefV4.AiTeam
             if ((s.ClassPosition - 1 == 3 || s.ClassPosition - 1 == 1) && s.TimeDeltaFront > 0)
                 o[s.ClassPosition - 1 == 1 ? "abstand_zur_fuehrung_s" : "abstand_zum_podium_s"] = Math.Round(s.TimeDeltaFront, 2);
             o["freie_fahrt"] = (s.TimeDeltaFront <= 0 || s.TimeDeltaFront >= FreeAir) && s.TimeDeltaBehind >= FreeAir;
-            o["hinweis"] = "Gemessene Abstände und Rundenzeiten der letzten Runde; ein Zweikampf gilt ab höchstens 1 s zwischen den beiden.";
+            o["eigene_stopps"] = gs.PitData.NumPitStops;
+            if (pitLoss > 0) o["gemessener_boxenverlust_s"] = Math.Round(pitLoss, 1);
+            Newtonsoft.Json.Linq.JArray Stops(List<KeyValuePair<OpponentData, float>> l) => new Newtonsoft.Json.Linq.JArray(l.Select(p => new Newtonsoft.Json.Linq.JObject
+            {
+                ["fahrer"] = Name(p.Key, names) ?? "P" + p.Key.ClassPosition, ["stopps"] = p.Key.NumPitStops, ["abstand_s"] = Math.Round(p.Value, 1),
+                ["nach_stopp_rechnerisch_getauscht"] = pitLoss > 0 ? (Newtonsoft.Json.Linq.JToken)(p.Value < pitLoss - 1.5f) : null
+            }));
+            var fewer = StopDifference(gs, true, pitLoss); var more = StopDifference(gs, false, pitLoss);
+            if (fewer.Count > 0) o["vor_dir_mit_weniger_stopps"] = Stops(fewer);
+            if (more.Count > 0) o["hinter_dir_mit_mehr_stopps"] = Stops(more);
+            o["hinweis"] = "Gemessene Abstände und Rundenzeiten der letzten Runde; ein Zweikampf gilt ab höchstens 1 s zwischen den beiden. " +
+                "Getauscht nach Stopp ist eine Rechnung mit Robs gemessenem Boxenverlust inklusive Standzeit, keine Gewissheit.";
             System.Threading.Volatile.Write(ref latest, o);
             System.Threading.Volatile.Write(ref latestSession, s.SessionId);
         }
@@ -262,6 +330,70 @@ namespace CrewChiefV4.AiTeam
                 default: return RadioLanguage.T("Das Tempo stimmt: " + l + " Runden hintereinander die Schnellste deiner Klasse. Das zahlt sich aus.",
                     "The pace is right: fastest in your class " + l + " laps running. That's paying off.",
                     "El ritmo es bueno: el más rápido de tu clase " + l + " vueltas seguidas. Eso se nota.");
+            }
+        }
+
+        /// <summary>„A“, „A und B“, „A, B und C“ in der Funksprache.</summary>
+        internal static string List(IList<string> names)
+        {
+            if (names == null || names.Count == 0) return "";
+            if (names.Count == 1) return names[0];
+            return string.Join(", ", names.Take(names.Count - 1)) + RadioLanguage.T(" und ", " and ", " y ") + names[names.Count - 1];
+        }
+
+        internal static string StopsAheadText(string driver, IList<string> who, IList<string> turned, float pitLoss, int variant)
+        {
+            string n = string.IsNullOrWhiteSpace(driver) ? null : driver;
+            bool many = who.Count > 1;
+            string list = List(who), l = pitLoss > 0 ? Sec(pitLoss) : null;
+            string calc = "";
+            if (pitLoss > 0 && turned != null)
+                calc = turned.Count == 0
+                    ? RadioLanguage.T(" Der Vorsprung ist aber größer als unser Boxenverlust von etwa " + l + " – die bleiben auch danach vorn.",
+                        " But the margin is bigger than our pit loss of about " + l + " – they stay ahead even after stopping.",
+                        " Pero la ventaja es mayor que nuestra pérdida en boxes de unos " + l + ": seguirán delante después de parar.")
+                    : RadioLanguage.T(" Mit unserem gemessenen Boxenverlust von etwa " + l + " liegst du nach dem Stopp rechnerisch vor " + List(turned) + ".",
+                        " With our measured pit loss of about " + l + ", on paper you'll be ahead of " + List(turned) + " after the stop.",
+                        " Con nuestra pérdida medida en boxes de unos " + l + ", sobre el papel quedas por delante de " + List(turned) + " tras su parada.");
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T("Zur Einordnung" + (n != null ? ", " + n : "") + ": " + list + " vor dir " + (many ? "haben" : "hat") + " einmal weniger gestoppt als du." + calc,
+                    "For context" + (n != null ? ", " + n : "") + ": " + list + " ahead of you " + (many ? "have" : "has") + " stopped once less than you." + calc,
+                    "Para que lo sepas" + (n != null ? ", " + n : "") + ": " + list + " delante de ti " + (many ? "han" : "ha") + " parado una vez menos que tú." + calc);
+                case 1: return RadioLanguage.T("Die Reihenfolge vorne täuscht: " + list + " " + (many ? "müssen" : "muss") + ", wenn die Stoppzahl gleich sein soll, noch an die Box." + calc,
+                    "The order ahead is misleading: " + list + " still " + (many ? "have" : "has") + " a stop to make if the stop count evens out." + calc,
+                    "El orden de delante engaña: " + list + " aún " + (many ? "tienen" : "tiene") + " que parar si el número de paradas se iguala." + calc);
+                default: return RadioLanguage.T("Stopp-Bilanz: Du warst schon öfter drin als " + list + "." + calc + " Bleib auf deinem Tempo.",
+                    "Stop count: you've been in more often than " + list + "." + calc + " Stick to your pace.",
+                    "Cuenta de paradas: has entrado más veces que " + list + "." + calc + " Mantén tu ritmo.");
+            }
+        }
+
+        internal static string StopsBehindText(string driver, IList<string> who, IList<string> turned, float pitLoss, int variant)
+        {
+            string n = string.IsNullOrWhiteSpace(driver) ? null : driver;
+            bool many = who.Count > 1;
+            string list = List(who), l = pitLoss > 0 ? Sec(pitLoss) : null;
+            string calc = "";
+            if (pitLoss > 0 && turned != null)
+                calc = turned.Count == 0
+                    ? RadioLanguage.T(" Dein Polster ist größer als unser Boxenverlust von etwa " + l + " – nach deinem Stopp bleibst du rechnerisch vorn.",
+                        " Your cushion is bigger than our pit loss of about " + l + " – on paper you stay ahead after your stop.",
+                        " Tu colchón es mayor que nuestra pérdida en boxes de unos " + l + ": sobre el papel sigues delante tras tu parada.")
+                    : RadioLanguage.T(" Mit etwa " + l + " Boxenverlust liegt " + List(turned) + " nach deinem Stopp rechnerisch vor dir.",
+                        " With about " + l + " of pit loss, " + List(turned) + " would be ahead of you after your stop on paper.",
+                        " Con unos " + l + " de pérdida en boxes, " + List(turned) + " quedaría delante tras tu parada, sobre el papel.");
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T("Achtung" + (n != null ? ", " + n : "") + ": " + list + " hinter dir " + (many ? "haben" : "hat") + " schon einmal mehr gestoppt als du." + calc,
+                    "Heads up" + (n != null ? ", " + n : "") + ": " + list + " behind you " + (many ? "have" : "has") + " already stopped once more than you." + calc,
+                    "Atención" + (n != null ? ", " + n : "") + ": " + list + " detrás de ti ya " + (many ? "han" : "ha") + " parado una vez más que tú." + calc);
+                case 1: return RadioLanguage.T("Der Abstand nach hinten täuscht: " + list + " " + (many ? "haben" : "hat") + " den Stopp schon hinter sich, du noch nicht." + calc,
+                    "The gap behind is misleading: " + list + " " + (many ? "have" : "has") + " already made the stop, you haven't." + calc,
+                    "La distancia por detrás engaña: " + list + " ya " + (many ? "han" : "ha") + " hecho la parada, tú todavía no." + calc);
+                default: return RadioLanguage.T("Blick auf die Stopps: " + list + " war schon öfter an der Box als du." + calc,
+                    "Watch the stops: " + list + (many ? " have" : " has") + " pitted more often than you." + calc,
+                    "Ojo a las paradas: " + list + (many ? " han" : " ha") + " entrado en boxes más veces que tú." + calc);
             }
         }
 

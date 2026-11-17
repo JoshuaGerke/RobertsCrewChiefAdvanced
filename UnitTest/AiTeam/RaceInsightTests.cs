@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
@@ -195,6 +196,88 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("6,0", damaged);
             var unknown = Car(91, 110); unknown.CarDamageData.DamageEnabled = false;
             Assert.IsNull(AiRadioSchedule.VehicleCheck(unknown, 0), "ohne Schadensdaten kein „alles in Ordnung“");
+        }
+
+        // ---------- Stopp-Bilanz und Boxenverlust ----------
+
+        private static LapRecord Lap(int n, float time, bool pit = false) =>
+            new LapRecord { LapNumber = n, LapTime = time, Valid = !pit, Green = true, InPitLap = pit };
+
+        [Test]
+        public void Pit_loss_is_measured_from_in_and_out_lap_against_clean_laps()
+        {
+            var meter = new PitLossMeter();
+            var laps = new List<LapRecord> { Lap(1, 95), Lap(2, 90.2f), Lap(3, 90f), Lap(4, 90.4f), Lap(5, 101f, true), Lap(6, 104f, true) };
+            Assert.AreEqual(-1, meter.Observe(21, laps), "Ausfahrt noch nicht abgeschlossen");
+            laps.Add(Lap(7, 90.3f));
+            Assert.AreEqual(24.6f, meter.Observe(21, laps), .01f, "101 + 104 − 2 × 90,2");
+            Assert.AreEqual(-1, meter.Observe(21, laps), "derselbe Stopp zählt nur einmal");
+            Assert.AreEqual(24.6f, meter.Seconds, .01f);
+            Assert.AreEqual(-1, meter.Observe(22, laps.Take(4).ToList()), "neue Sitzung");
+            Assert.AreEqual(-1, meter.Seconds, "neue Sitzung beginnt ohne Messung");
+
+            var yellow = new List<LapRecord> { Lap(1, 95), Lap(2, 90f), Lap(3, 90f), Lap(4, 101f, true), Lap(5, 104f, true), Lap(6, 90f) };
+            yellow[3].Green = false;
+            Assert.AreEqual(-1, new PitLossMeter().Observe(21, yellow), "Stopp unter Gelb/Safety-Car ist kein Maßstab");
+        }
+
+        [Test]
+        public void Rivals_ahead_with_fewer_stops_are_put_into_context_with_measured_pit_loss()
+        {
+            var gs = Race(6, 20, 90.5f); gs.SessionData.TimeDeltaFront = 3f; gs.SessionData.TimeDeltaBehind = 4f;
+            gs.PitData.NumPitStops = 1;
+            var keller = Rival(gs, "Keller", 5, 90.8f); keller.NumPitStops = 0;
+            var wurz = Rival(gs, "Wurz", 4, 90.9f); wurz.NumPitStops = 0;
+            var mayer = Rival(gs, "Mayer", 3, 90.9f); mayer.NumPitStops = 1;
+            var gaps = new Dictionary<string, float> { ["Keller"] = 3f, ["Wurz"] = 31f, ["Mayer"] = 8f };
+            var watch = new RaceInsightWatch(2) { Gap = (a, b) => -1, GapToRob = (g, o) => gaps[o.DriverRawName] };
+            watch.Observe(gs, null, "Rob", true, T, true, 24.6f);
+            var call = watch.Take(gs, T, false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("insight-stops-ahead", call.Topic);
+            StringAssert.Contains("Keller", call.Text); StringAssert.Contains("Wurz", call.Text); StringAssert.DoesNotContain("Mayer", call.Text);
+            StringAssert.Contains("rechnerisch vor Keller.", call.Text, "nur wer innerhalb des Boxenverlusts liegt, dreht sich rechnerisch");
+            StringAssert.Contains("24,6", call.Text);
+            var facts = RaceInsightWatch.Latest(21);
+            Assert.AreEqual(2, ((Newtonsoft.Json.Linq.JArray)facts["vor_dir_mit_weniger_stopps"]).Count);
+            Assert.AreEqual(24.6, (double)facts["gemessener_boxenverlust_s"], .01);
+
+            // Gleiche Lage wird nicht jede Runde wiederholt.
+            call.MarkPlaybackStarted(T);
+            gs.SessionData.CompletedLaps = 22; gs.SessionData.LapTimePrevious = 92f; // keine „Schnellster“-Meldung dazwischen
+            watch.Observe(gs, null, "Rob", true, T.AddMinutes(3), true, 24.6f);
+            Assert.IsNull(watch.Take(gs, T.AddMinutes(3), false, true));
+        }
+
+        [Test]
+        public void Rival_behind_who_already_stopped_is_flagged_without_inventing_a_pit_loss()
+        {
+            var gs = Race(4, 18, 90.5f); gs.SessionData.TimeDeltaFront = 9f; gs.SessionData.TimeDeltaBehind = 12f;
+            var mayer = Rival(gs, "Mayer", 5, 90.4f); mayer.NumPitStops = 1;
+            var watch = new RaceInsightWatch(3) { Gap = (a, b) => -1, GapToRob = (g, o) => 12f };
+            watch.Observe(gs, null, "Rob", true, T, true);
+            var call = watch.Take(gs, T, false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("insight-stops-behind", call.Topic);
+            StringAssert.Contains("Mayer", call.Text);
+            StringAssert.DoesNotContain("rechnerisch", call.Text, "ohne gemessenen Boxenverlust keine Rechnung");
+        }
+
+        [Test]
+        public void Stop_balance_texts_vary_and_exist_in_three_languages()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                var one = new List<string> { "Keller" }; var two = new List<string> { "Keller", "Wurz" };
+                var ahead = Enumerable.Range(0, 3).Select(v => RaceInsightWatch.StopsAheadText("Rob", two, one, 24.6f, v)).ToArray();
+                var behind = Enumerable.Range(0, 3).Select(v => RaceInsightWatch.StopsBehindText(null, one, new List<string>(), 24.6f, v)).ToArray();
+                Assert.AreEqual(3, ahead.Distinct().Count(), lang); Assert.AreEqual(3, behind.Distinct().Count(), lang);
+                foreach (string text in ahead.Concat(behind)) { StringAssert.Contains("Keller", text); StringAssert.DoesNotContain("  ", text); }
+                Assert.AreEqual(lang == RadioLanguage.German ? "A, B und C" : lang == RadioLanguage.English ? "A, B and C" : "A, B y C",
+                    RaceInsightWatch.List(new[] { "A", "B", "C" }));
+            }
+            RadioLanguage.Current = RadioLanguage.German;
         }
     }
 }
