@@ -333,7 +333,7 @@ namespace CrewChiefV4.AiTeam
                 if (driverBusy || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start) { reason = "busy_projection_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
-            if (t.StartsWith("judge-", StringComparison.Ordinal))
+            if (t.StartsWith("judge-", StringComparison.Ordinal) || t.StartsWith("insight-", StringComparison.Ordinal))
             {
                 // Lob, Ansporn und Mitgefühl (Rob 16.11.): nie mitten im Zweikampf, unter Gelb, in der Box oder in der Startrunde;
                 // in den letzten Runden zählt nur noch das Nötigste.

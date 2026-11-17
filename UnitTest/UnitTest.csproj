@@ -93,6 +93,7 @@
     <Compile Include="AiTeam\RaceMindTests.cs" />
     <Compile Include="AiTeam\EngineerJudgementTests.cs" />
     <Compile Include="AiTeam\DataTruthTests.cs" />
+    <Compile Include="AiTeam\RaceInsightTests.cs" />
     <Compile Include="AiTeam\PitTrafficBehaviorTests.cs" />
     <Compile Include="AiTeam\LiveRaceReliabilityTests.cs" />
     <Compile Include="AiTeam\WorkmapRegressionTests.cs" />

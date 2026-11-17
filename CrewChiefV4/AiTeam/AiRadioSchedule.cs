@@ -131,10 +131,13 @@ namespace CrewChiefV4.AiTeam
         internal bool SameTimesheetAgain(string topic, string text, DateTime now) =>
             lastDeliveredText.TryGetValue(topic, out var old) && old == text && lastDeliveredUtc.TryGetValue(topic, out var when) &&
             now >= when && now - when < TimeSpan.FromMinutes(20);
+        private WeatherReading lastWeather, outstandingWeather;
+        private int progressReports;
+        private int weatherVariant;
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; session = int.MinValue; }
+        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -168,6 +171,7 @@ namespace CrewChiefV4.AiTeam
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
                     facts.Remember(outstanding.Topic, outstandingFacts, outstanding.DeliveryStartedUtc);
                     if (outstanding.Topic == "fuel") lastFuelMeasurement = outstandingFuelMeasurement;
+                    if (outstanding.Topic == "weather" && outstandingWeather != null) lastWeather = outstandingWeather;
                     if (IsTechnical(outstanding.Topic) && TechnicalSpacingSeconds > 0)
                     {
                         lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
@@ -220,9 +224,22 @@ namespace CrewChiefV4.AiTeam
                 string gapGroup = topic == "ahead" ? "gap-front-measured" : topic == "behind" ? "gap-rear-measured" : null;
                 int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
                 string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
-                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : gapVariant;
+                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : gapVariant;
                 string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
+                // Wetter wie ein Ingenieur (Rob 17.11., Bathurst: zweimal „Luft 21,2 Grad, Strecke 25,4 Grad“ in sechs Minuten):
+                // nur bei spürbarer Änderung erneut, und dann mit der Veränderung statt nackter Zahlen.
+                if (topic == "weather")
+                {
+                    var reading = WeatherReading.From(gs);
+                    if (reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
+                    {
+                        LiveDiagnostics.Decision(topic, "suppressed", "weather_unchanged");
+                        continue;
+                    }
+                    if (reading != null && lastWeather != null) text = reading.ChangeText(lastWeather, weatherVariant++) ?? text;
+                    outstandingWeather = reading;
+                }
                 string fuelMeasurement = topic == "fuel" ? FuelMeasurementKey(ctx) : null;
                 if (fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
                     lastDeliveredUtc.TryGetValue(topic, out var lastFuel) && now - lastFuel < TimeSpan.FromMinutes(10) &&
@@ -446,6 +463,11 @@ namespace CrewChiefV4.AiTeam
                 var s=gs.SessionData;
                 if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) {
                     double minutes=Math.Ceiling(s.SessionTimeRemaining/60);
+                    string m=minutes+(minutes==1?" Minute":" Minuten"), me=minutes+(minutes==1?" minute":" minutes"), ms=minutes+(minutes==1?" minuto":" minutos");
+                    switch(((variant%3)+3)%3) {
+                        case 1: return RadioLanguage.T("Uhr läuft: noch "+m+".", "Clock check: "+me+" to go.", "Reloj: quedan "+ms+".");
+                        case 2: return RadioLanguage.T("Noch "+m+" in dieser Sitzung.", me+" left in this session.", "Quedan "+ms+" en esta sesión.");
+                    }
                     return RadioLanguage.T("Noch etwa "+minutes+(minutes==1?" Minute":" Minuten")+" auf der Uhr.",
                         "About "+minutes+(minutes==1?" minute":" minutes")+" left on the clock.",
                         minutes==1?"Queda más o menos 1 minuto en el reloj.":"Quedan unos "+minutes+" minutos en el reloj.");
@@ -464,6 +486,56 @@ namespace CrewChiefV4.AiTeam
                 return parts.Count>0?string.Join(". ",parts)+".":null;
             }
             return null;
+        }
+    }
+
+    /// <summary>Wetterstand für die Routine: Luft, Strecke, Regen – und ob sich seit der letzten Meldung etwas getan hat.</summary>
+    internal sealed class WeatherReading
+    {
+        internal float Air = float.NaN, Track = float.NaN; internal bool Rain;
+
+        internal static WeatherReading From(GameStateData gs)
+        {
+            var c = gs?.Conditions?.LatestConditions; if (c == null) return null;
+            var r = new WeatherReading();
+            if (c.AmbientTemperature >= -30 && c.AmbientTemperature <= 60) r.Air = c.AmbientTemperature;
+            if (c.TrackTemperature >= -30 && c.TrackTemperature <= 85) r.Track = c.TrackTemperature;
+            r.Rain = c.RainDensity >= .01 && c.RainDensity <= 1;
+            return float.IsNaN(r.Air) && float.IsNaN(r.Track) && !r.Rain ? null : r;
+        }
+
+        /// <summary>Spürbar: Strecke ±1,5 °C, Luft ±1 °C oder Regen beginnt/endet.</summary>
+        internal bool ChangedFrom(WeatherReading old) =>
+            old == null || Rain != old.Rain ||
+            !float.IsNaN(Track) && !float.IsNaN(old.Track) && Math.Abs(Track - old.Track) >= 1.5f ||
+            !float.IsNaN(Air) && !float.IsNaN(old.Air) && Math.Abs(Air - old.Air) >= 1f ||
+            float.IsNaN(Track) != float.IsNaN(old.Track);
+
+        private static string N(float v) => RadioLanguage.Num(v, "0.0");
+
+        /// <summary>Meldung mit Richtung der Änderung; null wenn nichts Sinnvolles zu sagen ist.</summary>
+        internal string ChangeText(WeatherReading old, int variant)
+        {
+            if (Rain != old.Rain)
+                return Rain ? RadioLanguage.T("Es wird Regen gemeldet. Vorsicht, die Strecke verliert Grip.", "Rain is being reported. Careful, the track is losing grip.", "Se informa de lluvia. Cuidado, la pista pierde agarre.")
+                    : RadioLanguage.T("Kein Regen mehr gemeldet. Die Strecke trocknet ab.", "No more rain reported. The track is drying.", "Ya no se informa de lluvia. La pista se está secando.");
+            if (float.IsNaN(Track) || float.IsNaN(old.Track)) return null;
+            float d = Track - old.Track;
+            if (Math.Abs(d) < 1.5f) return null;
+            string delta = N(Math.Abs(d));
+            bool warmer = d > 0;
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T("Die Strecke ist " + delta + " Grad " + (warmer ? "wärmer" : "kühler") + " geworden, jetzt " + N(Track) + " Grad.",
+                    "The track has got " + delta + " degrees " + (warmer ? "warmer" : "cooler") + ", now " + N(Track) + " degrees.",
+                    "La pista está " + delta + " grados más " + (warmer ? "caliente" : "fría") + ", ahora " + N(Track) + " grados.");
+                case 1: return RadioLanguage.T("Streckentemperatur " + (warmer ? "steigt" : "fällt") + ": " + N(Track) + " Grad, " + delta + " " + (warmer ? "mehr" : "weniger") + " als vorhin.",
+                    "Track temperature " + (warmer ? "rising" : "dropping") + ": " + N(Track) + " degrees, " + delta + " " + (warmer ? "more" : "less") + " than before.",
+                    "Temperatura de pista " + (warmer ? "subiendo" : "bajando") + ": " + N(Track) + " grados, " + delta + " " + (warmer ? "más" : "menos") + " que antes.");
+                default: return RadioLanguage.T("Info zur Strecke: jetzt " + N(Track) + " Grad" + (float.IsNaN(Air) ? "" : ", Luft " + N(Air)) + ". " + (warmer ? "Die Reifen werden schneller warm." : "Die Reifen brauchen etwas länger auf Temperatur."),
+                    "Track info: now " + N(Track) + " degrees" + (float.IsNaN(Air) ? "" : ", air " + N(Air)) + ". " + (warmer ? "Tyres will warm up quicker." : "Tyres need a little longer to come in."),
+                    "Info de pista: ahora " + N(Track) + " grados" + (float.IsNaN(Air) ? "" : ", aire " + N(Air)) + ". " + (warmer ? "Los neumáticos se calentarán antes." : "Los neumáticos tardan algo más en coger temperatura."));
+            }
         }
     }
 }

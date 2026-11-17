@@ -66,6 +66,7 @@ namespace CrewChiefV4.AiTeam
         private readonly BackmarkerWatch backmarkers = new BackmarkerWatch();
         private readonly DriverJudgementWatch judgement = new DriverJudgementWatch();
         private readonly CrewMemory crewMemory = new CrewMemory();
+        private readonly RaceInsightWatch insights = new RaceInsightWatch();
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -301,6 +302,7 @@ namespace CrewChiefV4.AiTeam
                 backmarkers.Reset();
                 judgement.Reset();
                 crewMemory.Clear();
+                insights.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
                 sessionLaps.Reset();
@@ -599,6 +601,7 @@ namespace CrewChiefV4.AiTeam
             VirtualEnergyWatch.Current.Observe(current, VirtualEnergyWatch.Read());
             if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
                 LiveDiagnostics.Emit("data-truth", DataTruth.Current.Report());
+            insights.Observe(current, RaceMind.Latest, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now, lapCompleted);
             judgement.Observe(current, Memory.GetLaps(12), lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now);
             OpponentStopLog.Observe(current);
             tyreGrip.Observe(current, now);
@@ -654,6 +657,9 @@ namespace CrewChiefV4.AiTeam
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = judgement.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning || sessionLaps.HotLap(current),
+                    settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = insights.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = focusBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
