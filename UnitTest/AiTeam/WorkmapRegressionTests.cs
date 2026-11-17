@@ -124,6 +124,16 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(w.Take(gs,T.AddSeconds(2),false,m=>true));
         }
         [Test]
+        public void Track_limit_and_invalid_lap_of_the_same_event_are_spoken_once()
+        {
+            var gs=Frame(2,false,false,false);var w=new LiveWarningDispatcher();
+            w.Offer("warning-tracklimit",LiveWarningDispatcher.LimitPhrases[0],TeamMember.Mik,7,gs,T,s=>true,"cut",2);
+            var call=w.Take(gs,T.AddSeconds(1),false,m=>true);Assert.IsNotNull(call);call.MarkPlaybackStarted(T.AddSeconds(1));
+            w.Observe(gs,T.AddSeconds(2));
+            w.Offer("warning-invalid-lap",CrewSpeechPolicy.FirstInvalidLapPhrases[0],TeamMember.Mik,7,gs,T.AddSeconds(4),s=>!s.SessionData.CurrentLapIsValid,"invalid",2);
+            Assert.IsNull(w.Take(gs,T.AddSeconds(5),false,m=>true),"RaceRoom Monza: nicht 3 s später noch „ungültige Runde“");
+        }
+        [Test]
         public void T07_Invalidity_warning_is_acknowledged_only_at_playback_and_never_follows_next_lap()
         {
             var gs=Frame(2,false,false,false);var w=new LiveWarningDispatcher();

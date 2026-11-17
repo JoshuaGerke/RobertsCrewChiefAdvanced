@@ -163,6 +163,10 @@ namespace CrewChiefV4.AiTeam
             if(gs==null || string.IsNullOrWhiteSpace(text) || relevant==null || !relevant(gs))return;
             DateTime last;
             if(delivered.TryGetValue(topic,out last) && now>=last && now-last<TimeSpan.FromSeconds(topic=="warning-tracklimit"?15:30))return;
+            // RaceRoom Monza 17.11.: „Schon wieder über den Limits“ und 3 s später „Noch eine ungültige Runde“ – dasselbe Ereignis.
+            string twin=topic=="warning-invalid-lap"?"warning-tracklimit":topic=="warning-tracklimit"?"warning-invalid-lap":null;
+            if(twin!=null && delivered.TryGetValue(twin,out last) && now>=last && now-last<TimeSpan.FromSeconds(20))
+            {LiveDiagnostics.Decision(topic,"suppressed","same_event_as_"+twin);return;}
             Pending old;
             if(pending.TryGetValue(topic,out old))
             {
