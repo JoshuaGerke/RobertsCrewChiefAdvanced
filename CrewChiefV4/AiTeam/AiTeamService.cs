@@ -621,7 +621,7 @@ namespace CrewChiefV4.AiTeam
                 DynamicsSampler.Ensure(Game.game);
                 dynamics.Observe(current, now, lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false));
                 if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
-                    LiveDiagnostics.Emit("dynamics", DynamicsSampler.Status);
+                    LiveDiagnostics.Emit("dynamics", new Dictionary<string, object> { ["status"] = DynamicsSampler.Status });
             }
             if (lapCompleted && current.SessionData.SessionType == SessionType.Race) pitLoss.Observe(current.SessionData.SessionId, Memory.GetLaps());
             insights.Observe(current, RaceMind.Latest, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now, lapCompleted,
