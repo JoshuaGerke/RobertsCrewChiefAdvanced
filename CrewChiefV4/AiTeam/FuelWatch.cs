@@ -135,8 +135,11 @@ namespace CrewChiefV4.AiTeam
                 {
                     if (provisionalConsumption) return null;
                     warned = false;
-                    return RadioLanguage.T("Sprit passt jetzt wieder bis ins Ziel, weiter so.", "Fuel is good to the finish again, keep it up.",
-                        "El combustible vuelve a llegar hasta meta, sigue así.");
+                    return RadioVariants.Pick("fuel-ok-again",
+                        RadioLanguage.T("Sprit passt jetzt wieder bis ins Ziel, weiter so.", "Fuel is good to the finish again, keep it up.", "El combustible vuelve a llegar hasta meta, sigue así."),
+                        RadioLanguage.T("Entwarnung beim Sprit: Es reicht bis ins Ziel.", "All clear on fuel: we make the finish.", "Tranquilo con el combustible: llegamos a meta."),
+                        RadioLanguage.T("Spritrechnung geht wieder auf. Normal weiterfahren.", "Fuel numbers add up again. Drive normally.", "Las cuentas del combustible vuelven a cuadrar. Conduce normal."),
+                        RadioLanguage.T("Gute Nachricht: Der Sprit reicht wieder.", "Good news: fuel is enough again.", "Buenas noticias: el combustible vuelve a llegar."));
                 }
                 return null;
             }
@@ -157,12 +160,16 @@ namespace CrewChiefV4.AiTeam
             if (provisionalConsumption) provisionalSpoken = true;
             if (provisionalConsumption)
                 return bareDeficit > 0
-                    ? RadioLanguage.T("Erste Hochrechnung: Bis ins Ziel könnte der Sprit knapp werden. Ich prüfe das weiter.",
-                        "First estimate: fuel could get tight to the finish. I'll keep checking.",
-                        "Primera estimación: el combustible podría ir justo hasta meta. Lo sigo vigilando.")
-                    : RadioLanguage.T("Erste Hochrechnung: Der Sprit könnte reichen, aber die Reserve ist knapp.",
-                        "First estimate: fuel might be enough, but the reserve is tight.",
-                        "Primera estimación: el combustible podría llegar, pero la reserva va justa.");
+                    ? RadioVariants.Pick("fuel-provisional-short",
+                        RadioLanguage.T("Erste Hochrechnung: Bis ins Ziel könnte der Sprit knapp werden. Ich prüfe das weiter.", "First estimate: fuel could get tight to the finish. I'll keep checking.", "Primera estimación: el combustible podría ir justo hasta meta. Lo sigo vigilando."),
+                        RadioLanguage.T("Vorläufig gerechnet wird der Sprit eng. Genauer wird's nach ein paar Runden.", "Provisionally, fuel looks tight. It gets more precise after a few laps.", "Cálculo provisional: el combustible va justo. Será más preciso en unas vueltas."),
+                        RadioLanguage.T("Grobe Schätzung: Sprit könnte nicht ganz reichen. Ich behalte das im Auge.", "Rough estimate: fuel might not quite make it. I'm watching it.", "Estimación aproximada: puede que no llegue del todo. Lo vigilo."),
+                        RadioLanguage.T("Noch geschätzt, aber der Sprit sieht knapp aus. Wir messen weiter.", "Still an estimate, but fuel looks tight. We keep measuring.", "Aún es estimación, pero el combustible pinta justo. Seguimos midiendo."))
+                    : RadioVariants.Pick("fuel-provisional-reserve",
+                        RadioLanguage.T("Erste Hochrechnung: Der Sprit könnte reichen, aber die Reserve ist knapp.", "First estimate: fuel might be enough, but the reserve is tight.", "Primera estimación: el combustible podría llegar, pero la reserva va justa."),
+                        RadioLanguage.T("Vorläufig reicht es, nur die Reserve ist dünn.", "Provisionally it's enough, just a thin reserve.", "Provisionalmente llega, pero con poca reserva."),
+                        RadioLanguage.T("Grobe Schätzung: Es reicht, aber ohne viel Luft.", "Rough estimate: it's enough, but without much margin.", "Estimación aproximada: llega, pero sin mucho margen."),
+                        RadioLanguage.T("Noch geschätzt: bis ins Ziel ja, Reserve knapp.", "Still estimated: to the finish yes, reserve tight.", "Aún estimado: hasta meta sí, reserva justa."));
 
             if (bareDeficit <= 0)
                 return RadioLanguage.T("Sprit reicht rechnerisch bis ins Ziel. Für unsere Reserve fehlen " + Litres(deficit) + ".",
