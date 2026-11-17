@@ -15,7 +15,7 @@ namespace CrewChiefV4.AiTeam
     internal sealed class DynamicsFrame
     {
         public double TimeS;
-        public float Speed, Throttle, Brake, Steering, LatAccel, LongAccel, LapDistance = -1;
+        public float Speed, Throttle, Brake, Steering, LatAccel, LongAccel, YawRate = float.NaN, LapDistance = -1;
         public int Gear, CompletedLaps;
         public bool Driving, InPit, AbsActive;
         /// <summary>Die Sim meldet keinen ABS-Eingriff (LMU): Blockierer müssen dann länger und deutlicher sein.</summary>
@@ -33,12 +33,12 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class DrivingDynamicsAnalyzer
     {
-        internal enum Kind { Lockup, HeavyLockup, Wheelspin, OffTrack }
+        internal enum Kind { Lockup, HeavyLockup, Wheelspin, OffTrack, Understeer, Oversteer }
 
         internal sealed class Event
         {
             public Kind Kind;
-            public int Lap, Wheel = -1, Wheels;
+            public int Lap, Wheel = -1, Wheels, Phase = -1;
             public float Distance, Duration, Ratio, SpeedKmh;
             public string Corner;
         }
@@ -48,7 +48,7 @@ namespace CrewChiefV4.AiTeam
             public Kind Kind;
             public string Key, Corner;
             public float Distance;
-            public int Wheel = -1, Laps, Wheels;
+            public int Wheel = -1, Laps, Wheels, Phase = -1;
         }
 
         internal const float LockRatio = .80f, HeavyRatio = .35f, SpinRatio = 1.12f;
@@ -62,6 +62,13 @@ namespace CrewChiefV4.AiTeam
         private readonly double[] spinSince = { double.NaN, double.NaN, double.NaN, double.NaN };
         private readonly float[] lockExtreme = new float[4], spinExtreme = new float[4], lockDistance = new float[4], spinDistance = new float[4], lockSpeed = new float[4];
         private double offSince = double.NaN, offClear = double.NaN;
+        // Balance (Unter-/Übersteuern): Lenkverstärkung des Autos = Bahnkrümmung je Lenkeinschlag, gelernt bei wenig Querlast.
+        private float steerGain; private int steerSamples;
+        private double underSince = double.NaN, overSince = double.NaN;
+        private float underDistance, overDistance; private int underPhase, overPhase;
+        internal const int SteerCalibration = 200;
+        internal const float OverIndex = 1.3f, UnderIndex = .7f, BalanceMinLat = 5f;
+        internal const double OverMin = .25, UnderMin = .4;
         private float offDistance, offSpeed;
         private int offWheels, lap = int.MinValue;
         private readonly List<Event> events = new List<Event>();
@@ -86,6 +93,7 @@ namespace CrewChiefV4.AiTeam
                     scale[i] = 0; scaleSamples[i] = 0; lockSince[i] = spinSince[i] = double.NaN;
                 }
                 offSince = offClear = double.NaN; offWheels = 0; lap = int.MinValue;
+                steerGain = 0; steerSamples = 0; underSince = overSince = double.NaN;
                 events.Clear(); heavy.Clear(); reported.Clear();
                 firstFrame = lastFrame = double.NaN; frames = 0; lastFrameUtc = DateTime.MinValue;
                 lapPeakLat = lapPeakBrake = lastLapPeakLat = lastLapPeakBrake = 0;
@@ -128,6 +136,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     for (int i = 0; i < 4; i++) lockSince[i] = spinSince[i] = double.NaN;
                     offSince = offClear = double.NaN;
+                    underSince = overSince = double.NaN;
                     return;
                 }
                 Learn(f);
@@ -141,6 +150,7 @@ namespace CrewChiefV4.AiTeam
                     Track(f, i, r);
                 }
                 TrackOff(f);
+                TrackBalance(f);
             }
         }
 
@@ -211,12 +221,51 @@ namespace CrewChiefV4.AiTeam
             offSince = offClear = double.NaN;
         }
 
-        private Event Add(Kind kind, int wheel, int wheels, float distance, float duration, float ratio, float speed)
+        /// <summary>Kurvenphase: 1 Eingang (Bremse), 2 Ausgang (Gas), 0 Mitte.</summary>
+        internal static int PhaseOf(DynamicsFrame f) => f.Brake >= .1f ? 1 : f.Throttle >= .5f ? 2 : 0;
+
+        /// <summary>
+        /// Unter- und Übersteuern aus Gierrate, Querbeschleunigung und Lenkung. Übersteuern: Das Auto dreht schneller, als die
+        /// Querbeschleunigung zur Bahn passt (v·r deutlich größer als a_quer). Untersteuern: Für den Lenkeinschlag fährt das Auto
+        /// eine deutlich flachere Bahn als bei wenig Querlast gelernt. Nur ab 0,5 g Querbeschleunigung und 15 m/s.
+        /// </summary>
+        private void TrackBalance(DynamicsFrame f)
+        {
+            float r = Math.Abs(f.YawRate), lat = Math.Abs(f.LatAccel), steer = Math.Abs(f.Steering);
+            if (float.IsNaN(r) || f.Speed < 15 || float.IsNaN(steer)) { underSince = overSince = double.NaN; return; }
+            float curvature = r / f.Speed;                     // 1/m
+            float over = lat > 1 ? f.Speed * r / lat : 0;      // 1 = Auto folgt der Bahn
+            if (lat >= 2 && lat <= 6 && steer > .03f && f.Brake < .05f && Math.Abs(f.LongAccel) < 3 && Math.Abs(over - 1) < .1f)
+            {
+                float g = curvature / steer;
+                steerGain = steerSamples == 0 ? g : steerGain + (g - steerGain) * (steerSamples < SteerCalibration ? .05f : .005f);
+                if (steerSamples < int.MaxValue) steerSamples++;
+            }
+            bool loaded = lat >= BalanceMinLat;
+            bool overNow = loaded && over > OverIndex;
+            bool underNow = loaded && !overNow && steerSamples >= SteerCalibration && steer > .05f && curvature / steer < UnderIndex * steerGain;
+            if (overNow) { if (double.IsNaN(overSince)) { overSince = f.TimeS; overDistance = f.LapDistance; overPhase = PhaseOf(f); } }
+            else if (!double.IsNaN(overSince))
+            {
+                double d = f.TimeS - overSince; overSince = double.NaN;
+                if (d >= OverMin) Add(Kind.Oversteer, -1, 0, overDistance, (float)d, 0, f.Speed, overPhase);
+            }
+            if (underNow) { if (double.IsNaN(underSince)) { underSince = f.TimeS; underDistance = f.LapDistance; underPhase = PhaseOf(f); } }
+            else if (!double.IsNaN(underSince))
+            {
+                double d = f.TimeS - underSince; underSince = double.NaN;
+                if (d >= UnderMin) Add(Kind.Understeer, -1, 0, underDistance, (float)d, 0, f.Speed, underPhase);
+            }
+        }
+
+        internal bool SteeringCalibrated { get { lock (gate) return steerSamples >= SteerCalibration; } }
+
+        private Event Add(Kind kind, int wheel, int wheels, float distance, float duration, float ratio, float speed, int phase = -1)
         {
             string corner = null;
-            int mode = kind == Kind.Wheelspin ? 2 : kind == Kind.OffTrack ? 0 : 1;
+            int mode = kind == Kind.Wheelspin || phase == 2 ? 2 : kind == Kind.OffTrack || phase >= 0 ? 0 : 1;
             try { corner = distance >= 0 ? CornerAt?.Invoke(distance, mode) : null; } catch (Exception) { }
-            var e = new Event { Kind = kind, Lap = lap, Wheel = wheel, Wheels = wheels, Distance = distance, Duration = duration, Ratio = ratio, SpeedKmh = speed * 3.6f, Corner = corner };
+            var e = new Event { Kind = kind, Lap = lap, Wheel = wheel, Wheels = wheels, Distance = distance, Duration = duration, Ratio = ratio, SpeedKmh = speed * 3.6f, Corner = corner, Phase = phase };
             events.Add(e);
             if (events.Count > 400) events.RemoveRange(0, events.Count - 400);
             LiveDiagnostics.Decision("dynamics-" + kind.ToString().ToLowerInvariant(), "measured",
@@ -231,6 +280,7 @@ namespace CrewChiefV4.AiTeam
         private static string Key(Event e) =>
             e.Kind == Kind.Wheelspin ? "spin|" + Place(e) + "|" + (e.Wheel < 2 ? "front" : "rear")
             : e.Kind == Kind.OffTrack ? "off|" + Place(e)
+            : e.Kind == Kind.Understeer || e.Kind == Kind.Oversteer ? (e.Kind == Kind.Understeer ? "under|" : "over|") + Place(e) + "|" + e.Phase
             : "lock|" + Place(e) + "|" + e.Wheel;
 
         /// <summary>Starke Blockierer seit dem letzten Abruf (für die Sofort-Meldung „möglicher Bremsplatten“).</summary>
@@ -257,7 +307,7 @@ namespace CrewChiefV4.AiTeam
                     if (laps.Count < 2 || !laps.Contains(newest)) continue;
                     if (reported.TryGetValue(group.Key, out int when) && completedLaps - when < 6) continue;
                     var first = group.Last();
-                    var p = new Pattern { Kind = first.Kind, Key = group.Key, Corner = first.Corner, Distance = first.Distance, Wheel = first.Wheel, Laps = laps.Count, Wheels = group.Max(e => e.Wheels) };
+                    var p = new Pattern { Kind = first.Kind, Key = group.Key, Corner = first.Corner, Distance = first.Distance, Wheel = first.Wheel, Laps = laps.Count, Wheels = group.Max(e => e.Wheels), Phase = first.Phase };
                     if (best == null || Rank(p) > Rank(best)) best = p;
                 }
                 if (best != null) reported[best.Key] = completedLaps;
@@ -265,7 +315,7 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private static int Rank(Pattern p) => (p.Kind == Kind.OffTrack ? 30 : p.Kind == Kind.Lockup ? 20 : 10) + p.Laps;
+        private static int Rank(Pattern p) => (p.Kind == Kind.OffTrack ? 30 : p.Kind == Kind.Lockup ? 20 : p.Kind == Kind.Oversteer ? 15 : 10) + p.Laps;
 
         /// <summary>Lagebild der Fahrdynamik für Sprachfragen und Diagnose; null ohne Daten.</summary>
         internal JObject Snapshot(int completedLaps)
@@ -282,6 +332,9 @@ namespace CrewChiefV4.AiTeam
                     ["starke_blockierer_letzte_5_runden"] = recent.Count(e => e.Kind == Kind.HeavyLockup),
                     ["durchdrehen_letzte_5_runden"] = recent.Count(e => e.Kind == Kind.Wheelspin),
                     ["ausritte_letzte_5_runden"] = recent.Count(e => e.Kind == Kind.OffTrack),
+                    ["untersteuern_letzte_5_runden"] = recent.Count(e => e.Kind == Kind.Understeer),
+                    ["uebersteuern_letzte_5_runden"] = recent.Count(e => e.Kind == Kind.Oversteer),
+                    ["lenkverhalten_geeicht"] = steerSamples >= SteerCalibration,
                     ["max_querbeschleunigung_g_letzte_runde"] = lastLapPeakLat > 0 ? (JToken)Math.Round(lastLapPeakLat, 2) : null,
                     ["max_bremsverzoegerung_g_letzte_runde"] = lastLapPeakBrake > 0 ? (JToken)Math.Round(lastLapPeakBrake, 2) : null
                 };
@@ -289,13 +342,14 @@ namespace CrewChiefV4.AiTeam
                     .OrderByDescending(x => x.laps).ThenByDescending(x => x.n).Take(5)
                     .Select(x => new JObject { ["ort_art"] = x.Key, ["anzahl"] = x.n, ["runden"] = x.laps });
                 o["problemstellen"] = new JArray(spots);
-                o["hinweis"] = "Gemessen aus der schnellen Abtastung: Radgeschwindigkeit gegen Fahrzeugtempo und Untergrund je Rad. Ort ist die Crew-Chief-Kurve oder der 100-m-Abschnitt (m12 = bei 1200 m).";
+                o["hinweis"] = "Gemessen aus der schnellen Abtastung: Radgeschwindigkeit gegen Fahrzeugtempo, Untergrund je Rad, Gierrate gegen Querbeschleunigung und Lenkung (Balance). Ort ist die Crew-Chief-Kurve oder der 100-m-Abschnitt (m12 = bei 1200 m).";
                 return o;
             }
         }
 
         private static string Label(Kind k) =>
-            k == Kind.Wheelspin ? "durchdrehen" : k == Kind.OffTrack ? "ausritt" : k == Kind.HeavyLockup ? "starker_blockierer" : "blockierer";
+            k == Kind.Wheelspin ? "durchdrehen" : k == Kind.OffTrack ? "ausritt" : k == Kind.HeavyLockup ? "starker_blockierer"
+            : k == Kind.Understeer ? "untersteuern" : k == Kind.Oversteer ? "uebersteuern" : "blockierer";
 
         internal int EventCount { get { lock (gate) return events.Count; } }
     }

@@ -94,7 +94,7 @@ namespace CrewChiefV4.AiTeam
             oParts = Off("mParticipantData"), pSize = Marshal.SizeOf(typeof(ams2APIParticipantStruct)), pDist = POff("mCurrentLapDistance"),
             pLaps = POff("mLapsCompleted"), oSpeed = Off("mSpeed"), oThrottle = Off("mThrottle"), oBrake = Off("mBrake"), oSteer = Off("mSteering"),
             oGear = Off("mGear"), oAbs = Off("mAntiLockActive"), oAcc = Off("mLocalAcceleration"), oTerrain = Off("mTerrain"),
-            oRps = Off("mTyreRPS"), oPit = Off("mPitMode");
+            oRps = Off("mTyreRPS"), oPit = Off("mPitMode"), oYaw = Off("mAngularVelocity") + 4;
         private uint lastSeq = uint.MaxValue;
 
         internal override string Name => "AMS2";
@@ -141,7 +141,7 @@ namespace CrewChiefV4.AiTeam
             f.CompletedLaps = (int)U(b, p + pLaps);
             f.Speed = F(b, oSpeed); f.Throttle = F(b, oThrottle); f.Brake = F(b, oBrake); f.Steering = F(b, oSteer);
             f.Gear = I(b, oGear); f.AbsActive = b[oAbs] != 0; f.InPit = U(b, oPit) != 0;
-            f.LatAccel = F(b, oAcc); f.LongAccel = F(b, oAcc + 8);
+            f.LatAccel = F(b, oAcc); f.LongAccel = F(b, oAcc + 8); f.YawRate = F(b, oYaw);
             for (int i = 0; i < 4; i++)
             {
                 f.WheelRotation[i] = F(b, oRps + 4 * i);
@@ -160,7 +160,7 @@ namespace CrewChiefV4.AiTeam
         private static readonly int oTicks = At("Player.GameSimulationTicks"), oPaused = At("GamePaused"), oMenus = At("GameInMenus"),
             oReplay = At("GameInReplay"), oSpeed = At("CarSpeed"), oThrottle = At("Throttle"), oBrake = At("Brake"), oSteer = At("SteerInputRaw"),
             oGear = At("Gear"), oAbs = At("AidSettings.Abs"), oAccX = At("LocalAcceleration.X"), oAccZ = At("LocalAcceleration.Z"),
-            oDist = At("LapDistance"), oLaps = At("CompletedLaps"), oPit = At("InPitlane");
+            oDist = At("LapDistance"), oLaps = At("CompletedLaps"), oPit = At("InPitlane"), oYaw = At("Player.LocalAngularVelocity.Y");
         private static readonly int[] oRps = { At("TireRps.FrontLeft"), At("TireRps.FrontRight"), At("TireRps.RearLeft"), At("TireRps.RearRight") };
         private static readonly int[] oMtrl = { At("TireOnMtrl.FrontLeft"), At("TireOnMtrl.FrontRight"), At("TireOnMtrl.RearLeft"), At("TireOnMtrl.RearRight") };
         private int lastTicks = int.MinValue;
@@ -189,7 +189,7 @@ namespace CrewChiefV4.AiTeam
             f.Driving = I(b, oPaused) == 0 && I(b, oMenus) == 0 && I(b, oReplay) == 0 && speed >= 0;
             f.Speed = Math.Max(0, speed); f.Throttle = Math.Max(0, F(b, oThrottle)); f.Brake = Math.Max(0, F(b, oBrake)); f.Steering = F(b, oSteer);
             f.Gear = I(b, oGear); f.AbsActive = I(b, oAbs) == 5; f.InPit = I(b, oPit) == 1;
-            f.LatAccel = F(b, oAccX); f.LongAccel = F(b, oAccZ);
+            f.LatAccel = F(b, oAccX); f.LongAccel = F(b, oAccZ); f.YawRate = (float)BitConverter.ToDouble(b, oYaw);
             f.LapDistance = F(b, oDist); f.CompletedLaps = I(b, oLaps);
             for (int i = 0; i < 4; i++)
             {
@@ -221,7 +221,7 @@ namespace CrewChiefV4.AiTeam
             sSize = Marshal.SizeOf(typeof(rF2SharedMemory.rFactor2Data.rF2VehicleScoring));
         private static readonly int tNum = TOff("mNumVehicles"), tVeh = TOff("mVehicles"), vId = VOff("mID"), vEt = VOff("mElapsedTime"),
             vVel = VOff("mLocalVel"), vAcc = VOff("mLocalAccel"), vGear = VOff("mGear"), vThrottle = VOff("mFilteredThrottle"),
-            vBrake = VOff("mFilteredBrake"), vWheels = VOff("mWheels"), wRot = WOff("mRotation"), wSurface = WOff("mSurfaceType"),
+            vBrake = VOff("mFilteredBrake"), vWheels = VOff("mWheels"), vRot = VOff("mLocalRot"), vSteer = VOff("mFilteredSteering"), wRot = WOff("mRotation"), wSurface = WOff("mSurfaceType"),
             sInfo = SOff("mScoringInfo"), sVeh = SOff("mVehicles"), iEt = IOff("mCurrentET"), iNum = IOff("mNumVehicles"), iRealtime = IOff("mInRealtime"),
             vsId = VSOff("mID"), vsPlayer = VSOff("mIsPlayer"), vsDist = VSOff("mLapDist"), vsLaps = VSOff("mTotalLaps"), vsPits = VSOff("mInPits");
         private const int Max = rF2SharedMemory.rFactor2Constants.MAX_MAPPED_VEHICLES;
@@ -303,6 +303,7 @@ namespace CrewChiefV4.AiTeam
                 f.LatAccel = (float)tView.ReadDouble(v + vAcc); f.LongAccel = (float)tView.ReadDouble(v + vAcc + 16);
                 f.Gear = tView.ReadInt32(v + vGear);
                 f.Throttle = (float)tView.ReadDouble(v + vThrottle); f.Brake = (float)tView.ReadDouble(v + vBrake);
+                f.Steering = (float)tView.ReadDouble(v + vSteer); f.YawRate = (float)tView.ReadDouble(v + vRot + 8);
                 for (int w = 0; w < 4; w++)
                 {
                     int o = v + vWheels + w * wSize;

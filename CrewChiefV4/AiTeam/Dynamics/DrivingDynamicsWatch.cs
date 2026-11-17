@@ -48,6 +48,12 @@ namespace CrewChiefV4.AiTeam
                 case DrivingDynamicsAnalyzer.Kind.OffTrack:
                     Offer(gs, now, "insight-offtrack", TeamMember.Ben, OffTrack(n, Place(p.Corner, p.Distance, 0), p.Laps, p.Wheels, variant++), 3, "two_or_more_wheels_off_same_place_in_two_of_three_laps");
                     break;
+                case DrivingDynamicsAnalyzer.Kind.Understeer:
+                case DrivingDynamicsAnalyzer.Kind.Oversteer:
+                    Offer(gs, now, "insight-balance", TeamMember.Mik,
+                        Balance(p.Kind == DrivingDynamicsAnalyzer.Kind.Oversteer, p.Phase, Place(p.Corner, p.Distance, p.Phase == 2 ? 2 : 0), p.Laps, variant++), 3,
+                        (p.Kind == DrivingDynamicsAnalyzer.Kind.Oversteer ? "yaw_rate_exceeds_lateral_acceleration" : "less_curvature_per_steering_than_learned") + "_same_place_and_phase_in_two_of_three_laps");
+                    break;
                 case DrivingDynamicsAnalyzer.Kind.Wheelspin:
                     Offer(gs, now, "insight-wheelspin", TeamMember.Mik, Wheelspin(Place(p.Corner, p.Distance, 2), p.Wheel >= 2, p.Laps, variant++), 3, "wheelspin_on_exit_same_place_in_two_of_three_laps");
                     break;
@@ -167,6 +173,38 @@ namespace CrewChiefV4.AiTeam
                 default: return RadioLanguage.T("Wiederholt neben der Strecke " + place + ". Sauber und konstant bringt dort mehr als das letzte Zehntel.",
                     "Running wide again and again " + place + ". Clean and consistent gains more than the last tenth there.",
                     "Te sales una y otra vez " + place + ". Limpio y constante da más que la última décima.");
+            }
+        }
+
+        /// <summary>Balance (Unter-/Übersteuern) je Kurvenphase: 1 Eingang, 0 Scheitel, 2 Ausgang.</summary>
+        internal static string Balance(bool oversteer, int phase, string place, int laps, int variant)
+        {
+            int ph = phase == 1 ? 1 : phase == 2 ? 2 : 0;
+            string obs, advice;
+            if (!oversteer)
+            {
+                obs = ph == 1 ? RadioLanguage.T("schiebt das Auto beim Einlenken über die Vorderräder", "the car pushes on turn-in", "el coche empuja de morro al girar")
+                    : ph == 2 ? RadioLanguage.T("schiebt das Auto unter Gas über die Vorderräder", "the car pushes wide on the throttle", "el coche se va de morro al acelerar")
+                    : RadioLanguage.T("untersteuert das Auto im Scheitel", "the car understeers at the apex", "el coche subvira en el vértice");
+                advice = ph == 1 ? RadioLanguage.T("Bremse etwas früher lösen, dann hat die Vorderachse mehr Grip.", "Release the brake a touch earlier and the front will bite.", "Suelta el freno un poco antes y el tren delantero agarrará más.")
+                    : ph == 2 ? RadioLanguage.T("Lenkung erst öffnen, dann voll aufs Gas.", "Open the steering first, then full throttle.", "Primero abre la dirección y luego gas a fondo.")
+                    : RadioLanguage.T("Etwas langsamer rein, dafür früher wieder aufs Gas.", "Slightly slower in, earlier back on the power.", "Entra algo más lento y acelera antes.");
+            }
+            else
+            {
+                obs = ph == 1 ? RadioLanguage.T("wird das Heck beim Anbremsen leicht", "the rear goes light under braking", "la trasera se aligera en la frenada")
+                    : ph == 2 ? RadioLanguage.T("kommt das Heck unter Gas", "the rear steps out on the throttle", "la trasera se suelta al acelerar")
+                    : RadioLanguage.T("kommt das Heck im Scheitel", "the rear steps out mid-corner", "la trasera se suelta en el vértice");
+                advice = ph == 1 ? RadioLanguage.T("Wenn's bleibt: Bremsbalance einen Klick nach vorn.", "If it stays like that: brake bias one click forward.", "Si sigue así: reparto de frenada un clic hacia delante.")
+                    : ph == 2 ? RadioLanguage.T("Sanfter ans Gas – oder Traktionskontrolle eine Stufe höher.", "Smoother on the throttle, or traction control up a step.", "Gas más suave, o sube un punto el control de tracción.")
+                    : RadioLanguage.T("Ruhiger einlenken, nicht nachlenken.", "Calmer turn-in, don't add more steering.", "Gira con más calma, sin corregir de más.");
+            }
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return Up(place) + " " + obs + ", " + Laps(laps) + ". " + advice;
+                case 1: return RadioLanguage.T("Balance-Check: ", "Balance check: ", "Equilibrio: ") + Up(place) + " " + obs + ". " + advice;
+                default: return RadioLanguage.T("Aus den Daten: ", "From the data: ", "Según los datos: ") + Up(place) + " " + obs +
+                    RadioLanguage.T(" – das sehen wir jetzt regelmäßig. ", " – we're seeing that regularly now. ", ", lo vemos con regularidad. ") + advice;
             }
         }
 

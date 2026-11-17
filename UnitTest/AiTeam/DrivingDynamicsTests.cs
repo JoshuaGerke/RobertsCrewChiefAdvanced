@@ -41,6 +41,14 @@ namespace UnitTest.AiTeamTests
             }
 
             internal void Calibrate(int laps = 3) => Run(1.0, 40, .4f, 0, laps: laps);
+
+            /// <summary>Kurvenfahrt mit Querbeschleunigung, Gierrate und Lenkeinschlag.</summary>
+            internal void Corner(double seconds, float speed, float lat, float yaw, float steer, float throttle, float distance = 1000, int laps = 3)
+            {
+                F.LatAccel = lat; F.YawRate = yaw; F.Steering = steer;
+                Run(seconds, speed, throttle, 0, distance: distance, laps: laps);
+                F.LatAccel = 0; F.YawRate = 0; F.Steering = 0;
+            }
         }
 
         [Test]
@@ -132,6 +140,39 @@ namespace UnitTest.AiTeamTests
             d.Run(1.0, 40, .4f, 0, new[] { 1.4f, 1f, 1f, 1f }, grass);
             Assert.IsFalse(d.A.Calibrated(0), "auf Gras wird nicht geeicht");
             Assert.IsTrue(d.A.Calibrated(1));
+        }
+
+        [Test]
+        public void Balance_read_finds_understeer_and_oversteer_with_corner_phase()
+        {
+            var d = new Drive(); d.Calibrate();
+            Assert.IsFalse(d.A.SteeringCalibrated);
+            d.Corner(2.5, 30, 4f, 4f / 30f, .1f, .3f, distance: 400);       // 0,4 g, Auto folgt der Bahn: Lenkverhalten lernen
+            Assert.IsTrue(d.A.SteeringCalibrated);
+            d.Corner(.6, 30, 8f, 8f / 30f, .3f, .3f, distance: 1000);       // 0,8 g, aber dreifacher Lenkeinschlag: schiebt
+            d.Corner(.2, 30, 3f, .1f, .1f, .3f, distance: 1100);
+            d.Corner(.4, 30, 6f, .3f, .05f, .8f, distance: 1200);           // dreht schneller als die Bahn, unter Gas: Heck kommt
+            d.Corner(.2, 30, 3f, .1f, .1f, .3f, distance: 1250);
+            var facts = d.A.Snapshot(4);
+            Assert.AreEqual(1, (int)facts["untersteuern_letzte_5_runden"]);
+            Assert.AreEqual(1, (int)facts["uebersteuern_letzte_5_runden"]);
+            Assert.IsTrue((bool)facts["lenkverhalten_geeicht"]);
+        }
+
+        [Test]
+        public void Balance_radio_names_phase_and_gives_matching_advice()
+        {
+            string exit = DrivingDynamicsWatch.Place("Kurve 7", 0, 2), corner = DrivingDynamicsWatch.Place("Kurve 7", 0, 0);
+            Assert.AreEqual("Am Ausgang von Kurve 7 kommt das Heck unter Gas, in zwei der letzten drei Runden. Sanfter ans Gas – oder Traktionskontrolle eine Stufe höher.",
+                DrivingDynamicsWatch.Balance(true, 2, exit, 2, 0));
+            StringAssert.Contains("In Kurve 7 schiebt das Auto beim Einlenken über die Vorderräder", DrivingDynamicsWatch.Balance(false, 1, corner, 2, 0));
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                var all = new[] { true, false }.SelectMany(o => new[] { 0, 1, 2 }.SelectMany(ph => Enumerable.Range(0, 3).Select(v => DrivingDynamicsWatch.Balance(o, ph, corner, 3, v)))).ToList();
+                Assert.AreEqual(18, all.Distinct().Count(), lang);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
         }
 
         [Test]
