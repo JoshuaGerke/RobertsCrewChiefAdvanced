@@ -164,5 +164,37 @@ namespace UnitTest.AiTeamTests
             }
             RadioLanguage.Current = RadioLanguage.German;
         }
+
+        // ---------- Technik-Check ohne Zahlenflut ----------
+
+        private static GameStateData Car(float water, float oil, float aero = 0)
+        {
+            var gs = new GameStateData(T.Ticks);
+            gs.carClass = new CarData.CarClass(); // Grenzen 115 °C Wasser, 130 °C Öl
+            gs.CarDamageData.DamageEnabled = true; gs.CarDamageData.AeroDamagePercent = aero;
+            gs.EngineData.EngineWaterTemp = water; gs.EngineData.EngineOilTemp = oil;
+            return gs;
+        }
+
+        [Test]
+        public void Healthy_car_gets_one_sentence_without_numbers()
+        {
+            string text = AiRadioSchedule.VehicleCheck(Car(91, 110), 0);
+            StringAssert.Contains("grünen Bereich", text);
+            Assert.IsFalse(text.Any(char.IsDigit), text);
+            Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => AiRadioSchedule.VehicleCheck(Car(91, 110), v)).Distinct().Count());
+        }
+
+        [Test]
+        public void Only_what_stands_out_is_named_with_its_value()
+        {
+            string hot = AiRadioSchedule.VehicleCheck(Car(108, 110), 0);
+            StringAssert.Contains("Wasser 108,0 Grad", hot);
+            StringAssert.DoesNotContain("Öl", hot);
+            string damaged = AiRadioSchedule.VehicleCheck(Car(91, 110, aero: 6), 0);
+            StringAssert.Contains("6,0", damaged);
+            var unknown = Car(91, 110); unknown.CarDamageData.DamageEnabled = false;
+            Assert.IsNull(AiRadioSchedule.VehicleCheck(unknown, 0), "ohne Schadensdaten kein „alles in Ordnung“");
+        }
     }
 }

@@ -132,7 +132,7 @@ namespace CrewChiefV4.AiTeam
             lastDeliveredText.TryGetValue(topic, out var old) && old == text && lastDeliveredUtc.TryGetValue(topic, out var when) &&
             now >= when && now - when < TimeSpan.FromMinutes(20);
         private WeatherReading lastWeather, outstandingWeather;
-        private int progressReports;
+        private int progressReports, vehicleReports;
         private int weatherVariant;
         private int session = int.MinValue;
         private readonly Random random;
@@ -224,7 +224,7 @@ namespace CrewChiefV4.AiTeam
                 string gapGroup = topic == "ahead" ? "gap-front-measured" : topic == "behind" ? "gap-rear-measured" : null;
                 int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
                 string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
-                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : gapVariant;
+                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : topic == "vehicle" ? vehicleReports++ : gapVariant;
                 string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
                 // Wetter wie ein Ingenieur (Rob 17.11., Bathurst: zweimal „Luft 21,2 Grad, Strecke 25,4 Grad“ in sechs Minuten):
@@ -333,6 +333,45 @@ namespace CrewChiefV4.AiTeam
         private static string Number(double n) { return n.ToString("0.0", RadioLanguage.Culture); }
         private static string Capitalize(string s) { return s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s.Substring(1); }
         private static bool Good(double n, double min, double max) { return !double.IsNaN(n) && !double.IsInfinity(n) && n >= min && n <= max; }
+        /// <summary>
+        /// Routine-Technikcheck wie ein Ingenieur (Rob 17.11.: „zu viele technische Details“): Ist alles im grünen Bereich,
+        /// genügt ein Satz ohne Zahlen. Nur was auffällt – Schaden ab 1 %, Wasser/Öl ab 90 % der Grenze des Fahrzeugs,
+        /// Bremsen über der Heiß-Schwelle – wird mit Wert genannt. Ohne beurteilbare Werte bleibt der bisherige Bericht.
+        /// </summary>
+        internal static string VehicleCheck(GameStateData gs, int variant)
+        {
+            var e = gs.EngineData; var t = gs.TyreData; var cls = gs.carClass;
+            bool? clean = NumericDamageWatch.NothingNotable(gs.CarDamageData);
+            bool water = Good(e.EngineWaterTemp, 1, 200), oil = Good(e.EngineOilTemp, 1, 250);
+            float waterLimit = cls != null ? cls.maxSafeWaterTemp : -1, oilLimit = cls != null ? cls.maxSafeOilTemp : -1;
+            if (clean == null || !water && !oil || water && !(waterLimit > 0) || oil && !(oilLimit > 0)) return null;
+            var issues = new List<string>();
+            if (clean == false) { string damage = IncidentWatch.DamageReport(gs.CarDamageData, true); if (!string.IsNullOrWhiteSpace(damage)) issues.Add(damage.TrimEnd('.')); }
+            if (water && e.EngineWaterTemp >= .9f * waterLimit)
+                issues.Add(RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, nah an der Grenze von " + Math.Round(waterLimit),
+                    "water " + Number(e.EngineWaterTemp) + " degrees, close to the " + Math.Round(waterLimit) + " limit",
+                    "agua " + Number(e.EngineWaterTemp) + " grados, cerca del límite de " + Math.Round(waterLimit)));
+            if (oil && e.EngineOilTemp >= .9f * oilLimit)
+                issues.Add(RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, nah an der Grenze von " + Math.Round(oilLimit),
+                    "oil " + Number(e.EngineOilTemp) + " degrees, close to the " + Math.Round(oilLimit) + " limit",
+                    "aceite " + Number(e.EngineOilTemp) + " grados, cerca del límite de " + Math.Round(oilLimit)));
+            float[] brakes = { t.LeftFrontBrakeTemp, t.RightFrontBrakeTemp, t.LeftRearBrakeTemp, t.RightRearBrakeTemp };
+            float hot = cls != null ? cls.maxHotBrakeTemp : -1;
+            bool brakesKnown = hot > 0 && brakes.All(b => Good(b, 1, 1500));
+            if (brakesKnown && brakes.Max() > hot)
+                issues.Add(RadioLanguage.T("Bremsen sehr heiß, bis " + Math.Round(brakes.Max()) + " Grad", "brakes very hot, up to " + Math.Round(brakes.Max()) + " degrees",
+                    "frenos muy calientes, hasta " + Math.Round(brakes.Max()) + " grados"));
+            if (issues.Count > 0) return Capitalize(string.Join(". ", issues.Select(Capitalize))) + ".";
+            string what = brakesKnown ? RadioLanguage.T("Motor und Bremsen", "engine and brakes", "motor y frenos") : RadioLanguage.T("Motor", "engine", "motor");
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 1: return RadioLanguage.T("Technik-Check: alles im grünen Bereich.", "Tech check: everything in the green.", "Chequeo técnico: todo en verde.");
+                case 2: return RadioLanguage.T("Vom Auto gibt's nichts zu melden: kein Schaden, Temperaturen passen.", "Nothing to report on the car: no damage, temperatures fine.", "Nada que reportar del coche: sin daños, temperaturas bien.");
+                default: return RadioLanguage.T("Auto ist in Ordnung: kein nennenswerter Schaden, " + what + " im grünen Bereich.",
+                    "Car is fine: no significant damage, " + what + " in the green.", "El coche está bien: sin daños relevantes, " + what + " en verde.");
+            }
+        }
+
         public static string VehicleReport(GameStateData gs, bool brief = false)
         {
             var parts=new List<string>();var d=gs.CarDamageData;
@@ -458,7 +497,7 @@ namespace CrewChiefV4.AiTeam
                 return Good(s.PlayerLapTimeSessionBest,10,3600) ? RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + LocalAnswers.LapTime(s.PlayerLapTimeSessionBest) + "." +
                     (s.ClassPosition>0 ? RadioLanguage.T(" Aktuell Platz "+s.ClassPosition+" in der Zeitenliste.", " Currently P"+s.ClassPosition+" on the timesheet.", " Ahora mismo P"+s.ClassPosition+" en la tabla de tiempos.") : "") : null;
             }
-            if (topic == "vehicle") return VehicleReport(gs, brief: true);
+            if (topic == "vehicle") return VehicleCheck(gs, variant) ?? VehicleReport(gs, brief: true);
             if (topic == "progress") {
                 var s=gs.SessionData;
                 if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) {

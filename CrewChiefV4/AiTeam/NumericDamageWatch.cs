@@ -34,6 +34,20 @@ namespace CrewChiefV4.AiTeam
         public static string Report(CarDamageData d) => Report(d, .05f);
 
         /// <summary>
+        /// Gibt es nennenswerten Schaden (ab 1 %)? true = nichts Nennenswertes, false = Schaden, null = nicht beurteilbar.
+        /// Mit Prozentwerten entscheiden diese; sonst die Stufen für Aero, Motor und Getriebe.
+        /// </summary>
+        internal static bool? NothingNotable(CarDamageData d)
+        {
+            if (d == null || !d.DamageEnabled) return null;
+            var known = Values(d).Where(Good).ToArray();
+            if (known.Length > 0) return known.All(v => v < 1f);
+            var levels = new[] { d.OverallAeroDamage, d.OverallEngineDamage, d.OverallTransmissionDamage };
+            if (levels.Any(l => l == DamageLevel.UNKNOWN)) return null;
+            return levels.All(l => l <= DamageLevel.TRIVIAL);
+        }
+
+        /// <summary>
         /// Rob 16.11., Bathurst: Der Routinebericht las „Motor 0,1, Bremse vorne links 0,3 …“ – lauter Kleinstwerte. Mit einer
         /// Mindestschwelle werden nur nennenswerte Werte genannt; bleibt alles darunter, genügt ein Satz.
         /// </summary>
