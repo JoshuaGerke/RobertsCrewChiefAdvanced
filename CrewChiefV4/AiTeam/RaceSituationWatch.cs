@@ -174,14 +174,26 @@ namespace CrewChiefV4.AiTeam
             }
             var e=gs.EngineData;var p=before.EngineData;
             if(e.EngineWaterTempWarning && !p.EngineWaterTempWarning)
-                Add(calls,"engine-water",RadioLanguage.T("Wassertemperatur zu hoch. Behalt die Anzeige im Blick.","Water temperature too high. Keep an eye on the gauge.","Temperatura del agua demasiado alta. Vigila el indicador."),gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineWaterTempWarning);
+                Add(calls,"engine-water",RadioVariants.Pick("engine-water",RadioLanguage.T("Wassertemperatur zu hoch. Behalt die Anzeige im Blick.","Water temperature too high. Keep an eye on the gauge.","Temperatura del agua demasiado alta. Vigila el indicador."),
+                    RadioLanguage.T("Wasser wird zu heiß. Raus aus dem Windschatten.","Water is getting too hot. Get out of the tow.","El agua se calienta demasiado. Sal del rebufo."),
+                    RadioLanguage.T("Warnung Kühlwasser. Kurz freie Luft suchen.","Coolant warning. Find some clean air.","Aviso de refrigerante. Busca aire limpio."),
+                    RadioLanguage.T("Wassertemperatur-Warnung. Motor ein paar Kurven schonen.","Water temperature warning. Go easy on the engine for a few corners.","Aviso de temperatura del agua. Cuida el motor unas curvas.")),gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineWaterTempWarning);
             if(e.EngineOilPressureWarning && !p.EngineOilPressureWarning)
-                Add(calls,"engine-oil",RadioLanguage.T("Öldruckwarnung. Motor schonen und die Anzeige prüfen.","Oil pressure warning. Look after the engine and check the gauge.","Aviso de presión de aceite. Cuida el motor y revisa el indicador."),gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineOilPressureWarning);
+                Add(calls,"engine-oil",RadioVariants.Pick("engine-oil",RadioLanguage.T("Öldruckwarnung. Motor schonen und die Anzeige prüfen.","Oil pressure warning. Look after the engine and check the gauge.","Aviso de presión de aceite. Cuida el motor y revisa el indicador."),
+                    RadioLanguage.T("Öldruck fällt ab. Drehzahl runter, früher schalten.","Oil pressure dropping. Lower revs, shift earlier.","Baja la presión de aceite. Menos vueltas, cambia antes."),
+                    RadioLanguage.T("Warnung beim Öldruck. Den Motor jetzt entlasten.","Oil pressure warning. Take load off the engine now.","Aviso de presión de aceite. Alivia el motor ahora."),
+                    RadioLanguage.T("Achtung Öldruck. Schonend fahren, bis die Warnung weg ist.","Watch the oil pressure. Drive gently until the warning clears.","Ojo a la presión de aceite. Suave hasta que se apague el aviso.")),gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineOilPressureWarning);
             if(e.EngineFuelPressureWarning && !p.EngineFuelPressureWarning)
-                Add(calls,"engine-fuel-pressure",RadioLanguage.T("Warnung beim Spritdruck. Schau auf die Anzeige.","Fuel pressure warning. Check the gauge.","Aviso de presión de combustible. Mira el indicador."),gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineFuelPressureWarning);
+                Add(calls,"engine-fuel-pressure",RadioVariants.Pick("engine-fuel-pressure",RadioLanguage.T("Warnung beim Spritdruck. Schau auf die Anzeige.","Fuel pressure warning. Check the gauge.","Aviso de presión de combustible. Mira el indicador."),
+                    RadioLanguage.T("Spritdruck-Warnung. Melde dich, wenn der Motor stottert.","Fuel pressure warning. Tell us if the engine stutters.","Aviso de presión de combustible. Avisa si el motor falla."),
+                    RadioLanguage.T("Achtung, Spritdruck niedrig. Behalte die Anzeige im Blick.","Careful, fuel pressure low. Keep an eye on the gauge.","Cuidado, presión de combustible baja. Vigila el indicador."),
+                    RadioLanguage.T("Der Spritdruck meldet sich. Gleichmäßig fahren und beobachten.","Fuel pressure is flagging. Drive smoothly and watch it.","La presión de combustible da aviso. Conduce suave y vigílala.")),gs,now,TeamMember.Mik,7,s=>s.EngineData.EngineFuelPressureWarning);
             if(!before.PitData.CarInFrontIsPitting && gs.PitData.CarInFrontIsPitting &&
                 NativeFieldFact.Capture("car_in_front_is_pitting",null,gs)==null)
-                Add(calls,"opponent-pit",RadioLanguage.T("Dein bisheriger Vordermann ist auf dem Weg in die Box.","The car that was ahead of you is heading into the pits.","El que iba delante de ti entra en boxes."),gs,now,TeamMember.Ben,3,null);
+                Add(calls,"opponent-pit",RadioVariants.Pick("opponent-pit",RadioLanguage.T("Dein bisheriger Vordermann ist auf dem Weg in die Box.","The car that was ahead of you is heading into the pits.","El que iba delante de ti entra en boxes."),
+                    RadioLanguage.T("Der Vordermann biegt in die Box ab.","The car ahead is turning into the pits.","El de delante entra en boxes."),
+                    RadioLanguage.T("Vor dir geht einer an die Box – freie Bahn.","The car ahead is pitting – clear track.","El de delante va a boxes: pista libre."),
+                    RadioLanguage.T("Box für den Vordermann. Jetzt Tempo machen.","The car ahead is boxing. Push now.","Parada para el de delante. Ahora aprieta.")),gs,now,TeamMember.Ben,3,null);
             return calls;
         }
         private ObservedRaceCall Add(List<ObservedRaceCall> calls,string topic,string text,GameStateData gs,DateTime now,TeamMember member,int priority,Func<GameStateData,bool> valid)
