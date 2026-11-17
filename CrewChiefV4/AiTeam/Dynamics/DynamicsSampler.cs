@@ -56,6 +56,7 @@ namespace CrewChiefV4.AiTeam
         {
             if (view == null) return false;
             byte* pointer = null;
+            bool failed = false;
             var handle = view.SafeMemoryMappedViewHandle;
             try
             {
@@ -72,8 +73,9 @@ namespace CrewChiefV4.AiTeam
                 }
                 if (!copied) return false;
             }
-            catch (Exception) { Close(); return false; }
-            finally { if (pointer != null) handle.ReleasePointer(); }
+            catch (Exception) { failed = true; }
+            finally { if (pointer != null) { try { handle.ReleasePointer(); } catch (Exception) { } } }
+            if (failed) { Close(); return false; } // erst nach dem Freigeben schließen
             f.TimeS = timeS;
             return Parse(buffer, f);
         }

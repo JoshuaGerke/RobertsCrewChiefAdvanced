@@ -165,6 +165,7 @@ namespace CrewChiefV4.AiTeam
                 float k = f.Speed / rot;
                 if (scaleSamples[i] == 0) scale[i] = k;
                 else if (Math.Abs(k - scale[i]) / scale[i] < .15f) scale[i] += (k - scale[i]) * (scaleSamples[i] < CalibrationSamples ? .2f : .02f);
+                else if (scaleSamples[i] < CalibrationSamples) { scale[i] = k; scaleSamples[i] = 1; continue; } // schlechter Start: neu beginnen
                 else continue; // Ausreißer (Schlupf) nicht lernen
                 if (scaleSamples[i] < int.MaxValue) scaleSamples[i]++;
             }
