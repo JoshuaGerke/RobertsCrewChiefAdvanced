@@ -94,7 +94,7 @@ namespace CrewChiefV4.AiTeam
         private ObservedRaceCall limitCall,speedCall;
         public void Reset()
         {epoch++;session=int.MinValue;type=SessionType.Unavailable;track=null;reportedLimit=-1;lastSpeed=0;initialized=wasInPits=approachHandled=departureHandled=wasNewSession=lastPitRequest=limitCallBeforeLane=remindedThisVisit=false;
-            speedingSince=lastWarning=lastProgress=lastTick=lastReminder=lastReminderUtc=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
+            speedingSince=lastWarning=lastProgress=lastTick=lastReminder=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
         private static bool Speeding(GameStateData gs,float limit)
         {return gs!=null && gs.PitData.InPitlane && Known(gs.PitData.PitSpeedLimit) && Math.Abs(gs.PitData.PitSpeedLimit-limit)<.1f && gs.PositionAndMotionData.CarSpeed>limit+.5f && gs.PositionAndMotionData.CarSpeed<=180;}
         public static bool Approaching(GameStateData gs)
@@ -153,7 +153,7 @@ namespace CrewChiefV4.AiTeam
                 approachHandled=true;reportedLimit=Known(limit)?limit:-1;
                 if(changedLimit || (limitCall==null || !limitCall.IsValid(gs,now)) &&
                     (lastReminder==DateTime.MinValue || now-lastReminder>=TimeSpan.FromSeconds(20)))
-                    limitCall=Reminder(gs,now,limit,7,true,"confirmed_pit_approach_before_lane_entry");
+                    limitCall=Reminder(gs,now,limit,7,true,"confirmed_pit_approach_before_lane_entry",false,changedLimit);
             }
             if(inPits)
             {
@@ -165,7 +165,7 @@ namespace CrewChiefV4.AiTeam
                 if(newLimit || entered && !recentlyReminded && !remindedThisVisit || leavingBox && limitCall==null && !recentlyReminded)
                 {
                     if(leavingBox) departureHandled=true;
-                    limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit");
+                    limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit",false,newLimit || leavingBox);
                 }
                 if(Known(limit)) reportedLimit=limit;
                 if(leavingBox) departureHandled=true;
@@ -190,13 +190,14 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kurze Bestätigung der Boxenanforderung (Rob 16.11.); sagt bewusst nicht „diese/nächste Runde“.</summary>
         public static string[] RequestConfirmations => RadioLanguage.Pick(RequestConfirmDe,RequestConfirmEn,RequestConfirmEs);
         private int confirmVariant;
-        private DateTime lastReminderUtc=DateTime.MinValue;
-        /// <summary>Bathurst 17.11.: achtmal Boxenlimit in einer Session. Höchstens eine Erinnerung je 90 s (Box rein/raus zählt einmal).</summary>
+        /// <summary>Bathurst 17.11.: achtmal Boxenlimit in einer Session. Nach einer gesprochenen Erinnerung höchstens eine weitere je 90 s.
+        /// Ausnahmen: Bestätigung einer Boxenanforderung, ein neu gemeldetes Limit und das Losfahren nach dem Stopp.</summary>
         internal static readonly TimeSpan ReminderSpacing=TimeSpan.FromSeconds(90);
-        private ObservedRaceCall Reminder(GameStateData gs,DateTime now,float limit,int priority,bool approach,string evidence,bool request=false)
+        public static bool ReminderThrottled(DateTime now,DateTime lastSpoken,bool exempt)
+            => !exempt && lastSpoken!=DateTime.MinValue && now>=lastSpoken && now-lastSpoken<ReminderSpacing;
+        private ObservedRaceCall Reminder(GameStateData gs,DateTime now,float limit,int priority,bool approach,string evidence,bool request=false,bool exempt=false)
         {
-            if(!request && now>=lastReminderUtc && now-lastReminderUtc<ReminderSpacing){LiveDiagnostics.Decision("pit-limit","suppressed","reminder_within_90s");return null;}
-            lastReminderUtc=now;
+            if(ReminderThrottled(now,lastReminder,request || exempt)){LiveDiagnostics.Decision("pit-limit","suppressed","reminder_within_90s");return null;}
             var phrases=Phrases(limit).ToArray();
             string text=phrases[variant++%phrases.Length];
             if(request){var confirm=RequestConfirmations;text=confirm[confirmVariant++%confirm.Length]+" "+text;}

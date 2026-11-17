@@ -87,24 +87,24 @@ namespace CrewChiefV4.AiTeam
             "Diese Runde ist ungültig. Konzentrier dich auf die nächste Runde.",
             "Die Rundenzeit ist ungültig. Konzentrier dich auf die nächste gültige Zeit.",
             "Runde ungültig. Ruhig bleiben und wieder eine gültige Zeit setzen.",
-            "Die Zeit zählt nicht. Abhaken, nächste Runde sauber.",
-            "Runde gestrichen. Neu aufbauen, du hast das Tempo.",
-            "Ungültig, leider. Kopf frei und weiter."
+            "Die Zeit ist ungültig, die zählt nicht. Abhaken, nächste Runde.",
+            "Runde ungültig, gestrichen. Neu aufbauen, du hast das Tempo.",
+            "Leider ungültig. Kopf frei und weiter."
         };
         private static readonly string[] FirstInvalidLapPhrasesEn = {
             "This lap is invalid. Focus on the next one.",
             "The lap time is invalid. Focus on the next valid time.",
             "Lap invalid. Stay calm and set a valid time again.",
-            "That time won't count. Forget it, clean next lap.",
-            "Lap deleted. Build it again, you've got the pace.",
+            "That time is invalid, it won't count. Forget it, next lap.",
+            "Lap invalid, deleted. Build it again, you've got the pace.",
             "Invalid, unfortunately. Clear your head and go again."
         };
         private static readonly string[] FirstInvalidLapPhrasesEs = {
             "Esta vuelta no es válida. Concéntrate en la siguiente.",
             "El tiempo de vuelta no es válido. Concéntrate en el próximo tiempo válido.",
             "Vuelta invalidada. Tranquilo y vuelve a marcar un tiempo válido.",
-            "Ese tiempo no cuenta. Olvídalo, la próxima limpia.",
-            "Vuelta anulada. Vuelve a construirla, tienes el ritmo.",
+            "Ese tiempo no es válido, no cuenta. Olvídalo, la próxima.",
+            "Vuelta inválida, anulada. Vuelve a construirla, tienes el ritmo.",
             "Inválida, por desgracia. Cabeza despejada y otra vez."
         };
         public static string[] FirstInvalidLapPhrases => RadioLanguage.Pick(FirstInvalidLapPhrasesDe, FirstInvalidLapPhrasesEn, FirstInvalidLapPhrasesEs);
@@ -112,25 +112,25 @@ namespace CrewChiefV4.AiTeam
             "Noch eine ungültige Runde. Wir brauchen wieder eine gültige Zeit.",
             "Wieder keine gültige Rundenzeit. Bleib konzentriert.",
             "Die Runde ist erneut ungültig. Konzentrier dich auf die nächste.",
-            "Wieder gestrichen. Lieber einmal sauber als zweimal am Limit vorbei.",
-            "Auch diese Zeit zählt nicht. Ruhig, die gültige kommt.",
-            "Noch eine ohne Wertung. Ein bisschen mehr Reserve zum Rand."
+            "Wieder ungültig. Durchatmen, die nächste zählt.",
+            "Auch diese Zeit ist ungültig. Ruhig, die gültige kommt.",
+            "Schon wieder ungültig. Konzentration, eine saubere Runde reicht."
         };
         private static readonly string[] RepeatedInvalidLapPhrasesEn = {
             "Another invalid lap. We need a valid time again.",
             "No valid lap time again. Stay focused.",
             "The lap is invalid again. Focus on the next one.",
-            "Deleted again. Better one clean lap than two over the limit.",
-            "This one doesn't count either. Stay calm, the valid one will come.",
-            "Another one without a time. A bit more margin to the edge."
+            "Invalid again. Breathe, the next one counts.",
+            "This time is invalid too. Stay calm, the valid one will come.",
+            "Invalid once more. Focus, one clean lap is enough."
         };
         private static readonly string[] RepeatedInvalidLapPhrasesEs = {
             "Otra vuelta inválida. Necesitamos de nuevo un tiempo válido.",
             "Otra vez sin tiempo válido. Mantén la concentración.",
             "La vuelta vuelve a ser inválida. Concéntrate en la siguiente.",
-            "Anulada otra vez. Mejor una limpia que dos pasándote.",
-            "Esta tampoco cuenta. Tranquilo, la válida llegará.",
-            "Otra sin tiempo. Un poco más de margen al borde."
+            "Inválida otra vez. Respira, la siguiente cuenta.",
+            "Este tiempo tampoco es válido. Tranquilo, la válida llegará.",
+            "Inválida de nuevo. Concentración, basta una vuelta limpia."
         };
         public static string[] RepeatedInvalidLapPhrases => RadioLanguage.Pick(RepeatedInvalidLapPhrasesDe, RepeatedInvalidLapPhrasesEn, RepeatedInvalidLapPhrasesEs);
         /// <summary>Zusatz, wenn eine Tracklimit-Meldung die Runde ungültig macht.</summary>

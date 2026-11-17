@@ -142,16 +142,22 @@ namespace CrewChiefV4.AiTeam
             int start = startPosition > 0 ? startPosition : RaceStartLatch.Position(s);
             int gained = start > 0 ? start - s.ClassPosition : 0;
             string intro = name.Length > 0 ? name + ", " : "";
+            string head = RadioVariants.Pick("summary-head",
+                RadioLanguage.T("kurzer Zwischenstand", "quick update", "resumen rápido"),
+                RadioLanguage.T("kurz zur Lage", "quick status", "situación rápida"),
+                RadioLanguage.T("Stand der Dinge", "where we are", "cómo vamos"),
+                RadioLanguage.T("kleines Update", "short update", "pequeña actualización"));
+            if (intro.Length == 0) head = Capitalize(head);
             if (gained > 0)
-                parts.Add(RadioLanguage.T(intro + "kurzer Zwischenstand: " + rank + ", seit dem Start " + gained + (gained == 1 ? " Platz" : " Plätze") + " gutgemacht.",
-                    intro + "quick update: " + rank + ", " + gained + (gained == 1 ? " place" : " places") + " gained since the start.",
-                    intro + "resumen rápido: " + rank + ", " + gained + (gained == 1 ? " puesto" : " puestos") + " ganados desde la salida."));
+                parts.Add(RadioLanguage.T(intro + head + ": " + rank + ", seit dem Start " + gained + (gained == 1 ? " Platz" : " Plätze") + " gutgemacht.",
+                    intro + head + ": " + rank + ", " + gained + (gained == 1 ? " place" : " places") + " gained since the start.",
+                    intro + head + ": " + rank + ", " + gained + (gained == 1 ? " puesto" : " puestos") + " ganados desde la salida."));
             else if (gained < 0)
-                parts.Add(RadioLanguage.T(intro + "kurzer Zwischenstand: " + rank + ", " + (-gained) + (gained == -1 ? " Platz" : " Plätze") + " hinter der Startposition.",
-                    intro + "quick update: " + rank + ", " + (-gained) + (gained == -1 ? " place" : " places") + " down from the start.",
-                    intro + "resumen rápido: " + rank + ", " + (-gained) + (gained == -1 ? " puesto" : " puestos") + " por detrás de la salida."));
+                parts.Add(RadioLanguage.T(intro + head + ": " + rank + ", " + (-gained) + (gained == -1 ? " Platz" : " Plätze") + " hinter der Startposition.",
+                    intro + head + ": " + rank + ", " + (-gained) + (gained == -1 ? " place" : " places") + " down from the start.",
+                    intro + head + ": " + rank + ", " + (-gained) + (gained == -1 ? " puesto" : " puestos") + " por detrás de la salida."));
             else
-                parts.Add(RadioLanguage.T(intro + "kurzer Zwischenstand: " + rank + ".", intro + "quick update: " + rank + ".", intro + "resumen rápido: " + rank + "."));
+                parts.Add(intro + head + ": " + rank + ".");
 
             var front = RaceDataTools.Neighbour(gs, true);
             var rear = RaceDataTools.Neighbour(gs, false);
@@ -164,17 +170,25 @@ namespace CrewChiefV4.AiTeam
                 string who = frontName.Length > 0 ? frontName : RadioLanguage.T("dem Vordermann", "the car ahead", "el de delante");
                 string trend = frontGaps.Count >= 2 && frontTrend < -.3f ? RadioLanguage.T(", du holst auf", ", and you're closing", ", y te acercas")
                     : frontGaps.Count >= 2 && frontTrend > .3f ? RadioLanguage.T(", er zieht leicht weg", ", he's pulling away a bit", ", se escapa un poco") : "";
-                parts.Add(RadioLanguage.T("Auf " + who + " fehlen " + GermanRadioText.Interval(ahead) + trend + ".",
-                    GermanRadioText.Interval(ahead) + " to " + who + trend + ".", GermanRadioText.Interval(ahead) + " hasta " + who + trend + "."));
+                string gap = GermanRadioText.Interval(ahead);
+                string whoN = frontName.Length > 0 ? frontName : RadioLanguage.T("der Vordermann", "the car ahead", "el de delante");
+                parts.Add(RadioVariants.Pick("summary-front",
+                    RadioLanguage.T("Auf " + who + " fehlen " + gap + trend + ".", gap + " to " + who + trend + ".", gap + " hasta " + who + trend + "."),
+                    RadioLanguage.T(Capitalize(whoN) + " ist " + gap + " vor dir" + trend + ".", Capitalize(whoN) + " is " + gap + " up the road" + trend + ".", Capitalize(whoN) + " va " + gap + " por delante" + trend + "."),
+                    RadioLanguage.T("Abstand nach vorn " + gap + trend + ".", "Gap ahead " + gap + trend + ".", "Diferencia hacia delante " + gap + trend + "."),
+                    RadioLanguage.T("Nach vorn fehlen " + gap + trend + ".", gap + " to find up front" + trend + ".", "Faltan " + gap + " hacia delante" + trend + ".")));
             }
             if (behind > 0)
             {
                 string who = rearName.Length > 0 ? rearName : RadioLanguage.T("der Hintermann", "the car behind", "el de detrás");
                 string trend = rearGaps.Count >= 2 && rearTrend < -.3f ? RadioLanguage.T(" und kommt näher", " and closing", " y se acerca")
                     : rearGaps.Count >= 2 && rearTrend > .3f ? RadioLanguage.T(", du baust den Vorsprung aus", ", you're extending the gap", ", amplías la ventaja") : "";
-                parts.Add(RadioLanguage.T(Capitalize(who) + " liegt " + GermanRadioText.Interval(behind) + " hinter dir" + trend + ".",
-                    Capitalize(who) + " is " + GermanRadioText.Interval(behind) + " back" + trend + ".",
-                    Capitalize(who) + " está a " + GermanRadioText.Interval(behind) + trend + "."));
+                string gap = GermanRadioText.Interval(behind);
+                parts.Add(RadioVariants.Pick("summary-rear",
+                    RadioLanguage.T(Capitalize(who) + " liegt " + gap + " hinter dir" + trend + ".", Capitalize(who) + " is " + gap + " back" + trend + ".", Capitalize(who) + " está a " + gap + trend + "."),
+                    RadioLanguage.T(Capitalize(who) + " folgt mit " + gap + trend + ".", Capitalize(who) + " follows at " + gap + trend + ".", Capitalize(who) + " te sigue a " + gap + trend + "."),
+                    RadioLanguage.T(Capitalize(who) + " hängt " + gap + " hinter dir" + trend + ".", Capitalize(who) + " sits " + gap + " behind" + trend + ".", Capitalize(who) + " va " + gap + " detrás" + trend + "."),
+                    RadioLanguage.T("Im Rückspiegel " + who + ", " + gap + " zurück" + trend + ".", "In the mirrors, " + who + ", " + gap + " back" + trend + ".", "En el retrovisor, " + who + ", a " + gap + trend + ".")));
             }
             var fuel = FuelEstimate.From(ctx, 1);
             string verdict = fuel?.Verdict();
@@ -183,8 +197,14 @@ namespace CrewChiefV4.AiTeam
             if (tyres != null) parts.Add(tyres);
             bool incidentsTight = IncidentPointsWatch.Known(s) && IncidentPointsWatch.Level(s.CurrentIncidentCount, s.MaxIncidentCount) >= 3;
             if (incidentsTight)
-                parts.Add(RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
-                    "Incident points " + s.CurrentIncidentCount + " of " + s.MaxIncidentCount + ".", "Puntos de incidente " + s.CurrentIncidentCount + " de " + s.MaxIncidentCount + "."));
+            {
+                string c = s.CurrentIncidentCount.ToString(), m = s.MaxIncidentCount.ToString();
+                parts.Add(RadioVariants.Pick("summary-incidents",
+                    RadioLanguage.T("Vorfallpunkte " + c + " von " + m + ".", "Incident points " + c + " of " + m + ".", "Puntos de incidente " + c + " de " + m + "."),
+                    RadioLanguage.T("Achtung Vorfallpunkte: " + c + " von " + m + ".", "Watch the incident points: " + c + " of " + m + ".", "Ojo a los puntos de incidente: " + c + " de " + m + "."),
+                    RadioLanguage.T("Du stehst bei " + c + " von " + m + " Vorfallpunkten.", "You're on " + c + " of " + m + " incident points.", "Llevas " + c + " de " + m + " puntos de incidente."),
+                    RadioLanguage.T(c + " von " + m + " Vorfallpunkten, sauber bleiben.", c + " of " + m + " incident points, keep it clean.", c + " de " + m + " puntos de incidente, mantenlo limpio.")));
+            }
 
             // Der Rennkopf kennt Trends, Gefahren und Chancen; seine Einschätzung bestimmt den Schlusssatz. Ohne frische Lage die eigene Regel.
             var x = RaceMind.Latest;

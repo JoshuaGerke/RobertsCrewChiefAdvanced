@@ -216,5 +216,14 @@ namespace UnitTest.AiTeamTests
             if(known){Assert.AreEqual(80,(int)data["boxenlimit_kmh"]);Assert.IsNotNull(data["boxenlimit_ms"]);}
             else{Assert.IsNull(data["boxenlimit_kmh"]);Assert.IsNull(data["boxenlimit_ms"]);}
         }
+
+        [Test]
+        public void Limit_reminder_waits_90_seconds_after_a_spoken_one_except_for_new_information()
+        {
+            Assert.IsFalse(PitLaneWatch.ReminderThrottled(T,DateTime.MinValue,false),"noch nichts gesagt");
+            Assert.IsTrue(PitLaneWatch.ReminderThrottled(T.AddSeconds(45),T,false),"Bathurst 17.11.: keine Wiederholung nach 45 s");
+            Assert.IsFalse(PitLaneWatch.ReminderThrottled(T.AddSeconds(91),T,false));
+            Assert.IsFalse(PitLaneWatch.ReminderThrottled(T.AddSeconds(30),T,true),"neues Limit, Losfahren und Boxenanforderung bleiben");
+        }
     }
 }
