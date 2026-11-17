@@ -219,7 +219,13 @@ namespace CrewChiefV4.AiTeam
             {
                 // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
                 if (TechnicalBudgetBlocks(topic, now)) continue;
-                due[topic] = now.AddSeconds(prefs.NextDelaySeconds(topic, random));
+                double delay = prefs.NextDelaySeconds(topic, random);
+                // Bathurst 17.11.: Restzeit im Training alle 3–4 Minuten ist zu oft. Außerhalb des Rennens höchstens alle 6 Minuten,
+                // in den letzten 10 Minuten wieder im eingestellten Takt.
+                var sd = ctx.GameState?.SessionData;
+                if (topic == "progress" && sd != null && sd.SessionType != SessionType.Race &&
+                    !(sd.SessionHasFixedTime && sd.SessionTimeRemaining > 0 && sd.SessionTimeRemaining < 600)) delay = Math.Max(delay, PracticeProgressSeconds);
+                due[topic] = now.AddSeconds(delay);
                 TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
                 var cursor = topic == "fuel" ? fuelVariants : topic == "ahead" ? aheadVariants : topic == "behind" ? behindVariants : null;
@@ -343,6 +349,8 @@ namespace CrewChiefV4.AiTeam
         private string lastFuelVerdict;
         /// <summary>Über diesem Abstand (s) ist ein Gegner im Rennen weder Zweikampf noch Ziel – keine Abstandsmeldung.</summary>
         internal const float MaxRelevantGap = 20f;
+        /// <summary>Restzeit außerhalb des Rennens höchstens so oft (Sekunden).</summary>
+        internal const double PracticeProgressSeconds = 360;
 
         private int NextTurn(string topic) { topicTurns.TryGetValue(topic, out int n); topicTurns[topic] = n + 1; return n; }
 

@@ -94,7 +94,7 @@ namespace CrewChiefV4.AiTeam
         private ObservedRaceCall limitCall,speedCall;
         public void Reset()
         {epoch++;session=int.MinValue;type=SessionType.Unavailable;track=null;reportedLimit=-1;lastSpeed=0;initialized=wasInPits=approachHandled=departureHandled=wasNewSession=lastPitRequest=limitCallBeforeLane=remindedThisVisit=false;
-            speedingSince=lastWarning=lastProgress=lastTick=lastReminder=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
+            speedingSince=lastWarning=lastProgress=lastTick=lastReminder=lastReminderUtc=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
         private static bool Speeding(GameStateData gs,float limit)
         {return gs!=null && gs.PitData.InPitlane && Known(gs.PitData.PitSpeedLimit) && Math.Abs(gs.PitData.PitSpeedLimit-limit)<.1f && gs.PositionAndMotionData.CarSpeed>limit+.5f && gs.PositionAndMotionData.CarSpeed<=180;}
         public static bool Approaching(GameStateData gs)
@@ -190,8 +190,13 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kurze Bestätigung der Boxenanforderung (Rob 16.11.); sagt bewusst nicht „diese/nächste Runde“.</summary>
         public static string[] RequestConfirmations => RadioLanguage.Pick(RequestConfirmDe,RequestConfirmEn,RequestConfirmEs);
         private int confirmVariant;
+        private DateTime lastReminderUtc=DateTime.MinValue;
+        /// <summary>Bathurst 17.11.: achtmal Boxenlimit in einer Session. Höchstens eine Erinnerung je 90 s (Box rein/raus zählt einmal).</summary>
+        internal static readonly TimeSpan ReminderSpacing=TimeSpan.FromSeconds(90);
         private ObservedRaceCall Reminder(GameStateData gs,DateTime now,float limit,int priority,bool approach,string evidence,bool request=false)
         {
+            if(!request && now>=lastReminderUtc && now-lastReminderUtc<ReminderSpacing){LiveDiagnostics.Decision("pit-limit","suppressed","reminder_within_90s");return null;}
+            lastReminderUtc=now;
             var phrases=Phrases(limit).ToArray();
             string text=phrases[variant++%phrases.Length];
             if(request){var confirm=RequestConfirmations;text=confirm[confirmVariant++%confirm.Length]+" "+text;}
