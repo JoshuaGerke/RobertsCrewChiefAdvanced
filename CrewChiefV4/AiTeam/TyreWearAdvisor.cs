@@ -128,7 +128,7 @@ namespace CrewChiefV4.AiTeam
             if (lap == null || memory == null || !lap.Valid || lap.InPitLap || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane) return;
             if (s.CompletedLaps - lastWarnLap < 3) return;
             var t = gs.TyreData;
-            if (!t.TyreWearActive) return;
+            if (!t.TyreWearActive || !DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear)) return;
             float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
             // Eigene Messung dieser Fahrt zuerst; sonst die gespeicherte Rate dieses Autos auf dieser Strecke mit derselben Mischung.
             int laps = TyreWearAdvisor.LapsToEnd(wear, memory.AverageWearPerLap(3) ?? storedRate, TyreWearAdvisor.Calibrated(Game.gameType), out int corner);
