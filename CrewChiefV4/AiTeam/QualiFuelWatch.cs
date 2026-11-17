@@ -29,12 +29,23 @@ namespace CrewChiefV4.AiTeam
             if (fuelLaps < needLaps + 3) return null;
             float extra = fuelLeft - needLaps * perLap;
             string n = string.IsNullOrWhiteSpace(name) ? "" : name + ", ";
-            return RadioLanguage.T(n + "du hast Sprit für etwa " + fuelLaps + " Runden dabei, die Quali braucht nur noch rund " + needLaps + ". Das sind gut " +
+            string litres = RadioLanguage.Num(extra, "0");
+            return RadioVariants.Pick("quali-fuel-ballast",
+                RadioLanguage.T(n + "du hast Sprit für etwa " + fuelLaps + " Runden dabei, die Quali braucht nur noch rund " + needLaps + ". Das sind gut " +
                     RadioLanguage.Num(extra, "0") + " Liter Ballast. Fürs nächste Qualifying leichter rausfahren.",
                 n + "you've got fuel for about " + fuelLaps + " laps, qualifying only needs around " + needLaps + " more. That's a good " +
                     RadioLanguage.Num(extra, "0") + " litres of ballast. Go out lighter next qualifying.",
                 n + "llevas combustible para unas " + fuelLaps + " vueltas, la clasificación solo necesita unas " + needLaps + ". Son unos " +
-                    RadioLanguage.Num(extra, "0") + " litros de lastre. En la próxima clasificación sal más ligero.");
+                    RadioLanguage.Num(extra, "0") + " litros de lastre. En la próxima clasificación sal más ligero."),
+                RadioLanguage.T(n + "für die restliche Quali reichen rund " + needLaps + " Runden, du hast Sprit für etwa " + fuelLaps + ". Gut " + litres + " Liter zu viel an Bord. Nächstes Mal weniger tanken.",
+                    n + "the rest of qualifying needs around " + needLaps + " laps, you've got fuel for about " + fuelLaps + ". A good " + litres + " litres too much on board. Fuel less next time.",
+                    n + "para lo que queda de clasificación bastan unas " + needLaps + " vueltas, llevas para unas " + fuelLaps + ". Unos " + litres + " litros de más. La próxima vez carga menos."),
+                RadioLanguage.T(n + "du fährst gut " + litres + " Liter Ballast spazieren: Sprit für etwa " + fuelLaps + " Runden, nötig sind rund " + needLaps + ". Fürs nächste Qualifying leichter.",
+                    n + "you're carrying a good " + litres + " litres of ballast: fuel for about " + fuelLaps + " laps, around " + needLaps + " needed. Lighter for next qualifying.",
+                    n + "llevas unos " + litres + " litros de lastre: combustible para unas " + fuelLaps + " vueltas, hacen falta unas " + needLaps + ". Más ligero en la próxima clasificación."),
+                RadioLanguage.T(n + "nur zur Info: rund " + needLaps + " Runden Quali bleiben, im Tank ist Sprit für etwa " + fuelLaps + ". Gut " + litres + " Liter könnten nächstes Mal draußen bleiben.",
+                    n + "just so you know: around " + needLaps + " laps of qualifying left, fuel for about " + fuelLaps + " in the tank. A good " + litres + " litres could stay out next time.",
+                    n + "para que lo sepas: quedan unas " + needLaps + " vueltas de clasificación y hay combustible para unas " + fuelLaps + ". Unos " + litres + " litros podrían quedarse fuera la próxima vez."));
         }
 
         internal void Observe(GameStateData gs, AiRaceMemory memory, string name, DateTime now)

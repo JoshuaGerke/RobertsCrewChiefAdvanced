@@ -215,8 +215,16 @@ namespace CrewChiefV4.AiTeam
                 var catalog = RadioPhraseCatalog.Current;
                 int variant = mergeVariants.Select(group, catalog.Count(group));
                 string message = outcome.Status == "traffic"
-                    ? RadioLanguage.T("An der Boxenausfahrt könnte Verkehr sein.", "There may be traffic at pit exit.", "Puede haber tráfico al salir de boxes.")
-                    : RadioLanguage.T("An der Boxenausfahrt sieht es nach einer freien Lücke aus.", "Pit exit looks likely to be clear.", "La salida de boxes parece despejada.");
+                    ? RadioVariants.Pick("pit-exit-traffic",
+                        RadioLanguage.T("An der Boxenausfahrt könnte Verkehr sein.", "There may be traffic at pit exit.", "Puede haber tráfico al salir de boxes."),
+                        RadioLanguage.T("Beim Rausfahren kann es eng werden, Augen auf.", "It could be tight on the way out, eyes open.", "Puede estar justo al salir, ojos abiertos."),
+                        RadioLanguage.T("Rechne an der Ausfahrt mit Autos auf der Strecke.", "Expect cars on track at pit exit.", "Cuenta con coches en pista a la salida de boxes."),
+                        RadioLanguage.T("Die Ausfahrt könnte mitten in Verkehr führen.", "Pit exit could put you into traffic.", "La salida de boxes podría dejarte en tráfico."))
+                    : RadioVariants.Pick("pit-exit-clear",
+                        RadioLanguage.T("An der Boxenausfahrt sieht es nach einer freien Lücke aus.", "Pit exit looks likely to be clear.", "La salida de boxes parece despejada."),
+                        RadioLanguage.T("Die Ausfahrt sieht frei aus.", "Pit exit looks clear.", "La salida parece libre."),
+                        RadioLanguage.T("Beim Rausfahren sollte eine Lücke da sein.", "There should be a gap when you come out.", "Al salir debería haber hueco."),
+                        RadioLanguage.T("Nach der Ausfahrt sieht es nach freier Bahn aus.", "Looks like clear track after pit exit.", "Tras la salida parece que hay pista libre."));
                 mergeCall = new ObservedRaceCall { Topic=group, Text=catalog.Format(group, variant, message), Member=TeamMember.Mik,
                     Evidence="measured_prior_pit_visit;bounded_estimated_traffic", Priority=3, Position=-1,
                     SessionId=state.SessionData.SessionId, SessionType=state.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(8),

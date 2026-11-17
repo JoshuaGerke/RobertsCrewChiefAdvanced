@@ -135,8 +135,15 @@ namespace CrewChiefV4.AiTeam
                     int before = positionBeforeIncident, nowPos = current.SessionData.ClassPosition;
                     if (before > 0 && nowPos > before)
                     {
-                        report = RadioLanguage.T("Du bist von Platz " + before + " auf " + nowPos + " zurückgefallen. ",
-                            "You've dropped from P" + before + " to P" + nowPos + ". ", "Has caído de P" + before + " a P" + nowPos + ". ") + report;
+                        report = RadioVariants.Pick("incident-dropped",
+                            RadioLanguage.T("Du bist von Platz " + before + " auf " + nowPos + " zurückgefallen. ",
+                                "You've dropped from P" + before + " to P" + nowPos + ". ", "Has caído de P" + before + " a P" + nowPos + ". "),
+                            RadioLanguage.T("Das hat Plätze gekostet, von " + before + " auf " + nowPos + ". ",
+                                "That cost us places, P" + before + " down to P" + nowPos + ". ", "Eso nos ha costado puestos, de P" + before + " a P" + nowPos + ". "),
+                            RadioLanguage.T("Wir sind jetzt Platz " + nowPos + ", vorher " + before + ". ",
+                                "We're P" + nowPos + " now, we were P" + before + ". ", "Ahora somos P" + nowPos + ", antes P" + before + ". "),
+                            RadioLanguage.T("Platz " + before + " ist weg, du bist jetzt " + nowPos + ". ",
+                                "P" + before + " is gone, you're P" + nowPos + " now. ", "Perdimos P" + before + ", ahora vas P" + nowPos + ". ")) + report;
                     }
                     assessment = new DamageAssessment
                     {
@@ -160,8 +167,15 @@ namespace CrewChiefV4.AiTeam
                 if (current.SessionData.SessionType == SessionType.Race && behind >= 0.1f && behind < 15)
                 {
                     string gap = SaraLocal.Seconds(behind);
-                    text += RadioLanguage.T(" Der Nächste war zuletzt etwa " + gap + " hinter dir.", " The next car was last about " + gap + " behind you.",
-                        " El siguiente iba hace un momento a unos " + gap + " detrás de ti.");
+                    text += RadioVariants.Pick("incident-stopped-gap",
+                        RadioLanguage.T(" Der Nächste war zuletzt etwa " + gap + " hinter dir.", " The next car was last about " + gap + " behind you.",
+                            " El siguiente iba hace un momento a unos " + gap + " detrás de ti."),
+                        RadioLanguage.T(" Hinter dir zuletzt etwa " + gap + " Luft, schau beim Anfahren.", " About " + gap + " to the car behind last time, careful rejoining.",
+                            " Hace un momento tenías unos " + gap + " al de detrás, cuidado al volver."),
+                        RadioLanguage.T(" Der Hintermann lag zuletzt rund " + gap + " zurück.", " The car behind was last around " + gap + " back.",
+                            " El de detrás estaba hace poco a unos " + gap + "."),
+                        RadioLanguage.T(" Zuletzt etwa " + gap + " bis zum nächsten Auto hinter dir.", " Last gap to the next car behind was about " + gap + ".",
+                            " La última diferencia con el siguiente coche era de unos " + gap + "."));
                 }
                 result.Add(Say(TeamMember.Mik, text));
             }
@@ -208,10 +222,17 @@ namespace CrewChiefV4.AiTeam
             {
                 Penalties++;
                 bool serve = p.HasDriveThrough || p.HasStopAndGo;
-                result.Add(Say(TeamMember.Ben, RadioLanguage.T(
-                    "Wir haben " + penalty + " bekommen." + (serve ? " Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick." : ""),
-                    "We've got " + penalty + "." + (serve ? " It has to be served in the pits, I'm keeping an eye on the gap behind." : ""),
-                    "Nos han puesto " + penalty + "." + (serve ? " Hay que cumplirla en boxes, vigilo la distancia por detrás." : ""))));
+                string got = RadioVariants.Pick("incident-penalty",
+                    RadioLanguage.T("Wir haben " + penalty + " bekommen.", "We've got " + penalty + ".", "Nos han puesto " + penalty + "."),
+                    RadioLanguage.T("Die Rennleitung gibt uns " + penalty + ".", "Race control has given us " + penalty + ".", "Dirección de carrera nos pone " + penalty + "."),
+                    RadioLanguage.T("Schlechte Nachricht: " + penalty + " für uns.", "Bad news: " + penalty + " for us.", "Mala noticia: " + penalty + " para nosotros."),
+                    RadioLanguage.T("Es ist offiziell, " + penalty + ".", "It's official, " + penalty + ".", "Es oficial, " + penalty + "."));
+                string serveText = !serve ? "" : RadioVariants.Pick("incident-penalty-serve",
+                    RadioLanguage.T(" Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick.", " It has to be served in the pits, I'm keeping an eye on the gap behind.", " Hay que cumplirla en boxes, vigilo la distancia por detrás."),
+                    RadioLanguage.T(" Die holen wir in der Box ab, ich rechne mit dem Abstand nach hinten.", " We'll serve it in the pits, I'm working with the gap behind.", " La cumplimos en boxes, calculo con la distancia por detrás."),
+                    RadioLanguage.T(" Muss durch die Box, ich sag dir, wann es am wenigsten kostet.", " It means a trip through the pits, I'll tell you when it costs least.", " Toca pasar por boxes, te digo cuándo cuesta menos."),
+                    RadioLanguage.T(" Wir müssen dafür in die Box, ich beobachte den Verkehr hinter dir.", " We have to take it in the pits, I'm watching the traffic behind.", " Hay que entrar a boxes para cumplirla, vigilo el tráfico detrás."));
+                result.Add(Say(TeamMember.Ben, got + serveText));
             }
 
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
