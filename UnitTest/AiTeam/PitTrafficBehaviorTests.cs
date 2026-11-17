@@ -187,7 +187,7 @@ namespace UnitTest.AiTeamTests
         [TestCase(40)] [TestCase(60)] [TestCase(80)] [TestCase(97)] [TestCase(120)]
         public void Numeric_reminders_are_varied_and_cacheable_in_the_selected_voice(int kmh)
         {
-            var phrases=PitLaneWatch.Phrases(kmh/3.6f).ToArray();Assert.AreEqual(3,phrases.Distinct().Count());
+            var phrases=PitLaneWatch.Phrases(kmh/3.6f).ToArray();Assert.GreaterOrEqual(phrases.Distinct().Count(),RadioVariants.Minimum,"Rob 17.11.: mindestens vier Formulierungen");
             foreach(string p in phrases){StringAssert.Contains(kmh.ToString(),p);Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,p));}
             foreach(string p in PitLaneWatch.SpeedPhrases(kmh/3.6f)){StringAssert.Contains(kmh.ToString(),p);Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,p));}
             Assert.IsFalse(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,"Invented: 80 Kilometer pro Stunde."));
