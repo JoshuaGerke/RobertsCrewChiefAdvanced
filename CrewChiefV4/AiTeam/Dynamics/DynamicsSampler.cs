@@ -340,6 +340,12 @@ namespace CrewChiefV4.AiTeam
 
         internal static string Status => status;
 
+        /// <summary>Empfänger für jedes neue Fahrbild (z. B. das Kurven-Coaching mit 100 Hz statt 10–20 Hz).</summary>
+        internal static Action<DynamicsFrame> FrameSink;
+
+        /// <summary>Liefert die schnelle Abtastung gerade Bilder an <see cref="FrameSink"/>?</summary>
+        internal static bool FeedingFrames => FrameSink != null && DateTime.UtcNow - Analyzer.LastFrameUtc < TimeSpan.FromMilliseconds(500);
+
         /// <summary>Lagebild der Fahrdynamik für Sprachfragen – nur, wenn die Abtastung gerade Daten liefert.</summary>
         internal static Newtonsoft.Json.Linq.JObject Facts(int completedLaps) =>
             DateTime.UtcNow - Analyzer.LastFrameUtc < TimeSpan.FromSeconds(3) ? Analyzer.Snapshot(completedLaps) : null;
@@ -393,6 +399,7 @@ namespace CrewChiefV4.AiTeam
                     if (source.Read(frame, clock.Elapsed.TotalSeconds))
                     {
                         Analyzer.Observe(frame);
+                        if (frame.Driving) { try { FrameSink?.Invoke(frame); } catch (Exception) { } }
                         status = source.Name + " · " + Math.Round(Analyzer.Hz) + " Hz";
                     }
                     Thread.Sleep(4);

@@ -200,5 +200,46 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("hinten links", call.Text.ToLowerInvariant());
             Assert.IsNull(new DrivingDynamicsWatch(d.A, 1).Take(gs, T, false), "ohne Muster nichts");
         }
+
+        // ---------- Kurven-Coaching mit 100 Hz ----------
+
+        /// <summary>Eine Runde auf 1000 m mit einer Kurve 400–500 m, abgetastet mit 100 Hz statt in 5-m-Schritten.</summary>
+        private static void FastLap(CornerCoach coach, ref float time, int lap, float brakeAt, float lapTime)
+        {
+            float d = 0;
+            while (d < 1000)
+            {
+                float kmh = d >= brakeAt && d < 400 ? 200 - 110 * (d - brakeAt) / (400 - brakeAt) : d >= 400 && d < 500 ? 90 : 200;
+                float ms = kmh / 3.6f;
+                coach.Tick(d, ms, d >= brakeAt && d < 450 ? 0f : 1f, d >= brakeAt && d < 400 ? .9f : 0f, time, false, d >= 400 && d < 500 ? 2 : 5);
+                time += .01f; d += ms * .01f;
+            }
+            coach.CompleteLap(lap, lapTime, true);
+        }
+
+        [Test]
+        public void Corner_coaching_fed_at_100_hz_resolves_brake_points_below_a_metre()
+        {
+            var coach = new CornerCoach();
+            coach.SetTrack(new[] { new CornerDefinition { Name = "Kurve 1", Start = 400, End = 500 } }, 1000);
+            float t = 0;
+            FastLap(coach, ref t, 1, 330, 60.0f);
+            FastLap(coach, ref t, 2, 327, 60.3f);
+            var corner = coach.Analyse()["kurven"][0];
+            Assert.AreEqual(3, (double)corner["bremspunkt_m"], .8, "3 m Unterschied sind bei 100 Hz messbar");
+        }
+
+        [Test]
+        public void Corner_lookup_distinguishes_braking_into_and_accelerating_out_of_a_corner()
+        {
+            var coach = new CornerCoach();
+            coach.SetTrack(new[] { new CornerDefinition { Name = "Kurve 4", Start = 400, End = 500 }, new CornerDefinition { Name = "Kurve 5", Start = 650, End = 720 } }, 2000);
+            Assert.AreEqual("Kurve 5", coach.CornerNameAt(560, 1), "Bremszone vor Kurve 5, obwohl Kurve 4 noch hinter uns liegt");
+            Assert.AreEqual("Kurve 4", coach.CornerNameAt(560, 2), "Herausbeschleunigen aus Kurve 4");
+            Assert.AreEqual("Kurve 4", coach.CornerNameAt(450, 0));
+            Assert.IsNull(coach.CornerNameAt(1500, 0), "lange Gerade");
+            Assert.IsNull(new CornerCoach().CornerNameAt(450, 0), "ohne Kurvendaten");
+            coach.ResetTrackers();
+        }
     }
 }

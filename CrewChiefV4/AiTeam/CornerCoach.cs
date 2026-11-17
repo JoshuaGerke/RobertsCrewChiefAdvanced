@@ -131,6 +131,12 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        /// <summary>
+        /// Laufende Kurvenmessungen verwerfen, ohne Runden und Kurven zu löschen – beim Wechsel der Datenquelle (schnelle
+        /// Abtastung an/aus), weil sich dann die Zeitbasis ändert.
+        /// </summary>
+        internal void ResetTrackers() { lock (sync) trackers.Clear(); }
+
         /// <summary>Strecke setzen (bei neuer Session). Gerade Abschnitte werden ignoriert.</summary>
         public void SetTrack(IEnumerable<CornerDefinition> definitions, float length)
         {

@@ -69,6 +69,7 @@ namespace CrewChiefV4.AiTeam
         private readonly RaceInsightWatch insights = new RaceInsightWatch();
         private readonly PitLossMeter pitLoss = new PitLossMeter();
         private readonly DrivingDynamicsWatch dynamics = new DrivingDynamicsWatch(DynamicsSampler.Analyzer);
+        private bool cornersFromSampler;
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -393,7 +394,11 @@ namespace CrewChiefV4.AiTeam
             {
                 cornerDetector.Add(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed * 3.6f);
             }
-            if (sampleDue) Corners.Tick(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed,
+            // Rob 17.11.: Liefert die schnelle Abtastung (100 Hz), misst das Kurven-Coaching Bremspunkte daraus – auf unter einen
+            // Meter genau statt 5–7 m. Beim Wechsel der Quelle laufende Kurvenmessungen verwerfen (andere Zeitbasis).
+            bool fastCorners = DynamicsSampler.FeedingFrames;
+            if (fastCorners != cornersFromSampler) { Corners.ResetTrackers(); cornersFromSampler = fastCorners; }
+            if (sampleDue && !fastCorners) Corners.Tick(current.PositionAndMotionData.DistanceRoundTrack, current.PositionAndMotionData.CarSpeed,
                 current.ControlData.ThrottlePedal, current.ControlData.BrakePedal, current.SessionData.SessionRunningTime, current.PitData.InPitlane,
                 current.TransmissionData.Gear);
             if (Spotter().HasOverlap)
@@ -608,6 +613,11 @@ namespace CrewChiefV4.AiTeam
             if (DynamicsSampler.Supports(Game.game))
             {
                 DynamicsSampler.Analyzer.CornerAt = Corners.CornerNameAt;
+                if (DynamicsSampler.FrameSink == null)
+                {
+                    var coach = Corners;
+                    DynamicsSampler.FrameSink = f => coach.Tick(f.LapDistance, f.Speed, f.Throttle, f.Brake, (float)f.TimeS, f.InPit, f.Gear);
+                }
                 DynamicsSampler.Ensure(Game.game);
                 dynamics.Observe(current, now, lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false));
                 if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
