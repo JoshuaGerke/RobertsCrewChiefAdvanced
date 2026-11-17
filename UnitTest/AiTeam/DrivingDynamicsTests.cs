@@ -287,6 +287,20 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("So, auf geht's, Rob", SessionLapObserver.TimedLapStart(0, "Rob", 1));
         }
 
+        [Test]
+        public void Rear_traffic_is_rate_limited_and_has_enough_variety()
+        {
+            Assert.GreaterOrEqual(RaceTrafficWatch.RearSameCarSeconds, 300, "dasselbe Auto höchstens alle 5 Minuten");
+            Assert.GreaterOrEqual(RaceTrafficWatch.RearAnySeconds, 45);
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.GreaterOrEqual(RaceTrafficWatch.RearPhrases.Distinct().Count(), 6, lang);
+                Assert.GreaterOrEqual(RaceTrafficWatch.RearGroupPhrases.Distinct().Count(), 5, lang);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
         // ---------- Kurven-Coaching mit 100 Hz ----------
 
         /// <summary>Eine Runde auf 1000 m mit einer Kurve 400–500 m, abgetastet mit 100 Hz statt in 5-m-Schritten.</summary>
