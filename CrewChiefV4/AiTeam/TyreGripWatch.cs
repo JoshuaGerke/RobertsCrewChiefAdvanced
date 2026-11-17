@@ -171,7 +171,8 @@ namespace CrewChiefV4.AiTeam
             if (!driving || call != null && call.IsValid(gs, now) || now - lastCall < TimeSpan.FromSeconds(40)) { TrackOffTrack(gs, now); return; }
 
             float[] temps = Temps(gs);
-            bool tempsKnown = temps.All(v => v > 0);
+            // Datenwahrheit: eingefrorene Temperaturen (z. B. erst beim Stopp aktualisiert) nicht als aktuellen Zustand melden.
+            bool tempsKnown = temps.All(v => v > 0) && DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreTemperature);
             Window(gs, out float cold, out float top);
 
             // 1. Überhitzt

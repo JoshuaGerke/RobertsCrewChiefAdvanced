@@ -304,6 +304,14 @@ namespace CrewChiefV4.AiTeam
             {
                 missing.Add("reifendruck");
             }
+            // Datenwahrheit je Kanal: Das Sprachmodell darf eingefrorene Werte nicht als aktuell ausgeben.
+            var truth = DataTruth.Current;
+            o["datenstand"] = new JObject
+            {
+                ["temperatur"] = truth.Describe(SimChannel.TyreTemperature), ["druck"] = truth.Describe(SimChannel.TyrePressure),
+                ["verschleiss"] = truth.Describe(SimChannel.TyreWear),
+                ["hinweis"] = "„eingefroren“ heißt: Die Simulation aktualisiert diese Werte während der Fahrt nicht (oft erst beim Boxenstopp). Dann nur als Stand vom letzten Stopp nennen, nie als aktuell."
+            };
             if (t.TyreWearActive)
             {
                 o["verschleiss_prozent"] = CheckedArray(new[] { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear }, 1, 0, 100, "reifenverschleiss", missing);

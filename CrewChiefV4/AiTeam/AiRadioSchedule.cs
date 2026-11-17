@@ -388,6 +388,8 @@ namespace CrewChiefV4.AiTeam
             if (topic == "tyres")
             {
                 var t = gs.TyreData; if (!t.TyreWearActive) return null;
+                // Datenwahrheit: eingefrorene (z. B. erst nach dem Stopp aktualisierte) oder nicht gelieferte Werte nicht als aktuell melden.
+                if (!DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear)) return null;
                 float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 // Rob 16.11.: abwechselnd technisch und menschlich, mit fundierter Hochrechnung (nur kalibrierte Simulationen).
