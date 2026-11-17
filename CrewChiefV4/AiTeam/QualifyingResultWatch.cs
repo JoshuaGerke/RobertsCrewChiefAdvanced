@@ -55,7 +55,11 @@ namespace CrewChiefV4.AiTeam
             string group = Group(position, final);
             int variant = useTemplate ? variants.Select(group, RadioPhraseCatalog.Current.Count(group)) : 0;
             string text=final && !officialFinish
-                ? AiPersonas.CleanForRadio(driver ?? "Rob", 40, false) + RadioLanguage.T(", deine Quali ist durch. ", ", your qualifying is done. ", ", tu clasificación ha terminado. ") +
+                ? AiPersonas.CleanForRadio(driver ?? "Rob", 40, false) + RadioVariants.Pick("quali-done",
+                        RadioLanguage.T(", deine Quali ist durch. ", ", your qualifying is done. ", ", tu clasificación ha terminado. "),
+                        RadioLanguage.T(", Quali abgeschlossen. ", ", qualifying complete. ", ", clasificación completada. "),
+                        RadioLanguage.T(", das war's mit der Quali. ", ", that's qualifying done. ", ", se acabó la clasificación. "),
+                        RadioLanguage.T(", Quali ist vorbei. ", ", qualifying is over. ", ", terminó la clasificación. ")) +
                     (position > 0 ? RadioLanguage.T("Du stehst aktuell auf ", "You're currently ", "Ahora mismo vas ") + RaceRadioLanguage.Rank(s, position) + "." :
                         RadioLanguage.T("Die Platzierung steht noch aus.", "The result isn't in yet.", "La posición aún no está confirmada."))
                 : Compose(driver,position,final,variant,separateClass);
@@ -76,8 +80,16 @@ namespace CrewChiefV4.AiTeam
         {
             string name=AiPersonas.CleanForRadio(driver??"Rob",40,false);
             if(string.IsNullOrWhiteSpace(name))name="Rob";
-            string prefix=name+", "+(final?RadioLanguage.T("Quali beendet. ","qualifying is over. ","la clasificación ha terminado. "):
-                RadioLanguage.T("die Quali-Zeit ist vorbei. ","qualifying time is up. ","se acabó el tiempo de clasificación. "));
+            string prefix=name+", "+(final?RadioVariants.Pick("quali-final",
+                    RadioLanguage.T("Quali beendet. ","qualifying is over. ","la clasificación ha terminado. "),
+                    RadioLanguage.T("Quali abgeschlossen. ","qualifying complete. ","clasificación completada. "),
+                    RadioLanguage.T("die Quali ist durch. ","qualifying is done. ","la clasificación ha acabado. "),
+                    RadioLanguage.T("Ende der Quali. ","end of qualifying. ","fin de la clasificación. ")):
+                RadioVariants.Pick("quali-time-up",
+                    RadioLanguage.T("die Quali-Zeit ist vorbei. ","qualifying time is up. ","se acabó el tiempo de clasificación. "),
+                    RadioLanguage.T("die Uhr der Quali ist abgelaufen. ","the qualifying clock has run out. ","el reloj de la clasificación ha llegado a cero. "),
+                    RadioLanguage.T("Quali-Zeit abgelaufen. ","qualifying time has expired. ","tiempo de clasificación agotado. "),
+                    RadioLanguage.T("keine Zeit mehr auf der Quali-Uhr. ","no time left on the qualifying clock. ","no queda tiempo en la clasificación. ")));
             string group=Group(position,final);
             return prefix+(group=="quali-unknown"?RadioPhraseCatalog.Current.Format(group,variant):
                 RadioPhraseCatalog.Current.Format(group,variant,position+(separateClass?RadioLanguage.T(" in deiner Klasse"," in class"," en tu clase"):"")));
