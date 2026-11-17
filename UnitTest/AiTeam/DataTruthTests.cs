@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.GameState;
@@ -174,6 +175,40 @@ namespace UnitTest.AiTeamTests
             var r = truth.Report();
             foreach (SimChannel c in Enum.GetValues(typeof(SimChannel))) Assert.IsTrue(r.ContainsKey(c.ToString()), c.ToString());
             Assert.IsTrue(r.ContainsKey("game"));
+        }
+
+        // ---------- Mehr Abwechslung (Phase D) ----------
+
+        [Test]
+        public void Position_start_and_gap_trend_texts_offer_more_variety_in_three_languages()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                var s = new GameStateData(T.Ticks).SessionData; s.ClassPosition = 11;
+                var up = System.Linq.Enumerable.Range(0, 9).Select(i => ActiveRaceObserver.MovedUp(s, 11, i, i % 2 == 0 ? "Rob" : null)).ToArray();
+                var down = System.Linq.Enumerable.Range(0, 9).Select(i => ActiveRaceObserver.PositionLost(s, 11, i, "Rob")).ToArray();
+                var now = System.Linq.Enumerable.Range(0, 6).Select(i => ActiveRaceObserver.PositionNow(s, 11, i)).ToArray();
+                var start = System.Linq.Enumerable.Range(0, 5).SelectMany(v => new[] { 14, 11, 9 }.Select(p => ActiveRaceObserver.StartVerdict(s, p, "Rob", v))).ToArray();
+                var ahead = System.Linq.Enumerable.Range(0, 6).SelectMany(v => new[] { "Keller", "" }.Select(n => GapTrendWatch.AheadText(n, .3f, 5, false, -1, 2.3f, v))).ToArray();
+                var behind = System.Linq.Enumerable.Range(0, 6).SelectMany(v => new[] { "Wurz", "" }.Select(n => GapTrendWatch.BehindText(n, .4f, 4, false, v))).ToArray();
+                Assert.AreEqual(9, up.Distinct().Count(), lang);
+                Assert.AreEqual(9, down.Distinct().Count(), lang);
+                Assert.AreEqual(6, now.Distinct().Count(), lang);
+                Assert.AreEqual(15, start.Distinct().Count(), lang);
+                Assert.AreEqual(12, ahead.Distinct().Count(), lang);
+                Assert.AreEqual(12, behind.Distinct().Count(), lang);
+                foreach (var t in up.Concat(down).Concat(now).Concat(start).Concat(ahead).Concat(behind))
+                {
+                    Assert.IsFalse(char.IsLower(t.TrimStart('¿', '¡')[0]), t);
+                    StringAssert.DoesNotContain("  ", t);
+                    StringAssert.DoesNotContain("Den Vordermann", t);
+                    StringAssert.DoesNotContain("für der Hintermann", t);
+                }
+                Assert.IsTrue(start.All(t => t.Contains("Rob") && t.Contains("11")), lang);
+                Assert.IsFalse(down.Any(t => t.Contains("vorgerückt")));
+            }
+            RadioLanguage.Current = RadioLanguage.German;
         }
     }
 }
