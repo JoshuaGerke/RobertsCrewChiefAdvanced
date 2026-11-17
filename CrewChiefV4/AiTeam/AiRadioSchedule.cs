@@ -512,8 +512,8 @@ namespace CrewChiefV4.AiTeam
             {
                 var laps = ctx.Memory == null ? new LapRecord[0] : ctx.Memory.GetLaps(3).ToArray();
                 // Bathurst 17.11.: „im Mittel 2:34,483 … innerhalb von 83,4 Sekunden“ – FCY- und Unfallrunden gehören nicht in
-                // einen Tempo-Schnitt. Nur Grün-Runden, und nur wenn sie zusammenpassen (höchstens 4 s Spanne).
-                if (laps.Length < 3 || !laps.All(l => l.Valid && l.Green && !l.InPitLap && Good(l.LapTime, 20, 1200)) ||
+                // einen Tempo-Schnitt. Nur Runden, die zusammenpassen (höchstens 4 s Spanne) – eine FCY- oder Unfallrunde fällt so heraus.
+                if (laps.Length < 3 || !laps.All(l => l.Valid && !l.InPitLap && Good(l.LapTime, 20, 1200)) ||
                     laps[1].LapNumber != laps[0].LapNumber + 1 || laps[2].LapNumber != laps[1].LapNumber + 1 ||
                     laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime) > 4) return null;
                 string avg = LocalAnswers.LapTime(laps.Average(l => l.LapTime)), spread = Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime));
