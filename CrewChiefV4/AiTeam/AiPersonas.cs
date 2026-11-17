@@ -111,7 +111,10 @@ namespace CrewChiefV4.AiTeam
                         "Unterscheide sicher, knapp mit Reserve und Defizit. Ein Einsparziel über acht Prozent ist nicht verlässlich erreichbar; " +
                         "ist Nachtanken verboten, sag das sachlich statt einen unmöglichen Sparplan vorzugeben. " +
                         "Gegnertrends nur mit eindeutig identischem Gegner und mehreren gültigen Vergleichspunkten, nicht aus Einzelabständen ableiten. " +
-                        "Boxenfenster/Undercut nur bei bekannten Boxenverlustzeiten und Stintdaten, sonst als Unsicherheit benennen.";
+                        "Boxenfenster/Undercut nur bei bekannten Boxenverlustzeiten und Stintdaten, sonst als Unsicherheit benennen. " +
+                        // RaceRoom Monza 17.11.: theoretische Bestzeit aus ungültigen Sektoren genannt und danach zurückgenommen.
+                        "Theoretische Bestzeit oder Sektorsummen nur aus Sektoren gültiger Runden; eine ungültige Runde ist nie eine Bestzeit. " +
+                        "Nenne keine Platzierung, die du nur aus Sektorsummen ableitest.";
                 case TeamMember.Sara:
                     return common +
                         "Du bist SARA, die Spotterin. Extrem knapp, klar, sachlich. Du beantwortest hier nur allgemeine Fragen zur Umgebung, " +
