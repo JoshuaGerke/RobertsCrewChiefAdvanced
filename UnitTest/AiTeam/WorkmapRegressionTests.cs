@@ -578,5 +578,34 @@ namespace UnitTest.AiTeamTests
             }
             AiAudioStore.Remove(id);
         }
+
+        [Test]
+        public void C5_Wear_rate_median_ignores_one_traffic_lap_and_gives_a_cautious_floor()
+        {
+            var m=new AiRaceMemory();var start=Frame(0,true,false,true);m.Update(null,start,T);
+            GameStateData prev=start;float wear=10;
+            float[] steps={1f,1f,1f,3f,1f,1.2f}; // erste Runde nur Ausgangswert; eine Ausreißerrunde mit 3 % (Verkehr, Rutscher)
+            for(int i=1;i<=steps.Length;i++)
+            {
+                var gs=Frame(i,true,false,true);gs.TyreData.TyreWearActive=true;wear+=steps[i-1];
+                gs.TyreData.FrontLeftPercentWear=gs.TyreData.FrontRightPercentWear=gs.TyreData.RearLeftPercentWear=gs.TyreData.RearRightPercentWear=wear;
+                m.Update(prev,gs,T.AddSeconds(i*128));prev=gs;
+            }
+            Assert.IsTrue(m.WearRates(5,out var median,out var cautious,out int samples));
+            Assert.AreEqual(5,samples);
+            Assert.That(median[0],Is.EqualTo(1f).Within(.001),"Median statt Mittelwert (1,44)");
+            Assert.That(cautious[0],Is.EqualTo(1.2f).Within(.001));
+            Assert.That(m.AverageWearPerLap(5)[0],Is.EqualTo(1.44f).Within(.001));
+        }
+
+        [Test]
+        public void C5_Projection_names_a_safe_floor_when_the_cautious_rate_is_higher()
+        {
+            float[] wear={60,60,70,72};float[] rate={2,2,2,3};float[] cautious={2,2,2,4};
+            string text=TyreWearAdvisor.Report(wear,rate,cautious,true,"Rob",0);
+            StringAssert.Contains("in etwa 6 Runden am Ende",text);
+            StringAssert.Contains("Sicher sind auf jeden Fall noch 4 Runden",text);
+            StringAssert.DoesNotContain("Sicher sind",TyreWearAdvisor.Report(wear,rate,rate,true,"Rob",0));
+        }
     }
 }

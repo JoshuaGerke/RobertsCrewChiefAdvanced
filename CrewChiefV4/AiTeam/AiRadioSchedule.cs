@@ -408,7 +408,9 @@ namespace CrewChiefV4.AiTeam
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 // Rob 16.11.: abwechselnd technisch und menschlich, mit fundierter Hochrechnung (nur kalibrierte Simulationen).
                 // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten.
-                return TyreWearAdvisor.Report(wear, ctx.Memory?.AverageWearPerLap(3), TyreWearAdvisor.Calibrated(Game.gameType),
+                float[] rate = null, cautious = null;
+                if (ctx.Memory != null && ctx.Memory.WearRates(5, out var median, out var careful, out int samples) && samples >= 2) { rate = median; cautious = samples >= 3 ? careful : null; }
+                return TyreWearAdvisor.Report(wear, rate ?? ctx.Memory?.AverageWearPerLap(3), cautious, TyreWearAdvisor.Calibrated(Game.gameType),
                     AiPersonas.CleanForRadio(ctx.DriverName ?? "", 30, false), variant);
             }
             if (topic == "pace")

@@ -44,7 +44,11 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Routinebericht zum Verschleiß, drei Arten im Wechsel; mit Hochrechnung, wenn sie fundiert ist und bis 15 Runden reicht.</summary>
-        internal static string Report(float[] wear, float[] perLap, bool calibrated, string name, int variant)
+        internal static string Report(float[] wear, float[] perLap, bool calibrated, string name, int variant) =>
+            Report(wear, perLap, null, calibrated, name, variant);
+
+        /// <summary>Wie oben; mit vorsichtiger Rate (oberes Quartil) nennt die Hochrechnung auch die sichere Untergrenze.</summary>
+        internal static string Report(float[] wear, float[] perLap, float[] cautious, bool calibrated, string name, int variant)
         {
             if (wear == null || wear.Length != 4 || !wear.All(w => w >= 0 && w <= 100)) return null;
             int worst = Array.IndexOf(wear, wear.Max());
@@ -76,8 +80,20 @@ namespace CrewChiefV4.AiTeam
             }
             int laps = LapsToEnd(wear, perLap, calibrated, out int c);
             if (laps >= 1 && laps <= 15)
+            {
                 text += " " + Projection(laps, c, n, variant);
+                int safe = LapsToEnd(wear, cautious, calibrated, out _);
+                if (safe >= 1 && safe < laps) text += " " + SafeFloor(safe);
+            }
             return text;
+        }
+
+        /// <summary>Untergrenze aus der vorsichtigen Rate – Ben nennt eine Spanne statt einer falschen Punktzahl.</summary>
+        internal static string SafeFloor(int safe)
+        {
+            return RadioLanguage.T("Sicher sind auf jeden Fall noch " + safe + (safe == 1 ? " Runde." : " Runden."),
+                "You've definitely got at least " + safe + (safe == 1 ? " lap." : " laps."),
+                "Seguro que aguanta al menos " + safe + (safe == 1 ? " vuelta." : " vueltas."));
         }
 
         internal static string Projection(int laps, int corner, string name, int variant)
@@ -131,7 +147,9 @@ namespace CrewChiefV4.AiTeam
             if (!t.TyreWearActive || !DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear)) return;
             float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
             // Eigene Messung dieser Fahrt zuerst; sonst die gespeicherte Rate dieses Autos auf dieser Strecke mit derselben Mischung.
-            int laps = TyreWearAdvisor.LapsToEnd(wear, memory.AverageWearPerLap(3) ?? storedRate, TyreWearAdvisor.Calibrated(Game.gameType), out int corner);
+            // Robuster Median statt Mittelwert: eine Verkehrs- oder Fehlerrunde löst keine falsche Warnung aus.
+            float[] rate = memory.WearRates(5, out var median, out _, out int samples) && samples >= 2 ? median : memory.AverageWearPerLap(3);
+            int laps = TyreWearAdvisor.LapsToEnd(wear, rate ?? storedRate, TyreWearAdvisor.Calibrated(Game.gameType), out int corner);
             if (laps < 1 || laps > 5) return;
             bool race = s.SessionType == SessionType.Race;
             int left = race ? LapWatch.LapsLeft(s) : -1;
