@@ -135,6 +135,7 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Big_off_with_three_wheels_is_reported_once_for_dirty_tyres()
         {
+            TyreGripWatch.LastDirtCallUtc = DateTime.MinValue;
             var d = new Drive(); d.Calibrate();
             var three = new[] { WheelSurface.Off, WheelSurface.Off, WheelSurface.Off, WheelSurface.Road };
             d.Run(.8, 25, .3f, 0, null, three, 1100);

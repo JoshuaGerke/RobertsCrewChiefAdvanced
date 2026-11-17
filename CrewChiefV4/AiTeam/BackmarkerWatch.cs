@@ -25,34 +25,56 @@ namespace CrewChiefV4.AiTeam
         {
             string when = RadioLanguage.Num((float)Math.Round(seconds), "0");
             string who = string.IsNullOrWhiteSpace(backmarker) ? "" : RadioLanguage.T(", das ist " + backmarker, ", that's " + backmarker, ", es " + backmarker);
-            string lead = RadioLanguage.T("Überrundeter vorne, in etwa " + when + " Sekunden bist du dran" + who + ".",
-                "Lapped car ahead, you'll be on him in about " + when + " seconds" + who + ".",
-                "Doblado delante, lo alcanzas en unos " + when + " segundos" + who + ".");
-            int v = ((variant % 2) + 2) % 2;
+            string lead = RadioVariants.At(variant / 4,
+                RadioLanguage.T("Überrundeter vorne, in etwa " + when + " Sekunden bist du dran" + who + ".",
+                    "Lapped car ahead, you'll be on him in about " + when + " seconds" + who + ".",
+                    "Doblado delante, lo alcanzas en unos " + when + " segundos" + who + "."),
+                RadioLanguage.T("Langsamerer Wagen eine Runde zurück, in " + when + " Sekunden bist du dran" + who + ".",
+                    "Backmarker a lap down, you're on him in " + when + " seconds" + who + ".",
+                    "Coche doblado una vuelta atrás, lo tienes en " + when + " segundos" + who + "."),
+                RadioLanguage.T("Verkehr voraus: Überrundeter in rund " + when + " Sekunden" + who + ".",
+                    "Traffic ahead: backmarker in around " + when + " seconds" + who + ".",
+                    "Tráfico delante: doblado en unos " + when + " segundos" + who + "."),
+                RadioLanguage.T("In " + when + " Sekunden kommt ein Überrundeter" + who + ".",
+                    "Backmarker coming up in " + when + " seconds" + who + ".",
+                    "En " + when + " segundos llega un doblado" + who + "."));
             if (gapBehind > 0 && gapBehind < 2f)
             {
                 string r = string.IsNullOrWhiteSpace(rearName) ? RadioLanguage.T("der Hintermann", "the car behind", "el de detrás") : rearName;
-                return lead + " " + (v == 0
-                    ? RadioLanguage.T(Cap(r) + " ist " + GermanRadioText.Interval(gapBehind) + " hinter dir, also sauber vorbei und nicht hängen bleiben.",
-                        Cap(r) + " is " + GermanRadioText.Interval(gapBehind) + " behind, so get by cleanly and don't get stuck.",
-                        Cap(r) + " está a " + GermanRadioText.Interval(gapBehind) + " detrás, pasa limpio y no te quedes atascado.")
-                    : RadioLanguage.T("Früh zeigen, wo du vorbei willst, " + r + " lauert " + GermanRadioText.Interval(gapBehind) + " hinter dir.",
-                        "Show early where you want to pass, " + r + " is lurking " + GermanRadioText.Interval(gapBehind) + " behind.",
-                        "Indica pronto por dónde pasas, " + r + " acecha a " + GermanRadioText.Interval(gapBehind) + "."));
+                string g = GermanRadioText.Interval(gapBehind);
+                return lead + " " + RadioVariants.At(variant,
+                    RadioLanguage.T(Cap(r) + " ist " + g + " hinter dir, also sauber vorbei und nicht hängen bleiben.",
+                        Cap(r) + " is " + g + " behind, so get by cleanly and don't get stuck.",
+                        Cap(r) + " está a " + g + " detrás, pasa limpio y no te quedes atascado."),
+                    RadioLanguage.T("Früh zeigen, wo du vorbei willst, " + r + " lauert " + g + " hinter dir.",
+                        "Show early where you want to pass, " + r + " is lurking " + g + " behind.",
+                        "Indica pronto por dónde pasas, " + r + " acecha a " + g + "."),
+                    RadioLanguage.T("Nicht hinter ihm festhängen, " + r + " ist nur " + g + " weg.",
+                        "Don't get stuck behind him, " + r + " is only " + g + " back.",
+                        "No te quedes detrás de él, " + r + " está a solo " + g + "."),
+                    RadioLanguage.T("Entschlossen vorbei – " + r + " wartet " + g + " hinter dir auf einen Fehler.",
+                        "Get by decisively – " + r + " is " + g + " behind waiting for a mistake.",
+                        "Pasa con decisión: " + r + " está a " + g + " esperando un fallo."));
             }
             if (gapAhead > 0 && gapAhead < 1.5f)
             {
                 string f = string.IsNullOrWhiteSpace(frontName) ? RadioLanguage.T("dem Vordermann", "the car ahead", "el de delante") : frontName;
-                return lead + " " + (v == 0
-                    ? RadioLanguage.T("Das kann deine Chance auf " + f + " sein, bleib dicht dran.", "That could be your chance on " + f + ", stay close.",
-                        "Puede ser tu oportunidad con " + f + ", mantente cerca.")
-                    : RadioLanguage.T("Wer besser durch den Verkehr kommt, gewinnt hier Zeit. Schau, wie " + f + " es macht.",
+                return lead + " " + RadioVariants.At(variant,
+                    RadioLanguage.T("Das kann deine Chance auf " + f + " sein, bleib dicht dran.", "That could be your chance on " + f + ", stay close.",
+                        "Puede ser tu oportunidad con " + f + ", mantente cerca."),
+                    RadioLanguage.T("Wer besser durch den Verkehr kommt, gewinnt hier Zeit. Schau, wie " + f + " es macht.",
                         "Whoever handles traffic better gains time here. Watch how " + f + " does it.",
-                        "Quien gestione mejor el tráfico gana tiempo. Mira cómo lo hace " + f + "."));
+                        "Quien gestione mejor el tráfico gana tiempo. Mira cómo lo hace " + f + "."),
+                    RadioLanguage.T("Verkehr ist Chance: Wenn " + f + " hängen bleibt, bist du da.", "Traffic is opportunity: if " + f + " gets held up, you're there.",
+                        "El tráfico es una oportunidad: si " + f + " se queda atascado, ahí estás."),
+                    RadioLanguage.T("Dranbleiben – im Überrundungsverkehr kann " + f + " Zeit verlieren.", "Stay with him – " + f + " can lose time in the traffic.",
+                        "No lo sueltes: " + f + " puede perder tiempo con los doblados."));
             }
-            return lead + " " + (v == 0
-                ? RadioLanguage.T("Früh zeigen, wo du vorbei willst.", "Show early where you want to pass.", "Indica pronto por dónde quieres pasar.")
-                : RadioLanguage.T("Ruhig vorbei, kein Risiko.", "Pass calmly, no risk.", "Pasa con calma, sin riesgo."));
+            return lead + " " + RadioVariants.At(variant,
+                RadioLanguage.T("Früh zeigen, wo du vorbei willst.", "Show early where you want to pass.", "Indica pronto por dónde quieres pasar."),
+                RadioLanguage.T("Ruhig vorbei, kein Risiko.", "Pass calmly, no risk.", "Pasa con calma, sin riesgo."),
+                RadioLanguage.T("Sauber auf der Geraden vorbei, nicht in der Kurve.", "Clean pass on the straight, not in the corner.", "Pásalo limpio en la recta, no en la curva."),
+                RadioLanguage.T("Geduld, er macht dir gleich Platz.", "Patience, he'll make room for you.", "Paciencia, enseguida te deja sitio."));
         }
 
         private static string Cap(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0], RadioLanguage.Culture) + s.Substring(1);

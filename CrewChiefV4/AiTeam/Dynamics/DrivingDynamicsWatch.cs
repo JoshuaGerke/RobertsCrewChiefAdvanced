@@ -40,6 +40,8 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             var off = analyzer.TakeBigOff();
+            // RaceRoom meldet Dreck selbst (TyreGripWatch „tyre-dirt“) – dann nicht zusätzlich.
+            if (off != null && (gs.TyreData.DirtPickupEmulationActive || now - TyreGripWatch.LastDirtCallUtc < TimeSpan.FromSeconds(90))) off = null;
             if (off != null && s.CompletedLaps - lastBigOffLap >= 2)
             {
                 lastBigOffLap = s.CompletedLaps;
