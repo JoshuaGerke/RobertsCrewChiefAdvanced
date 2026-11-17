@@ -144,5 +144,21 @@ namespace UnitTest.AiTeamTests
             }
             RadioLanguage.Current = RadioLanguage.German;
         }
+
+        [Test]
+        public void Neighbour_pit_stop_comes_with_the_tactical_consequence_in_races_only()
+        {
+            StringAssert.Contains("freie Bahn", NativeFieldEvents.PitConsequence("car_in_front_is_pitting", SessionType.Race, 0));
+            StringAssert.Contains("Undercut", NativeFieldEvents.PitConsequence("car_behind_is_pitting", SessionType.Race, 0));
+            Assert.AreEqual("", NativeFieldEvents.PitConsequence("car_in_front_is_pitting", SessionType.Practice, 0));
+            Assert.AreEqual("", NativeFieldEvents.PitConsequence("leader_is_pitting", SessionType.Race, 0));
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => NativeFieldEvents.PitConsequence("car_behind_is_pitting", SessionType.Race, v)).Distinct().Count());
+                Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => NativeFieldEvents.PitConsequence("car_in_front_is_pitting", SessionType.Race, v)).Distinct().Count());
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
     }
 }

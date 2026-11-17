@@ -347,11 +347,30 @@ namespace CrewChiefV4.AiTeam
             }
             return null;
         }
+        /// <summary>
+        /// Renningenieur (Rob 17.11.): Was bedeutet der Stopp des direkten Nachbarn für Rob? Vordermann in der Box: freie Bahn,
+        /// jetzt schnelle Runden. Hintermann in der Box: möglicher Undercut, Tempo hochhalten. Nur im Rennen.
+        /// </summary>
+        internal static string PitConsequence(string source, SessionType type, int variant)
+        {
+            if (type != SessionType.Race) return "";
+            int v = ((variant % 3) + 3) % 3;
+            if (source == "car_in_front_is_pitting")
+                return " " + (v == 0 ? RadioLanguage.T("Jetzt hast du freie Bahn, drück ein paar schnelle Runden.", "You've got a clear track now, push for a few quick laps.", "Ahora tienes pista libre, aprieta unas vueltas rápidas.")
+                    : v == 1 ? RadioLanguage.T("Freie Strecke vor dir, das ist die Zeit für schnelle Runden.", "Clear track ahead, this is the time for quick laps.", "Pista libre delante, es el momento de vueltas rápidas.")
+                    : RadioLanguage.T("Nutz die freie Luft, jede Zehntel zählt jetzt.", "Use the clean air, every tenth counts now.", "Aprovecha el aire limpio, cada décima cuenta ahora."));
+            if (source == "car_behind_is_pitting")
+                return " " + (v == 0 ? RadioLanguage.T("Er versucht womöglich den Undercut, halt das Tempo hoch.", "He may be trying the undercut, keep the pace up.", "Puede que intente el undercut, mantén el ritmo.")
+                    : v == 1 ? RadioLanguage.T("Achtung Undercut, die nächsten Runden zählen.", "Watch the undercut, the next laps count.", "Ojo al undercut, las próximas vueltas cuentan.")
+                    : RadioLanguage.T("Jetzt keine Zeit verschenken, saubere schnelle Runden.", "Don't give away any time now, clean quick laps.", "No regales tiempo ahora, vueltas rápidas y limpias."));
+            return "";
+        }
+
         private static string Text(NativeFieldFact f,bool names,int variant)
         {
             string who=names?Name(f.Name):"";
             if(who.Length==0)who=RadioLanguage.T("Ein Gegner","A rival","Un rival");
-            if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who);
+            if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who) + PitConsequence(f.Source, f.Type, variant);
             if(f.Kind=="leader")return who+RadioLanguage.T(" führt jetzt unsere Klasse an."," now leads our class."," lidera ahora nuestra clase.");
             if(f.Kind=="retired")return who+RadioLanguage.T(" ist ausgefallen."," is out of the race."," ha abandonado.");
             if(f.Kind=="dq")return who+RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado.");
