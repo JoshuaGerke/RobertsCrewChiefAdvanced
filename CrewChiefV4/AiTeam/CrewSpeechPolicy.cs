@@ -206,19 +206,28 @@ namespace CrewChiefV4.AiTeam
             "Kontakt. Ich schau mir den Schaden an.",
             "Das hat gerumst. Ich prüf das Auto.",
             "Kontakt gesehen. Moment, ich check den Schaden.",
-            "Autsch. Ich schau, was am Auto ist."
+            "Autsch. Ich schau, was am Auto ist.",
+            "Da war Kontakt. Ich prüfe gleich das Auto.",
+            "Berührung registriert. Ich schau nach dem Auto.",
+            "Kontakt. Fahr erst mal weiter, ich check die Werte."
         };
         private static readonly string[] ContactPhrasesEn = {
             "Contact. I'll check the damage.",
             "That was a hit. Checking the car.",
             "Saw the contact. Stand by, checking the damage.",
-            "Ouch. Let me see what's up with the car."
+            "Ouch. Let me see what's up with the car.",
+            "There was contact. Checking the car now.",
+            "Contact registered. I'm looking at the car.",
+            "Contact. Keep going, I'm checking the numbers."
         };
         private static readonly string[] ContactPhrasesEs = {
             "Contacto. Reviso los daños.",
             "Eso ha sido un golpe. Reviso el coche.",
             "He visto el contacto. Un momento, compruebo los daños.",
-            "Uf. Miro a ver cómo está el coche."
+            "Uf. Miro a ver cómo está el coche.",
+            "Ha habido contacto. Reviso el coche ahora.",
+            "Contacto registrado. Miro el coche.",
+            "Contacto. Sigue rodando, reviso los datos."
         };
         public static string[] ContactPhrases => RadioLanguage.Pick(ContactPhrasesDe, ContactPhrasesEn, ContactPhrasesEs);
         // Nur bei belegtem Kontakt mit starkem Tempoverlust oder schwerem Schaden, danach kommt der Schadensbericht.
@@ -226,70 +235,100 @@ namespace CrewChiefV4.AiTeam
             "Uff, das war heftig. Alles okay bei dir?",
             "Oh, das sah nicht gut aus. Geht's dir gut?",
             "Das war ein harter Einschlag. Alles in Ordnung?",
-            "Oha. Alles okay bei dir? Ich schau mir das Auto an."
+            "Oha. Alles okay bei dir? Ich schau mir das Auto an.",
+            "Das war ein ordentlicher Schlag. Bist du okay?",
+            "Puh, das hat gekracht. Alles in Ordnung bei dir?"
         };
         private static readonly string[] HeavyContactPhrasesEn = {
             "Oof, that was a big one. You okay?",
             "Oh, that didn't look good. Are you alright?",
             "That was a hard impact. Everything okay?",
-            "Whoa. You okay? I'll check the car."
+            "Whoa. You okay? I'll check the car.",
+            "That was a proper hit. Are you okay?",
+            "Phew, that was a big hit. Everything alright?"
         };
         private static readonly string[] HeavyContactPhrasesEs = {
             "Uf, eso ha sido fuerte. ¿Estás bien?",
             "Uy, eso no tenía buena pinta. ¿Todo bien?",
             "Ha sido un impacto duro. ¿Todo en orden?",
-            "Vaya. ¿Estás bien? Reviso el coche."
+            "Vaya. ¿Estás bien? Reviso el coche.",
+            "Ha sido un buen golpe. ¿Estás bien?",
+            "Uf, eso ha sonado fuerte. ¿Todo en orden?"
         };
         public static string[] HeavyContactPhrases => RadioLanguage.Pick(HeavyContactPhrasesDe, HeavyContactPhrasesEn, HeavyContactPhrasesEs);
         private static readonly string[] StoppedPhrasesDe = {
             "Alles okay? Beim Wiederanfahren auf den Verkehr achten.",
             "Alles gut bei dir? Erst schauen, dann wieder rein.",
-            "Alles klar? Ganz ruhig, pass beim Anfahren auf den Verkehr auf."
+            "Alles klar? Ganz ruhig, pass beim Anfahren auf den Verkehr auf.",
+            "Alles okay? Lass den Verkehr vorbei, dann geht's weiter.",
+            "Ruhig bleiben. Erst Lücke abwarten, dann anfahren.",
+            "Geht's? Schau in die Spiegel, bevor du losfährst."
         };
         private static readonly string[] StoppedPhrasesEn = {
             "You okay? Watch the traffic when you get going again.",
             "All good? Look first, then rejoin.",
-            "Alright? Nice and calm, watch the traffic as you pull away."
+            "Alright? Nice and calm, watch the traffic as you pull away.",
+            "You okay? Let the traffic pass, then go.",
+            "Stay calm. Wait for a gap, then pull away.",
+            "Alright? Check your mirrors before you get going."
         };
         private static readonly string[] StoppedPhrasesEs = {
             "¿Todo bien? Cuidado con el tráfico al arrancar.",
             "¿Estás bien? Primero mira, luego vuelve a pista.",
-            "¿Todo en orden? Con calma, atento al tráfico al arrancar."
+            "¿Todo en orden? Con calma, atento al tráfico al arrancar.",
+            "¿Todo bien? Deja pasar el tráfico y sigue.",
+            "Tranquilo. Espera un hueco y luego arranca.",
+            "¿Bien? Mira los espejos antes de arrancar."
         };
         public static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
         private static readonly string[] OffTrackPhrasesDe = {
             "Neben der Strecke. Beim Zurückfahren auf den Verkehr achten.",
             "Du bist draußen. Schau auf den Verkehr, bevor du zurückkommst.",
-            "Achtung, neben der Strecke. Komm kontrolliert zurück."
+            "Achtung, neben der Strecke. Komm kontrolliert zurück.",
+            "Draußen. Ruhig zurück auf die Strecke, Spiegel im Blick.",
+            "Neben der Bahn. Nicht hektisch zurückziehen, Verkehr beachten.",
+            "Du bist von der Strecke. Kontrolliert und mit Blick nach hinten zurück."
         };
         private static readonly string[] OffTrackPhrasesEn = {
             "Off track. Watch the traffic when you rejoin.",
             "You're off. Check the traffic before you come back on.",
-            "Careful, off track. Rejoin under control."
+            "Careful, off track. Rejoin under control.",
+            "You're off. Ease back on, mirrors first.",
+            "Off the circuit. Don't rush back, watch the traffic.",
+            "You're off track. Come back under control and check behind."
         };
         private static readonly string[] OffTrackPhrasesEs = {
             "Fuera de pista. Cuidado con el tráfico al volver.",
             "Estás fuera. Mira el tráfico antes de volver a entrar.",
-            "Atención, fuera de pista. Vuelve con control."
+            "Atención, fuera de pista. Vuelve con control.",
+            "Estás fuera. Vuelve con calma, primero los espejos.",
+            "Fuera de la pista. Sin prisas al volver, atento al tráfico.",
+            "Te has salido. Vuelve con control y mirando atrás."
         };
         public static string[] OffTrackPhrases => RadioLanguage.Pick(OffTrackPhrasesDe, OffTrackPhrasesEn, OffTrackPhrasesEs);
         private static readonly string[] DamageDetectedPhrasesDe = {
             "Neuer Schaden gemeldet. Ich schau mir das an.",
             "Die Telemetrie meldet mehr Schaden. Ich prüf das Auto.",
             "Am Auto ist neuer Schaden gemeldet. Ich sehe nach.",
-            "Ein Schadenswert ist gestiegen. Ich prüfe, was betroffen ist."
+            "Ein Schadenswert ist gestiegen. Ich prüfe, was betroffen ist.",
+            "Da ist Schaden dazugekommen. Ich schau, wie schlimm es ist.",
+            "Neuer Schaden in den Daten. Ich melde mich gleich mit Details."
         };
         private static readonly string[] DamageDetectedPhrasesEn = {
             "New damage reported. I'll take a look.",
             "Telemetry shows more damage. Checking the car.",
             "New damage reported on the car. I'm looking into it.",
-            "A damage value has gone up. Checking what's affected."
+            "A damage value has gone up. Checking what's affected.",
+            "Some damage has been added. Checking how bad it is.",
+            "New damage in the data. I'll come back with details."
         };
         private static readonly string[] DamageDetectedPhrasesEs = {
             "Nuevo daño reportado. Lo reviso.",
             "La telemetría marca más daños. Reviso el coche.",
             "Hay daño nuevo en el coche. Lo miro.",
-            "Ha subido un valor de daño. Compruebo qué está afectado."
+            "Ha subido un valor de daño. Compruebo qué está afectado.",
+            "Hay daño nuevo. Miro cómo de grave es.",
+            "Daño nuevo en los datos. Enseguida te doy detalles."
         };
         public static string[] DamageDetectedPhrases => RadioLanguage.Pick(DamageDetectedPhrasesDe, DamageDetectedPhrasesEn, DamageDetectedPhrasesEs);
         public static string RainTrackHint => RadioLanguage.T(" Es regnet gerade, vorsichtig am Gas.", " It's raining right now, careful on the throttle.", " Está lloviendo, cuidado con el gas.");

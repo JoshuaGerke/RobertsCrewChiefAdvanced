@@ -166,11 +166,12 @@ namespace CrewChiefV4.AiTeam
                     new[] { "Noch einer. Ganz ruhig jetzt, {n}, erst mal ein paar saubere Runden.", "Another one. Calm down now, {n}, just a few clean laps first.", "Otro más. Tranquilo ahora, {n}, primero unas vueltas limpias." },
                     new[] { "Zweimal kurz hintereinander, das ist ein Zeichen. Atme durch und fahr wieder mit Abstand.", "Twice in a short time, that's a sign. Take a breath and drive with some margin again.", "Dos veces en poco tiempo, es una señal. Respira y vuelve a conducir con margen." });
             return Pick(variant, name,
-                new[] { "Alles okay, {n}? Das war ein harter Moment. Durchatmen, das Auto fährt noch.", "You okay, {n}? That was a hard moment. Breathe, the car is still going.", "¿Todo bien, {n}? Ha sido un momento duro. Respira, el coche sigue rodando." },
+                // Die erste Frage „Alles okay?“ stellt schon die Kontaktmeldung; Ben schaut danach nach vorn.
+                new[] { "Durchatmen, {n}. Das Auto fährt noch, jetzt wieder in den Rhythmus.", "Breathe, {n}. The car is still going, now back into the rhythm.", "Respira, {n}. El coche sigue rodando, ahora a recuperar el ritmo." },
                 new[] { "Das war unglücklich. Abhaken, Kopf frei machen, nächste Kurve.", "That was unlucky. Let it go, clear your head, next corner.", "Mala suerte. Olvídalo, cabeza despejada, siguiente curva." },
                 new[] { "Kurz durchschütteln und weiter, {n}. Wir behalten das Auto im Blick.", "Shake it off and carry on, {n}. We're keeping an eye on the car.", "Sacúdetelo y sigue, {n}. Vigilamos el coche." },
                 new[] { "Ärgerlich, ich weiß. Jetzt nicht nachlegen wollen, einfach sauber weiterfahren.", "Annoying, I know. Don't try to make it up all at once, just drive clean.", "Fastidia, lo sé. No intentes recuperarlo todo de golpe, conduce limpio." },
-                new[] { "Bist du okay? Konzentrier dich auf die nächste Runde, der Rest kommt von allein.", "Are you okay? Focus on the next lap, the rest will follow.", "¿Estás bien? Céntrate en la próxima vuelta, lo demás llegará." });
+                new[] { "Konzentrier dich auf die nächste Runde, {n}, der Rest kommt von allein.", "Focus on the next lap, {n}, the rest will follow.", "Céntrate en la próxima vuelta, {n}, lo demás llegará." });
         }
     }
 
