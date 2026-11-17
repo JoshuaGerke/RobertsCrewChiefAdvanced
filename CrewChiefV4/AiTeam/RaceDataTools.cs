@@ -1038,10 +1038,11 @@ namespace CrewChiefV4.AiTeam
             if (gapBehind.Kind == RaceGapKind.SimulatorTiming) o["abstand_hinten_s"] = Math.Round(gapBehind.Seconds, 3);
             else if (gapBehind.IsEstimated) o["abstand_hinten_ungefaehr_s"] = Math.Round(gapBehind.Seconds, 1);
             o["abstand_hinten_messung"] = gapBehind.Describe(ctx);
-            if (s.SessionStartClassPosition > 0 && s.ClassPosition > 0)
+            int startLatched = RaceStartLatch.Position(s);
+            if (startLatched > 0 && s.ClassPosition > 0)
             {
-                o["startplatz"] = s.SessionStartClassPosition;
-                o["plaetze_gewonnen_seit_start"] = s.SessionStartClassPosition - s.ClassPosition;
+                o["startplatz"] = startLatched;
+                o["plaetze_gewonnen_seit_start"] = startLatched - s.ClassPosition;
             }
             if (ValidLap(s.LapTimePrevious)) o["letzte_runde_s"] = Math.Round(s.LapTimePrevious, 3);
             if (ctx.GameState.FuelData.FuelUseActive && Finite(ctx.GameState.FuelData.FuelLeft) && ctx.GameState.FuelData.FuelLeft > 0 && ctx.GameState.FuelData.FuelLeft <= 10000)

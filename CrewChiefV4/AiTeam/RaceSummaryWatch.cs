@@ -85,7 +85,7 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             if (s.SessionType != SessionType.Race) { if (session != int.MinValue) Reset(); return; }
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
-            if (startPosition <= 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
+            if (startPosition <= 0) startPosition = RaceStartLatch.Position(s);
             if (windows.Count == 0 && (s.SessionNumberOfLaps > 0 || s.SessionTotalRunTime > 0)) Plan(s);
             // Robs Vorgabe: frühestens nach etwa drei Runden.
             if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 3) return;
@@ -139,7 +139,7 @@ namespace CrewChiefV4.AiTeam
             var parts = new List<string>();
             string name = AiPersonas.CleanForRadio(ctx.DriverName ?? "", 30, false);
             string rank = RaceRadioLanguage.Rank(s, s.ClassPosition);
-            int start = startPosition > 0 ? startPosition : s.SessionStartClassPosition;
+            int start = startPosition > 0 ? startPosition : RaceStartLatch.Position(s);
             int gained = start > 0 ? start - s.ClassPosition : 0;
             string intro = name.Length > 0 ? name + ", " : "";
             if (gained > 0)

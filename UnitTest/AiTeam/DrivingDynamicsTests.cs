@@ -321,6 +321,20 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(watch.Evaluate(3, 55f, 3.3f, 24, true, true), "gemessener Verbrauch darf wieder warnen");
         }
 
+        [Test]
+        public void Start_position_is_latched_once_per_race_session()
+        {
+            RaceStartLatch.Reset();
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 77; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionStartClassPosition = 16;
+            Assert.AreEqual(16, RaceStartLatch.Position(gs.SessionData));
+            gs.SessionData.SessionStartClassPosition = 4;
+            Assert.AreEqual(16, RaceStartLatch.Position(gs.SessionData), "RaceRoom Monza: Startplatz darf sich im Rennen nicht ändern");
+            gs.SessionData.SessionId = 78;
+            Assert.AreEqual(4, RaceStartLatch.Position(gs.SessionData), "neue Sitzung, neuer Startplatz");
+            RaceStartLatch.Reset();
+        }
+
         // ---------- Kurven-Coaching mit 100 Hz ----------
 
         /// <summary>Eine Runde auf 1000 m mit einer Kurve 400–500 m, abgetastet mit 100 Hz statt in 5-m-Schritten.</summary>

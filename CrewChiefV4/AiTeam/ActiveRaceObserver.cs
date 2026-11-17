@@ -453,7 +453,7 @@ namespace CrewChiefV4.AiTeam
                 gs.carClass != null && entering.CarClass != null && CarData.IsCarClassEqual(gs.carClass, entering.CarClass, false))
                 recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
             if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
-            if (startPosition == 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
+            if (startPosition == 0) startPosition = RaceStartLatch.Position(s);
             // Kurzes Startfazit nach der ersten halben Runde (Robs Wunsch), einmal pro Rennen, in wechselnden Formulierungen
             float trackLength = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float lapDistance = gs.PositionAndMotionData.DistanceRoundTrack;

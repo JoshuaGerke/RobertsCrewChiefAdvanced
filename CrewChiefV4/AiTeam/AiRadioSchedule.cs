@@ -533,7 +533,7 @@ namespace CrewChiefV4.AiTeam
                     string rank = RaceRadioLanguage.Rank(session, session.ClassPosition);
                     if (RaceRadioLanguage.SeparateClass(session) && session.OverallPosition > 0 && session.OverallPosition != session.ClassPosition)
                         rank += RadioLanguage.T(", gesamt Platz " + session.OverallPosition, ", P" + session.OverallPosition + " overall", ", P" + session.OverallPosition + " en la general");
-                    int start = session.SessionStartClassPosition;
+                    int start = RaceStartLatch.Position(session);
                     int change = start > 0 ? start - session.ClassPosition : 0;
                     if (change == 0) return rank + ". " + Compose("progress", ctx);
                     int count = Math.Abs(change);
