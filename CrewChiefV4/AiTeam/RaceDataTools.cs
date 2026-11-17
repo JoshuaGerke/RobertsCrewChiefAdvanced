@@ -347,6 +347,15 @@ namespace CrewChiefV4.AiTeam
             var gs = ctx.GameState;
             var f = gs.FuelData;
             var o = new JObject();
+            var energy = VirtualEnergyWatch.Current;
+            if (energy.Level >= 0)
+                o["virtuelle_energie"] = new JObject
+                {
+                    ["stand_prozent"] = Math.Round(energy.Level, 1),
+                    ["verbrauch_pro_runde_prozent"] = energy.PerLap > 0 ? (JToken)Math.Round(energy.PerLap, 2) : null,
+                    ["reicht_fuer_runden"] = energy.LapsLeft > 0 ? (JToken)Math.Round(energy.LapsLeft, 1) : null,
+                    ["hinweis"] = "LMU-Klassen mit Energie-Limit: Die Reichweite begrenzt, was zuerst leer ist – Energie oder Sprit. Verbrauch nur aus gemessenen sauberen Runden."
+                };
             if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft < 0 || f.FuelLeft > 10000)
             {
                 missing.Add("tankinhalt");

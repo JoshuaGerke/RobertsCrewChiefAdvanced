@@ -273,6 +273,7 @@
     <Compile Include="AiTeam\DriverRadioGate.cs" />
     <Compile Include="AiTeam\DriverJudgementWatch.cs" />
     <Compile Include="AiTeam\DataTruth.cs" />
+    <Compile Include="AiTeam\VirtualEnergyWatch.cs" />
     <Compile Include="AiTeam\BackmarkerWatch.cs" />
     <Compile Include="AiTeam\Probe\PackedLayout.cs" />
     <Compile Include="AiTeam\Probe\ProbeStatistics.cs" />

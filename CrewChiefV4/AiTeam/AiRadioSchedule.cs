@@ -394,7 +394,10 @@ namespace CrewChiefV4.AiTeam
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
                 template=catalog.ReferenceFor("fuel-range",variant);
                 string verdict = FuelEstimate.From(ctx)?.Verdict();
-                return catalog.Format("fuel-range", variant, litres, laps) + (verdict == null ? "" : " " + verdict);
+                // LMU mit Energie-Limit: Energie gehört in dieselbe Meldung, inklusive was zuerst knapp wird.
+                var energy = VirtualEnergyWatch.Current;
+                string energyLine = energy.Level >= 0 ? VirtualEnergyWatch.Report(energy.Level, energy.PerLap, gs.FuelData.FuelLeft / perLap, variant) : null;
+                return catalog.Format("fuel-range", variant, litres, laps) + (verdict == null ? "" : " " + verdict) + (energyLine == null ? "" : " " + energyLine);
             }
             if (topic == "tyres")
             {

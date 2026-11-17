@@ -278,5 +278,47 @@ namespace UnitTest.AiTeamTests
             var changed = schedule.Take(at(95), prefs, false);
             Assert.IsNotNull(changed, "neue Bestzeit des Gegners ist eine Neuigkeit");
         }
+
+        // ---------- LMU virtuelle Energie ----------
+
+        private static GameStateData Lap(int completed, bool pit = false)
+        {
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 11; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.CompletedLaps = completed; gs.SessionData.PreviousLapWasValid = true; gs.PitData.InPitlane = pit;
+            return gs;
+        }
+
+        [Test]
+        public void Virtual_energy_use_is_measured_per_clean_lap_and_a_refill_restarts()
+        {
+            var ve = new VirtualEnergyWatch();
+            ve.Observe(Lap(3), 80f); ve.Observe(Lap(3), 78f); ve.Observe(Lap(4), 74.5f); ve.Observe(Lap(5), 69f);
+            Assert.AreEqual(5.5f, ve.PerLap, .01f);
+            Assert.AreEqual(69f / 5.5f, ve.LapsLeft, .01f);
+            ve.Observe(Lap(5, pit: true), 100f);                   // nachgeladen
+            ve.Observe(Lap(6), 99f);
+            Assert.AreEqual(5.5f, ve.PerLap, .01f, "Boxenrunde zählt nicht als Verbrauch");
+            ve.Observe(Lap(6), -1f);
+            Assert.AreEqual(-1f, ve.Level, "ohne Energie-Limit kein Stand");
+        }
+
+        [Test]
+        public void Energy_report_names_the_limiting_factor_in_three_languages()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.IsNotNull(VirtualEnergyWatch.Report(60, -1, -1, 0));
+                string tight = VirtualEnergyWatch.Report(60, 6, 14, 0);
+                string fuel = VirtualEnergyWatch.Report(60, 6, 7, 1);
+                Assert.AreNotEqual(tight, fuel);
+                StringAssert.Contains(lang == RadioLanguage.German ? "10,0" : lang == RadioLanguage.English ? "10.0" : "10,0", tight);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+            StringAssert.Contains("Energie ist knapper als der Sprit", VirtualEnergyWatch.Report(60, 6, 14, 0));
+            StringAssert.Contains("Sprit knapper als die Energie", VirtualEnergyWatch.Report(60, 6, 7, 0));
+            Assert.IsNull(VirtualEnergyWatch.Report(-1, 6, 7, 0));
+        }
     }
 }

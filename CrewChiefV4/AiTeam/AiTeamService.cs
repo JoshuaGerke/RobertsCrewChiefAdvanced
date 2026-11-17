@@ -594,6 +594,7 @@ namespace CrewChiefV4.AiTeam
                 backmarkers.Observe(current, Tracks.Snapshot, RaceMind.Latest, settings.SendDriverNames, frontName, rearName, now);
             }
             DataTruth.Current.Observe(current, now);
+            VirtualEnergyWatch.Current.Observe(current, VirtualEnergyWatch.Read());
             if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
                 LiveDiagnostics.Emit("data-truth", DataTruth.Current.Report());
             judgement.Observe(current, Memory.GetLaps(12), lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now);
