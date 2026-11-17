@@ -27,9 +27,9 @@ namespace CrewChiefV4.AiTeam
         private MemoryMappedViewAccessor view;
         private byte[] buffer;
 
-        internal bool IsOpen => view != null;
+        internal virtual bool IsOpen => view != null;
 
-        internal bool Open()
+        internal virtual bool Open()
         {
             Close();
             try
@@ -42,7 +42,7 @@ namespace CrewChiefV4.AiTeam
             catch (Exception) { Close(); return false; }
         }
 
-        internal void Close()
+        internal virtual void Close()
         {
             try { view?.Dispose(); } catch (Exception) { }
             try { file?.Dispose(); } catch (Exception) { }
@@ -52,7 +52,7 @@ namespace CrewChiefV4.AiTeam
         public void Dispose() => Close();
 
         /// <summary>Kopiert ein Bild und wertet es aus. Liefert true nur für ein neues, vollständiges Bild.</summary>
-        internal unsafe bool Read(DynamicsFrame f, double timeS)
+        internal virtual unsafe bool Read(DynamicsFrame f, double timeS)
         {
             if (view == null) return false;
             byte* pointer = null;
@@ -201,6 +201,130 @@ namespace CrewChiefV4.AiTeam
     }
 
     /// <summary>
+    /// Le Mans Ultimate über Crew Chiefs bestehende Puffer „$LMU.3.8.SMMP_Telemetry$“ und „…_Scoring$“ (gleiches Layout wie
+    /// rFactor 2, Crew-Chief-Strukturen). Statt 240 KB je Abtastung liest die Quelle nur die Felder des eigenen Autos.
+    /// Die Streckenposition kommt aus dem Scoring (seltener aktualisiert) und wird mit dem Tempo bis zum Telemetriebild
+    /// fortgeschrieben.
+    /// </summary>
+    internal sealed class LMUDynamicsSource : DynamicsSource
+    {
+        private static int TOff(string f) => Marshal.OffsetOf(typeof(rF2SharedMemory.rFactor2Data.rF2Telemetry), f).ToInt32();
+        private static int VOff(string f) => Marshal.OffsetOf(typeof(rF2SharedMemory.rFactor2Data.rF2VehicleTelemetry), f).ToInt32();
+        private static int WOff(string f) => Marshal.OffsetOf(typeof(rF2SharedMemory.rFactor2Data.rF2Wheel), f).ToInt32();
+        private static int SOff(string f) => Marshal.OffsetOf(typeof(rF2SharedMemory.rFactor2Data.rF2Scoring), f).ToInt32();
+        private static int IOff(string f) => Marshal.OffsetOf(typeof(rF2SharedMemory.rFactor2Data.rF2ScoringInfo), f).ToInt32();
+        private static int VSOff(string f) => Marshal.OffsetOf(typeof(rF2SharedMemory.rFactor2Data.rF2VehicleScoring), f).ToInt32();
+        private static readonly int telemetrySize = Marshal.SizeOf(typeof(rF2SharedMemory.rFactor2Data.rF2Telemetry)),
+            scoringSize = Marshal.SizeOf(typeof(rF2SharedMemory.rFactor2Data.rF2Scoring)),
+            vSize = Marshal.SizeOf(typeof(rF2SharedMemory.rFactor2Data.rF2VehicleTelemetry)),
+            wSize = Marshal.SizeOf(typeof(rF2SharedMemory.rFactor2Data.rF2Wheel)),
+            sSize = Marshal.SizeOf(typeof(rF2SharedMemory.rFactor2Data.rF2VehicleScoring));
+        private static readonly int tNum = TOff("mNumVehicles"), tVeh = TOff("mVehicles"), vId = VOff("mID"), vEt = VOff("mElapsedTime"),
+            vVel = VOff("mLocalVel"), vAcc = VOff("mLocalAccel"), vGear = VOff("mGear"), vThrottle = VOff("mFilteredThrottle"),
+            vBrake = VOff("mFilteredBrake"), vWheels = VOff("mWheels"), wRot = WOff("mRotation"), wSurface = WOff("mSurfaceType"),
+            sInfo = SOff("mScoringInfo"), sVeh = SOff("mVehicles"), iEt = IOff("mCurrentET"), iNum = IOff("mNumVehicles"), iRealtime = IOff("mInRealtime"),
+            vsId = VSOff("mID"), vsPlayer = VSOff("mIsPlayer"), vsDist = VSOff("mLapDist"), vsLaps = VSOff("mTotalLaps"), vsPits = VSOff("mInPits");
+        private const int Max = rF2SharedMemory.rFactor2Constants.MAX_MAPPED_VEHICLES;
+
+        private MemoryMappedFile tFile, sFile;
+        private MemoryMappedViewAccessor tView, sView;
+        private double lastEt = double.NaN;
+
+        internal override string Name => "LMU";
+        protected override string MapName => rF2SharedMemory.LMUConstants.MM_TELEMETRY_FILE_NAME;
+        protected override int Size => telemetrySize;
+        protected override bool Parse(byte[] b, DynamicsFrame f) => false; // liest feldweise, siehe Read
+
+        internal override bool IsOpen => tView != null && sView != null;
+
+        internal override bool Open()
+        {
+            Close();
+            try
+            {
+                tFile = MemoryMappedFile.OpenExisting(rF2SharedMemory.LMUConstants.MM_TELEMETRY_FILE_NAME, MemoryMappedFileRights.Read);
+                tView = tFile.CreateViewAccessor(0, telemetrySize, MemoryMappedFileAccess.Read);
+                sFile = MemoryMappedFile.OpenExisting(rF2SharedMemory.LMUConstants.MM_SCORING_FILE_NAME, MemoryMappedFileRights.Read);
+                sView = sFile.CreateViewAccessor(0, scoringSize, MemoryMappedFileAccess.Read);
+                return true;
+            }
+            catch (Exception) { Close(); return false; }
+        }
+
+        internal override void Close()
+        {
+            try { tView?.Dispose(); } catch (Exception) { }
+            try { tFile?.Dispose(); } catch (Exception) { }
+            try { sView?.Dispose(); } catch (Exception) { }
+            try { sFile?.Dispose(); } catch (Exception) { }
+            tView = sView = null; tFile = sFile = null;
+        }
+
+        internal static WheelSurface Surface(byte type)
+        {
+            switch (type)
+            {
+                case 0: case 1: return WheelSurface.Road;            // trocken, nass
+                case 2: case 3: case 4: return WheelSurface.Off;     // Gras, Erde, Kies
+                case 5: return WheelSurface.Kerb;                    // Randstein
+                default: return WheelSurface.Unknown;                // „special“
+            }
+        }
+
+        internal override bool Read(DynamicsFrame f, double timeS)
+        {
+            if (!IsOpen) return false;
+            try
+            {
+                // Scoring: eigenes Auto finden (Slot-ID), Streckenposition, Runden, Box.
+                uint sBegin = sView.ReadUInt32(0);
+                int sNum = Math.Min(Max, sView.ReadInt32(sInfo + iNum));
+                int id = -1; double dist = -1, scoringEt = sView.ReadDouble(sInfo + iEt); int laps = 0; bool pit = false;
+                for (int i = 0; i < sNum; i++)
+                {
+                    int o = sVeh + i * sSize;
+                    if (sView.ReadByte(o + vsPlayer) == 0) continue;
+                    id = sView.ReadInt32(o + vsId); dist = sView.ReadDouble(o + vsDist); laps = sView.ReadInt16(o + vsLaps); pit = sView.ReadByte(o + vsPits) != 0;
+                    break;
+                }
+                bool realtime = sView.ReadByte(sInfo + iRealtime) != 0;
+                if (sView.ReadUInt32(4) != sBegin || id < 0) return false;
+
+                uint tBegin = tView.ReadUInt32(0);
+                if (tView.ReadUInt32(4) != tBegin) return false; // Spiel schreibt gerade
+                int tNumVeh = Math.Min(Max, tView.ReadInt32(tNum));
+                int v = -1;
+                for (int i = 0; i < tNumVeh && v < 0; i++) if (tView.ReadInt32(tVeh + i * vSize + vId) == id) v = tVeh + i * vSize;
+                if (v < 0) return false;
+                double et = tView.ReadDouble(v + vEt);
+                if (et == lastEt) return false;
+                double vx = tView.ReadDouble(v + vVel), vy = tView.ReadDouble(v + vVel + 8), vz = tView.ReadDouble(v + vVel + 16);
+                f.Speed = (float)Math.Sqrt(vx * vx + vy * vy + vz * vz);
+                f.LatAccel = (float)tView.ReadDouble(v + vAcc); f.LongAccel = (float)tView.ReadDouble(v + vAcc + 16);
+                f.Gear = tView.ReadInt32(v + vGear);
+                f.Throttle = (float)tView.ReadDouble(v + vThrottle); f.Brake = (float)tView.ReadDouble(v + vBrake);
+                for (int w = 0; w < 4; w++)
+                {
+                    int o = v + vWheels + w * wSize;
+                    f.WheelRotation[w] = (float)tView.ReadDouble(o + wRot);
+                    f.Surfaces[w] = Surface(tView.ReadByte(o + wSurface));
+                }
+                if (tView.ReadUInt32(0) != tBegin) return false; // während des Lesens überschrieben
+                lastEt = et;
+                f.TimeS = timeS;
+                f.Driving = realtime;
+                f.InPit = pit;
+                f.CompletedLaps = laps;
+                f.AbsActive = false; f.AbsUnknown = true; // LMU meldet keinen ABS-Eingriff
+                double ahead = et > scoringEt && et - scoringEt < 1 ? f.Speed * (et - scoringEt) : 0;
+                f.LapDistance = dist >= 0 ? (float)(dist + ahead) : -1;
+                return true;
+            }
+            catch (Exception) { Close(); return false; }
+        }
+    }
+
+    /// <summary>
     /// Schnelle Abtastung (Rob 17.11.2026: 100 Hz) in einem eigenen Hintergrundfaden, unabhängig von Crew Chiefs
     /// Hauptschleife. Liest alle 4 ms und wertet jedes neue Bild der Sim aus – bei AMS2 also gut hundert Bilder pro Sekunde.
     /// Läuft nur, solange der Dienst ihn anfordert (<see cref="Ensure"/>), und beendet sich 15 s nach der letzten Anforderung.
@@ -220,7 +344,7 @@ namespace CrewChiefV4.AiTeam
         internal static Newtonsoft.Json.Linq.JObject Facts(int completedLaps) =>
             DateTime.UtcNow - Analyzer.LastFrameUtc < TimeSpan.FromSeconds(3) ? Analyzer.Snapshot(completedLaps) : null;
 
-        internal static bool Supports(GameEnum game) => game == GameEnum.AMS2 || game == GameEnum.RACE_ROOM;
+        internal static bool Supports(GameEnum game) => game == GameEnum.AMS2 || game == GameEnum.RACE_ROOM || game == GameEnum.LMU;
 
         /// <summary>Vom Dienst je Takt aufgerufen: startet bzw. hält den Faden für das laufende Spiel.</summary>
         internal static void Ensure(GameEnum game)
@@ -237,7 +361,8 @@ namespace CrewChiefV4.AiTeam
         }
 
         private static DynamicsSource Create(GameEnum game) =>
-            game == GameEnum.AMS2 ? new AMS2DynamicsSource() : game == GameEnum.RACE_ROOM ? (DynamicsSource)new R3EDynamicsSource() : null;
+            game == GameEnum.AMS2 ? new AMS2DynamicsSource() : game == GameEnum.RACE_ROOM ? new R3EDynamicsSource()
+                : game == GameEnum.LMU ? (DynamicsSource)new LMUDynamicsSource() : null;
 
         private static void Run()
         {

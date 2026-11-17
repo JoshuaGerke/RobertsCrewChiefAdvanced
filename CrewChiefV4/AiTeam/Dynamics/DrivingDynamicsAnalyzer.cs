@@ -18,6 +18,8 @@ namespace CrewChiefV4.AiTeam
         public float Speed, Throttle, Brake, Steering, LatAccel, LongAccel, LapDistance = -1;
         public int Gear, CompletedLaps;
         public bool Driving, InPit, AbsActive;
+        /// <summary>Die Sim meldet keinen ABS-Eingriff (LMU): Blockierer müssen dann länger und deutlicher sein.</summary>
+        public bool AbsUnknown;
         public readonly float[] WheelRotation = new float[4];
         public readonly WheelSurface[] Surfaces = new WheelSurface[4];
     }
@@ -50,7 +52,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         internal const float LockRatio = .80f, HeavyRatio = .35f, SpinRatio = 1.12f;
-        internal const double LockMin = .05, HeavyMin = .30, SpinMin = .15, OffMin = .20, OffRecover = .30;
+        internal const double LockMin = .05, LockMinWithoutAbsFlag = .15, HeavyMin = .30, SpinMin = .15, OffMin = .20, OffRecover = .30;
         internal const int CalibrationSamples = 30;
 
         private readonly object gate = new object();
@@ -170,7 +172,7 @@ namespace CrewChiefV4.AiTeam
             {
                 double d = f.TimeS - lockSince[i];
                 lockSince[i] = double.NaN;
-                if (d >= LockMin)
+                if (d >= (f.AbsUnknown ? LockMinWithoutAbsFlag : LockMin) && (!f.AbsUnknown || lockExtreme[i] < .65f))
                 {
                     bool hard = lockExtreme[i] < HeavyRatio && d >= HeavyMin;
                     var e = Add(hard ? Kind.HeavyLockup : Kind.Lockup, i, 0, lockDistance[i], (float)d, lockExtreme[i], lockSpeed[i]);

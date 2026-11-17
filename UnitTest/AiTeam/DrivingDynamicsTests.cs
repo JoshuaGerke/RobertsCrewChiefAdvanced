@@ -75,6 +75,21 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Without_an_abs_flag_only_longer_and_deeper_locks_count()
+        {
+            var d = new Drive(); d.Calibrate();
+            d.F.AbsUnknown = true;
+            d.Run(.1, 35, 0, .9f, new[] { .5f, 1f, 1f, 1f }, distance: 1000);
+            d.Run(.2, 30, 0, .3f, distance: 1010);
+            d.Run(.3, 35, 0, .9f, new[] { .7f, 1f, 1f, 1f }, distance: 1000);
+            d.Run(.2, 30, 0, .3f, distance: 1010);
+            Assert.AreEqual(0, d.A.EventCount, "LMU: kurzes Regeln oder 70 % Raddrehzahl kann ABS sein");
+            d.Run(.2, 35, 0, .9f, new[] { .5f, 1f, 1f, 1f }, distance: 1000);
+            d.Run(.2, 30, 0, .3f, distance: 1010);
+            Assert.AreEqual(1, d.A.EventCount, "0,2 s bei halber Raddrehzahl ist ein Blockierer");
+        }
+
+        [Test]
         public void Lockup_in_the_same_corner_on_two_of_three_laps_is_a_pattern_once()
         {
             var d = new Drive();
@@ -132,6 +147,10 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(WheelSurface.Kerb, R3EDynamicsSource.Surface(5));
             Assert.AreEqual(WheelSurface.Off, R3EDynamicsSource.Surface(4));
             Assert.AreEqual(WheelSurface.Unknown, R3EDynamicsSource.Surface(-1));
+            Assert.AreEqual(WheelSurface.Road, LMUDynamicsSource.Surface(1), "nass ist trotzdem Strecke");
+            Assert.AreEqual(WheelSurface.Off, LMUDynamicsSource.Surface(2));
+            Assert.AreEqual(WheelSurface.Kerb, LMUDynamicsSource.Surface(5));
+            Assert.AreEqual(WheelSurface.Unknown, LMUDynamicsSource.Surface(6));
         }
 
         [Test]
