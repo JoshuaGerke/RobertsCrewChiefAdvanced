@@ -210,9 +210,9 @@ namespace UnitTest.AiTeamTests
             var laps = new List<LapRecord> { Lap(1, 95), Lap(2, 90.2f), Lap(3, 90f), Lap(4, 90.4f), Lap(5, 101f, true), Lap(6, 104f, true) };
             Assert.AreEqual(-1, meter.Observe(21, laps), "Ausfahrt noch nicht abgeschlossen");
             laps.Add(Lap(7, 90.3f));
-            Assert.AreEqual(24.6f, meter.Observe(21, laps), .01f, "101 + 104 − 2 × 90,2");
+            Assert.AreEqual(24.4f, meter.Observe(21, laps), .01f, "101 + 104 − 2 × 90,3 (Median aus 90,0 / 90,2 / 90,4 / 95,0)");
             Assert.AreEqual(-1, meter.Observe(21, laps), "derselbe Stopp zählt nur einmal");
-            Assert.AreEqual(24.6f, meter.Seconds, .01f);
+            Assert.AreEqual(24.4f, meter.Seconds, .01f);
             Assert.AreEqual(-1, meter.Observe(22, laps.Take(4).ToList()), "neue Sitzung");
             Assert.AreEqual(-1, meter.Seconds, "neue Sitzung beginnt ohne Messung");
 
