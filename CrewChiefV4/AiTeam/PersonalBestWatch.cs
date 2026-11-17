@@ -123,6 +123,32 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        /// <summary>
+        /// Allzeit-Rekord, wenn dieselbe Runde gerade schon als Bestzeit angesagt wurde (Rob 17.11., Bathurst: „Sauber, neue
+        /// Bestzeit. 2:03,173.“ und fünf Sekunden später „Persönliche Bestmarke geknackt! 2:03,173 …“). Die Zeit kennt Rob dann
+        /// schon – Mik ordnet nur ein: Allzeit-Bestmarke und Abstand zur alten Marke, ohne die Zeit zu wiederholen.
+        /// </summary>
+        internal static string RecordFollowUp(float now, PersonalBest previous, string name, int variant)
+        {
+            string gain = RadioLanguage.Num(previous.LapSeconds - now, "0.000");
+            string who = string.IsNullOrWhiteSpace(name) ? "Rob" : name;
+            switch (((variant % 4) + 4) % 4)
+            {
+                case 0: return RadioLanguage.T("Das war zugleich deine Allzeit-Bestmarke hier, " + gain + " schneller als bei allen Fahrten davor.",
+                    "That's also your all-time best here, " + gain + " quicker than any run before.",
+                    "Además es tu mejor marca de siempre aquí, " + gain + " más rápido que en cualquier tanda anterior.");
+                case 1: return RadioLanguage.T("Und nicht nur heute: Die Runde ist dein bester Wert auf dieser Strecke überhaupt, " + gain + " unter der alten Marke.",
+                    "And not just today: that lap is your best ever on this track, " + gain + " under the old mark.",
+                    "Y no solo hoy: esa vuelta es lo mejor que has hecho en esta pista, " + gain + " por debajo de la marca anterior.");
+                case 2: return RadioLanguage.T("Kleiner Nachtrag, " + who + ": Damit ist auch dein Streckenrekord gefallen, " + gain + " schneller als die alte Zeit.",
+                    "Quick add-on, " + who + ": that also beats your track record, " + gain + " faster than the old time.",
+                    "Un apunte, " + who + ": con eso también cae tu récord en esta pista, " + gain + " más rápido que el tiempo anterior.");
+                default: return RadioLanguage.T("Die alte Bestmarke aus früheren Fahrten ist damit Geschichte, " + gain + " schneller.",
+                    "The old benchmark from earlier runs is history, " + gain + " faster.",
+                    "La marca anterior de otras tandas ya es historia, " + gain + " más rápido.");
+            }
+        }
+
         internal static string SectorLoss(int sector, float loss, int variant)
         {
             string d = loss < 1 ? RadioLanguage.Num(loss, "0.00") : GermanRadioText.Interval(loss);
@@ -181,7 +207,8 @@ namespace CrewChiefV4.AiTeam
             if (ctx.IdentityKnown) store.RecordWear(ctx.Game, ctx.Car, ctx.Track, ctx.Layout, PersonalBestStore.Compound(gs), perLap);
         }
 
-        internal void ObserveLap(GameStateData gs, LapRecord lap, PersonalBestStore store, string game, string name, DateTime now)
+        internal void ObserveLap(GameStateData gs, LapRecord lap, PersonalBestStore store, string game, string name, DateTime now,
+            Func<float, bool> lapTimeAlreadyAnnounced = null)
         {
             if (gs == null || lap == null || store == null) return;
             if (gs.SessionData.SessionId != session) { Reset(); session = gs.SessionData.SessionId; }
@@ -194,7 +221,13 @@ namespace CrewChiefV4.AiTeam
                 // Rob 16.11., Bathurst: „schnellste Runde überhaupt … 2,9 besser als die alte Marke“ kam, obwohl die alte Marke
                 // erst eine Runde vorher in derselben Sitzung gespeichert war. Ein Rekord zählt nur gegen frühere Sitzungen.
                 if (previous != null && previous.DateUtc < sessionStartUtc)
-                    Offer(gs, now, "personal-best-record", Record(entry.LapSeconds, previous, AiPersonas.CleanForRadio(name ?? "", 30, false), variant++), 5, "lap_beats_stored_personal_best");
+                {
+                    string cleanName = AiPersonas.CleanForRadio(name ?? "", 30, false);
+                    bool announced = lapTimeAlreadyAnnounced != null && lapTimeAlreadyAnnounced(entry.LapSeconds);
+                    Offer(gs, now, "personal-best-record", announced ? RecordFollowUp(entry.LapSeconds, previous, cleanName, variant++) :
+                        Record(entry.LapSeconds, previous, cleanName, variant++), 5,
+                        announced ? "lap_beats_stored_personal_best_time_already_announced" : "lap_beats_stored_personal_best");
+                }
                 LiveDiagnostics.Decision("personal-best", "stored", "valid_lap", entry.Track + " " + entry.Car + " " + entry.LapSeconds.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture));
                 return;
             }

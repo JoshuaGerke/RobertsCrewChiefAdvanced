@@ -18,6 +18,16 @@ namespace CrewChiefV4.AiTeam
         private SessionType type = SessionType.Unavailable;
         private float personalBest = -1, classBest = -1;
         private DateTime lastRadio = DateTime.MinValue;
+        // Zuletzt angesagte eigene Bestzeit dieser Sitzung (Rob 17.11., Bathurst): Der Allzeit-Rekord derselben Runde soll die
+        // Zeit nicht ein zweites Mal vorlesen.
+        private float announcedLapSeconds = -1;
+        private DateTime announcedLapUtc = DateTime.MinValue;
+        internal static readonly TimeSpan AnnouncedLapWindow = TimeSpan.FromSeconds(20);
+
+        /// <summary>Wurde genau diese Rundenzeit gerade als eigene Bestzeit angesagt (oder steht sie zur Ansage an)?</summary>
+        internal bool AnnouncedOwnLap(float seconds, DateTime now) =>
+            Good(announcedLapSeconds) && Good(seconds) && Math.Abs(announcedLapSeconds - seconds) < .02f &&
+            now >= announcedLapUtc && now - announcedLapUtc < AnnouncedLapWindow;
         internal static string TimedLapStartPhrase => RadioLanguage.T("Zeit läuft. Die erste gezeitete Runde beginnt, bleib bei deinem Rhythmus.",
             "Clock's running. First timed lap starts now, keep your rhythm.",
             "Corre el tiempo. Empieza la primera vuelta cronometrada, mantén tu ritmo.");
@@ -36,7 +46,7 @@ namespace CrewChiefV4.AiTeam
         {
             pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1;
             lastLap = lastSectorCallLap = lastSectorCall = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor();
-            lastRadio = lastSectorBestCall = lastSectorTimeCall = DateTime.MinValue; firstSectorTimeCalled = false;
+            lastRadio = lastSectorBestCall = lastSectorTimeCall = announcedLapUtc = DateTime.MinValue; firstSectorTimeCalled = false; announcedLapSeconds = -1;
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
             edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
@@ -160,6 +170,7 @@ namespace CrewChiefV4.AiTeam
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", 5,
                             variants, group, heard);
                         ownCall = true;
+                        announcedLapSeconds = time; announcedLapUtc = now;
                     }
                     else if (!race && Good(personalBest) && time > personalBest + .01f && time - personalBest <= .30f)
                     {

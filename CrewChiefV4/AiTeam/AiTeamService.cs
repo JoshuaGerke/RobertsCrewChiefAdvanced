@@ -520,7 +520,8 @@ namespace CrewChiefV4.AiTeam
                     ? wearStore.StoredWear(wearCtx.Game, wearCtx.Car, wearCtx.Track, wearCtx.Layout, PersonalBestStore.Compound(current)) : null;
                 tyreWear.Observe(current, Memory.GetLaps(1).LastOrDefault(), Memory, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now, storedRate);
             }
-            if (lapCompleted) personalBest.ObserveLap(current, Memory.GetLaps(1).LastOrDefault(), bestStore, GameName, settings.RadioName, now);
+            if (lapCompleted) personalBest.ObserveLap(current, Memory.GetLaps(1).LastOrDefault(), bestStore, GameName, settings.RadioName, now,
+                seconds => sessionLaps.AnnouncedOwnLap(seconds, now));
             if (lapCompleted) PersonalBestWatch.RecordWear(current, bestStore, GameName, Memory.AverageWearPerLap(3), now);
             personalBest.Observe(current, bestStore, GameName, settings.RadioName, now);
             var radioPrefs = settings.RadioPreferences;
