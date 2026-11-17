@@ -1249,16 +1249,22 @@ namespace CrewChiefV4.Audio
             {
                 int waitTimeout = -1;
                 DateTime now = CrewChief.currentGameState == null ? DateTime.UtcNow : CrewChief.currentGameState.Now;
+                // RRCA: Funkstille, solange der Fahrer die KI-Funktaste drückt; die Warteschlange bleibt erhalten.
+                bool driverTalking = AiTeam.DriverRadioGate.Holding(DateTime.UtcNow);
                 if (channelOpen && !SoundCache.IS_PLAYING && (!holdChannelOpen || now > timeOfLastMessageEnd + maxTimeToHoldEmptyChannelOpen))
                 {
-                    if (!queueHasDueMessages(queuedClips, false) && !queueHasDueMessages(immediateClips, true))
+                    if (driverTalking || !queueHasDueMessages(queuedClips, false) && !queueHasDueMessages(immediateClips, true))
                     {
                         holdChannelOpen = false;
                         stopHangingChannelCloseThread();
                         closeRadioInternalChannel();
                     }
                 }
-                if (immediateClips.Count > 0)
+                if (immediateClips.Count > 0 && driverTalking && !immediateQueueIsSpotterOnly())
+                {
+                    waitTimeout = 100; // nach dem Loslassen geht es mit der Warteschlange weiter
+                }
+                else if (immediateClips.Count > 0)
                 {
                     if (!SpeechRecogniser.waitingForSpeech || SpeechRecogniser.respondWhileChannelIsStillOpen || MainWindow.voiceOption != MainWindow.VoiceOptionEnum.HOLD)
                     {
@@ -1277,7 +1283,7 @@ namespace CrewChiefV4.Audio
                     }
                     waitTimeout = 10;
                 }
-                else if (!regularQueuePaused && queuedClips.Count > 0 && !holdChannelOpen /* don't allow regular messages to play if we're holding the channel open*/)
+                else if (!regularQueuePaused && !driverTalking && queuedClips.Count > 0 && !holdChannelOpen /* don't allow regular messages to play if we're holding the channel open*/)
                 {
                     try
                     {
@@ -1293,6 +1299,10 @@ namespace CrewChiefV4.Audio
                         }
                     }
                     waitTimeout = 10;
+                }
+                else if (driverTalking && queuedClips.Count > 0)
+                {
+                    waitTimeout = 100;
                 }
                 // -1 timeout means wait-till-notified. 10 timeout kicks the loop off again almost immediately. This
                 // should happen once after playing messages, to allow the channel to be closed. After the channel is closed
@@ -2512,6 +2522,21 @@ namespace CrewChiefV4.Audio
                 }
                 catch (Exception e) {Log.Exception(e);}
                 soundCache = null;
+            }
+        }
+
+        /// <summary>RRCA: Während der Fahrer spricht, dürfen nur Spotter-Meldungen (Auto neben dir) aus der Sofort-Warteschlange starten.</summary>
+        private bool immediateQueueIsSpotterOnly()
+        {
+            lock (immediateClips)
+            {
+                if (immediateClips.Count == 0) return false;
+                foreach (Object entry in immediateClips.Values)
+                {
+                    var message = entry as QueuedMessage;
+                    if (message == null || message.metadata == null || message.metadata.type != SoundType.SPOTTER) return false;
+                }
+                return true;
             }
         }
 

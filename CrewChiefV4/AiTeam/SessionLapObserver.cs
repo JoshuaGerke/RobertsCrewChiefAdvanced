@@ -18,6 +18,16 @@ namespace CrewChiefV4.AiTeam
         private SessionType type = SessionType.Unavailable;
         private float personalBest = -1, classBest = -1;
         private DateTime lastRadio = DateTime.MinValue;
+        // Zuletzt angesagte eigene Bestzeit dieser Sitzung (Rob 17.11., Bathurst): Der Allzeit-Rekord derselben Runde soll die
+        // Zeit nicht ein zweites Mal vorlesen.
+        private float announcedLapSeconds = -1;
+        private DateTime announcedLapUtc = DateTime.MinValue;
+        internal static readonly TimeSpan AnnouncedLapWindow = TimeSpan.FromSeconds(20);
+
+        /// <summary>Wurde genau diese Rundenzeit gerade als eigene Bestzeit angesagt (oder steht sie zur Ansage an)?</summary>
+        internal bool AnnouncedOwnLap(float seconds, DateTime now) =>
+            Good(announcedLapSeconds) && Good(seconds) && Math.Abs(announcedLapSeconds - seconds) < .02f &&
+            now >= announcedLapUtc && now - announcedLapUtc < AnnouncedLapWindow;
         internal static string TimedLapStartPhrase => RadioLanguage.T("Zeit läuft. Die erste gezeitete Runde beginnt, bleib bei deinem Rhythmus.",
             "Clock's running. First timed lap starts now, keep your rhythm.",
             "Corre el tiempo. Empieza la primera vuelta cronometrada, mantén tu ritmo.");
@@ -25,6 +35,79 @@ namespace CrewChiefV4.AiTeam
             "Your first flying lap is coming up. Focus on the exit.",
             "Ya llega tu primera vuelta rápida. Concéntrate en la salida de curva.");
         private bool firstTimedLapCalled, lastQualifyingLapOffered, firstFuelOffered, fuelBaselineReported;
+        // Rob 17.11.: Im Quali/Training jede neue schnelle Runde nach einer Ausfahrt kurz anschieben und ab und zu sagen,
+        // was auf die Bestzeit fehlt – leise, nicht zu oft.
+        private int timedLapAttempts, lastGapLap = -100, gapVariant, startVariant;
+        private DateTime lastGapUtc = DateTime.MinValue;
+        private bool wasInPit;
+
+        /// <summary>Ansage zum Start einer schnellen Runde; <paramref name="attempt"/> 0 = erste der Session.</summary>
+        internal static string TimedLapStart(int attempt, string name, int variant)
+        {
+            string n = string.IsNullOrWhiteSpace(name) ? "" : name;
+            string[] first = RadioLanguage.Pick(
+                new[] { "Zeit läuft. Die erste gezeitete Runde beginnt, bleib bei deinem Rhythmus.",
+                    "So, auf geht's" + (n.Length > 0 ? ", " + n : "") + ": deine erste schnelle Runde. Sauber und mit Rhythmus.",
+                    "Erste fliegende Runde läuft. Kopf runter, Kurve für Kurve.",
+                    "Jetzt zählt's – die erste gezeitete Runde. Bau sie sauber auf.",
+                    "Uhr läuft" + (n.Length > 0 ? ", " + n : "") + ". Erste Runde: lieber sauber als am Limit vorbei.",
+                    "Los geht's mit der ersten Zeit. Reifen sind vorbereitet, jetzt zeig, was geht." },
+                new[] { "Clock's running. First timed lap starts now, keep your rhythm.",
+                    "Right, here we go" + (n.Length > 0 ? ", " + n : "") + ": your first flying lap. Clean and in rhythm.",
+                    "First flying lap is live. Head down, corner by corner.",
+                    "This is it – first timed lap. Build it up cleanly.",
+                    "Clock's running" + (n.Length > 0 ? ", " + n : "") + ". First lap: clean beats over the limit.",
+                    "Off we go for the first time. Tyres are ready, show us what you've got." },
+                new[] { "Corre el tiempo. Empieza la primera vuelta cronometrada, mantén tu ritmo.",
+                    "Vamos allá" + (n.Length > 0 ? ", " + n : "") + ": tu primera vuelta rápida. Limpia y con ritmo.",
+                    "Primera vuelta lanzada en marcha. Concentración, curva a curva.",
+                    "Ahora cuenta: primera vuelta cronometrada. Constrúyela limpia.",
+                    "Corre el reloj" + (n.Length > 0 ? ", " + n : "") + ". Primera vuelta: mejor limpia que pasarse.",
+                    "A por el primer tiempo. Los neumáticos están listos, enséñanos lo que hay." });
+            string[] again = RadioLanguage.Pick(
+                new[] { "Neuer Versuch, die Runde zählt. Hol dir die Zehntel.", "Nächste schnelle Runde läuft. Du weißt jetzt, wo die Zeit liegt.",
+                    "Auf geht's, nächster Anlauf. Sauber rein, sauber raus.", "Runde läuft – jetzt die Bestzeit knacken.",
+                    "Noch ein Versuch" + (n.Length > 0 ? ", " + n : "") + ". Ruhig bleiben, dann kommt die Zeit.", "Zeit läuft wieder. Konzentriert, Kurve für Kurve." },
+                new[] { "New attempt, this one counts. Go find those tenths.", "Next flying lap is on. You know where the time is now.",
+                    "Here we go, next run. Clean in, clean out.", "Lap's running – time to beat that best.",
+                    "One more go" + (n.Length > 0 ? ", " + n : "") + ". Stay calm and the time will come.", "Clock's running again. Focused, corner by corner." },
+                new[] { "Nuevo intento, esta cuenta. Ve a por esas décimas.", "Siguiente vuelta rápida en marcha. Ya sabes dónde está el tiempo.",
+                    "Vamos, siguiente intento. Limpio al entrar, limpio al salir.", "Vuelta en marcha: a batir ese mejor tiempo.",
+                    "Un intento más" + (n.Length > 0 ? ", " + n : "") + ". Tranquilo y el tiempo llegará.", "Vuelve a correr el reloj. Concentrado, curva a curva." });
+            var pool = attempt <= 0 ? first : again;
+            return pool[((variant % pool.Length) + pool.Length) % pool.Length];
+        }
+
+        /// <summary>Kurzer Zwischenstand zur Bestzeit der Klasse (Quali/Training).</summary>
+        internal static string GapToBest(float gap, int position, string leader, int variant)
+        {
+            string g = RadioLanguage.Num(gap, gap < 1 ? "0.000" : "0.00");
+            string p = position > 0 ? position.ToString(RadioLanguage.Culture) : null;
+            string who = string.IsNullOrWhiteSpace(leader) ? null : leader;
+            if (gap <= 0)
+                return Of(variant, RadioLanguage.T("Du hältst die Bestzeit. Weiter so.", "You've got the fastest time. Keep it up.", "Tienes el mejor tiempo. Sigue así."),
+                    RadioLanguage.T("Ganz vorn in der Zeitenliste. Jetzt nachlegen, wenn es geht.", "Top of the timesheet. Add to it if you can.", "Primero en la tabla. Mejóralo si puedes."),
+                    RadioLanguage.T("Die Bestzeit gehört dir. Die anderen müssen jetzt kommen.", "Fastest time is yours. The others have to respond now.", "El mejor tiempo es tuyo. Ahora les toca a los demás."),
+                    RadioLanguage.T("P1 steht. Sauber weiterfahren.", "P1 for now. Keep it clean.", "P1 por ahora. Sigue limpio."));
+            return Of(variant,
+                RadioLanguage.T((p != null ? "Stand jetzt Platz " + p + ". " : "") + "Auf die Bestzeit fehlen dir noch " + g + " Sekunden.",
+                    (p != null ? "Currently P" + p + ". " : "") + "You're " + g + " seconds off the best time.",
+                    (p != null ? "Ahora mismo P" + p + ". " : "") + "Te faltan " + g + " segundos para el mejor tiempo."),
+                RadioLanguage.T(g + " Sekunden bis zur Spitze" + (who != null ? ", " + who + " führt" : "") + ". Das ist machbar.",
+                    g + " seconds to the top" + (who != null ? ", " + who + " leads" : "") + ". That's doable.",
+                    g + " segundos hasta arriba" + (who != null ? ", manda " + who : "") + ". Se puede."),
+                RadioLanguage.T("Zwischenstand: " + (p != null ? "P" + p + ", " : "") + g + " hinter der Bestzeit. Da liegt noch was.",
+                    "Update: " + (p != null ? "P" + p + ", " : "") + g + " behind the best. There's more in it.",
+                    "Actualización: " + (p != null ? "P" + p + ", " : "") + g + " detrás del mejor. Queda margen."),
+                RadioLanguage.T("Die Bestzeit ist " + g + " Sekunden weg. Stück für Stück ran.",
+                    "Best time is " + g + " seconds away. Chip away at it.",
+                    "El mejor tiempo está a " + g + " segundos. Poco a poco."),
+                RadioLanguage.T((who != null ? who + " hat die Bestzeit, " : "Bis zur Bestzeit ") + g + (who != null ? " vor dir." : " Sekunden.") + " Ruhig weiter aufbauen.",
+                    (who != null ? who + " has the best time, " + g + " ahead." : g + " seconds to the best time.") + " Keep building calmly.",
+                    (who != null ? who + " tiene el mejor tiempo, " + g + " por delante." : g + " segundos al mejor tiempo.") + " Sigue construyendo con calma."));
+        }
+
+        private static string Of(int variant, params string[] options) => options[((variant % options.Length) + options.Length) % options.Length];
         private readonly Random qualiLastVariation = new Random();
         private int lastSectorCallLap = -1, lastSectorCall = -1;
         private readonly float[] completedSectorBest = { -1, -1, -1 };
@@ -36,9 +119,11 @@ namespace CrewChiefV4.AiTeam
         {
             pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1;
             lastLap = lastSectorCallLap = lastSectorCall = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor();
-            lastRadio = lastSectorBestCall = lastSectorTimeCall = DateTime.MinValue; firstSectorTimeCalled = false;
+            lastRadio = lastSectorBestCall = lastSectorTimeCall = announcedLapUtc = DateTime.MinValue; firstSectorTimeCalled = false; announcedLapSeconds = -1;
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
+            edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
+            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false;
         }
 
         public static bool Supported(SessionType t)
@@ -61,6 +146,9 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             bool green = s.SessionPhase == SessionPhase.Green;
+            // Neue Ausfahrt im Quali/Training: die nächste schnelle Runde bekommt wieder eine Ansage.
+            if (!race && gs.PitData.InPitlane && !wasInPit && firstTimedLapCalled) { firstTimedLapCalled = false; timedLapAttempts++; }
+            wasInPit = gs.PitData.InPitlane;
             if (!green && (race || s.SessionPhase != SessionPhase.Checkered && s.SessionPhase != SessionPhase.Finished))
             { pending.Clear(); return; }
             bool ownCall = false;
@@ -81,7 +169,8 @@ namespace CrewChiefV4.AiTeam
                 distance - previous.PositionAndMotionData.DistanceRoundTrack <= 180 * step + 15)
             {
                 firstTimedLapCalled = true;
-                Add(gs, now, "timed-lap-approach", TimedLapApproachPhrase, "confirmed_qualifying_outlap_approaching_line", 4);
+                Add(gs, now, "timed-lap-approach", timedLapAttempts == 0 ? TimedLapApproachPhrase : TimedLapStart(timedLapAttempts, sectorDriverName, startVariant++),
+                    "confirmed_qualifying_outlap_approaching_line", 4);
             }
             bool continuous = !float.IsNaN(step) && !float.IsInfinity(step) && step > 0 && step <= 1.5f && previous != null &&
                 length - previous.PositionAndMotionData.DistanceRoundTrack + gs.PositionAndMotionData.DistanceRoundTrack <= 180 * step + 15;
@@ -92,7 +181,7 @@ namespace CrewChiefV4.AiTeam
                 gs.PositionAndMotionData.DistanceRoundTrack >= 0 && gs.PositionAndMotionData.DistanceRoundTrack < length * .2f)
             {
                 firstTimedLapCalled = true;
-                Add(gs, now, "timed-lap-start", TimedLapStartPhrase,
+                Add(gs, now, "timed-lap-start", TimedLapStart(timedLapAttempts, sectorDriverName, startVariant++),
                     "mapped_outlap_end_new_lap_and_start_finish_crossing", 3);
             }
             bool finalQualifyingLap = QualifyingResultWatch.Supported(type) && previous?.SessionData.SessionId == session &&
@@ -159,6 +248,7 @@ namespace CrewChiefV4.AiTeam
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", 5,
                             variants, group, heard);
                         ownCall = true;
+                        announcedLapSeconds = time; announcedLapUtc = now;
                     }
                     else if (!race && Good(personalBest) && time > personalBest + .01f && time - personalBest <= .30f)
                     {
@@ -189,6 +279,17 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             if (Good(nextBest)) classBest = nextBest;
+            // Zwischenstand zur Bestzeit: nach einer sauberen Runde ohne eigene Ansage, höchstens alle drei Runden und 150 s.
+            if (!race && green && !ownCall && completed != null && completed.Valid && !completed.InPitLap && Good(classBest) &&
+                Good(s.PlayerLapTimeSessionBest) && s.CompletedLaps - lastGapLap >= 3 && now - lastGapUtc >= TimeSpan.FromSeconds(150) &&
+                !pending.Any(c => c.IsValid(gs, now)))
+            {
+                lastGapLap = s.CompletedLaps; lastGapUtc = now;
+                float gap = s.PlayerLapTimeSessionBest - classBest;
+                var leader = gs.OpponentData.Values.FirstOrDefault(o => SameClass(gs, o) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - classBest) < .01f);
+                string leaderName = names && leader != null ? new string((leader.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()).Trim() : null;
+                Add(gs, now, "quali-gap", GapToBest(Math.Max(0, gap), s.ClassPosition, leaderName, gapVariant++), "own_session_best_vs_class_best_after_clean_lap", 2);
+            }
             if (!s.SectorTimingEstimated && completed?.SectorTimes?.Length == 3 && completed.Valid && !completed.InPitLap && Good(completed.LapTime) &&
                 completed.LapNumber == s.CompletedLaps && s.IsNewLap &&
                 Math.Abs(completed.SectorTimes.Sum() - completed.LapTime) <= 1)
@@ -196,7 +297,7 @@ namespace CrewChiefV4.AiTeam
             if (sectorRadio && green && !ownCall && !s.SectorTimingEstimated)
             {
                 bool live = TryLiveSector(gs, previous, now, out var lap, out int sector);
-                if (live && (ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
+                if (live && (ObserveFlyingLap(gs, previous, lap, sector, now) || ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
                     ObservePersonalBestPace(gs, lap, sector, now))) return;
                 if (QualifyingResultWatch.Supported(type))
                     ObserveQualifyingSector(gs, previous, now, names, tracks);
@@ -206,24 +307,60 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private static bool TryLiveSector(GameStateData state, GameStateData previous, DateTime now, out LapData lap, out int sector)
+        // Rob 17.11.: Die lila Runde in AMS2 blieb stumm. Bisher zählte nur genau der eine Takt, in dem die Sektornummer
+        // wechselte – war dort irgendetwas noch nicht frisch (gleicher Datensatz, Sektorzeit noch nicht eingetragen), war
+        // die Gelegenheit für die ganze Runde verloren, und niemand konnte sehen, warum. Jetzt merkt sich der Beobachter den
+        // Sektorwechsel und versucht es bei vorübergehenden Gründen bis zu zwei Sekunden lang weiter; jeder Grund, aus dem
+        // ein Sektor nicht ausgewertet wird, landet in der Live-Diagnose („sector-live“).
+        private int edgeLap = -1, edgeSector = -1;
+        private DateTime edgeUtc = DateTime.MinValue;
+        internal static readonly TimeSpan SectorEdgeRetry = TimeSpan.FromSeconds(2);
+
+        /// <summary>Vorübergehende Gründe: kann sich in den nächsten Takten von selbst erledigen.</summary>
+        internal static bool RetryableSectorReason(string reason) =>
+            reason == "stale_source" || reason == "duplicate_sample" || reason == "sector_time_missing";
+
+        /// <summary>Erster Grund, der eine Live-Auswertung des gerade beendeten Sektors verhindert; null = auswertbar.</summary>
+        internal static string LiveSectorBlocker(GameStateData state, GameStateData previous, DateTime now, int sector, out LapData lap)
+        {
+            var s = state.SessionData;
+            var before = previous.SessionData;
+            lap = null;
+            if (before.SessionId != s.SessionId || before.SessionType != s.SessionType) return "session_changed";
+            if (s.SessionPhase != SessionPhase.Green) return "not_green";
+            if (s.IsNewLap) return "new_lap";
+            if (s.SectorTimingEstimated || before.SectorTimingEstimated) return "sector_timing_estimated";
+            if (!s.CurrentLapIsValid) return "lap_invalid";
+            if (state.PitData.InPitlane || state.PitData.OnOutLap || state.PitData.OnInLap) return "pit_or_out_lap";
+            if (state.FlagData.isLocalYellow) return "local_yellow";
+            DateTime source = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc;
+            if (now < source || now - source > TimeSpan.FromSeconds(1)) return "stale_source";
+            if (previous.SourceTelemetryUtc != DateTime.MinValue && source <= previous.SourceTelemetryUtc) return "duplicate_sample";
+            lap = s.PlayerLapData.LastOrDefault();
+            if (lap == null || lap.LapNumber != s.CompletedLaps + 1) return "lap_record_missing";
+            if (!lap.IsValid || lap.InLap || lap.OutLap) return "lap_record_not_timed";
+            if (lap.SectorTimes == null || lap.SectorTimes.Length <= sector || !GoodSector(lap.SectorTimes[sector])) return "sector_time_missing";
+            return null;
+        }
+
+        private bool TryLiveSector(GameStateData state, GameStateData previous, DateTime now, out LapData lap, out int sector)
         {
             var s = state.SessionData;
             var before = previous?.SessionData;
             sector = s.SectorNumber - 2;
             lap = null;
-            if (before == null || sector < 0 || sector > 1 || before.SessionId != s.SessionId ||
-                before.SessionType != s.SessionType || before.SessionPhase != SessionPhase.Green ||
-                before.CompletedLaps != s.CompletedLaps || before.SectorNumber + 1 != s.SectorNumber ||
-                s.IsNewLap || s.SectorTimingEstimated || before.SectorTimingEstimated || !s.CurrentLapIsValid ||
-                state.PitData.InPitlane || state.PitData.OnOutLap ||
-                state.PitData.OnInLap || state.FlagData.isLocalYellow) return false;
-            DateTime source = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc;
-            if (now < source || now - source > TimeSpan.FromSeconds(1)) return false;
-            if (previous.SourceTelemetryUtc != DateTime.MinValue && source <= previous.SourceTelemetryUtc) return false;
-            lap = s.PlayerLapData.LastOrDefault();
-            return lap != null && lap.LapNumber == s.CompletedLaps + 1 && lap.IsValid && !lap.InLap && !lap.OutLap &&
-                lap.SectorTimes != null && lap.SectorTimes.Length > sector && GoodSector(lap.SectorTimes[sector]);
+            if (before == null || sector < 0 || sector > 1) return false;
+            bool edge = before.SectorNumber + 1 == s.SectorNumber && before.CompletedLaps == s.CompletedLaps;
+            if (edge) { edgeLap = s.CompletedLaps + 1; edgeSector = sector; edgeUtc = now; }
+            else if (edgeLap != s.CompletedLaps + 1 || edgeSector != sector || now - edgeUtc > SectorEdgeRetry) return false;
+            string reason = LiveSectorBlocker(state, previous, now, sector, out lap);
+            if (reason == null) { edgeLap = -1; return true; }
+            bool retry = RetryableSectorReason(reason) && now - edgeUtc < SectorEdgeRetry;
+            if (!retry) edgeLap = -1;
+            if (edge || !retry)
+                LiveDiagnostics.Decision("sector-live", retry ? "waiting" : "rejected", "sector_" + (sector + 1) + ":" + reason);
+            lap = null;
+            return false;
         }
 
         private bool ObserveLivePersonalBest(GameStateData state, GameStateData previous, LapData lap, int sector, DateTime now)
@@ -245,17 +382,167 @@ namespace CrewChiefV4.AiTeam
                 float previousBest = sector == 0 ? previous.SessionData.PlayerBestSector1Time : previous.SessionData.PlayerBestSector2Time;
                 float reference = GoodSector(prior) && GoodSector(previousBest) ? Math.Min(prior, previousBest) :
                     GoodSector(prior) ? prior : previousBest;
-                if (!GoodSector(reference) || reference - time < .04f) return false;
+                if (!GoodSector(reference))
+                { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":no_prior_personal_best"); return false; }
+                if (reference - time < .04f)
+                { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":not_faster_than_best_by_0.04s"); return false; }
                 evidence = "mapped_valid_sector_and_prior_personal_best";
             }
             completedSectorBest[sector] = prior > 0 ? Math.Min(prior, time) : time;
-            if (now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
+            if (now - lastSectorBestCall < TimeSpan.FromSeconds(55))
+            { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":cooldown_55s"); return false; }
             var call = OfferSectorBest(state, now, sector, time, evidence, true);
             int currentSector = state.SessionData.SectorNumber;
             call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.SessionData.SectorTimingEstimated &&
                 live.SessionData.SectorNumber == currentSector &&
                 !live.PitData.OnInLap && !live.PitData.OnOutLap && !live.FlagData.isLocalYellow;
             return true;
+        }
+
+        // Rob 16.11. (AMS2 live): Sektor 1 und 2 lila, keine Reaktion. Ursache: Nach der Meldung zu Sektor 1 sperrte die
+        // 55-Sekunden-Pause jede weitere Sektormeldung; ohne frühere eigene Bestzeit (erste schnelle Runde) gab es gar nichts.
+        // Jetzt merkt sich Mik Sektor 1 der laufenden Runde und meldet nach Sektor 2 beide zusammen – eigene Bestzeit oder
+        // lila (schneller als alle Bestzeiten der Klasse) – mit „das könnte deine schnellste Runde werden“.
+        private int flyingLap = -1, flyingCount, hotLap = -1;
+        internal const float HotLapMargin = .25f;
+
+        /// <summary>
+        /// Läuft gerade eine schnelle Runde außerhalb des Rennens (Sektor 1 oder 2 auf Bestzeitkurs, Runde gültig, nicht in der
+        /// Box)? Dann hält das KI-Team Routine- und Hintergrundmeldungen zurück – ein Renningenieur redet nicht in eine
+        /// Pushrunde hinein. Die Meldung zu den Bestsektoren selbst und alle Sicherheitsmeldungen bleiben.
+        /// </summary>
+        internal bool HotLap(GameStateData gs)
+        {
+            var s = gs?.SessionData;
+            return s != null && hotLap > 0 && hotLap == s.CompletedLaps + 1 && s.SessionType != SessionType.Race &&
+                s.CurrentLapIsValid && !gs.PitData.InPitlane && s.SessionPhase == SessionPhase.Green;
+        }
+
+        /// <summary>Nur für Tests: markiert die laufende Runde als schnelle Runde.</summary>
+        internal void MarkHotLapForTest(int lapNumber) { hotLap = lapNumber; }
+        private bool flyingS1Own, flyingS1Purple;
+        private readonly Random flyingRandom = new Random();
+        private int flyingLastVariant = -1;
+
+        private static float FieldBestSector(GameStateData gs, int sector)
+        {
+            float best = -1;
+            foreach (var o in gs.OpponentData.Values)
+            {
+                if (o == null || !SameClass(gs, o)) continue;
+                float t = sector == 0 ? o.bestSector1Time : sector == 1 ? o.bestSector2Time : o.bestSector3Time;
+                if (GoodSector(t) && (best < 0 || t < best)) best = t;
+            }
+            return best;
+        }
+
+        /// <summary>Eigene Bestzeit (mit früherer Bestmarke) und lila (schneller als jede Bestzeit der Klasse) für einen gerade beendeten Sektor.</summary>
+        internal static void RateSector(float time, float ownPrior, float fieldBest, out bool own, out bool purple)
+        {
+            own = GoodSector(ownPrior) && ownPrior - time >= .01f;
+            purple = GoodSector(time) && GoodSector(fieldBest) && fieldBest - time >= .001f && (!GoodSector(ownPrior) || ownPrior - time >= .001f);
+        }
+
+        private bool ObserveFlyingLap(GameStateData state, GameStateData previous, LapData lap, int sector, DateTime now)
+        {
+            if (sector > 1) return false;
+            float time = lap.SectorTimes[sector];
+            float prior = sector == 0 ? previous.SessionData.PlayerBestSector1Time : previous.SessionData.PlayerBestSector2Time;
+            float kept = completedSectorBest[sector];
+            float own = GoodSector(prior) && GoodSector(kept) ? Math.Min(prior, kept) : GoodSector(prior) ? prior : kept;
+            RateSector(time, own, FieldBestSector(state, sector), out bool ownBest, out bool purple);
+            // Schnelle Runde (Rob 17.11.): Liegt der Sektor auf Bestzeitkurs oder höchstens 0,25 s darüber, ist die Runde
+            // „heiß“ – dann schweigen Routine und Hintergrundmeldungen bis zum Rundenende.
+            bool onPace = ownBest || purple || GoodSector(own) && GoodSector(time) && time - own <= HotLapMargin;
+            if (onPace) hotLap = lap.LapNumber; else if (hotLap == lap.LapNumber) hotLap = -1;
+            if (sector == 0)
+            {
+                flyingLap = lap.LapNumber; flyingS1Own = ownBest; flyingS1Purple = purple;
+                return false; // Sektor 1 läuft wie bisher; die Sammelmeldung kommt nach Sektor 2
+            }
+            bool s1 = flyingLap == lap.LapNumber && (flyingS1Own || flyingS1Purple);
+            if (!s1 || !(ownBest || purple))
+                LiveDiagnostics.Decision("lap-on-pace", "skipped", "sector_1_best:" + s1 + ";sector_2_own:" + ownBest + ";sector_2_purple:" + purple);
+            bool bothPurple = flyingS1Purple && purple;
+            flyingLap = -1;
+            if (!s1 || !(ownBest || purple)) return false;
+            if (GoodSector(time)) completedSectorBest[sector] = GoodSector(kept) ? Math.Min(kept, time) : time;
+            // Die noch nicht gesprochene Einzelmeldung zu Sektor 1 wird ersetzt; war sie schon zu hören, heißt es „auch Sektor 2“.
+            bool s1Spoken = pending.All(c => c.Topic != "sector-best" || c.DeliveryStartedUtc != DateTime.MinValue) &&
+                now - lastSectorBestCall < TimeSpan.FromSeconds(45);
+            pending.RemoveAll(c => c.Topic == "sector-best" && c.DeliveryStartedUtc == DateTime.MinValue);
+            double delta = PersonalBestSplitDelta(state, lap);
+            int variant = flyingRandom.Next(6);
+            if (variant == flyingLastVariant) variant = (variant + 1 + flyingRandom.Next(5)) % 6;
+            flyingLastVariant = variant;
+            string name = flyingCount++ % 2 == 0 ? sectorDriverName : null;
+            string text = FlyingLapText(name, bothPurple, s1Spoken, delta, variant);
+            var call = Add(state, now, "lap-on-pace", text, bothPurple ? "two_live_sectors_faster_than_class_best" : "two_live_sectors_personal_best", 4);
+            call.Member = TeamMember.Mik;
+            call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.SessionData.SectorTimingEstimated && live.SessionData.SectorNumber == 3 &&
+                !live.PitData.OnInLap && !live.FlagData.isLocalYellow;
+            return true;
+        }
+
+        /// <summary>Vorsprung der ersten beiden Sektoren auf die Splits der eigenen Bestzeitrunde; -1 wenn nicht belegt.</summary>
+        private double PersonalBestSplitDelta(GameStateData state, LapData lap)
+        {
+            var s = state.SessionData;
+            if (!Good(personalBest) || !GoodSector(lap.SectorTimes[0]) || !GoodSector(lap.SectorTimes[1])) return -1;
+            var best = s.PlayerLapData.LastOrDefault(candidate => candidate != lap && candidate.IsValid && !candidate.InLap && !candidate.OutLap &&
+                Math.Abs(candidate.LapTime - personalBest) < .01f && candidate.SectorTimes?.Length == 3 &&
+                candidate.SectorTimes.All(GoodSector) && Math.Abs(candidate.SectorTimes.Sum() - candidate.LapTime) <= .10f);
+            if (best == null) return -1;
+            double d = best.SectorTimes[0] + best.SectorTimes[1] - lap.SectorTimes[0] - lap.SectorTimes[1];
+            return d >= .05 && d <= 5 ? d : -1;
+        }
+
+        /// <summary>Sammelmeldung nach zwei Bestzeit-Sektoren – sechs Formulierungen, lila oder persönlich, mit Vorsprung, wenn belegt.</summary>
+        internal static string FlyingLapText(string name, bool purple, bool sectorOneSpoken, double delta, int variant)
+        {
+            string n = string.IsNullOrWhiteSpace(name) ? null : name;
+            int v = ((variant % 6) + 6) % 6;
+            string text;
+            if (sectorOneSpoken)
+                text = v % 2 == 0
+                    ? RadioLanguage.T("Und Sektor 2 ist auch Bestzeit! Das könnte deine schnellste Runde werden" + (n != null ? ", " + n : "") + ".",
+                        "And sector 2 is a best as well! This could be your fastest lap" + (n != null ? ", " + n : "") + ".",
+                        "¡Y el sector 2 también es récord! Esta puede ser tu vuelta más rápida" + (n != null ? ", " + n : "") + ".")
+                    : RadioLanguage.T((purple ? "Wieder lila! " : "Der nächste Bestsektor! ") + "Jetzt den letzten Sektor sauber durchziehen" + (n != null ? ", " + n : "") + ".",
+                        (purple ? "Purple again! " : "Another best sector! ") + "Now bring the last sector home cleanly" + (n != null ? ", " + n : "") + ".",
+                        (purple ? "¡Otra vez morado! " : "¡Otro mejor sector! ") + "Ahora cierra limpio el último sector" + (n != null ? ", " + n : "") + ".");
+            else if (purple)
+                text = v % 3 == 0
+                    ? RadioLanguage.T((n != null ? n + ", l" : "L") + "ila in Sektor 1 und 2, so schnell war heute noch keiner. Das könnte deine schnellste Runde werden!",
+                        (n != null ? n + ", p" : "P") + "urple in sectors 1 and 2, nobody has been that quick today. This could be your fastest lap!",
+                        (n != null ? n + ", m" : "M") + "orado en los sectores 1 y 2, nadie ha ido tan rápido hoy. ¡Esta puede ser tu vuelta más rápida!")
+                    : v % 3 == 1
+                    ? RadioLanguage.T("Zwei lila Sektoren! Jetzt nur noch sauber durch den letzten" + (n != null ? ", " + n : "") + ".",
+                        "Two purple sectors! Now just a clean final sector" + (n != null ? ", " + n : "") + ".",
+                        "¡Dos sectores morados! Ahora solo un último sector limpio" + (n != null ? ", " + n : "") + ".")
+                    : RadioLanguage.T("Sektor 1 und 2 sind die schnellsten im ganzen Feld. Bring das nach Hause" + (n != null ? ", " + n : "") + "!",
+                        "Sectors 1 and 2 are the fastest in the whole field. Bring it home" + (n != null ? ", " + n : "") + "!",
+                        "Los sectores 1 y 2 son los más rápidos de todo el grupo. ¡Llévala a casa" + (n != null ? ", " + n : "") + "!");
+            else
+                text = v % 3 == 0
+                    ? RadioLanguage.T((n != null ? n + ", B" : "B") + "estzeit in Sektor 1 und 2. Das könnte deine schnellste Runde werden.",
+                        (n != null ? n + ", p" : "P") + "ersonal best in sectors 1 and 2. This could be your fastest lap.",
+                        (n != null ? n + ", m" : "M") + "ejor marca personal en los sectores 1 y 2. Esta puede ser tu vuelta más rápida.")
+                    : v % 3 == 1
+                    ? RadioLanguage.T("Zwei Bestsektoren hintereinander. Die Runde sieht richtig gut aus, jetzt ruhig bleiben.",
+                        "Two best sectors in a row. This lap looks really good, stay calm now.",
+                        "Dos mejores sectores seguidos. La vuelta pinta muy bien, ahora tranquilo.")
+                    : RadioLanguage.T("Starke Runde bis hierher, Sektor 1 und 2 so schnell wie noch nie" + (n != null ? ", " + n : "") + ". Letzter Sektor, sauber bleiben.",
+                        "Strong lap so far, sectors 1 and 2 quicker than ever" + (n != null ? ", " + n : "") + ". Last sector, keep it clean.",
+                        "Vuelta fuerte hasta aquí, sectores 1 y 2 más rápidos que nunca" + (n != null ? ", " + n : "") + ". Último sector, limpio.");
+            if (delta > 0)
+            {
+                string d = GermanRadioText.Interval(delta);
+                text += " " + (v % 2 == 0
+                    ? RadioLanguage.T("Du liegst " + d + " unter deiner Bestzeit.", "You're " + d + " up on your best lap.", "Vas " + d + " por debajo de tu mejor vuelta.")
+                    : RadioLanguage.T(d + " Vorsprung auf deine Bestzeit.", d + " up on your best.", d + " de ventaja sobre tu mejor marca."));
+            }
+            return text;
         }
 
         private ObservedRaceCall OfferSectorBest(GameStateData state, DateTime now, int sector, float seconds, string evidence, bool lapStillRunning = false)
@@ -561,7 +848,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if (delivered.DeliveryStartedUtc > lastRadio) lastRadio = delivered.DeliveryStartedUtc;
                 if (delivered.Topic == "fuel-baseline") fuelBaselineReported = true;
-                if ((delivered.Topic == "sector-best" || delivered.Topic == "own-best-pace") &&
+                if ((delivered.Topic == "sector-best" || delivered.Topic == "own-best-pace" || delivered.Topic == "lap-on-pace") &&
                     delivered.DeliveryStartedUtc > lastSectorBestCall)
                     lastSectorBestCall = delivered.DeliveryStartedUtc;
                 pending.Remove(delivered);
@@ -574,7 +861,7 @@ namespace CrewChiefV4.AiTeam
             if (busy) return null;
             var call = pending.Where(c => c.CanReserve(now) && (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
                 c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || !ownLapOnly &&
-                (c.Topic == "near-best" || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
+                (c.Topic == "near-best" || c.Topic == "lap-on-pace" || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
             return call != null && call.TryReserve(now) ? call : null;
         }
     }

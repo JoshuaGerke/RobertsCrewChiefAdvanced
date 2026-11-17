@@ -114,15 +114,24 @@ namespace CrewChiefV4.AiTeam
                     "You're gaining " + r + " a lap on " + who + ", not quite enough before the flag. You'd need about " + Rate(needed) + " a lap.",
                     "Recortas " + r + " por vuelta a " + who + ", no basta antes de la bandera. Necesitarías unas " + Rate(needed) + " por vuelta.");
             }
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 6) + 6) % 6)
             {
+                case 3: return RadioLanguage.T("Der Abstand " + (name.Length > 0 ? "zu " + name : "nach vorn") + " schmilzt, " + r + " pro Runde. In " + Laps(laps) + " kannst du angreifen.",
+                    "The gap to " + who + " is melting, " + r + " a lap. In " + Laps(laps) + " you can attack.",
+                    "La diferencia con " + who + " se derrite, " + r + " por vuelta. En " + Laps(laps) + " puedes atacar.");
+                case 4: return RadioLanguage.T("Weiter so, du kommst " + r + " pro Runde näher an " + who + ", in " + Laps(laps) + " bist du da.",
+                    "Keep it up, you're closing " + r + " a lap on " + who + ", you'll be there in " + Laps(laps) + ".",
+                    "Sigue así, recortas " + r + " por vuelta sobre " + who + ", en " + Laps(laps) + " estás ahí.");
+                case 5: return RadioLanguage.T((name.Length > 0 ? name : "Der Vordermann") + " ist in Reichweite: " + r + " pro Runde für dich, in " + Laps(laps) + " bist du an der Stoßstange.",
+                    Cap(who) + " is in range: " + r + " a lap to you, in " + Laps(laps) + " you're on the bumper.",
+                    Cap(who) + " está a tiro: " + r + " por vuelta a tu favor, en " + Laps(laps) + " estás en su parachoques.");
                 case 0: return RadioLanguage.T("Du holst " + r + " pro Runde auf " + who + ". In " + Laps(laps) + " bist du dran.",
                     "You're gaining " + r + " a lap on " + who + ". You'll be on him in " + Laps(laps) + ".",
                     "Recortas " + r + " por vuelta a " + who + ". En " + Laps(laps) + " lo tienes.");
-                case 1: return RadioLanguage.T(Cap(who) + " verliert " + r + " pro Runde auf dich. So bist du in " + Laps(laps) + " an ihm dran.",
+                case 1: return RadioLanguage.T((name.Length > 0 ? name : "Der Vordermann") + " verliert " + r + " pro Runde auf dich. So bist du in " + Laps(laps) + " an ihm dran.",
                     Cap(who) + " is losing " + r + " a lap to you. At this rate you're on him in " + Laps(laps) + ".",
                     Cap(who) + " pierde " + r + " por vuelta contigo. A este ritmo lo alcanzas en " + Laps(laps) + ".");
-                default: return RadioLanguage.T("Gutes Tempo: " + r + " pro Runde schneller als " + who + ". Rechnerisch " + Laps(laps) + " bis zum Angriff.",
+                default: return RadioLanguage.T("Gutes Tempo: " + r + " pro Runde schneller als " + (name.Length > 0 ? name : "der Vordermann") + ". Rechnerisch " + Laps(laps) + " bis zum Angriff.",
                     "Good pace: " + r + " a lap quicker than " + who + ". On paper " + Laps(laps) + " until you can attack.",
                     "Buen ritmo: " + r + " por vuelta más rápido que " + who + ". En teoría " + Laps(laps) + " hasta atacar.");
             }
@@ -136,8 +145,17 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T(Cap(who) + " kommt " + r + " pro Runde näher, aber bis zur Flagge reicht es ihm so nicht. Ruhig und sauber weiter.",
                     Cap(who) + " is closing " + r + " a lap, but at this rate he won't make it before the flag. Calm and clean.",
                     Cap(who) + " se acerca " + r + " por vuelta, pero así no llega antes de la bandera. Tranquilo y limpio.");
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 6) + 6) % 6)
             {
+                case 3: return RadioLanguage.T("Info nach hinten: " + who + " ist " + r + " pro Runde schneller, in " + Laps(laps) + " bei dir. Konzentrier dich auf deine Ausfahrten.",
+                    "Info behind: " + who + " is " + r + " a lap quicker, with you in " + Laps(laps) + ". Focus on your exits.",
+                    "Información detrás: " + who + " es " + r + " por vuelta más rápido, contigo en " + Laps(laps) + ". Céntrate en las salidas.");
+                case 4: return RadioLanguage.T(Cap(who) + " kommt, " + r + " pro Runde. Bleib bei deinem Rhythmus, keine Fehler.",
+                    Cap(who) + " is coming, " + r + " a lap. Stay in your rhythm, no mistakes.",
+                    Cap(who) + " se acerca, " + r + " por vuelta. Mantén tu ritmo, sin errores.");
+                case 5: return RadioLanguage.T("Hinten wird es enger: " + r + " pro Runde für " + (name.Length > 0 ? name : "den Hintermann") + ". Rechnerisch " + Laps(laps) + ", dann ist er da.",
+                    "It's getting closer behind: " + r + " a lap for " + who + ". On paper " + Laps(laps) + " and he's there.",
+                    "Se estrecha detrás: " + r + " por vuelta para " + who + ". En teoría " + Laps(laps) + " y está ahí.");
                 case 0: return RadioLanguage.T(Cap(who) + " holt " + r + " pro Runde auf. In " + Laps(laps) + " ist er dran.",
                     Cap(who) + " is gaining " + r + " a lap. He'll be with you in " + Laps(laps) + ".",
                     Cap(who) + " recorta " + r + " por vuelta. En " + Laps(laps) + " te alcanza.");

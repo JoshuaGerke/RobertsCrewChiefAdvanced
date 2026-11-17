@@ -93,10 +93,13 @@ namespace CrewChiefV4.AiTeam
         private bool lastWarningWasDeficit;
         private float lastWarnedDeficit;
         private int lastWarnedLap = -100;
+        // Bathurst 17.11.: „könnte reichen“ und 15 s später „könnte knapp werden“. Eine vorläufige Hochrechnung gibt es
+        // nur einmal; danach meldet sich Mik erst wieder mit gemessenem Verbrauch.
+        private bool provisionalSpoken;
 
         public void Reset()
         {
-            warned = false;
+            warned = false; provisionalSpoken = false;
             lastWarningWasProvisional = false;
             lastWarningWasDeficit = false;
             lastWarnedDeficit = 0;
@@ -137,6 +140,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 return null;
             }
+            if (provisionalConsumption && provisionalSpoken) return null;
             bool worse = deficit > lastWarnedDeficit + perLap * 0.5f;
             bool confirmed = lastWarningWasProvisional && !provisionalConsumption;
             bool newDeficit = bareDeficit > 0 && !lastWarningWasDeficit;
@@ -150,6 +154,7 @@ namespace CrewChiefV4.AiTeam
             lastWarnedDeficit = deficit;
             lastWarnedLap = completedLaps;
 
+            if (provisionalConsumption) provisionalSpoken = true;
             if (provisionalConsumption)
                 return bareDeficit > 0
                     ? RadioLanguage.T("Erste Hochrechnung: Bis ins Ziel könnte der Sprit knapp werden. Ich prüfe das weiter.",

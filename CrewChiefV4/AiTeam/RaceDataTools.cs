@@ -235,6 +235,10 @@ namespace CrewChiefV4.AiTeam
             // Einschätzung des Renningenieur-Kopfs: Phase, Lage, Fokus, Gefahren, Chancen, Trends – damit Antworten die Rennlage kennen.
             var mind = RaceMind.Latest;
             if (mind != null && mind.SessionId == s.SessionId && mind.Fresh(ctx.NowUtc)) o["rennkopf"] = mind.Describe();
+            var field = RaceInsightWatch.Latest(s.SessionId);
+            if (field != null && s.SessionType == SessionType.Race) o["feld_erkenntnisse"] = field;
+            var dynamics = DynamicsSampler.Facts(s.CompletedLaps);
+            if (dynamics != null) o["fahrdynamik"] = dynamics;
             int startMode, startPhase;
             if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
                 o["raceroom_startgruppe"] = new JObject {
@@ -304,6 +308,14 @@ namespace CrewChiefV4.AiTeam
             {
                 missing.Add("reifendruck");
             }
+            // Datenwahrheit je Kanal: Das Sprachmodell darf eingefrorene Werte nicht als aktuell ausgeben.
+            var truth = DataTruth.Current;
+            o["datenstand"] = new JObject
+            {
+                ["temperatur"] = truth.Describe(SimChannel.TyreTemperature), ["druck"] = truth.Describe(SimChannel.TyrePressure),
+                ["verschleiss"] = truth.Describe(SimChannel.TyreWear),
+                ["hinweis"] = "„eingefroren“ heißt: Die Simulation aktualisiert diese Werte während der Fahrt nicht (oft erst beim Boxenstopp). Dann nur als Stand vom letzten Stopp nennen, nie als aktuell."
+            };
             if (t.TyreWearActive)
             {
                 o["verschleiss_prozent"] = CheckedArray(new[] { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear }, 1, 0, 100, "reifenverschleiss", missing);
@@ -339,6 +351,15 @@ namespace CrewChiefV4.AiTeam
             var gs = ctx.GameState;
             var f = gs.FuelData;
             var o = new JObject();
+            var energy = VirtualEnergyWatch.Current;
+            if (energy.Level >= 0)
+                o["virtuelle_energie"] = new JObject
+                {
+                    ["stand_prozent"] = Math.Round(energy.Level, 1),
+                    ["verbrauch_pro_runde_prozent"] = energy.PerLap > 0 ? (JToken)Math.Round(energy.PerLap, 2) : null,
+                    ["reicht_fuer_runden"] = energy.LapsLeft > 0 ? (JToken)Math.Round(energy.LapsLeft, 1) : null,
+                    ["hinweis"] = "LMU-Klassen mit Energie-Limit: Die Reichweite begrenzt, was zuerst leer ist – Energie oder Sprit. Verbrauch nur aus gemessenen sauberen Runden."
+                };
             if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft < 0 || f.FuelLeft > 10000)
             {
                 missing.Add("tankinhalt");
@@ -573,7 +594,32 @@ namespace CrewChiefV4.AiTeam
             for (int i = 0; i < session.SectorNumber - 1 && i < times.Length; i++)
             {
                 var value = SectorValue(times[i]);
-                if (value != null) sectors.Add(new JObject { ["sektor"] = i + 1, ["zeit_s"] = value });
+                if (value == null) continue;
+                var entry = new JObject { ["sektor"] = i + 1, ["zeit_s"] = value };
+                // Rob 17.11. (Bathurst): Auf „Fällt dir nichts an meiner Sektorzeit auf?“ nannte Mik nur Sektor 1, weil die
+                // Bestmarke der Simulation den gerade gefahrenen Sektor schon enthielt. Deshalb hier der Vergleich mit der
+                // eigenen Bestmarke VOR dieser Runde und mit den Bestwerten der Klasse.
+                int sector = i;
+                var earlier = session.PlayerLapData.Where(l => l != lap && l.IsValid && !l.InLap && !l.OutLap && l.SectorTimes != null &&
+                    l.SectorTimes.Length > sector && l.SectorTimes[sector] > 1 && l.SectorTimes[sector] < 3600).Select(l => l.SectorTimes[sector]).ToList();
+                if (earlier.Count > 0)
+                {
+                    float before = earlier.Min();
+                    entry["eigene_bestmarke_vor_dieser_runde_s"] = Math.Round(before, 3);
+                    entry["differenz_zur_bestmarke_s"] = Math.Round(times[i] - before, 3);
+                    entry["neue_persoenliche_bestzeit"] = times[i] < before - .0005f;
+                }
+                else entry["neue_persoenliche_bestzeit"] = null;
+                var field = gs.OpponentData.Values.Where(o => o != null && gs.carClass != null && o.CarClass != null &&
+                        CarData.IsCarClassEqual(gs.carClass, o.CarClass, false))
+                    .Select(o => sector == 0 ? o.bestSector1Time : sector == 1 ? o.bestSector2Time : o.bestSector3Time)
+                    .Where(t => t > 1 && t < 3600).ToList();
+                if (field.Count > 0)
+                {
+                    entry["beste_klassenzeit_gegner_s"] = Math.Round(field.Min(), 3);
+                    entry["schneller_als_alle_gegner_lila"] = times[i] < field.Min() - .0005f;
+                }
+                sectors.Add(entry);
             }
             return sectors.Count == 0 ? null : new JObject {
                 ["runde"] = lap.LapNumber,

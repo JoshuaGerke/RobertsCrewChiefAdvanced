@@ -65,7 +65,7 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
             if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane || track == null || now < track.Utc ||
                 now - track.Utc > TimeSpan.FromSeconds(1) || now - lastCall < TimeSpan.FromSeconds(25) || call != null && call.IsValid(gs, now)) return;
-            var candidate = track.Cars.Where(c => !c.InPits && c.SpatiallyConsistent && c.LapOffset.HasValue && c.LapOffset.Value <= -1 &&
+            var candidate = track.Cars.Where(c => !c.InPits && !c.IsSafetyCar && c.SpatiallyConsistent && c.LapOffset.HasValue && c.LapOffset.Value <= -1 &&
                     c.RouteGapM.HasValue && c.RouteGapM.Value >= 60 && c.RouteGapM.Value <= 450 && c.ClosingMps.HasValue && c.ClosingMps.Value > 3)
                 .Select(c => new { Car = c, Seconds = c.RouteGapM.Value / c.ClosingMps.Value })
                 .Where(x => x.Seconds >= 3 && x.Seconds <= 10)

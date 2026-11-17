@@ -20,7 +20,7 @@ namespace CrewChiefV4.AiTeam
         public static readonly RadioOption[] Options = {
             new RadioOption { Id="status", Label="Rennstatus: Position und Abstände", DefaultSeconds=120, Minimum=30, Hint="Aktueller Überblick; nur belegte Fortschritte und Pace." },
             new RadioOption { Id="weather", Label="Wetter, Luft- und Streckentemperatur", DefaultSeconds=300, Minimum=30, Hint="Nur verfügbare Messwerte; keine Wettervorhersage." },
-            new RadioOption { Id="fuel", Label="Sprit und gemessene Reichweite", DefaultSeconds=120, Minimum=30, Hint="Reichweite erst mit sauber gemessenem Verbrauch." },
+            new RadioOption { Id="fuel", Label="Sprit und gemessene Reichweite", DefaultSeconds=240, Minimum=30, Hint="Reichweite erst mit sauber gemessenem Verbrauch." },
             new RadioOption { Id="tyres", Label="Reifenverschleiß", DefaultSeconds=240, Minimum=30, Hint="Eigene Reifen; keine erfundenen Gegnerwerte." },
             new RadioOption { Id="pace", Label="Eigene Rundenzeiten und Konstanz", DefaultSeconds=180, Minimum=30, Hint="Drei zusammenhängende gültige Runden ohne Box." },
             new RadioOption { Id="ahead", Label="Vordermann: Name und Abstand", DefaultSeconds=120, Minimum=30, Hint="Gegner der eigenen Klasse; Abstand muss bekannt sein." },
@@ -90,6 +90,21 @@ namespace CrewChiefV4.AiTeam
         private readonly RadioVariantCursor aheadVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor behindVariants = new RadioVariantCursor();
         private int tyreReports; // Rob 16.11.: Verschleißbericht technisch, menschlich und Achsvergleich im Wechsel
+        /// <summary>
+        /// Rob 16.11.: Verbrauch, Wetter, Streckentemperatur und Reifen kamen zusammen mehrmals pro Minute. Technische
+        /// Routinemeldungen teilen sich deshalb ein gemeinsames Budget: nach einer technischen Meldung kommt die nächste
+        /// eines anderen Themas frühestens nach 3–4 Minuten. Die eingestellten Abstände je Thema bleiben die Untergrenze;
+        /// Warnungen (Sprit knapp, Reifen am Ende, Schaden) laufen über eigene Wächter und sind davon nicht betroffen. 0 schaltet ab.
+        /// </summary>
+        public int TechnicalSpacingSeconds = 180;
+        private DateTime lastTechnicalUtc = DateTime.MinValue;
+        private string lastTechnicalTopic;
+        private int technicalGapSeconds;
+        internal static bool IsTechnical(string topic) =>
+            topic == "fuel" || topic == "weather" || topic == "tyres" || topic == "stint" || topic == "vehicle";
+        internal bool TechnicalBudgetBlocks(string topic, DateTime now) =>
+            IsTechnical(topic) && lastTechnicalTopic != null && topic != lastTechnicalTopic &&
+            now - lastTechnicalUtc < TimeSpan.FromSeconds(technicalGapSeconds);
         private bool interruptionHandled;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
@@ -113,10 +128,18 @@ namespace CrewChiefV4.AiTeam
             return lastDeliveredText.TryGetValue(topic,out old) && old==text && lastDeliveredUtc.TryGetValue(topic,out when) &&
                 now>=when && now-when<TimeSpan.FromMinutes(10);
         }
+        internal bool SameTimesheetAgain(string topic, string text, DateTime now) =>
+            lastDeliveredText.TryGetValue(topic, out var old) && old == text && lastDeliveredUtc.TryGetValue(topic, out var when) &&
+            now >= when && now - when < TimeSpan.FromMinutes(20);
+        private WeatherReading lastWeather, outstandingWeather;
+        private int progressReports, vehicleReports;
+        // Rob 17.11.: jede Routine-Meldung mit 4–6 Formulierungen; Zähler je Thema ohne eigenen Katalog-Cursor.
+        private readonly Dictionary<string, int> topicTurns = new Dictionary<string, int>(StringComparer.Ordinal);
+        private int weatherVariant;
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = DateTime.MinValue; session = int.MinValue; }
+        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -150,6 +173,12 @@ namespace CrewChiefV4.AiTeam
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
                     facts.Remember(outstanding.Topic, outstandingFacts, outstanding.DeliveryStartedUtc);
                     if (outstanding.Topic == "fuel") lastFuelMeasurement = outstandingFuelMeasurement;
+                    if (outstanding.Topic == "weather" && outstandingWeather != null) lastWeather = outstandingWeather;
+                    if (IsTechnical(outstanding.Topic) && TechnicalSpacingSeconds > 0)
+                    {
+                        lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
+                        technicalGapSeconds = TechnicalSpacingSeconds + random.Next(0, 61);
+                    }
                     due[outstanding.Topic] = lastReport.AddSeconds(prefs.NextDelaySeconds(outstanding.Topic, random));
                     outstanding = null;
                 }
@@ -188,6 +217,8 @@ namespace CrewChiefV4.AiTeam
                 .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
                 .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
+                // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
+                if (TechnicalBudgetBlocks(topic, now)) continue;
                 due[topic] = now.AddSeconds(prefs.NextDelaySeconds(topic, random));
                 TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
@@ -195,9 +226,29 @@ namespace CrewChiefV4.AiTeam
                 string gapGroup = topic == "ahead" ? "gap-front-measured" : topic == "behind" ? "gap-rear-measured" : null;
                 int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
                 string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
-                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : gapVariant;
+                int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : topic == "vehicle" ? vehicleReports++ : gapGroup == null ? NextTurn(topic) : gapVariant;
                 string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
+                if (topic == "fuel")
+                {
+                    // Bathurst 17.11.: „So reicht es nicht bis ins Ziel“ dreimal – das Urteil nur, wenn es sich geändert hat.
+                    string verdict = FuelEstimate.From(ctx)?.Verdict();
+                    if (verdict != null && verdict == lastFuelVerdict && text.Contains(" " + verdict)) text = text.Replace(" " + verdict, "");
+                    else if (verdict != null) lastFuelVerdict = verdict;
+                }
+                // Wetter wie ein Ingenieur (Rob 17.11., Bathurst: zweimal „Luft 21,2 Grad, Strecke 25,4 Grad“ in sechs Minuten):
+                // nur bei spürbarer Änderung erneut, und dann mit der Veränderung statt nackter Zahlen.
+                if (topic == "weather")
+                {
+                    var reading = WeatherReading.From(gs);
+                    if (reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
+                    {
+                        LiveDiagnostics.Decision(topic, "suppressed", "weather_unchanged");
+                        continue;
+                    }
+                    if (reading != null && lastWeather != null) text = reading.ChangeText(lastWeather, weatherVariant++) ?? text;
+                    outstandingWeather = reading;
+                }
                 string fuelMeasurement = topic == "fuel" ? FuelMeasurementKey(ctx) : null;
                 if (fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
                     lastDeliveredUtc.TryGetValue(topic, out var lastFuel) && now - lastFuel < TimeSpan.FromMinutes(10) &&
@@ -207,7 +258,15 @@ namespace CrewChiefV4.AiTeam
                     continue;
                 }
                 var measurement = StintRadioMemory.Capture(topic, ctx);
-                if (filterUnchanged && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
+                // Rob 17.11. (Bathurst): „Rafa Rivera: 2:03,178 …“ kam zweimal, obwohl sich keine Zeit geändert hatte. Die
+                // Zeitenliste außerhalb des Rennens ändert sich nur mit neuen Bestzeiten – gleicher Satz heißt gleiche Lage.
+                bool timesheet = (topic == "ahead" || topic == "behind") && gs.SessionData.SessionType != SessionType.Race;
+                if (timesheet && SameTimesheetAgain(topic, text, now))
+                {
+                    LiveDiagnostics.Decision(topic, "suppressed", "unchanged_timesheet");
+                    continue;
+                }
+                if (filterUnchanged && !timesheet && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
                 {
                     LiveDiagnostics.Decision(topic, "suppressed", "unchanged_routine_since_last_delivery");
                     continue;
@@ -281,8 +340,58 @@ namespace CrewChiefV4.AiTeam
             }
         }
         private static string Number(double n) { return n.ToString("0.0", RadioLanguage.Culture); }
+        private string lastFuelVerdict;
+        /// <summary>Über diesem Abstand (s) ist ein Gegner im Rennen weder Zweikampf noch Ziel – keine Abstandsmeldung.</summary>
+        internal const float MaxRelevantGap = 20f;
+
+        private int NextTurn(string topic) { topicTurns.TryGetValue(topic, out int n); topicTurns[topic] = n + 1; return n; }
+
+        /// <summary>Wählt Formulierung Nummer <paramref name="variant"/> (zyklisch) aus mehreren gleichwertigen.</summary>
+        internal static string Of(int variant, params string[] options) => options[((variant % options.Length) + options.Length) % options.Length];
+
         private static string Capitalize(string s) { return s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s.Substring(1); }
         private static bool Good(double n, double min, double max) { return !double.IsNaN(n) && !double.IsInfinity(n) && n >= min && n <= max; }
+        /// <summary>
+        /// Routine-Technikcheck wie ein Ingenieur (Rob 17.11.: „zu viele technische Details“): Ist alles im grünen Bereich,
+        /// genügt ein Satz ohne Zahlen. Nur was auffällt – Schaden ab 1 %, Wasser/Öl ab 90 % der Grenze des Fahrzeugs,
+        /// Bremsen über der Heiß-Schwelle – wird mit Wert genannt. Ohne beurteilbare Werte bleibt der bisherige Bericht.
+        /// </summary>
+        internal static string VehicleCheck(GameStateData gs, int variant)
+        {
+            var e = gs.EngineData; var t = gs.TyreData; var cls = gs.carClass;
+            bool? clean = NumericDamageWatch.NothingNotable(gs.CarDamageData);
+            bool water = Good(e.EngineWaterTemp, 1, 200), oil = Good(e.EngineOilTemp, 1, 250);
+            float waterLimit = cls != null ? cls.maxSafeWaterTemp : -1, oilLimit = cls != null ? cls.maxSafeOilTemp : -1;
+            if (clean == null || !water && !oil || water && !(waterLimit > 0) || oil && !(oilLimit > 0)) return null;
+            var issues = new List<string>();
+            if (clean == false) { string damage = IncidentWatch.DamageReport(gs.CarDamageData, true); if (!string.IsNullOrWhiteSpace(damage)) issues.Add(damage.TrimEnd('.')); }
+            if (water && e.EngineWaterTemp >= .9f * waterLimit)
+                issues.Add(RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, nah an der Grenze von " + Math.Round(waterLimit),
+                    "water " + Number(e.EngineWaterTemp) + " degrees, close to the " + Math.Round(waterLimit) + " limit",
+                    "agua " + Number(e.EngineWaterTemp) + " grados, cerca del límite de " + Math.Round(waterLimit)));
+            if (oil && e.EngineOilTemp >= .9f * oilLimit)
+                issues.Add(RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, nah an der Grenze von " + Math.Round(oilLimit),
+                    "oil " + Number(e.EngineOilTemp) + " degrees, close to the " + Math.Round(oilLimit) + " limit",
+                    "aceite " + Number(e.EngineOilTemp) + " grados, cerca del límite de " + Math.Round(oilLimit)));
+            float[] brakes = { t.LeftFrontBrakeTemp, t.RightFrontBrakeTemp, t.LeftRearBrakeTemp, t.RightRearBrakeTemp };
+            float hot = cls != null ? cls.maxHotBrakeTemp : -1;
+            bool brakesKnown = hot > 0 && brakes.All(b => Good(b, 1, 1500));
+            if (brakesKnown && brakes.Max() > hot)
+                issues.Add(RadioLanguage.T("Bremsen sehr heiß, bis " + Math.Round(brakes.Max()) + " Grad", "brakes very hot, up to " + Math.Round(brakes.Max()) + " degrees",
+                    "frenos muy calientes, hasta " + Math.Round(brakes.Max()) + " grados"));
+            if (issues.Count > 0) return Capitalize(string.Join(". ", issues.Select(Capitalize))) + ".";
+            string what = brakesKnown ? RadioLanguage.T("Motor und Bremsen", "engine and brakes", "motor y frenos") : RadioLanguage.T("Motor", "engine", "motor");
+            switch (((variant % 5) + 5) % 5)
+            {
+                case 3: return RadioLanguage.T("Alles stabil am Auto, keine Auffälligkeiten.", "All stable on the car, nothing unusual.", "Todo estable en el coche, nada raro.");
+                case 4: return RadioLanguage.T("Kurzer Blick auf die Technik: nichts Auffälliges, alles im Rahmen.", "Quick look at the systems: nothing unusual, all within range.", "Vistazo técnico: nada fuera de lo normal, todo en rango.");
+                case 1: return RadioLanguage.T("Technik-Check: alles im grünen Bereich.", "Tech check: everything in the green.", "Chequeo técnico: todo en verde.");
+                case 2: return RadioLanguage.T("Vom Auto gibt's nichts zu melden: kein Schaden, Temperaturen passen.", "Nothing to report on the car: no damage, temperatures fine.", "Nada que reportar del coche: sin daños, temperaturas bien.");
+                default: return RadioLanguage.T("Auto ist in Ordnung: kein nennenswerter Schaden, " + what + " im grünen Bereich.",
+                    "Car is fine: no significant damage, " + what + " in the green.", "El coche está bien: sin daños relevantes, " + what + " en verde.");
+            }
+        }
+
         public static string VehicleReport(GameStateData gs, bool brief = false)
         {
             var parts=new List<string>();var d=gs.CarDamageData;
@@ -319,15 +428,30 @@ namespace CrewChiefV4.AiTeam
                         !Good(op.CurrentBestLapTime,10,3600) || !Good(gs.SessionData.PlayerLapTimeSessionBest,10,3600)) return null;
                     float difference = Math.Abs(op.CurrentBestLapTime-gs.SessionData.PlayerLapTimeSessionBest);
                     string qualifyingName = ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
-                    return (qualifyingName.Length == 0 ? RadioLanguage.T("In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: ",
+                    string lap = LocalAnswers.LapTime(op.CurrentBestLapTime), diff = Number(difference);
+                    bool named = qualifyingName.Length > 0;
+                    string who = named ? qualifyingName : (ahead ? RadioLanguage.T("Der Nächste vor dir", "The next car ahead", "El siguiente por delante") : RadioLanguage.T("Der Nächste hinter dir", "The next car behind", "El siguiente por detrás"));
+                    return Of(variant / 2,
+                        (!named ? RadioLanguage.T("In der Zeitenliste " + (ahead ? "vor" : "hinter") + " dir: ",
                             (ahead ? "Ahead of you" : "Behind you") + " on the timesheet: ",
-                            (ahead ? "Por delante" : "Por detrás") + " en la tabla de tiempos: ") : qualifyingName + ": ") + LocalAnswers.LapTime(op.CurrentBestLapTime) +
-                        RadioLanguage.T(". Die Bestzeiten liegen ", ". Best laps are ", ". Los mejores tiempos están a ") + Number(difference) +
-                        RadioLanguage.T(" Sekunden auseinander.", " seconds apart.", " segundos.");
+                            (ahead ? "Por delante" : "Por detrás") + " en la tabla de tiempos: ") : qualifyingName + ": ") + lap +
+                        RadioLanguage.T(". Die Bestzeiten liegen ", ". Best laps are ", ". Los mejores tiempos están a ") + diff +
+                        RadioLanguage.T(" Sekunden auseinander.", " seconds apart.", " segundos."),
+                        who + RadioLanguage.T(" steht bei " + lap + ", " + diff + " Sekunden " + (ahead ? "schneller" : "langsamer") + " als du.",
+                            " is on " + lap + ", " + diff + " seconds " + (ahead ? "quicker" : "slower") + " than you.",
+                            " marca " + lap + ", " + diff + " segundos más " + (ahead ? "rápido" : "lento") + " que tú."),
+                        RadioLanguage.T("Zeitenliste: ", "Timesheet: ", "Tabla de tiempos: ") + who + RadioLanguage.T(" mit ", " with ", " con ") + lap +
+                            RadioLanguage.T(", Abstand " + diff + " Sekunden.", ", gap " + diff + " seconds.", ", diferencia " + diff + " segundos."),
+                        ahead ? RadioLanguage.T("Bis zum Nächsten vor dir in der Zeitenliste fehlen " + diff + " Sekunden" + (named ? ", " + qualifyingName : "") + " mit " + lap + ".",
+                                "You're " + diff + " seconds off the next car up the timesheet" + (named ? ", " + qualifyingName : "") + " on " + lap + ".",
+                                "Te faltan " + diff + " segundos para el siguiente en la tabla" + (named ? ", " + qualifyingName : "") + ", con " + lap + ".")
+                              : RadioLanguage.T("Dein Polster nach hinten in der Zeitenliste: " + diff + " Sekunden" + (named ? " auf " + qualifyingName : "") + ", " + lap + ".",
+                                "Your cushion behind on the timesheet: " + diff + " seconds" + (named ? " to " + qualifyingName : "") + ", " + lap + ".",
+                                "Tu margen por detrás en la tabla: " + diff + " segundos" + (named ? " sobre " + qualifyingName : "") + ", " + lap + "."));
                 }
                 var measurement = RaceDataTools.ReadGap(ctx, op, ahead);
                 float gap = measurement.Seconds;
-                if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
+                if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, MaxRelevantGap)) return null;
                 string name = ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
                 string duration = (measurement.IsEstimated ? RadioLanguage.T("ungefähr ", "about ", "unos ") : "") + Number(gap) + RadioLanguage.T(" Sekunden", " seconds", " segundos");
                 bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
@@ -342,7 +466,11 @@ namespace CrewChiefV4.AiTeam
                 if (Good(c.AmbientTemperature, -30, 60)) parts.Add(RadioLanguage.T("Luft ", "air ", "aire ") + Number(c.AmbientTemperature) + RadioLanguage.T(" Grad", " degrees", " grados"));
                 if (Good(c.TrackTemperature, -30, 85)) parts.Add(RadioLanguage.T("Strecke ", "track ", "pista ") + Number(c.TrackTemperature) + RadioLanguage.T(" Grad", " degrees", " grados"));
                 if (Good(c.RainDensity, .01, 1)) parts.Add(RadioLanguage.T("Regen wird gemeldet", "rain reported", "se informa de lluvia"));
-                return parts.Count > 0 ? Capitalize(string.Join(", ", parts) + ".") : null;
+                if (parts.Count == 0) return null;
+                string w = string.Join(", ", parts);
+                return Of(variant, Capitalize(w + "."), RadioLanguage.T("Wetter-Update: ", "Weather update: ", "Parte del tiempo: ") + w + ".",
+                    RadioLanguage.T("Zu den Bedingungen: ", "Conditions: ", "Condiciones: ") + w + ".", RadioLanguage.T("Kurz zum Wetter – ", "Quick weather note – ", "Apunte del tiempo: ") + w + ".",
+                    RadioLanguage.T("Bedingungen aktuell: ", "Current conditions: ", "Condiciones ahora: ") + w + ".");
             }
             if (topic == "fuel")
             {
@@ -361,25 +489,41 @@ namespace CrewChiefV4.AiTeam
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
                 template=catalog.ReferenceFor("fuel-range",variant);
                 string verdict = FuelEstimate.From(ctx)?.Verdict();
-                return catalog.Format("fuel-range", variant, litres, laps) + (verdict == null ? "" : " " + verdict);
+                // LMU mit Energie-Limit: Energie gehört in dieselbe Meldung, inklusive was zuerst knapp wird.
+                var energy = VirtualEnergyWatch.Current;
+                string energyLine = energy.Level >= 0 ? VirtualEnergyWatch.Report(energy.Level, energy.PerLap, gs.FuelData.FuelLeft / perLap, variant) : null;
+                return catalog.Format("fuel-range", variant, litres, laps) + (verdict == null ? "" : " " + verdict) + (energyLine == null ? "" : " " + energyLine);
             }
             if (topic == "tyres")
             {
                 var t = gs.TyreData; if (!t.TyreWearActive) return null;
+                // Datenwahrheit: eingefrorene (z. B. erst nach dem Stopp aktualisierte) oder nicht gelieferte Werte nicht als aktuell melden.
+                if (!DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear)) return null;
                 float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 // Rob 16.11.: abwechselnd technisch und menschlich, mit fundierter Hochrechnung (nur kalibrierte Simulationen).
                 // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten.
-                return TyreWearAdvisor.Report(wear, ctx.Memory?.AverageWearPerLap(3), TyreWearAdvisor.Calibrated(Game.gameType),
+                float[] rate = null, cautious = null;
+                if (ctx.Memory != null && ctx.Memory.WearRates(5, out var median, out var careful, out int samples) && samples >= 2) { rate = median; cautious = samples >= 3 ? careful : null; }
+                return TyreWearAdvisor.Report(wear, rate ?? ctx.Memory?.AverageWearPerLap(3), cautious, TyreWearAdvisor.Calibrated(Game.gameType),
                     AiPersonas.CleanForRadio(ctx.DriverName ?? "", 30, false), variant);
             }
             if (topic == "pace")
             {
                 var laps = ctx.Memory == null ? new LapRecord[0] : ctx.Memory.GetLaps(3).ToArray();
+                // Bathurst 17.11.: „im Mittel 2:34,483 … innerhalb von 83,4 Sekunden“ – FCY- und Unfallrunden gehören nicht in
+                // einen Tempo-Schnitt. Nur Runden, die zusammenpassen (höchstens 4 s Spanne) – eine FCY- oder Unfallrunde fällt so heraus.
                 if (laps.Length < 3 || !laps.All(l => l.Valid && !l.InPitLap && Good(l.LapTime, 20, 1200)) ||
-                    laps[1].LapNumber != laps[0].LapNumber + 1 || laps[2].LapNumber != laps[1].LapNumber + 1) return null;
-                return RadioLanguage.T("Die letzten drei sauberen Runden im Mittel ", "Last three clean laps average ", "Media de las últimas tres vueltas limpias: ") + LocalAnswers.LapTime(laps.Average(l => l.LapTime)) +
-                    RadioLanguage.T(". Die Runden liegen innerhalb von ", ". All within ", ". Todas dentro de ") + Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime)) + RadioLanguage.T(" Sekunden.", " seconds.", " segundos.");
+                    laps[1].LapNumber != laps[0].LapNumber + 1 || laps[2].LapNumber != laps[1].LapNumber + 1 ||
+                    laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime) > 4) return null;
+                string avg = LocalAnswers.LapTime(laps.Average(l => l.LapTime)), spread = Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime));
+                return Of(variant,
+                    RadioLanguage.T("Die letzten drei sauberen Runden im Mittel ", "Last three clean laps average ", "Media de las últimas tres vueltas limpias: ") + avg +
+                    RadioLanguage.T(". Die Runden liegen innerhalb von ", ". All within ", ". Todas dentro de ") + spread + RadioLanguage.T(" Sekunden.", " seconds.", " segundos."),
+                    RadioLanguage.T("Dein Schnitt über drei saubere Runden: " + avg + ", Spanne " + spread + " Sekunden.", "Your average over three clean laps: " + avg + ", spread " + spread + " seconds.", "Tu media en tres vueltas limpias: " + avg + ", margen de " + spread + " segundos."),
+                    RadioLanguage.T("Konstanz-Check: " + spread + " Sekunden zwischen schnellster und langsamster der letzten drei Runden, Schnitt " + avg + ".", "Consistency check: " + spread + " seconds between your fastest and slowest of the last three, average " + avg + ".", "Control de constancia: " + spread + " segundos entre la más rápida y la más lenta de las tres últimas, media " + avg + "."),
+                    RadioLanguage.T("Rundenzeiten zuletzt im Mittel " + avg + ", alle drei innerhalb von " + spread + " Sekunden.", "Recent laps average " + avg + ", all three within " + spread + " seconds.", "Últimas vueltas de media " + avg + ", las tres dentro de " + spread + " segundos."),
+                    RadioLanguage.T("Tempo-Check: " + avg + " im Schnitt der letzten drei Runden, Spanne " + spread + " Sekunden.", "Pace check: " + avg + " average over the last three, spread " + spread + " seconds.", "Ritmo: " + avg + " de media en las tres últimas, margen de " + spread + " segundos."));
             }
             if (topic == "status") {
                 if (gs.SessionData.SessionType == SessionType.Race)
@@ -393,27 +537,57 @@ namespace CrewChiefV4.AiTeam
                     int change = start > 0 ? start - session.ClassPosition : 0;
                     if (change == 0) return rank + ". " + Compose("progress", ctx);
                     int count = Math.Abs(change);
-                    return rank + RadioLanguage.T(". Seit dem Start " + count + (count == 1 ? " Platz" : " Plätze") + (change > 0 ? " gutgemacht." : " verloren."),
-                        ". " + count + (count == 1 ? " place " : " places ") + (change > 0 ? "gained" : "lost") + " since the start.",
-                        ". " + count + (count == 1 ? " posición " : " posiciones ") + (change > 0 ? (count == 1 ? "ganada" : "ganadas") : (count == 1 ? "perdida" : "perdidas")) + " desde la salida.");
+                    bool gained = change > 0;
+                    return Of(variant,
+                        rank + RadioLanguage.T(". Seit dem Start " + count + (count == 1 ? " Platz" : " Plätze") + (gained ? " gutgemacht." : " verloren."),
+                            ". " + count + (count == 1 ? " place " : " places ") + (gained ? "gained" : "lost") + " since the start.",
+                            ". " + count + (count == 1 ? " posición " : " posiciones ") + (gained ? (count == 1 ? "ganada" : "ganadas") : (count == 1 ? "perdida" : "perdidas")) + " desde la salida."),
+                        RadioLanguage.T("Stand: " + rank + ", " + count + (count == 1 ? " Platz " : " Plätze ") + (gained ? "besser als am Start." : "hinter deinem Startplatz."),
+                            "Status: " + rank + ", " + count + (count == 1 ? " place " : " places ") + (gained ? "up on the start." : "down on the start."),
+                            "Situación: " + rank + ", " + count + (count == 1 ? " puesto " : " puestos ") + (gained ? "mejor que en la salida." : "por detrás de tu posición de salida.")),
+                        RadioLanguage.T("Zwischenstand " + rank + ". Gegenüber dem Start " + (gained ? "plus " : "minus ") + count + ".",
+                            "Running order: " + rank + ". Versus the start " + (gained ? "plus " : "minus ") + count + ".",
+                            "Clasificación: " + rank + ". Respecto a la salida, " + (gained ? "más " : "menos ") + count + "."),
+                        rank + RadioLanguage.T(gained ? " – seit dem Start " + count + (count == 1 ? " Platz" : " Plätze") + " nach vorn gefahren." : " – seit dem Start " + count + (count == 1 ? " Platz" : " Plätze") + " abgegeben.",
+                            gained ? " – you've moved up " + count + " since the start." : " – " + count + " given away since the start.",
+                            gained ? ": has remontado " + count + " desde la salida." : ": has cedido " + count + " desde la salida."));
                 }
                 var s=gs.SessionData;
-                return Good(s.PlayerLapTimeSessionBest,10,3600) ? RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + LocalAnswers.LapTime(s.PlayerLapTimeSessionBest) + "." +
-                    (s.ClassPosition>0 ? RadioLanguage.T(" Aktuell Platz "+s.ClassPosition+" in der Zeitenliste.", " Currently P"+s.ClassPosition+" on the timesheet.", " Ahora mismo P"+s.ClassPosition+" en la tabla de tiempos.") : "") : null;
+                if (!Good(s.PlayerLapTimeSessionBest,10,3600)) return null;
+                string best = LocalAnswers.LapTime(s.PlayerLapTimeSessionBest); bool pos = s.ClassPosition > 0; string p = s.ClassPosition.ToString(RadioLanguage.Culture);
+                return Of(variant,
+                    RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + best + "." +
+                        (pos ? RadioLanguage.T(" Aktuell Platz "+p+" in der Zeitenliste.", " Currently P"+p+" on the timesheet.", " Ahora mismo P"+p+" en la tabla de tiempos.") : ""),
+                    RadioLanguage.T("Bestzeit bisher " + best + (pos ? ", damit Platz " + p : "") + ".", "Best so far " + best + (pos ? ", that's P" + p : "") + ".", "Mejor tiempo hasta ahora " + best + (pos ? ", eso es P" + p : "") + "."),
+                    pos ? RadioLanguage.T("Zeitenliste: Platz " + p + " mit " + best + ".", "Timesheet: P" + p + " with " + best + ".", "Tabla de tiempos: P" + p + " con " + best + ".")
+                        : RadioLanguage.T("Deine Marke: " + best + ".", "Your benchmark: " + best + ".", "Tu marca: " + best + "."),
+                    RadioLanguage.T("Deine Marke steht bei " + best + (pos ? " – das ist Platz " + p : "") + ".", "Your mark stands at " + best + (pos ? " – that's P" + p : "") + ".", "Tu marca está en " + best + (pos ? ": eso es P" + p : "") + "."));
             }
-            if (topic == "vehicle") return VehicleReport(gs, brief: true);
+            if (topic == "vehicle") return VehicleCheck(gs, variant) ?? VehicleReport(gs, brief: true);
             if (topic == "progress") {
                 var s=gs.SessionData;
                 if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) {
                     double minutes=Math.Ceiling(s.SessionTimeRemaining/60);
+                    string m=minutes+(minutes==1?" Minute":" Minuten"), me=minutes+(minutes==1?" minute":" minutes"), ms=minutes+(minutes==1?" minuto":" minutos");
+                    switch(((variant%5)+5)%5) {
+                        case 1: return RadioLanguage.T("Uhr läuft: noch "+m+".", "Clock check: "+me+" to go.", "Reloj: quedan "+ms+".");
+                        case 2: return RadioLanguage.T("Noch "+m+" in dieser Sitzung.", me+" left in this session.", "Quedan "+ms+" en esta sesión.");
+                        case 3: return RadioLanguage.T("Restzeit: "+m+".", "Time remaining: "+me+".", "Tiempo restante: "+ms+".");
+                        case 4: return RadioLanguage.T(m+" bleiben dir noch.", me+" still to use.", "Te quedan "+ms+".");
+                    }
                     return RadioLanguage.T("Noch etwa "+minutes+(minutes==1?" Minute":" Minuten")+" auf der Uhr.",
                         "About "+minutes+(minutes==1?" minute":" minutes")+" left on the clock.",
                         minutes==1?"Queda más o menos 1 minuto en el reloj.":"Quedan unos "+minutes+" minutos en el reloj.");
                 }
                 if(!s.SessionHasFixedTime && s.SessionNumberOfLaps>0 && s.SessionLapsRemaining>0 && s.SessionLapsRemaining<10000)
-                    return RadioLanguage.T("Noch "+s.SessionLapsRemaining+(s.SessionLapsRemaining==1?" Runde.":" Runden."),
-                        s.SessionLapsRemaining+(s.SessionLapsRemaining==1?" lap to go.":" laps to go."),
-                        s.SessionLapsRemaining==1?"Queda 1 vuelta.":"Quedan "+s.SessionLapsRemaining+" vueltas.");
+                {
+                    int n=s.SessionLapsRemaining; bool one=n==1;
+                    return Of(variant,
+                        RadioLanguage.T("Noch "+n+(one?" Runde.":" Runden."), n+(one?" lap to go.":" laps to go."), one?"Queda 1 vuelta.":"Quedan "+n+" vueltas."),
+                        RadioLanguage.T(n+(one?" Runde":" Runden")+" bis zur Flagge.", n+(one?" lap":" laps")+" to the flag.", n+(one?" vuelta":" vueltas")+" hasta la bandera."),
+                        RadioLanguage.T("Rundenstand: noch "+n+".", "Lap count: "+n+" remaining.", "Vueltas: quedan "+n+"."),
+                        RadioLanguage.T("Noch "+n+(one?" Runde":" Runden")+" zu fahren.", "Still "+n+(one?" lap":" laps")+" to run.", "Aún "+(one?"queda 1 vuelta":"quedan "+n+" vueltas")+" por rodar."));
+                }
                 return null;
             }
             if(topic == "stint") {
@@ -421,9 +595,73 @@ namespace CrewChiefV4.AiTeam
                 float fuel=ctx.Memory.AverageFuelPerLap();var wear=ctx.Memory.AverageWearPerLap();var parts=new List<string>();
                 if(Good(fuel,.1,100))parts.Add(RadioLanguage.T("Gemessener Verbrauch ", "Measured consumption ", "Consumo medido ")+Number(fuel)+RadioLanguage.T(" Liter pro Runde", " litres per lap", " litros por vuelta"));
                 if(wear!=null && wear.Length==4 && wear.All(w=>Good(w,0,100)) && wear.Max()>=0.1)parts.Add(RadioLanguage.T("Der Reifen mit dem höchsten Verschleiß verliert ", "Most worn tyre loses ", "El neumático más gastado pierde ") + Number(wear.Max()) + RadioLanguage.T(" Prozentpunkte pro Runde", " percentage points per lap", " puntos porcentuales por vuelta"));
-                return parts.Count>0?string.Join(". ",parts)+".":null;
+                if(parts.Count==0)return null;
+                string joined=string.Join(". ",parts)+".";
+                string lower=char.ToLower(joined[0], RadioLanguage.Culture)+joined.Substring(1);
+                return Of(variant, joined, RadioLanguage.T("Stint-Zwischenstand: ","Stint update: ","Resumen del stint: ")+lower,
+                    RadioLanguage.T("Aus dem Stint bisher: ","From the stint so far: ","Del stint hasta ahora: ")+lower,
+                    RadioLanguage.T("Zahlen zum Stint – ","Stint numbers – ","Datos del stint: ")+lower);
             }
             return null;
+        }
+    }
+
+    /// <summary>Wetterstand für die Routine: Luft, Strecke, Regen – und ob sich seit der letzten Meldung etwas getan hat.</summary>
+    internal sealed class WeatherReading
+    {
+        internal float Air = float.NaN, Track = float.NaN; internal bool Rain;
+
+        internal static WeatherReading From(GameStateData gs)
+        {
+            var c = gs?.Conditions?.LatestConditions; if (c == null) return null;
+            var r = new WeatherReading();
+            if (c.AmbientTemperature >= -30 && c.AmbientTemperature <= 60) r.Air = c.AmbientTemperature;
+            if (c.TrackTemperature >= -30 && c.TrackTemperature <= 85) r.Track = c.TrackTemperature;
+            r.Rain = c.RainDensity >= .01 && c.RainDensity <= 1;
+            return float.IsNaN(r.Air) && float.IsNaN(r.Track) && !r.Rain ? null : r;
+        }
+
+        /// <summary>Spürbar: Strecke ±1,5 °C, Luft ±1 °C oder Regen beginnt/endet.</summary>
+        internal bool ChangedFrom(WeatherReading old) =>
+            old == null || Rain != old.Rain ||
+            !float.IsNaN(Track) && !float.IsNaN(old.Track) && Math.Abs(Track - old.Track) >= 1.5f ||
+            !float.IsNaN(Air) && !float.IsNaN(old.Air) && Math.Abs(Air - old.Air) >= 1f ||
+            float.IsNaN(Track) != float.IsNaN(old.Track);
+
+        private static string N(float v) => RadioLanguage.Num(v, "0.0");
+
+        /// <summary>Meldung mit Richtung der Änderung; null wenn nichts Sinnvolles zu sagen ist.</summary>
+        internal string ChangeText(WeatherReading old, int variant)
+        {
+            if (Rain != old.Rain)
+                return Rain ? AiRadioSchedule.Of(variant, RadioLanguage.T("Es wird Regen gemeldet. Vorsicht, die Strecke verliert Grip.", "Rain is being reported. Careful, the track is losing grip.", "Se informa de lluvia. Cuidado, la pista pierde agarre."),
+                        RadioLanguage.T("Regen kommt. Bremspunkte etwas früher, der Grip lässt nach.", "Rain's arriving. Brake a bit earlier, grip is dropping.", "Llega la lluvia. Frena algo antes, el agarre baja."),
+                        RadioLanguage.T("Achtung, Regen gemeldet. Weiße Linien und Randsteine meiden.", "Heads up, rain reported. Stay off white lines and kerbs.", "Atención, lluvia. Evita líneas blancas y pianos."),
+                        RadioLanguage.T("Es fängt an zu regnen. Ruhig bleiben, sanft mit den Pedalen.", "It's starting to rain. Stay calm, smooth on the pedals.", "Empieza a llover. Tranquilo, suave con los pedales."))
+                    : AiRadioSchedule.Of(variant, RadioLanguage.T("Kein Regen mehr gemeldet. Die Strecke trocknet ab.", "No more rain reported. The track is drying.", "Ya no se informa de lluvia. La pista se está secando."),
+                        RadioLanguage.T("Der Regen hat aufgehört. Die Ideallinie wird zuerst trocken.", "Rain has stopped. The racing line will dry first.", "Ha parado de llover. La trazada se secará primero."),
+                        RadioLanguage.T("Kein Regen mehr. Grip kommt Runde für Runde zurück.", "No more rain. Grip will come back lap by lap.", "Ya no llueve. El agarre volverá vuelta a vuelta."),
+                        RadioLanguage.T("Trocken von oben. Abseits der Linie bleibt es noch eine Weile rutschig.", "Dry from above now. Off-line stays slippery for a while.", "Ya no cae agua. Fuera de la trazada seguirá resbaladizo un rato."));
+            if (float.IsNaN(Track) || float.IsNaN(old.Track)) return null;
+            float d = Track - old.Track;
+            if (Math.Abs(d) < 1.5f) return null;
+            string delta = N(Math.Abs(d));
+            bool warmer = d > 0;
+            switch (((variant % 4) + 4) % 4)
+            {
+                case 3: return RadioLanguage.T("Asphalt jetzt " + N(Track) + " Grad, " + (warmer ? "plus " : "minus ") + delta + ". " + (warmer ? "Auf den Reifendruck achten." : "Die Reifen kühlen schneller ab."),
+                    "Tarmac now " + N(Track) + " degrees, " + (warmer ? "up " : "down ") + delta + ". " + (warmer ? "Keep an eye on tyre pressures." : "Tyres will cool faster."),
+                    "Asfalto ahora a " + N(Track) + " grados, " + (warmer ? "sube " : "baja ") + delta + ". " + (warmer ? "Ojo a las presiones." : "Los neumáticos se enfriarán antes."));
+                case 0: return RadioLanguage.T("Die Strecke ist " + delta + " Grad " + (warmer ? "wärmer" : "kühler") + " geworden, jetzt " + N(Track) + " Grad.",
+                    "The track has got " + delta + " degrees " + (warmer ? "warmer" : "cooler") + ", now " + N(Track) + " degrees.",
+                    "La pista está " + delta + " grados más " + (warmer ? "caliente" : "fría") + ", ahora " + N(Track) + " grados.");
+                case 1: return RadioLanguage.T("Streckentemperatur " + (warmer ? "steigt" : "fällt") + ": " + N(Track) + " Grad, " + delta + " " + (warmer ? "mehr" : "weniger") + " als vorhin.",
+                    "Track temperature " + (warmer ? "rising" : "dropping") + ": " + N(Track) + " degrees, " + delta + " " + (warmer ? "more" : "less") + " than before.",
+                    "Temperatura de pista " + (warmer ? "subiendo" : "bajando") + ": " + N(Track) + " grados, " + delta + " " + (warmer ? "más" : "menos") + " que antes.");
+                default: return RadioLanguage.T("Info zur Strecke: jetzt " + N(Track) + " Grad" + (float.IsNaN(Air) ? "" : ", Luft " + N(Air)) + ". " + (warmer ? "Die Reifen werden schneller warm." : "Die Reifen brauchen etwas länger auf Temperatur."),
+                    "Track info: now " + N(Track) + " degrees" + (float.IsNaN(Air) ? "" : ", air " + N(Air)) + ". " + (warmer ? "Tyres will warm up quicker." : "Tyres need a little longer to come in."),
+                    "Info de pista: ahora " + N(Track) + " grados" + (float.IsNaN(Air) ? "" : ", aire " + N(Air)) + ". " + (warmer ? "Los neumáticos se calentarán antes." : "Los neumáticos tardan algo más en coger temperatura."));
+            }
         }
     }
 }

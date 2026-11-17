@@ -107,6 +107,36 @@ namespace CrewChiefV4.AiTeam
             return false;
         }
 
+        /// <summary>
+        /// Kurve zu einer Streckenposition für die Fahrdynamik (Rob 17.11.2026). <paramref name="mode"/> 1 = Anbremsen: die Kurve,
+        /// auf die Rob zufährt (bis 150 m vor dem Eingang); 2 = Herausbeschleunigen: die Kurve, aus der er kommt (bis 120 m nach
+        /// dem Ausgang); 0 = die Kurve, in der er gerade ist, sonst die nächste. null ohne Kurvendaten oder auf einer langen Geraden.
+        /// </summary>
+        internal string CornerNameAt(float distance, int mode = 0)
+        {
+            lock (sync)
+            {
+                if (corners.Count == 0 || !(trackLength > 0) || distance < 0) return null;
+                string best = null; float bestScore = float.MaxValue;
+                foreach (var c in corners)
+                {
+                    float rel = Wrap(distance - c.Start), length = c.End - c.Start;
+                    float score;
+                    if (mode == 1) score = rel >= -150 && rel <= length ? (rel <= 0 ? -rel : 1000 + rel) : float.MaxValue;
+                    else if (mode == 2) score = rel >= 0 && rel <= length + 120 ? (rel <= length ? 0 : rel - length) : float.MaxValue;
+                    else score = rel >= 0 && rel <= length ? 0 : rel < 0 && rel >= -150 ? -rel : rel > length && rel <= length + 120 ? rel - length : float.MaxValue;
+                    if (score < bestScore) { bestScore = score; best = c.Name; }
+                }
+                return best;
+            }
+        }
+
+        /// <summary>
+        /// Laufende Kurvenmessungen verwerfen, ohne Runden und Kurven zu löschen – beim Wechsel der Datenquelle (schnelle
+        /// Abtastung an/aus), weil sich dann die Zeitbasis ändert.
+        /// </summary>
+        internal void ResetTrackers() { lock (sync) trackers.Clear(); }
+
         /// <summary>Strecke setzen (bei neuer Session). Gerade Abschnitte werden ignoriert.</summary>
         public void SetTrack(IEnumerable<CornerDefinition> definitions, float length)
         {

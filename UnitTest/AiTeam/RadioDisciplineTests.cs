@@ -120,6 +120,9 @@ namespace UnitTest.AiTeamTests
         public void An_urgent_pit_announcement_can_interrupt_a_lower_ai_message_but_never_Sara()
         {
             Assert.IsTrue(CrewSpeechPolicy.CanInterruptForHazard(true,false,false,4,7));
+            Assert.IsTrue(CrewSpeechPolicy.MayInterruptCrew(TeamMember.Sara), "Sara darf reinfunken");
+            Assert.IsFalse(CrewSpeechPolicy.MayInterruptCrew(TeamMember.Ben), "Ben stellt sich hinten an");
+            Assert.IsFalse(CrewSpeechPolicy.MayInterruptCrew(TeamMember.Mik), "Mik stellt sich hinten an");
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForHazard(true,true,false,4,7));
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForHazard(true,false,true,4,7));
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForHazard(true,false,false,8,7));

@@ -513,7 +513,7 @@ namespace UnitTest.AiTeamTests
             s.SessionData.LapsDeltaFront=s.SessionData.LapsDeltaBehind=0;
             s.SessionData.TimeDeltaFront=2;s.SessionData.TimeDeltaBehind=3;
             var prefs=new AiRadioPreferences();foreach(var o in AiRadioPreferences.Options){prefs.Set(o.Id,120);prefs.SetTolerance(o.Id,0,0);}
-            var scheduler=new AiRadioSchedule(1);scheduler.Observe(s,T,prefs);
+            var scheduler=new AiRadioSchedule(1){TechnicalSpacingSeconds=0};scheduler.Observe(s,T,prefs); // hier nur Fairness der Themen, ohne Technik-Budget
             var context=new RaceDataContext {GameState=s,Memory=memory,NowUtc=T.AddSeconds(120),LastTelemetryUtc=T.AddSeconds(120)};
             Assert.IsNull(scheduler.Take(context,prefs,true));
             var seen=new System.Collections.Generic.HashSet<string>();

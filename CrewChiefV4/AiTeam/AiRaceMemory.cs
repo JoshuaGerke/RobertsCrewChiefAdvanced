@@ -411,6 +411,47 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Reifenverschleiß pro Runde (Mittel der letzten Runden), null wenn das Spiel keinen Verschleiß liefert.</summary>
+        /// <summary>
+        /// Robuste Verschleißrate (Rob 17.11.2026, Masterprompt C5): Median der Runden-Zunahmen je Ecke (eine Verkehrs- oder
+        /// Fehlerrunde verzerrt sie nicht) und eine vorsichtige Rate (oberes Quartil) für die Untergrenze der Hochrechnung.
+        /// Nur zusammenhängende, gültige Runden ohne Box. <paramref name="samples"/> = Anzahl verwertbarer Rundenpaare.
+        /// </summary>
+        public bool WearRates(int lastLaps, out float[] median, out float[] cautious, out int samples)
+        {
+            median = cautious = null; samples = 0;
+            lock (sync)
+            {
+                var withWear = laps.Where(l => l.TyreWear != null).ToList();
+                var window = withWear.Skip(Math.Max(0, withWear.Count - (lastLaps + 1))).ToList();
+                var deltas = new List<float[]>();
+                for (int i = 1; i < window.Count; i++)
+                {
+                    var before = window[i - 1]; var after = window[i];
+                    if (before.InPitLap || after.InPitLap || !before.Valid || !after.Valid || after.LapNumber != before.LapNumber + 1 ||
+                        before.TyreWear.Length != 4 || after.TyreWear.Length != 4) continue;
+                    var d = new float[4]; bool ok = true;
+                    for (int w = 0; w < 4 && ok; w++)
+                    {
+                        float a = before.TyreWear[w], b = after.TyreWear[w];
+                        ok = !float.IsNaN(a) && !float.IsNaN(b) && !float.IsInfinity(a) && !float.IsInfinity(b) && a >= 0 && b <= 100 && b >= a;
+                        d[w] = b - a;
+                    }
+                    if (ok) deltas.Add(d);
+                }
+                samples = deltas.Count;
+                if (samples == 0) return false;
+                median = new float[4]; cautious = new float[4];
+                for (int w = 0; w < 4; w++)
+                {
+                    var v = deltas.Select(d => d[w]).OrderBy(x => x).ToList();
+                    median[w] = v.Count % 2 == 1 ? v[v.Count / 2] : (v[v.Count / 2 - 1] + v[v.Count / 2]) / 2f;
+                    cautious[w] = v[(int)Math.Min(v.Count - 1, Math.Ceiling(v.Count * .75) - 1)];
+                    if (cautious[w] < median[w]) cautious[w] = median[w];
+                }
+                return true;
+            }
+        }
+
         public float[] AverageWearPerLap(int lastLaps = 5)
         {
             lock (sync)

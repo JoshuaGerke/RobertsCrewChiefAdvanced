@@ -547,6 +547,46 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void All_time_record_does_not_repeat_a_lap_time_that_was_just_announced()
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rrca-pb-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new PersonalBestStore(folder, "Automobilista 2");
+                var gs = Race(); gs.carName = "Porsche 992 GT3 R"; gs.SessionData.SessionType = SessionType.Practice;
+                var watch = new PersonalBestWatch();
+                watch.Observe(gs, store, "Automobilista 2", "Rob", T);
+                watch.ObserveLap(gs, new LapRecord { LapNumber = 1, LapTime = 123.670f, Valid = true }, store, "Automobilista 2", "Rob", T.AddSeconds(130));
+
+                gs.SessionData.SessionId = 6;
+                watch.Observe(gs, store, "Automobilista 2", "Rob", T.AddHours(2));
+                // Bathurst 16.11.: „Sauber, neue Bestzeit. 2:03,173.“ lief gerade – der Rekord ordnet nur noch ein.
+                watch.ObserveLap(gs, new LapRecord { LapNumber = 3, LapTime = 123.173f, Valid = true }, store, "Automobilista 2", "Rob",
+                    T.AddHours(2).AddSeconds(130), seconds => Math.Abs(seconds - 123.173f) < .02f);
+                var call = watch.Take(gs, T.AddHours(2).AddSeconds(130), false, true);
+                Assert.IsNotNull(call); Assert.AreEqual("personal-best-record", call.Topic);
+                StringAssert.DoesNotContain("2:03,173", call.Text, "Zeit nicht doppelt vorlesen");
+                StringAssert.Contains("0,497", call.Text, "Abstand zur alten Marke bleibt die neue Information");
+                Assert.AreEqual("lap_beats_stored_personal_best_time_already_announced", call.Evidence);
+            }
+            finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
+
+            var old = Pb("Automobilista 2", 123.670f, null);
+            var texts = Enumerable.Range(0, 4).Select(v => PersonalBestWatch.RecordFollowUp(123.173f, old, "Rob", v)).ToArray();
+            Assert.AreEqual(4, texts.Distinct().Count(), "abwechslungsreich");
+            foreach (string text in texts) { StringAssert.DoesNotContain("2:03", text); StringAssert.Contains("0,497", text); }
+            var before = RadioLanguage.Current;
+            try
+            {
+                RadioLanguage.Current = RadioLanguage.English;
+                StringAssert.Contains("0.497", PersonalBestWatch.RecordFollowUp(123.173f, old, "Rob", 0));
+                RadioLanguage.Current = RadioLanguage.Spanish;
+                StringAssert.Contains("0,497", PersonalBestWatch.RecordFollowUp(123.173f, old, "Rob", 0));
+            }
+            finally { RadioLanguage.Current = before; }
+        }
+
+        [Test]
         public void Slick_window_follows_Robs_guide_not_the_generic_threshold()
         {
             var gs = Race();

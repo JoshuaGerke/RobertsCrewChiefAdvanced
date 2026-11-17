@@ -105,6 +105,9 @@ namespace UnitTest.AiTeamTests
             observer.Observe(line, new LapRecord { LapNumber = 3, LapTime = 99.979f, Valid = true }, line.Now, true, before);
             var call = observer.Take(line, line.Now, false, ownLapOnly: true);
             Assert.AreEqual("own-lap", call.Topic);
+            Assert.IsTrue(observer.AnnouncedOwnLap(99.979f, line.Now.AddSeconds(5)), "Bestzeit dieser Runde ist angesagt");
+            Assert.IsFalse(observer.AnnouncedOwnLap(99.5f, line.Now.AddSeconds(5)), "andere Zeit");
+            Assert.IsFalse(observer.AnnouncedOwnLap(99.979f, line.Now.Add(SessionLapObserver.AnnouncedLapWindow)), "zu lange her");
             var afterReply = State(SessionType.Race, line.Now.AddSeconds(18));
             afterReply.SessionData.CompletedLaps = 3;
             Assert.IsTrue(call.IsValid(afterReply, afterReply.Now));

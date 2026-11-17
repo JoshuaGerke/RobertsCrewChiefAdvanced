@@ -66,28 +66,44 @@ namespace CrewChiefV4.AiTeam
             "Schnelleres Fahrzeug von hinten. Bleib berechenbar.", "Von hinten kommt schneller Verkehr. Behalte deine Linie bei.",
             "Ein schnellerer Wagen läuft von hinten auf. Bleib berechenbar.",
             "Schneller Verkehr kommt näher. Bleib auf einer berechenbaren Linie.",
-            "Achte auf den Spiegel, ein schnellerer Wagen kommt von hinten."
+            "Achte auf den Spiegel, ein schnellerer Wagen kommt von hinten.",
+            "Von hinten kommt einer mit mehr Tempo. Ruhig auf deiner Linie bleiben."
         };
         private static readonly string[] RearPhrasesEn = {
             "Faster car from behind. Stay predictable.", "Fast traffic coming from behind. Hold your line.",
-            "A faster car is closing from behind. Stay predictable."
+            "A faster car is closing from behind. Stay predictable.",
+            "Fast traffic closing. Keep your line steady.",
+            "Check your mirrors, quicker car coming from behind.",
+            "Someone with more pace is coming. Stay calm on your line."
         };
         private static readonly string[] RearPhrasesEs = {
             "Coche más rápido por detrás. Sé predecible.", "Llega tráfico rápido por detrás. Mantén tu trazada.",
-            "Un coche más rápido se acerca por detrás. Sé predecible."
+            "Un coche más rápido se acerca por detrás. Sé predecible.",
+            "Tráfico rápido acercándose. Mantén una trazada predecible.",
+            "Mira los espejos, viene un coche más rápido por detrás.",
+            "Viene alguien con más ritmo. Tranquilo en tu trazada."
         };
         public static string[] RearPhrases => RadioLanguage.Pick(RearPhrasesDe, RearPhrasesEn, RearPhrasesEs);
         private static readonly string[] RearGroupPhrasesDe = {
             "Mehrere schnellere Fahrzeuge kommen von hinten. Bleib berechenbar.",
-            "Schnellere Gruppe von hinten. Behalte deine Linie bei."
+            "Schnellere Gruppe von hinten. Behalte deine Linie bei.",
+            "Da kommt ein ganzer Pulk von hinten. Linie halten, sie suchen sich ihren Weg.",
+            "Mehrere schnelle Autos im Spiegel. Berechenbar bleiben, nicht ausweichen.",
+            "Schnellere Klasse kommt in der Gruppe. Ruhig weiterfahren, die gehen vorbei."
         };
         private static readonly string[] RearGroupPhrasesEn = {
             "Several faster cars coming from behind. Stay predictable.",
-            "Faster group from behind. Hold your line."
+            "Faster group from behind. Hold your line.",
+            "A whole bunch coming from behind. Hold your line, they'll find a way.",
+            "Several quick cars in the mirrors. Stay predictable, don't dodge.",
+            "Faster class arriving as a group. Keep driving, they'll go by."
         };
         private static readonly string[] RearGroupPhrasesEs = {
             "Llegan varios coches más rápidos por detrás. Sé predecible.",
-            "Grupo más rápido por detrás. Mantén tu trazada."
+            "Grupo más rápido por detrás. Mantén tu trazada.",
+            "Llega un grupo entero por detrás. Mantén la trazada, ellos buscarán hueco.",
+            "Varios coches rápidos en los espejos. Sé predecible, no te apartes.",
+            "La clase más rápida llega en grupo. Sigue rodando, ya pasarán."
         };
         public static string[] RearGroupPhrases => RadioLanguage.Pick(RearGroupPhrasesDe, RearGroupPhrasesEn, RearGroupPhrasesEs);
         public static string DistancePhrase(int metres,bool stopped) => RadioLanguage.T(
@@ -171,9 +187,13 @@ namespace CrewChiefV4.AiTeam
         public void Reset()
         {
             reference.Clear(); reported.Clear(); nativeRear.Clear(); parked.Clear(); pending=null; tracks=null;
-            session=int.MinValue; track=null; lastTick=lastRadio=DateTime.MinValue; epoch++;
+            session=int.MinValue; track=null; lastTick=lastRadio=lastRear=lastRearGroup=DateTime.MinValue; epoch++;
             Volatile.Write(ref facts,null);
         }
+        internal const double RearSameCarSeconds = 300, RearAnySeconds = 45;
+        private DateTime lastRear = DateTime.MinValue, lastRearGroup = DateTime.MinValue;
+        private bool pendingGroup;
+
         public void Observe(TrackAwareness observer, GameStateData gs, DateTime now)
         {
             if (gs == null || observer == null || observer.Snapshot == null) return;
@@ -183,7 +203,11 @@ namespace CrewChiefV4.AiTeam
             { Reset(); session=s.SessionId; track=s.Track; }
             tracks=observer; lastTick=now;
             if (pending!=null && pending.DeliveryStartedUtc!=DateTime.MinValue)
-            { reported[pendingKey]=lastRadio=pending.DeliveryStartedUtc; pending=null; }
+            {
+                reported[pendingKey]=lastRadio=pending.DeliveryStartedUtc;
+                if (pending.Topic=="race-traffic-rear") { lastRear=pending.DeliveryStartedUtc; if (pendingGroup) lastRearGroup=lastRear; }
+                pending=null;
+            }
             if (pending!=null && !pending.IsValid(gs,now)) pending=null;
             NativeTrafficBridge.Detection d;
             while (NativeTrafficBridge.TryTake(out d))
@@ -202,7 +226,7 @@ namespace CrewChiefV4.AiTeam
                     reference[cell]=new Reference {Speed=(float)s.PlayerSpeedMps.Value,Lap=gs.SessionData.CompletedLaps,Utc=now};
                 if (reference.Count>2000) reference.Clear();
             }
-            var candidates=s.Cars.Where(c=>Relevant(c,gs,s,now)).OrderBy(c=>c.RouteGapM>0?0:1)
+            var candidates=s.Cars.Where(c=>!c.IsSafetyCar && Relevant(c,gs,s,now)).OrderBy(c=>c.RouteGapM>0?0:1)
                 .ThenBy(c=>Math.Abs(c.RouteGapM.Value)/Math.Max(1,c.ClosingMps??1)).ToArray();
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
             if (pending!=null || now-lastRadio<TimeSpan.FromSeconds(3)) return;
@@ -210,8 +234,13 @@ namespace CrewChiefV4.AiTeam
             {
                 bool rear=car.RouteGapM<0, stopped=!rear && car.SpeedMps<=1;
                 string key=car.Id+"|"+(rear?"rear":"hazard"); DateTime previous;
-                if (reported.TryGetValue(key,out previous) && now-previous<TimeSpan.FromSeconds(60)) continue;
+                // Rob 17.11., Bathurst: ~25 Warnungen „schneller Verkehr von hinten“ beim Überrunden. Jetzt: dasselbe Auto
+                // höchstens alle 5 Minuten, Verkehr von hinten insgesamt höchstens alle 45 s, und nichts, solange die blaue
+                // Flagge weht – die sagt Sara bereits an.
+                if (reported.TryGetValue(key,out previous) && now-previous<TimeSpan.FromSeconds(rear ? RearSameCarSeconds : 60)) continue;
+                if (rear && (now-lastRear<TimeSpan.FromSeconds(RearAnySeconds) || gs.SessionData.Flag==FlagEnum.BLUE)) continue;
                 bool group=rear && candidates.Count(c=>c.RouteGapM<0)>1;
+                if (group && now-lastRearGroup<TimeSpan.FromSeconds(120)) continue;
                 var phrases=rear?(group?RearGroupPhrases:RearPhrases):stopped?StoppedPhrases:SlowPhrases;
                 bool reminder=false;
                 if (stopped && car.LapDistanceM.HasValue)
@@ -239,7 +268,7 @@ namespace CrewChiefV4.AiTeam
                 if (!group && !reminder && !string.IsNullOrWhiteSpace(car.Name))
                     pending.OpponentNameClip = NameClipText(car.Name);
                 if(!rear && !reminder) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
-                pendingKey=key; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
+                pendingKey=key; pendingGroup=group; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();
         }
