@@ -1300,6 +1300,8 @@ namespace CrewChiefV4.AiTeam
             var liveFacts = RaceDataTools.BuildBriefing(ctx);
             var mind = RaceMind.Latest;
             if (mind != null && gs != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(DateTime.UtcNow)) liveFacts["rennkopf"] = mind.Describe();
+            var fieldInsights = gs == null ? null : RaceInsightWatch.Latest(gs.SessionData.SessionId);
+            if (fieldInsights != null && gs.SessionData.SessionType == SessionType.Race) liveFacts["feld_erkenntnisse"] = fieldInsights;
             // P4: Während der Fahrt beantwortet das schnelle Modell einfache Fragen in einer einzigen Anfrage.
             bool singleShot = !longAllowed && model == settings.FastModel && !NeedsTools(routed.Question, gs);
             // Robs Bestzeiten-Datenbank: Allzeit-Bestzeit für dieses Auto auf dieser Strecke mit den Bedingungen von damals.

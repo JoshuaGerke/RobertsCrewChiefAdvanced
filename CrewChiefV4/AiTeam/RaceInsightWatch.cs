@@ -81,6 +81,7 @@ namespace CrewChiefV4.AiTeam
             if (!lapCompleted || s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane) return;
             int lap = s.CompletedLaps;
             UpdateFastest(gs, lap);
+            Publish(gs, s, lap, names);
             if (call != null || lap < 2 || lap - lastInsightLap < 2) return;
             string n = spoken % 2 == 0 ? driver : null;
 
@@ -132,6 +133,37 @@ namespace CrewChiefV4.AiTeam
                 lastFreeAirLap = lap;
                 Offer(gs, now, lap, "insight-free-air", FreeAirText(n, ahead, behind, Variant("free", 4)), "gaps_both_ways_at_least_six_seconds", 2);
             }
+        }
+
+        private static Newtonsoft.Json.Linq.JObject latest;
+        private static int latestSession = int.MinValue;
+
+        /// <summary>Feld-Erkenntnisse der letzten Runde für Sprachfragen („Wie läuft's?“); null ohne aktuelle Daten.</summary>
+        internal static Newtonsoft.Json.Linq.JObject Latest(int sessionId) =>
+            System.Threading.Volatile.Read(ref latestSession) == sessionId ? System.Threading.Volatile.Read(ref latest) : null;
+
+        private void Publish(GameStateData gs, SessionData s, int lap, bool names)
+        {
+            var o = new Newtonsoft.Json.Linq.JObject { ["runde"] = lap, ["schnellste_klassenrunden_in_folge"] = fastestStreak };
+            var a = AtClassPosition(gs, s.ClassPosition - 1);
+            var b = AtClassPosition(gs, s.ClassPosition - 2);
+            if (a != null && b != null && !a.InPits && !b.InPits)
+            {
+                float between = Gap(b, a);
+                if (between > 0)
+                    o["zweikampf_vor_dir"] = new Newtonsoft.Json.Linq.JObject
+                    {
+                        ["vorne"] = Name(b, names) ?? "P" + b.ClassPosition, ["dahinter"] = Name(a, names) ?? "P" + a.ClassPosition,
+                        ["abstand_zwischen_beiden_s"] = Math.Round(between, 2), ["dein_abstand_s"] = s.TimeDeltaFront > 0 ? (Newtonsoft.Json.Linq.JToken)Math.Round(s.TimeDeltaFront, 2) : null,
+                        ["echter_zweikampf"] = between <= BattleGap
+                    };
+            }
+            if ((s.ClassPosition - 1 == 3 || s.ClassPosition - 1 == 1) && s.TimeDeltaFront > 0)
+                o[s.ClassPosition - 1 == 1 ? "abstand_zur_fuehrung_s" : "abstand_zum_podium_s"] = Math.Round(s.TimeDeltaFront, 2);
+            o["freie_fahrt"] = (s.TimeDeltaFront <= 0 || s.TimeDeltaFront >= FreeAir) && s.TimeDeltaBehind >= FreeAir;
+            o["hinweis"] = "Gemessene Abstände und Rundenzeiten der letzten Runde; ein Zweikampf gilt ab höchstens 1 s zwischen den beiden.";
+            System.Threading.Volatile.Write(ref latest, o);
+            System.Threading.Volatile.Write(ref latestSession, s.SessionId);
         }
 
         private void UpdateFastest(GameStateData gs, int lap)

@@ -235,6 +235,8 @@ namespace CrewChiefV4.AiTeam
             // Einschätzung des Renningenieur-Kopfs: Phase, Lage, Fokus, Gefahren, Chancen, Trends – damit Antworten die Rennlage kennen.
             var mind = RaceMind.Latest;
             if (mind != null && mind.SessionId == s.SessionId && mind.Fresh(ctx.NowUtc)) o["rennkopf"] = mind.Describe();
+            var field = RaceInsightWatch.Latest(s.SessionId);
+            if (field != null && s.SessionType == SessionType.Race) o["feld_erkenntnisse"] = field;
             int startMode, startPhase;
             if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
                 o["raceroom_startgruppe"] = new JObject {

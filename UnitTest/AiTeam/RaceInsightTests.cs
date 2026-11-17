@@ -44,6 +44,10 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(call);
             Assert.AreEqual("insight-battle-ahead", call.Topic);
             StringAssert.Contains("Wurz", call.Text); StringAssert.Contains("Keller", call.Text);
+            var facts = RaceInsightWatch.Latest(21);
+            Assert.IsNotNull(facts, "Sprachfragen bekommen die Feld-Erkenntnisse");
+            Assert.IsTrue((bool)facts["zweikampf_vor_dir"]["echter_zweikampf"]);
+            Assert.IsNull(RaceInsightWatch.Latest(999), "andere Sitzung: nichts");
 
             var far = Race(5, 6, 90.5f); far.SessionData.TimeDeltaFront = 4.5f;
             Rival(far, "Keller", 4, 90.8f); Rival(far, "Wurz", 3, 90.9f); Rival(far, "Mayer", 6, 91f);
