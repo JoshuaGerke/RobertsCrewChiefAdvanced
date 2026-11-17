@@ -39,7 +39,7 @@ namespace CrewChiefV4.AiTeam
             lastRadio = lastSectorBestCall = lastSectorTimeCall = DateTime.MinValue; firstSectorTimeCalled = false;
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
-            edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1;
+            edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
         }
 
         public static bool Supported(SessionType t)
@@ -303,7 +303,23 @@ namespace CrewChiefV4.AiTeam
         // 55-Sekunden-Pause jede weitere Sektormeldung; ohne frühere eigene Bestzeit (erste schnelle Runde) gab es gar nichts.
         // Jetzt merkt sich Mik Sektor 1 der laufenden Runde und meldet nach Sektor 2 beide zusammen – eigene Bestzeit oder
         // lila (schneller als alle Bestzeiten der Klasse) – mit „das könnte deine schnellste Runde werden“.
-        private int flyingLap = -1, flyingCount;
+        private int flyingLap = -1, flyingCount, hotLap = -1;
+        internal const float HotLapMargin = .25f;
+
+        /// <summary>
+        /// Läuft gerade eine schnelle Runde außerhalb des Rennens (Sektor 1 oder 2 auf Bestzeitkurs, Runde gültig, nicht in der
+        /// Box)? Dann hält das KI-Team Routine- und Hintergrundmeldungen zurück – ein Renningenieur redet nicht in eine
+        /// Pushrunde hinein. Die Meldung zu den Bestsektoren selbst und alle Sicherheitsmeldungen bleiben.
+        /// </summary>
+        internal bool HotLap(GameStateData gs)
+        {
+            var s = gs?.SessionData;
+            return s != null && hotLap > 0 && hotLap == s.CompletedLaps + 1 && s.SessionType != SessionType.Race &&
+                s.CurrentLapIsValid && !gs.PitData.InPitlane && s.SessionPhase == SessionPhase.Green;
+        }
+
+        /// <summary>Nur für Tests: markiert die laufende Runde als schnelle Runde.</summary>
+        internal void MarkHotLapForTest(int lapNumber) { hotLap = lapNumber; }
         private bool flyingS1Own, flyingS1Purple;
         private readonly Random flyingRandom = new Random();
         private int flyingLastVariant = -1;
@@ -335,6 +351,10 @@ namespace CrewChiefV4.AiTeam
             float kept = completedSectorBest[sector];
             float own = GoodSector(prior) && GoodSector(kept) ? Math.Min(prior, kept) : GoodSector(prior) ? prior : kept;
             RateSector(time, own, FieldBestSector(state, sector), out bool ownBest, out bool purple);
+            // Schnelle Runde (Rob 17.11.): Liegt der Sektor auf Bestzeitkurs oder höchstens 0,25 s darüber, ist die Runde
+            // „heiß“ – dann schweigen Routine und Hintergrundmeldungen bis zum Rundenende.
+            bool onPace = ownBest || purple || GoodSector(own) && GoodSector(time) && time - own <= HotLapMargin;
+            if (onPace) hotLap = lap.LapNumber; else if (hotLap == lap.LapNumber) hotLap = -1;
             if (sector == 0)
             {
                 flyingLap = lap.LapNumber; flyingS1Own = ownBest; flyingS1Purple = purple;

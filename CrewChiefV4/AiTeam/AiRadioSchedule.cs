@@ -128,6 +128,9 @@ namespace CrewChiefV4.AiTeam
             return lastDeliveredText.TryGetValue(topic,out old) && old==text && lastDeliveredUtc.TryGetValue(topic,out when) &&
                 now>=when && now-when<TimeSpan.FromMinutes(10);
         }
+        internal bool SameTimesheetAgain(string topic, string text, DateTime now) =>
+            lastDeliveredText.TryGetValue(topic, out var old) && old == text && lastDeliveredUtc.TryGetValue(topic, out var when) &&
+            now >= when && now - when < TimeSpan.FromMinutes(20);
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
@@ -229,7 +232,15 @@ namespace CrewChiefV4.AiTeam
                     continue;
                 }
                 var measurement = StintRadioMemory.Capture(topic, ctx);
-                if (filterUnchanged && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
+                // Rob 17.11. (Bathurst): „Rafa Rivera: 2:03,178 …“ kam zweimal, obwohl sich keine Zeit geändert hatte. Die
+                // Zeitenliste außerhalb des Rennens ändert sich nur mit neuen Bestzeiten – gleicher Satz heißt gleiche Lage.
+                bool timesheet = (topic == "ahead" || topic == "behind") && gs.SessionData.SessionType != SessionType.Race;
+                if (timesheet && SameTimesheetAgain(topic, text, now))
+                {
+                    LiveDiagnostics.Decision(topic, "suppressed", "unchanged_timesheet");
+                    continue;
+                }
+                if (filterUnchanged && !timesheet && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
                 {
                     LiveDiagnostics.Decision(topic, "suppressed", "unchanged_routine_since_last_delivery");
                     continue;

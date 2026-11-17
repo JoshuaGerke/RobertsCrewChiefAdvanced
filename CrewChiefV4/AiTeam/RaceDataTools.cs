@@ -581,7 +581,32 @@ namespace CrewChiefV4.AiTeam
             for (int i = 0; i < session.SectorNumber - 1 && i < times.Length; i++)
             {
                 var value = SectorValue(times[i]);
-                if (value != null) sectors.Add(new JObject { ["sektor"] = i + 1, ["zeit_s"] = value });
+                if (value == null) continue;
+                var entry = new JObject { ["sektor"] = i + 1, ["zeit_s"] = value };
+                // Rob 17.11. (Bathurst): Auf „Fällt dir nichts an meiner Sektorzeit auf?“ nannte Mik nur Sektor 1, weil die
+                // Bestmarke der Simulation den gerade gefahrenen Sektor schon enthielt. Deshalb hier der Vergleich mit der
+                // eigenen Bestmarke VOR dieser Runde und mit den Bestwerten der Klasse.
+                int sector = i;
+                var earlier = session.PlayerLapData.Where(l => l != lap && l.IsValid && !l.InLap && !l.OutLap && l.SectorTimes != null &&
+                    l.SectorTimes.Length > sector && l.SectorTimes[sector] > 1 && l.SectorTimes[sector] < 3600).Select(l => l.SectorTimes[sector]).ToList();
+                if (earlier.Count > 0)
+                {
+                    float before = earlier.Min();
+                    entry["eigene_bestmarke_vor_dieser_runde_s"] = Math.Round(before, 3);
+                    entry["differenz_zur_bestmarke_s"] = Math.Round(times[i] - before, 3);
+                    entry["neue_persoenliche_bestzeit"] = times[i] < before - .0005f;
+                }
+                else entry["neue_persoenliche_bestzeit"] = null;
+                var field = gs.OpponentData.Values.Where(o => o != null && gs.carClass != null && o.CarClass != null &&
+                        CarData.IsCarClassEqual(gs.carClass, o.CarClass, false))
+                    .Select(o => sector == 0 ? o.bestSector1Time : sector == 1 ? o.bestSector2Time : o.bestSector3Time)
+                    .Where(t => t > 1 && t < 3600).ToList();
+                if (field.Count > 0)
+                {
+                    entry["beste_klassenzeit_gegner_s"] = Math.Round(field.Min(), 3);
+                    entry["schneller_als_alle_gegner_lila"] = times[i] < field.Min() - .0005f;
+                }
+                sectors.Add(entry);
             }
             return sectors.Count == 0 ? null : new JObject {
                 ["runde"] = lap.LapNumber,

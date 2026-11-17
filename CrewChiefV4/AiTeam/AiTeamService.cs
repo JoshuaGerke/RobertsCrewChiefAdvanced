@@ -650,7 +650,7 @@ namespace CrewChiefV4.AiTeam
                 raceCall = backmarkers.Take(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy || currentRequest != null,
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
-                raceCall = judgement.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
+                raceCall = judgement.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning || sessionLaps.HotLap(current),
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = focusBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
@@ -681,9 +681,9 @@ namespace CrewChiefV4.AiTeam
                     raceCall = pitCycle.TakeMergeCall(gapContext);
             }
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
-                raceCall = raceReader.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null, settings.IsMemberEnabled);
+                raceCall = raceReader.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || sessionLaps.HotLap(current), settings.IsMemberEnabled);
             if (raceCall == null) {
-                raceCall=timingEvents.Take(BuildContext(current),Spotter().HasOverlap || radioRenderGate.Busy || currentRequest!=null,
+                raceCall=timingEvents.Take(BuildContext(current),Spotter().HasOverlap || radioRenderGate.Busy || currentRequest!=null || sessionLaps.HotLap(current),
                     settings.IsMemberEnabled(TeamMember.Ben),settings.RadioMode==AiRadioMode.MINIMAL);
                 if(raceCall!=null)pendingTimingDelivery=raceCall;
             }
@@ -694,6 +694,7 @@ namespace CrewChiefV4.AiTeam
             if (routineDue && raceCall == null)
             {
                 string routineBusy=settings.RadioMode==AiRadioMode.MINIMAL?"minimal_mode":Spotter().HasOverlap?"spotter_overlap":
+                    sessionLaps.HotLap(current)?"push_lap":
                     radioRenderGate.Busy?"speech_rendering":currentRequest!=null?"driver_request":proactiveRunning?"autonomous_analysis":null;
                 // Nearby racing alone is not side-by-side. Short configured reports still yield to
                 // actual overlap, braking, focus laps and urgent traffic calls, without perpetual 9s quiet.

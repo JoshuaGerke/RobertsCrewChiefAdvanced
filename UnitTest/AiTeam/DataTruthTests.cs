@@ -210,5 +210,73 @@ namespace UnitTest.AiTeamTests
             }
             RadioLanguage.Current = RadioLanguage.German;
         }
+
+        // ---------- Bathurst 16.11.: schnelle Runde, Zeitenliste, Sektorfrage ----------
+
+        [Test]
+        public void Sector_on_best_pace_marks_a_push_lap_and_slow_or_race_laps_do_not()
+        {
+            var before = State(1, -1, T.AddSeconds(30));
+            var edge = State(2, 30.1f, T.AddSeconds(30.1));        // 0,1 s über der Bestmarke: Bestzeitkurs
+            var watch = new SessionLapObserver();
+            watch.Observe(before, null, before.SourceTelemetryUtc, false);
+            watch.Observe(edge, null, edge.SourceTelemetryUtc, false, before, true);
+            Assert.IsTrue(watch.HotLap(edge), "Pushrunde: Routine schweigt");
+            edge.SessionData.CurrentLapIsValid = false;
+            Assert.IsFalse(watch.HotLap(edge), "ungültig: keine Pushrunde mehr");
+
+            var slowWatch = new SessionLapObserver();
+            var slow = State(2, 31.0f, T.AddSeconds(30.1));         // eine Sekunde langsamer
+            slowWatch.Observe(before, null, before.SourceTelemetryUtc, false);
+            slowWatch.Observe(slow, null, slow.SourceTelemetryUtc, false, before, true);
+            Assert.IsFalse(slowWatch.HotLap(slow));
+
+            var race = State(2, 30.1f, T.AddSeconds(30.1)); race.SessionData.SessionType = SessionType.Race;
+            var raceWatch = new SessionLapObserver(); raceWatch.MarkHotLapForTest(3);
+            Assert.IsFalse(raceWatch.HotLap(race), "im Rennen gilt die Pushrunden-Stille nicht");
+        }
+
+        [Test]
+        public void Live_sectors_compare_with_the_best_before_this_lap_and_with_the_field()
+        {
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 7; gs.SessionData.SessionType = SessionType.Practice; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.carClass = new CarData.CarClass(); gs.SessionData.CompletedLaps = 2; gs.SessionData.SectorNumber = 3; gs.SessionData.CurrentLapIsValid = true;
+            gs.SourceTelemetryUtc = T;
+            gs.SessionData.PlayerLapData.Add(new LapData { LapNumber = 2, IsValid = true, LapTime = 124.8f, SectorTimes = new[] { 51.367f, 31.2f, 42.2f } });
+            gs.SessionData.PlayerLapData.Add(new LapData { LapNumber = 3, IsValid = true, SectorTimes = new[] { 51.187f, 31.04f, -1f } });
+            gs.OpponentData["rafa"] = new OpponentData { DriverRawName = "Rafa Rivera", CarClass = gs.carClass, bestSector1Time = 51.0f, bestSector2Time = 31.1f };
+            var live = RaceDataTools.CurrentSectors(new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T });
+            Assert.IsNotNull(live);
+            var sectors = (Newtonsoft.Json.Linq.JArray)live["abgeschlossene_sektoren"];
+            Assert.AreEqual(2, sectors.Count);
+            Assert.IsTrue((bool)sectors[1]["neue_persoenliche_bestzeit"], "Sektor 2 ist neue Bestzeit – das muss Mik sehen");
+            Assert.AreEqual(-.16, (double)sectors[1]["differenz_zur_bestmarke_s"], .001);
+            Assert.IsTrue((bool)sectors[1]["schneller_als_alle_gegner_lila"]);
+            Assert.IsFalse((bool)sectors[0]["schneller_als_alle_gegner_lila"], "Sektor 1: Rafa war schneller");
+        }
+
+        [Test]
+        public void Unchanged_timesheet_is_not_repeated_outside_the_race()
+        {
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 8; gs.SessionData.SessionType = SessionType.Practice; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.carClass = new CarData.CarClass(); gs.SessionData.ClassPosition = 2; gs.SessionData.OverallPosition = 2;
+            gs.SessionData.PlayerLapTimeSessionBest = 124.813f; gs.PositionAndMotionData.CarSpeed = 50;
+            gs.OpponentData["rafa"] = new OpponentData { DriverRawName = "Rafa Rivera", CarClass = gs.carClass, ClassPosition = 1, OverallPosition = 1, CurrentBestLapTime = 123.178f };
+            var prefs = new AiRadioPreferences();
+            foreach (var o in AiRadioPreferences.Options) prefs.Set(o.Id, 0);
+            prefs.Set("ahead", 30); prefs.SetTolerance("ahead", 0, 0);
+            var schedule = new AiRadioSchedule(1); schedule.Observe(gs, T, prefs);
+            Func<double, RaceDataContext> at = sec => new RaceDataContext { GameState = gs, NowUtc = T.AddSeconds(sec), LastTelemetryUtc = T.AddSeconds(sec), SendDriverNames = true };
+            var first = schedule.Take(at(30), prefs, false);
+            Assert.IsNotNull(first);
+            Assert.AreEqual("ahead", first.Topic);
+            first.MarkPlaybackStarted(T.AddSeconds(30)); first.MarkPlaybackFinished(T.AddSeconds(33), false);
+            Assert.IsNull(schedule.Take(at(61), prefs, false), "gleiche Zeitenliste, gleicher Satz – nicht wiederholen");
+            gs.OpponentData["rafa"].CurrentBestLapTime = 122.9f;
+            var changed = schedule.Take(at(95), prefs, false);
+            Assert.IsNotNull(changed, "neue Bestzeit des Gegners ist eine Neuigkeit");
+        }
     }
 }
