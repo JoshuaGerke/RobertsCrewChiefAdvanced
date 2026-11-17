@@ -1785,16 +1785,19 @@ namespace CrewChiefV4.AiTeam
                 string kind = s.SessionType == SessionType.HotLap ? RadioLanguage.T("Hotlap", "hotlap", "vuelta rápida") :
                     s.SessionType == SessionType.Qualify || s.SessionType == SessionType.PrivateQualify ? RadioLanguage.T("Qualifying", "qualifying", "clasificación") :
                     RadioLanguage.T("Training", "practice", "entrenamiento");
+                // Rob 17.11.: wie am Kommandostand – Strecke, Session, Feld, ein Satz, der anschiebt.
+                string motivation = SessionGreetingDirector.Motivation(s.SessionType, trackWelcomeVariant);
+                string field = SessionGreetingDirector.FieldLine(current);
                 string[] lines = RadioLanguage.Pick(
-                    new[] { who + ", schön, dass du da bist. " + track + ", " + kind + ". Fahr dich in Ruhe ein, wir sind bei dir.",
-                            "Hallo " + who + ". " + kind + " in " + track + ", die Crew ist bereit. Lass es locker angehen.",
-                            "Da ist er ja. " + track + ", " + kind + ". Wir hören zu, " + who + "." },
-                    new[] { who + ", good to have you. " + track + ", " + kind + ". Ease into it, we're with you.",
-                            "Hi " + who + ". " + kind + " at " + track + ", the crew is ready. Take it easy to start.",
-                            "There you are. " + track + ", " + kind + ". We're listening, " + who + "." },
-                    new[] { who + ", qué bien que estés. " + track + ", " + kind + ". Entra en ritmo con calma, estamos contigo.",
-                            "Hola " + who + ". " + kind + " en " + track + ", el equipo está listo. Empieza tranquilo.",
-                            "Ahí estás. " + track + ", " + kind + ". Te escuchamos, " + who + "." });
+                    new[] { "Funkcheck, " + who + ". " + track + ", " + kind + ". " + field + motivation,
+                            who + ", Crew ist am Funk. " + kind + " in " + track + ". " + field + motivation,
+                            "Okay " + who + ", " + track + ", " + kind + ". " + field + motivation },
+                    new[] { "Radio check, " + who + ". " + track + ", " + kind + ". " + field + motivation,
+                            who + ", crew's on the radio. " + kind + " at " + track + ". " + field + motivation,
+                            "Okay " + who + ", " + track + ", " + kind + ". " + field + motivation },
+                    new[] { "Prueba de radio, " + who + ". " + track + ", " + kind + ". " + field + motivation,
+                            who + ", el equipo está en la radio. " + kind + " en " + track + ". " + field + motivation,
+                            "Vale " + who + ", " + track + ", " + kind + ". " + field + motivation });
                 int session = s.SessionId; var type = s.SessionType;
                 trackWelcome = new ObservedRaceCall { Topic = "track-welcome", Text = lines[(trackWelcomeVariant++) % lines.Length], Member = speaker,
                     Evidence = "no_greeting_in_stationary_window_non_race_session", Priority = 2, Position = -1, SessionId = session, SessionType = type,

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.Audio;
@@ -122,6 +123,33 @@ namespace UnitTest.AiTeamTests
             Assert.IsTrue(call.IsValid(c.GameState,c.NowUtc));
             c.GameState.Conditions.UpdateLiveSample(c.NowUtc,0,1,20,30,0,0,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
             Assert.IsFalse(call.IsValid(c.GameState,c.NowUtc));
+        }
+
+        [Test]
+        public void Greeting_sounds_like_a_pit_wall_with_conditions_field_and_motivation()
+        {
+            var c = GreetingContext(); var director = new SessionGreetingDirector();
+            c.NowUtc = c.LastTelemetryUtc = DateTime.UtcNow;
+            c.GameState.Conditions.UpdateLiveSample(c.NowUtc,0,1,19,25,0,1.6f,0,0,0,false,ConditionsMonitor.TrackStatus.UNKNOWN);
+            for (int i = 0; i < 6; i++)
+                c.GameState.OpponentData["car" + i] = new OpponentData { DriverRawName = "car" + i, InPits = i < 2 };
+            var call = director.CreateCall(c, c.NowUtc.AddSeconds(40), "Rob", TeamMember.Ben);
+            Assert.IsNotNull(call);
+            StringAssert.DoesNotContain("schön, dass du da bist", call.Text.ToLowerInvariant(), "Rob 17.11.: so begrüßt keiner seinen Rennfahrer");
+            StringAssert.DoesNotContain("Wir sind in", call.Text);
+            StringAssert.Contains("Monza, Training.", call.Text);
+            StringAssert.Contains("Luft 19 Grad, Strecke 25 Grad", call.Text);
+            StringAssert.Contains("7 Autos im Feld, 4 davon gerade draußen.", call.Text);
+            var motivation = Enumerable.Range(0, 4).Select(v => SessionGreetingDirector.Motivation(SessionType.Practice, v)).ToList();
+            Assert.IsTrue(motivation.Any(m => call.Text.EndsWith(m)), "endet mit einem Satz, der anschiebt");
+            Assert.IsTrue(call.IsValid(c.GameState, c.NowUtc), "Feldgröße ist kein Grund, die Begrüßung zu verwerfen");
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (var type in new[] { SessionType.Practice, SessionType.Qualify, SessionType.Race })
+                    Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => SessionGreetingDirector.Motivation(type, v)).Distinct().Count(), lang + " " + type);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
         }
 
         [OneTimeSetUp]

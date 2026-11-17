@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -11,52 +12,99 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     public sealed class SessionGreetingDirector
     {
+        // Rob 17.11.2026: „So begrüßt keiner seinen Rennfahrer.“ Kein Wohlfühl-Text mehr, sondern wie am Kommandostand:
+        // kurzer Funkcheck, dann Strecke, Session, Bedingungen, Feld und ein Satz, der anschiebt.
         private static readonly string[] OpeningsDe =
         {
-            "Hey Rob, schön, dass wir wieder zusammen unterwegs sind.",
-            "Hey Rob, Ben hier. Wir sind für die Session bereit.",
-            "Rob, da sind wir wieder. Wir gehen das heute konzentriert an.",
-            "Willkommen zurück, Rob. Wir haben alles im Blick.",
-            "Rob, Ben hier. Ich bin am Funk, sobald du mich brauchst.",
-            "Hallo Rob. Wir kümmern uns um die Daten, du ums Fahren.",
-            "Na Rob, auf geht's. Wir bleiben ruhig und arbeiten uns rein.",
-            "Rob, schön dich wieder im Cockpit zu haben. Wir sind bereit.",
-            "Hallo Rob, Ben am Funk. Wir halten die Augen auf die Technik.",
-            "Rob, wir sind wieder am Start. Ich begleite deine Session.",
-            "Hey Rob. Schön, dass du da bist. Wir schauen gemeinsam auf den Rhythmus.",
-            "Rob, Ben hier. Wir starten strukturiert und ohne Hektik."
+            "Funkcheck, Rob. Ben hier, die Crew steht.",
+            "Rob, Ben am Funk. Wir sind startklar.",
+            "Okay Rob, Ben hier. Daten laufen, die Box ist besetzt.",
+            "Rob, hier ist Ben. Auf unserer Seite ist alles bereit.",
+            "Hallo Rob, Ben am Funk.",
+            "Rob, Ben. Funk steht, Telemetrie ist da.",
+            "Willkommen zurück im Auto, Rob. Ben hier.",
+            "Rob, Ben hier. Das Auto ist vorbereitet, jetzt bist du dran.",
+            "Alles klar, Rob. Ben am Kommandostand.",
+            "Rob, Ben hier. Die Crew ist auf Position.",
+            "Na dann, Rob. Ben am Funk, wir legen los.",
+            "Rob, Ben hier. Wir sind bereit, wenn du es bist."
         };
         // "Rob" und "Ben" werden in CreateCall ersetzt; die Übersetzungen enthalten sie deshalb wörtlich.
         private static readonly string[] OpeningsEn =
         {
-            "Hey Rob, good to be out together again.",
-            "Hey Rob, Ben here. We're ready for the session.",
-            "Rob, here we are again. Let's stay focused today.",
-            "Welcome back, Rob. We've got everything covered.",
-            "Rob, Ben here. I'm on the radio whenever you need me.",
-            "Hello Rob. We handle the data, you handle the driving.",
-            "Right Rob, let's go. We stay calm and work our way in.",
-            "Rob, good to have you back in the cockpit. We're ready.",
-            "Hello Rob, Ben on the radio. We're keeping an eye on the car.",
-            "Rob, we're back at it. I'll be with you through the session.",
-            "Hey Rob. Good to have you here. Let's work on the rhythm together.",
-            "Rob, Ben here. We start methodically, no rush."
+            "Radio check, Rob. Ben here, the crew is set.",
+            "Rob, Ben on the radio. We're good to go.",
+            "Okay Rob, Ben here. Data's flowing, the box is manned.",
+            "Rob, this is Ben. Everything's ready on our side.",
+            "Hello Rob, Ben on the radio.",
+            "Rob, Ben. Radio's up, telemetry's in.",
+            "Welcome back in the car, Rob. Ben here.",
+            "Rob, Ben here. The car is prepared, over to you.",
+            "All right, Rob. Ben on the pit wall.",
+            "Rob, Ben here. The crew is in position.",
+            "Here we go, Rob. Ben on the radio, let's get to work.",
+            "Rob, Ben here. We're ready when you are."
         };
         private static readonly string[] OpeningsEs =
         {
-            "Hola Rob, qué bien volver a estar juntos en pista.",
-            "Hola Rob, aquí Ben. Estamos listos para la sesión.",
-            "Rob, aquí estamos otra vez. Hoy vamos concentrados.",
-            "Bienvenido de nuevo, Rob. Lo tenemos todo controlado.",
-            "Rob, aquí Ben. Estoy en la radio cuando me necesites.",
-            "Hola Rob. Nosotros nos ocupamos de los datos, tú de pilotar.",
-            "Venga Rob, vamos allá. Con calma y poco a poco.",
-            "Rob, qué bien tenerte de nuevo en el coche. Estamos listos.",
-            "Hola Rob, Ben en la radio. Vigilamos la parte técnica.",
-            "Rob, volvemos a la carga. Te acompaño durante la sesión.",
-            "Hola Rob. Qué bien que estés aquí. Vamos a trabajar juntos el ritmo.",
-            "Rob, aquí Ben. Empezamos con orden y sin prisas."
+            "Prueba de radio, Rob. Aquí Ben, el equipo está listo.",
+            "Rob, Ben en la radio. Todo preparado.",
+            "Vale Rob, aquí Ben. Los datos entran, el box está ocupado.",
+            "Rob, soy Ben. Por nuestra parte está todo listo.",
+            "Hola Rob, Ben en la radio.",
+            "Rob, Ben. Radio funcionando, telemetría recibida.",
+            "Bienvenido de nuevo al coche, Rob. Aquí Ben.",
+            "Rob, aquí Ben. El coche está preparado, te toca a ti.",
+            "Muy bien, Rob. Ben en el muro.",
+            "Rob, aquí Ben. El equipo está en posición.",
+            "Vamos allá, Rob. Ben en la radio, a trabajar.",
+            "Rob, aquí Ben. Estamos listos cuando tú lo estés."
         };
+
+        /// <summary>Ein Satz, der anschiebt – passend zur Session, ohne Behauptungen über Daten.</summary>
+        internal static string Motivation(SessionType type, int variant)
+        {
+            bool race = type == SessionType.Race, quali = type == SessionType.Qualify || type == SessionType.PrivateQualify;
+            string[] de = race ? new[] { "Sauber durch Kurve eins, entschieden wird hinten raus.", "Kopf frei, wir haben das Tempo. Lass uns Plätze holen.",
+                    "Konzentriert bleiben, die Chancen kommen. Wir sind jede Runde bei dir.", "Guter Start, saubere erste Runde, dann greifen wir an." }
+                : quali ? new[] { "Eine saubere Runde reicht, und die hast du drauf.", "Reifen ins Fenster bringen, dann Attacke.",
+                    "Jetzt zählt's: volle Konzentration auf die eine Runde.", "Du kennst die Strecke, du kennst das Auto. Hol sie dir." }
+                : new[] { "Erst Reifen und Bremsen auf Temperatur, dann holen wir uns die Zeit.", "Runde für Runde schneller, so bauen wir das heute auf.",
+                    "Taste dich an die Grenze ran, wir liefern dir die Zahlen.", "Lass uns heute ein schnelles Auto draus machen." };
+            string[] en = race ? new[] { "Clean through turn one, this gets decided late.", "Clear head, we've got the pace. Let's gain some places.",
+                    "Stay focused, the chances will come. We're with you every lap.", "Good start, clean first lap, then we attack." }
+                : quali ? new[] { "One clean lap is all it takes, and you've got it in you.", "Get the tyres in the window, then go for it.",
+                    "This is it: full focus on that one lap.", "You know the track, you know the car. Go get it." }
+                : new[] { "Tyres and brakes up to temperature first, then we go for time.", "Quicker lap by lap, that's how we build it today.",
+                    "Work your way up to the limit, we'll give you the numbers.", "Let's turn this into a fast car today." };
+            string[] es = race ? new[] { "Limpio en la primera curva, esto se decide al final.", "Cabeza fría, tenemos ritmo. Vamos a ganar posiciones.",
+                    "Concentrado, las ocasiones llegarán. Estamos contigo cada vuelta.", "Buena salida, primera vuelta limpia y luego atacamos." }
+                : quali ? new[] { "Basta una vuelta limpia, y la tienes.", "Neumáticos en su ventana y luego a por todas.",
+                    "Ahora cuenta: toda la concentración en esa vuelta.", "Conoces la pista, conoces el coche. Ve a por ella." }
+                : new[] { "Primero neumáticos y frenos a temperatura, luego vamos a por el tiempo.", "Vuelta a vuelta más rápido, así lo construimos hoy.",
+                    "Acércate al límite poco a poco, nosotros te damos los números.", "Hoy vamos a hacer de esto un coche rápido." };
+            var pool = RadioLanguage.Pick(de, en, es);
+            return pool[((variant % pool.Length) + pool.Length) % pool.Length];
+        }
+
+        /// <summary>Feldgröße und – außerhalb des Rennens – wie viele gerade draußen sind; leer ohne Gegnerdaten.</summary>
+        internal static string FieldLine(GameStateData gs)
+        {
+            if (gs?.OpponentData == null) return "";
+            var active = gs.OpponentData.Values.Where(o => o != null && o.IsActive).ToList();
+            if (active.Count == 0) return ""; // beim Laden fehlen Gegnerdaten oft noch – dann lieber nichts behaupten
+            int cars = active.Count + 1;
+            string c = cars.ToString(RadioLanguage.Culture);
+            if (gs.SessionData.SessionType == SessionType.Race)
+                return gs.SessionData.ClassPosition > 0 ? "" : RadioLanguage.T(c + " Autos am Start. ", c + " cars on the grid. ", c + " coches en parrilla. ");
+            int inPits = active.Count(o => o.InPits);
+            // InPits setzen nicht alle Sims; ohne ein einziges Auto in der Box nennen wir nur die Feldgröße.
+            if (inPits == 0) return RadioLanguage.T(c + " Autos im Feld. ", c + " cars in the session. ", c + " coches en la sesión. ");
+            string o2 = (active.Count - inPits).ToString(RadioLanguage.Culture);
+            return RadioLanguage.T(c + " Autos im Feld, " + o2 + " davon gerade draußen. ", c + " cars in the session, " + o2 + " of them out on track. ",
+                c + " coches en la sesión, " + o2 + " ahora mismo en pista. ");
+        }
+
         private static string[] Openings => RadioLanguage.Pick(OpeningsDe, OpeningsEn, OpeningsEs);
 
         private readonly Random random = new Random();
@@ -103,19 +151,18 @@ namespace CrewChiefV4.AiTeam
             string opening = Openings[NextVariant()].Replace("Rob", name).Replace("Ben", TeamRouter.DisplayName(speaker));
             var type = gs.SessionData.SessionType;
             bool race = type == SessionType.Race, qualifying = type == SessionType.Qualify || type == SessionType.PrivateQualify;
-            string place = RadioLanguage.T(
-                " Wir sind in " + SpokenTrack(track) + " zum " + (race ? "Rennen" : qualifying ? "Qualifying" : "Training") + ". ",
-                " We're at " + SpokenTrack(track) + " for " + (race ? "the race" : qualifying ? "qualifying" : "practice") + ". ",
-                " Estamos en " + SpokenTrack(track) + " para " + (race ? "la carrera" : qualifying ? "la clasificación" : "los libres") + ". ");
+            string place = " " + SpokenTrack(track) + ", " + RadioLanguage.T(race ? "Rennen" : qualifying ? "Qualifying" : "Training",
+                race ? "race" : qualifying ? "qualifying" : "practice", race ? "carrera" : qualifying ? "clasificación" : "libres") + ". ";
             string weather = GreetingWeather(context);
+            string field = FieldLine(gs);
+            int grid = gs.OpponentData == null ? 0 : gs.OpponentData.Values.Count(o => o != null && o.IsActive) + 1;
             string start = race && gs.SessionData.ClassPosition > 0 ? (RadioLanguage.IsGerman ? "Startplatz " + gs.SessionData.ClassPosition +
-                (RaceRadioLanguage.SeparateClass(gs.SessionData) ? " in deiner Klasse. " : ". ") :
-                RadioLanguage.T("", "Starting ", "Sales ") + RaceRadioLanguage.Rank(gs.SessionData, gs.SessionData.ClassPosition) + ". ") : "";
-            string encouragement = race ? RadioLanguage.T("Ruhig bleiben, sauber durch die erste Kurve.", "Stay calm, clean through turn one.", "Tranquilo, limpio en la primera curva.") :
-                qualifying ? RadioLanguage.T("Finde deinen Rhythmus, dann setzen wir eine saubere Zeit.", "Find your rhythm, then we'll set a clean time.", "Encuentra tu ritmo y luego marcamos un tiempo limpio.") :
-                RadioLanguage.T("Komm in Ruhe auf Tempo.", "Build up to speed at your own pace.", "Coge ritmo con calma.");
+                (RaceRadioLanguage.SeparateClass(gs.SessionData) ? " in deiner Klasse. " : grid > 1 ? " von " + grid + ". " : ". ") :
+                RadioLanguage.T("", "Starting ", "Sales ") + RaceRadioLanguage.Rank(gs.SessionData, gs.SessionData.ClassPosition) +
+                (!RaceRadioLanguage.SeparateClass(gs.SessionData) && grid > 1 ? RadioLanguage.T("", " of " + grid, " de " + grid) : "") + ". ") : "";
+            string encouragement = Motivation(type, random.Next(4));
             return new ObservedRaceCall {
-                Topic = "greeting", Text = opening + place + weather + start + encouragement,
+                Topic = "greeting", Text = opening + place + weather + field + start + encouragement,
                 Evidence = "confirmed_track_and_session; weather_only_when_fresh", Member = speaker, Priority = 3,
                 SessionId = gs.SessionData.SessionId, SessionType = type, Position = -1, AllowPitlane = true,
                 DetectedUtc = context.NowUtc, ExpiresUtc = windowEnd,
@@ -131,14 +178,16 @@ namespace CrewChiefV4.AiTeam
             var c = context.GameState.Conditions.LatestConditions;
             if (c == null || !WeatherWatch.Fresh(context.NowUtc, c.Time)) return "";
             var parts = new System.Collections.Generic.List<string>();
+            // Rob 17.11.: Luft und Strecke gehören zusammen in die Begrüßung, dazu Regen und Wind.
+            if (TrackAwareness.InRange(c.AmbientTemperature, -30, 60).HasValue)
+                parts.Add(RadioLanguage.T("Luft ", "air ", "aire ") + Math.Round(c.AmbientTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
             if (TrackAwareness.InRange(c.TrackTemperature, -30, 85).HasValue)
                 parts.Add(RadioLanguage.T("Strecke ", "track ", "pista ") + Math.Round(c.TrackTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
             if (c.RainDensity >= .01 && c.RainDensity <= 1) parts.Add(RadioLanguage.T("Regen wird gemeldet", "rain reported", "se informa de lluvia"));
             if (TrackAwareness.InRange(c.WindSpeed, .5, 150).HasValue)
-                parts.Add(RadioLanguage.T("Wind ", "wind ", "viento ") + Math.Round(c.WindSpeed * 3.6).ToString(RadioLanguage.Culture) +
+                parts.Add(c.WindSpeed * 3.6 < 8 ? RadioLanguage.T("kaum Wind", "hardly any wind", "apenas viento") :
+                    RadioLanguage.T("Wind ", "wind ", "viento ") + Math.Round(c.WindSpeed * 3.6).ToString(RadioLanguage.Culture) +
                     RadioLanguage.T(" Kilometer pro Stunde", " kilometres per hour", " kilómetros por hora"));
-            if (parts.Count == 0 && TrackAwareness.InRange(c.AmbientTemperature, -30, 60).HasValue)
-                parts.Add(RadioLanguage.T("Luft ", "air ", "aire ") + Math.Round(c.AmbientTemperature).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Grad", " degrees", " grados"));
             // Zero rain does not establish sunshine, cloud cover or a dry track.
             if (parts.Count == 0) return "";
             string text = string.Join(", ", parts) + ". ";
