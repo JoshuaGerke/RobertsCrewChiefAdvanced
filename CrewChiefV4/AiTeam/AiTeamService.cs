@@ -68,6 +68,7 @@ namespace CrewChiefV4.AiTeam
         private readonly CrewMemory crewMemory = new CrewMemory();
         private readonly RaceInsightWatch insights = new RaceInsightWatch();
         private readonly PitLossMeter pitLoss = new PitLossMeter();
+        private readonly DrivingDynamicsWatch dynamics = new DrivingDynamicsWatch(DynamicsSampler.Analyzer);
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
@@ -603,6 +604,15 @@ namespace CrewChiefV4.AiTeam
             VirtualEnergyWatch.Current.Observe(current, VirtualEnergyWatch.Read());
             if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
                 LiveDiagnostics.Emit("data-truth", DataTruth.Current.Report());
+            // Rob 17.11.: schnelle Abtastung (100 Hz) für Fahrdynamik – eigener Faden, liest das Shared Memory direkt.
+            if (DynamicsSampler.Supports(Game.game))
+            {
+                DynamicsSampler.Analyzer.CornerAt = Corners.CornerNameAt;
+                DynamicsSampler.Ensure(Game.game);
+                dynamics.Observe(current, now, lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false));
+                if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
+                    LiveDiagnostics.Emit("dynamics", DynamicsSampler.Status);
+            }
             if (lapCompleted && current.SessionData.SessionType == SessionType.Race) pitLoss.Observe(current.SessionData.SessionId, Memory.GetLaps());
             insights.Observe(current, RaceMind.Latest, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now, lapCompleted,
                 pitLoss.Seconds);
@@ -665,6 +675,9 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = insights.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = dynamics.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
+                    sessionLaps.HotLap(current) || !AllowsRadioNow(false) || !settings.IsMemberEnabled(dynamics.PendingMember));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = focusBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
@@ -1306,6 +1319,8 @@ namespace CrewChiefV4.AiTeam
             if (mind != null && gs != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(DateTime.UtcNow)) liveFacts["rennkopf"] = mind.Describe();
             var fieldInsights = gs == null ? null : RaceInsightWatch.Latest(gs.SessionData.SessionId);
             if (fieldInsights != null && gs.SessionData.SessionType == SessionType.Race) liveFacts["feld_erkenntnisse"] = fieldInsights;
+            var drivingDynamics = gs == null ? null : DynamicsSampler.Facts(gs.SessionData.CompletedLaps);
+            if (drivingDynamics != null) liveFacts["fahrdynamik"] = drivingDynamics;
             // P4: Während der Fahrt beantwortet das schnelle Modell einfache Fragen in einer einzigen Anfrage.
             bool singleShot = !longAllowed && model == settings.FastModel && !NeedsTools(routed.Question, gs);
             // Robs Bestzeiten-Datenbank: Allzeit-Bestzeit für dieses Auto auf dieser Strecke mit den Bedingungen von damals.

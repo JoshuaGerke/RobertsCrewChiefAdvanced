@@ -1,0 +1,185 @@
+using System;
+using System.Linq;
+using CrewChiefV4;
+using CrewChiefV4.AiTeam;
+using CrewChiefV4.AMS2;
+using CrewChiefV4.GameState;
+using NUnit.Framework;
+
+namespace UnitTest.AiTeamTests
+{
+    /// <summary>Fahrdynamik aus der schnellen Abtastung (Rob 17.11.2026): Blockierer, Durchdrehen, Ausritte je Kurve.</summary>
+    [TestFixture, Category("AiTeam")]
+    public class DrivingDynamicsTests
+    {
+        private static readonly DateTime T = new DateTime(2026, 11, 17, 21, 0, 0, DateTimeKind.Utc);
+        private const double Dt = .01; // 100 Hz
+
+        [SetUp]
+        public void German() { RadioLanguage.Current = RadioLanguage.German; }
+
+        private sealed class Drive
+        {
+            internal readonly DrivingDynamicsAnalyzer A = new DrivingDynamicsAnalyzer { CornerAt = (d, mode) => d >= 900 && d <= 1300 ? "Kurve 5" : null };
+            internal readonly DynamicsFrame F = new DynamicsFrame { Driving = true, Gear = 4 };
+            internal double Time;
+
+            /// <summary>Fährt <paramref name="seconds"/> lang mit den gegebenen Werten (Raddrehzahl 1 = frei rollend).</summary>
+            internal void Run(double seconds, float speed, float throttle, float brake, float[] wheelFactor = null, WheelSurface[] surfaces = null, float distance = 500, int laps = 3)
+            {
+                for (double t = 0; t < seconds; t += Dt)
+                {
+                    Time += Dt;
+                    F.TimeS = Time; F.Speed = speed; F.Throttle = throttle; F.Brake = brake; F.LapDistance = distance; F.CompletedLaps = laps;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        F.WheelRotation[i] = speed / 2f * (wheelFactor == null ? 1f : wheelFactor[i]);
+                        F.Surfaces[i] = surfaces == null ? WheelSurface.Road : surfaces[i];
+                    }
+                    A.Observe(F);
+                }
+            }
+
+            internal void Calibrate(int laps = 3) => Run(1.0, 40, .4f, 0, laps: laps);
+        }
+
+        [Test]
+        public void Wheels_are_calibrated_while_rolling_and_a_long_lock_is_a_heavy_lockup()
+        {
+            var d = new Drive();
+            Assert.IsFalse(d.A.Calibrated(0));
+            d.Calibrate();
+            for (int i = 0; i < 4; i++) Assert.IsTrue(d.A.Calibrated(i), "Rad " + i + " geeicht");
+            Assert.AreEqual(100, d.A.Hz, 1, "100 Bilder pro Sekunde gemessen");
+
+            d.Run(.4, 35, 0, .9f, new[] { .2f, 1f, 1f, 1f }, distance: 1000);
+            d.Run(.2, 30, 0, .3f, distance: 1010);
+            var heavy = d.A.TakeHeavy();
+            Assert.IsNotNull(heavy, "0,4 s bei 20 % Raddrehzahl");
+            Assert.AreEqual(DrivingDynamicsAnalyzer.Kind.HeavyLockup, heavy.Kind);
+            Assert.AreEqual(0, heavy.Wheel); Assert.AreEqual("Kurve 5", heavy.Corner);
+            Assert.IsNull(d.A.TakeHeavy());
+        }
+
+        [Test]
+        public void Short_flicker_or_abs_is_not_a_lockup()
+        {
+            var d = new Drive(); d.Calibrate();
+            d.Run(.03, 35, 0, .9f, new[] { .5f, 1f, 1f, 1f }, distance: 1000);
+            d.Run(.2, 30, 0, .3f, distance: 1010);
+            d.F.AbsActive = true;
+            d.Run(.5, 35, 0, .9f, new[] { .5f, 1f, 1f, 1f }, distance: 1000);
+            d.F.AbsActive = false;
+            d.Run(.2, 30, 0, .3f, distance: 1010);
+            Assert.AreEqual(0, d.A.EventCount, "30 ms Zucken und ABS-Regelung zählen nicht");
+        }
+
+        [Test]
+        public void Lockup_in_the_same_corner_on_two_of_three_laps_is_a_pattern_once()
+        {
+            var d = new Drive();
+            d.Calibrate(3);
+            d.Run(.15, 35, 0, .8f, new[] { 1f, .6f, 1f, 1f }, distance: 1000, laps: 3);
+            d.Run(.2, 30, 0, .2f, distance: 1010, laps: 3);
+            Assert.IsNull(d.A.FindPattern(4), "eine Runde ist kein Muster");
+            d.Run(.5, 40, .4f, 0, distance: 400, laps: 4);
+            d.Run(.15, 35, 0, .8f, new[] { 1f, .6f, 1f, 1f }, distance: 1005, laps: 4);
+            d.Run(.2, 30, 0, .2f, distance: 1010, laps: 4);
+            var p = d.A.FindPattern(5);
+            Assert.IsNotNull(p);
+            Assert.AreEqual(DrivingDynamicsAnalyzer.Kind.Lockup, p.Kind);
+            Assert.AreEqual("Kurve 5", p.Corner); Assert.AreEqual(1, p.Wheel); Assert.AreEqual(2, p.Laps);
+            Assert.IsNull(d.A.FindPattern(5), "dasselbe Muster nicht sofort wieder");
+            var facts = d.A.Snapshot(5);
+            Assert.AreEqual(2, (int)facts["blockierer_letzte_5_runden"]);
+        }
+
+        [Test]
+        public void Rear_wheelspin_and_two_wheels_off_are_recognised()
+        {
+            var d = new Drive(); d.Calibrate();
+            d.Run(.3, 20, 1f, 0, new[] { 1f, 1f, 1.35f, 1.3f }, distance: 1250);
+            d.Run(.2, 22, .6f, 0, distance: 1260);
+            var off = new[] { WheelSurface.Off, WheelSurface.Road, WheelSurface.Off, WheelSurface.Road };
+            d.Run(.5, 30, .5f, 0, null, off, 1100);
+            d.Run(.4, 30, .5f, 0, distance: 1150);
+            var facts = d.A.Snapshot(4);
+            Assert.AreEqual(2, (int)facts["durchdrehen_letzte_5_runden"], "beide Hinterräder");
+            Assert.AreEqual(1, (int)facts["ausritte_letzte_5_runden"]);
+            Assert.AreEqual(4, (int)facts["raeder_geeicht"]);
+        }
+
+        [Test]
+        public void Wheel_off_the_road_does_not_skew_calibration()
+        {
+            var d = new Drive();
+            var grass = new[] { WheelSurface.Off, WheelSurface.Road, WheelSurface.Road, WheelSurface.Road };
+            d.Run(1.0, 40, .4f, 0, new[] { 1.4f, 1f, 1f, 1f }, grass);
+            Assert.IsFalse(d.A.Calibrated(0), "auf Gras wird nicht geeicht");
+            Assert.IsTrue(d.A.Calibrated(1));
+        }
+
+        [Test]
+        public void Sim_surfaces_map_to_road_kerb_off_and_wall()
+        {
+            Assert.AreEqual(WheelSurface.Road, AMS2DynamicsSource.Surface((uint)eTerrainMaterials.TERRAIN_ROAD));
+            Assert.AreEqual(WheelSurface.Kerb, AMS2DynamicsSource.Surface((uint)eTerrainMaterials.TERRAIN_RUMBLE_STRIPS));
+            Assert.AreEqual(WheelSurface.Off, AMS2DynamicsSource.Surface((uint)eTerrainMaterials.TERRAIN_GRASS));
+            Assert.AreEqual(WheelSurface.Off, AMS2DynamicsSource.Surface((uint)eTerrainMaterials.TERRAIN_GRAVEL));
+            Assert.AreEqual(WheelSurface.Wall, AMS2DynamicsSource.Surface((uint)eTerrainMaterials.TERRAIN_GUARDRAILS));
+            Assert.AreEqual(WheelSurface.Unknown, AMS2DynamicsSource.Surface((uint)eTerrainMaterials.TERRAIN_RUNOFF_ROAD), "liegt teils auf der Strecke");
+            Assert.AreEqual(WheelSurface.Road, R3EDynamicsSource.Surface(1));
+            Assert.AreEqual(WheelSurface.Kerb, R3EDynamicsSource.Surface(5));
+            Assert.AreEqual(WheelSurface.Off, R3EDynamicsSource.Surface(4));
+            Assert.AreEqual(WheelSurface.Unknown, R3EDynamicsSource.Surface(-1));
+        }
+
+        [Test]
+        public void Engineer_radio_for_dynamics_varies_and_exists_in_three_languages()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                string brake = DrivingDynamicsWatch.Place("Kurve 5", 1000, 1), exit = DrivingDynamicsWatch.Place("Kurve 5", 1000, 2), at = DrivingDynamicsWatch.Place(null, 1234, 0);
+                var texts = new[]
+                {
+                    Enumerable.Range(0, 3).Select(v => DrivingDynamicsWatch.Lockup(brake, DrivingDynamicsWatch.Wheel(1), false, 2, v)).ToArray(),
+                    Enumerable.Range(0, 3).Select(v => DrivingDynamicsWatch.Wheelspin(exit, true, 3, v)).ToArray(),
+                    Enumerable.Range(0, 3).Select(v => DrivingDynamicsWatch.OffTrack(v == 0 ? "Rob" : null, at, 2, 2, v)).ToArray(),
+                    Enumerable.Range(0, 3).Select(v => DrivingDynamicsWatch.FlatSpot(DrivingDynamicsWatch.Wheel(0), "Kurve 5", v)).ToArray()
+                };
+                foreach (var group in texts)
+                {
+                    Assert.AreEqual(3, group.Distinct().Count(), lang);
+                    foreach (string t in group) { StringAssert.DoesNotContain("  ", t); Assert.IsFalse(string.IsNullOrWhiteSpace(t)); }
+                }
+                StringAssert.Contains(lang == RadioLanguage.English ? "1250 metres" : lang == RadioLanguage.Spanish ? "1250 metros" : "1250 Metern", at);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+            StringAssert.StartsWith("Beim Anbremsen vor Kurve 5 blockiert vorne rechts, in zwei der letzten drei Runden.",
+                DrivingDynamicsWatch.Lockup(DrivingDynamicsWatch.Place("Kurve 5", 0, 1), DrivingDynamicsWatch.Wheel(1), false, 2, 0));
+            StringAssert.StartsWith("Am Ausgang von Kurve 5 drehen die Hinterräder durch",
+                DrivingDynamicsWatch.Wheelspin(DrivingDynamicsWatch.Place("Kurve 5", 0, 2), true, 2, 0));
+        }
+
+        [Test]
+        public void Watch_turns_a_pattern_into_a_call_for_Mik()
+        {
+            var d = new Drive(); d.Calibrate(3);
+            d.Run(.15, 35, 0, .8f, new[] { 1f, 1f, .6f, 1f }, distance: 1000, laps: 3);
+            d.Run(.2, 30, 0, .2f, distance: 1010, laps: 3);
+            d.Run(.15, 35, 0, .8f, new[] { 1f, 1f, .6f, 1f }, distance: 1000, laps: 4);
+            d.Run(.2, 30, 0, .2f, distance: 1010, laps: 4);
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 4; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.CompletedLaps = 5;
+            var watch = new DrivingDynamicsWatch(d.A, 1);
+            watch.Observe(gs, T, true, "Rob");
+            var call = watch.Take(gs, T, false);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("insight-lockup", call.Topic); Assert.AreEqual(TeamMember.Mik, call.Member);
+            StringAssert.Contains("hinten links", call.Text.ToLowerInvariant());
+            Assert.IsNull(new DrivingDynamicsWatch(d.A, 1).Take(gs, T, false), "ohne Muster nichts");
+        }
+    }
+}
