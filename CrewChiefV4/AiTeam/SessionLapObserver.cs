@@ -209,9 +209,13 @@ namespace CrewChiefV4.AiTeam
                     Good(completed.LapTime) && TrackAwareness.InRange(completed.FuelUsed, .05, 50).HasValue)
                 {
                     firstFuelOffered = true;
-                    Add(gs, now, "first-lap-fuel", RadioLanguage.T("Erste volle Runde, " + FuelWatch.Litres(completed.FuelUsed) + " verbraucht.",
-                        "First full lap, " + FuelWatch.Litres(completed.FuelUsed) + " used.",
-                        "Primera vuelta completa, " + FuelWatch.Litres(completed.FuelUsed) + " gastados."), "measured_first_full_lap_fuel", 4);
+                    string used = FuelWatch.Litres(completed.FuelUsed);
+                    Add(gs, now, "first-lap-fuel", RadioVariants.Pick("first-lap-fuel",
+                        RadioLanguage.T("Erste volle Runde, " + used + " verbraucht.", "First full lap, " + used + " used.", "Primera vuelta completa, " + used + " gastados."),
+                        RadioLanguage.T("Erste Messrunde: " + used + " Sprit.", "First measured lap: " + used + " of fuel.", "Primera vuelta medida: " + used + " de combustible."),
+                        RadioLanguage.T("Verbrauch der ersten vollen Runde: " + used + ".", "Fuel on the first full lap: " + used + ".", "Consumo de la primera vuelta completa: " + used + "."),
+                        RadioLanguage.T("Die erste ganze Runde hat " + used + " gekostet.", "The first full lap took " + used + ".", "La primera vuelta entera se ha llevado " + used + ".")),
+                        "measured_first_full_lap_fuel", 4);
                 }
                 if (race && green && !fuelBaselineReported && !completed.InPitLap && !gs.PitData.InPitlane &&
                     !pending.Any(call => call.Topic == "fuel-baseline" && call.IsValid(gs, now)) && fuelHistory != null)
@@ -221,9 +225,19 @@ namespace CrewChiefV4.AiTeam
                     {
                         string consumption = FuelWatch.Litres(fuelPerLap);
                         var call = Add(gs, now, "fuel-baseline",
-                            RadioLanguage.T("Über drei volle Runden liegst du bei " + consumption + " pro Runde.",
-                                "Over three full laps you're using " + consumption + " per lap.",
-                                "En tres vueltas completas, el consumo es de " + consumption + " por vuelta."),
+                            RadioVariants.Pick("fuel-baseline",
+                                RadioLanguage.T("Über drei volle Runden liegst du bei " + consumption + " pro Runde.",
+                                    "Over three full laps you're using " + consumption + " per lap.",
+                                    "En tres vueltas completas, el consumo es de " + consumption + " por vuelta."),
+                                RadioLanguage.T("Verbrauch steht: " + consumption + " pro Runde, gemessen über drei Runden.",
+                                    "Consumption is set: " + consumption + " per lap, measured over three laps.",
+                                    "Consumo fijado: " + consumption + " por vuelta, medido en tres vueltas."),
+                                RadioLanguage.T("Drei saubere Runden, im Schnitt " + consumption + " pro Runde.",
+                                    "Three clean laps, averaging " + consumption + " per lap.",
+                                    "Tres vueltas limpias, de media " + consumption + " por vuelta."),
+                                RadioLanguage.T("Gemessener Schnitt nach drei Runden: " + consumption + " je Runde.",
+                                    "Measured average after three laps: " + consumption + " a lap.",
+                                    "Media medida tras tres vueltas: " + consumption + " por vuelta.")),
                             "three_measured_full_laps", 4);
                         call.AdditionalValidity = live => live.FuelData.FuelUseActive && !live.FlagData.isLocalYellow;
                     }
@@ -241,7 +255,11 @@ namespace CrewChiefV4.AiTeam
                         var variants = first ? firstValidVariants : improvements;
                         int heard = SelectVariant(group, variants);
                         string text = RadioPhraseCatalog.Current.Format(group, heard, formatted) +
-                            (classRecord ? RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!") :
+                            (classRecord ? RadioVariants.Pick("class-best-suffix",
+                                RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!"),
+                                RadioLanguage.T(" Damit hast du die Klassenbestzeit!", " That's the fastest in class!", " ¡Con eso tienes el mejor tiempo de la clase!"),
+                                RadioLanguage.T(" Schnellster in der Klasse!", " Quickest in class!", " ¡El más rápido de la clase!"),
+                                RadioLanguage.T(" Ganz oben in der Klasse.", " Top of the class.", " Primero de la clase.")) :
                                 first ? FirstLapComparison(gs, time, names, firstComparisonVariant++) : "");
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
