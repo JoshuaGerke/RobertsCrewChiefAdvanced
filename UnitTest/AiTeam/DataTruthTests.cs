@@ -180,6 +180,23 @@ namespace UnitTest.AiTeamTests
         // ---------- Mehr Abwechslung (Phase D) ----------
 
         [Test]
+        public void Routine_and_weather_texts_have_at_least_four_variants()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => AiRadioSchedule.Of(v, "a", "b", "c", "d")).Distinct().Count());
+                var old = new WeatherReading { Air = 20, Track = 30, Rain = false };
+                var rain = new WeatherReading { Air = 20, Track = 30, Rain = true };
+                var hot = new WeatherReading { Air = 20, Track = 33, Rain = false };
+                Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => rain.ChangeText(old, v)).Distinct().Count(), lang);
+                Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => old.ChangeText(rain, v)).Distinct().Count(), lang);
+                Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => hot.ChangeText(old, v)).Distinct().Count(), lang);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
         public void Position_start_and_gap_trend_texts_offer_more_variety_in_three_languages()
         {
             foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
