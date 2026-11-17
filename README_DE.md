@@ -16,6 +16,8 @@ Du drückst einen Knopf am Lenkrad, fragst in normalen Worten, und die Crew antw
 
 **[Aktuelle Version herunterladen](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · Im Download liegt außerdem eine bebilderte Schritt-für-Schritt-Anleitung: `ANLEITUNG_RRCA_DE.pdf`.
 
+RRCA ist kostenlos. Wenn es dein Rennen besser gemacht hat und du einen Fünfer übrig hast, kannst du uns [auf Ko-fi einen Kaffee ausgeben](https://ko-fi.com/robertscrewchiefadvanced).
+
 ---
 
 ## Inhalt

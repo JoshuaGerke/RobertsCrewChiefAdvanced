@@ -16,6 +16,8 @@ You press a button on your wheel, ask a question in plain words, and the crew an
 
 **[Download the latest version](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · The download also contains an illustrated step-by-step guide: `GUIDE_RRCA_EN.pdf`.
 
+RRCA is free. If it made your race better and you have a fiver left, you can [buy us a coffee on Ko-fi](https://ko-fi.com/robertscrewchiefadvanced).
+
 ---
 
 ## Contents

@@ -16,6 +16,8 @@ Pulsas un botón del volante, preguntas con palabras normales y el equipo respon
 
 **[Descargar la versión actual](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · La descarga incluye además una guía ilustrada paso a paso: `GUIA_RRCA_ES.pdf`.
 
+RRCA es gratis. Si te ha mejorado la carrera y te sobran cinco euros, puedes [invitarnos a un café en Ko-fi](https://ko-fi.com/robertscrewchiefadvanced).
+
 ---
 
 ## Contenido
