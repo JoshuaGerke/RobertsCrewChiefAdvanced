@@ -191,11 +191,12 @@ namespace CrewChiefV4.GameState
                 }
                 else
                 {
-                    if (!realisticMode || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse)
+                    // Rob 17.11.2026: Der Schalter „Realistisch“ hatte keine Wirkung, weil Sara ihn auf Rundstrecken übersprang.
+                    // Realistisch heißt jetzt wie in der Hilfe beschrieben: Spotter nur auf Ovalen, auch für Sara.
+                    if (!realisticMode)
                     {
                         spotterEnabled = true;
-                        Log.Commentary(realisticMode ? "RRCA Sara enabled on road circuit by the explicit crew setting" :
-                            "Spotter enabled on road circuit because Realistic Mode is not checked");
+                        Log.Commentary("Spotter enabled on road circuit because Realistic Mode is not checked");
                     }
                     else
                     {
