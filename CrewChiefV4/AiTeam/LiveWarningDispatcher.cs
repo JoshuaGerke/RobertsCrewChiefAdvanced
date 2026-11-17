@@ -14,62 +14,101 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] OilPhrasesDe={
             "Die Öltemperatur ist zu hoch. Schone den Motor und prüfe die Anzeige.",
             "Vorsicht, das Motoröl ist zu heiß. Nimm Belastung aus dem Motor.",
-            "Achtung, zu hohe Öltemperatur. Schone den Motor."
+            "Achtung, zu hohe Öltemperatur. Schone den Motor.",
+            "Öltemperatur im roten Bereich. Kurz rausnehmen, Windschatten meiden.",
+            "Das Öl wird zu heiß. Früher schalten, den Motor entlasten.",
+            "Achtung Motoröl: zu heiß. Ein paar Kurven ruhiger."
         };
         private static readonly string[] OilPhrasesEn={
             "Oil temperature is too high. Look after the engine and check the gauge.",
             "Careful, the engine oil is too hot. Take some load off the engine.",
-            "Watch out, oil temperature too high. Look after the engine."
+            "Watch out, oil temperature too high. Look after the engine.",
+            "Oil temperature in the red. Ease off and stay out of the slipstream.",
+            "Oil is getting too hot. Shift earlier, take load off the engine.",
+            "Engine oil warning: too hot. A few calmer corners."
         };
         private static readonly string[] OilPhrasesEs={
             "La temperatura del aceite es demasiado alta. Cuida el motor y revisa el indicador.",
             "Cuidado, el aceite del motor está demasiado caliente. Quítale carga al motor.",
-            "Atención, temperatura de aceite demasiado alta. Cuida el motor."
+            "Atención, temperatura de aceite demasiado alta. Cuida el motor.",
+            "Temperatura de aceite en rojo. Afloja y sal del rebufo.",
+            "El aceite se calienta demasiado. Cambia antes y alivia el motor.",
+            "Aviso de aceite: demasiado caliente. Unas curvas más tranquilas."
         };
         public static string[] OilPhrases => RadioLanguage.Pick(OilPhrasesDe,OilPhrasesEn,OilPhrasesEs);
         private static readonly string[] WaterPhrasesDe={
             "Die Wassertemperatur ist zu hoch. Schone den Motor und prüfe die Kühlung.",
             "Vorsicht, das Kühlwasser ist zu heiß. Nimm Belastung aus dem Motor.",
-            "Achtung, zu hohe Wassertemperatur. Schone den Motor."
+            "Achtung, zu hohe Wassertemperatur. Schone den Motor.",
+            "Wasser im roten Bereich. Raus aus dem Windschatten, freie Luft suchen.",
+            "Das Kühlwasser wird zu heiß. Kurz Druck rausnehmen.",
+            "Achtung Kühlung: Wassertemperatur zu hoch. Früher schalten."
         };
         private static readonly string[] WaterPhrasesEn={
             "Water temperature is too high. Look after the engine and check the cooling.",
             "Careful, the coolant is too hot. Take some load off the engine.",
-            "Watch out, water temperature too high. Look after the engine."
+            "Watch out, water temperature too high. Look after the engine.",
+            "Water in the red. Get out of the tow, find clean air.",
+            "Coolant is getting too hot. Ease off for a moment.",
+            "Cooling warning: water too hot. Shift earlier."
         };
         private static readonly string[] WaterPhrasesEs={
             "La temperatura del agua es demasiado alta. Cuida el motor y revisa la refrigeración.",
             "Cuidado, el refrigerante está demasiado caliente. Quítale carga al motor.",
-            "Atención, temperatura de agua demasiado alta. Cuida el motor."
+            "Atención, temperatura de agua demasiado alta. Cuida el motor.",
+            "Agua en rojo. Sal del rebufo, busca aire limpio.",
+            "El refrigerante se calienta demasiado. Afloja un momento.",
+            "Aviso de refrigeración: agua demasiado caliente. Cambia antes."
         };
         public static string[] WaterPhrases => RadioLanguage.Pick(WaterPhrasesDe,WaterPhrasesEn,WaterPhrasesEs);
         private static readonly string[] BothPhrasesDe={
             "Öl und Kühlwasser sind zu heiß. Schone den Motor und prüfe die Kühlung.",
-            "Vorsicht, Öl- und Wassertemperatur sind zu hoch. Nimm Belastung aus dem Motor."
+            "Vorsicht, Öl- und Wassertemperatur sind zu hoch. Nimm Belastung aus dem Motor.",
+            "Öl und Wasser im roten Bereich. Freie Luft suchen, Motor schonen.",
+            "Motor wird zu heiß, Öl und Wasser. Früher schalten, raus aus dem Windschatten.",
+            "Achtung, beide Temperaturen zu hoch. Ein paar Runden Tempo raus.",
+            "Kühlung am Limit: Öl und Wasser zu heiß. Ruhiger fahren, bis es fällt."
         };
         private static readonly string[] BothPhrasesEn={
             "Oil and coolant are too hot. Look after the engine and check the cooling.",
-            "Careful, oil and water temperatures are too high. Take some load off the engine."
+            "Careful, oil and water temperatures are too high. Take some load off the engine.",
+            "Oil and water in the red. Find clean air, look after the engine.",
+            "Engine is running too hot, oil and water. Shift earlier, out of the tow.",
+            "Careful, both temperatures too high. Back off for a few laps.",
+            "Cooling at the limit: oil and water too hot. Drive calmer until it drops."
         };
         private static readonly string[] BothPhrasesEs={
             "El aceite y el refrigerante están demasiado calientes. Cuida el motor y revisa la refrigeración.",
-            "Cuidado, las temperaturas de aceite y agua son demasiado altas. Quítale carga al motor."
+            "Cuidado, las temperaturas de aceite y agua son demasiado altas. Quítale carga al motor.",
+            "Aceite y agua en rojo. Busca aire limpio, cuida el motor.",
+            "El motor va demasiado caliente, aceite y agua. Cambia antes, sal del rebufo.",
+            "Cuidado, ambas temperaturas demasiado altas. Afloja unas vueltas.",
+            "Refrigeración al límite: aceite y agua demasiado calientes. Más tranquilo hasta que bajen."
         };
         public static string[] BothPhrases => RadioLanguage.Pick(BothPhrasesDe,BothPhrasesEn,BothPhrasesEs);
         private static readonly string[] LimitPhrasesDe={
             "Tracklimit-Vorwarnung. Lass etwas mehr Platz zum Streckenrand.",
             "Die Rennleitung warnt wegen Tracklimits. Bleib sauber innerhalb der Strecke.",
-            "Pass auf die Limits auf. Das ist eine Vorwarnung."
+            "Pass auf die Limits auf. Das ist eine Vorwarnung.",
+            "Tracklimits: Das war die Verwarnung. Ab jetzt Reserve.",
+            "Die Rennleitung hat dich auf dem Zettel. Sauber bleiben.",
+            "Verwarnung wegen Limits. Lieber einen Meter innen bleiben."
         };
         private static readonly string[] LimitPhrasesEn={
             "Track limits warning. Give yourself a bit more margin to the edge.",
             "Race control is warning about track limits. Keep it clean inside the lines.",
-            "Watch the limits. That's a warning."
+            "Watch the limits. That's a warning.",
+            "Track limits: that was the warning. Leave margin from now on.",
+            "Race control has you on their list. Keep it clean.",
+            "Warning for track limits. Better stay a metre inside."
         };
         private static readonly string[] LimitPhrasesEs={
             "Aviso de límites de pista. Deja algo más de margen al borde.",
             "Dirección de carrera avisa por límites de pista. Mantente limpio dentro de la pista.",
-            "Cuidado con los límites. Es un aviso previo."
+            "Cuidado con los límites. Es un aviso previo.",
+            "Límites de pista: ese fue el aviso. A partir de ahora, margen.",
+            "Dirección de carrera te tiene anotado. Mantente limpio.",
+            "Aviso por límites. Mejor quédate un metro por dentro."
         };
         public static string[] LimitPhrases => RadioLanguage.Pick(LimitPhrasesDe,LimitPhrasesEn,LimitPhrasesEs);
         public static IEnumerable<string> MikPhrases {get{return OilPhrases.Concat(WaterPhrases).Concat(BothPhrases).Concat(LimitPhrases);}}

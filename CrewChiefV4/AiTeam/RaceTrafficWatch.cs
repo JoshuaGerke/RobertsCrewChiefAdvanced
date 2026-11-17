@@ -39,13 +39,22 @@ namespace CrewChiefV4.AiTeam
     public sealed class RaceTrafficWatch
     {
         private static readonly string[] StoppedPhrasesDe = {
-            "Vorsicht, stehendes Fahrzeug voraus.", "Achtung, vor dir steht ein Wagen.", "Stehender Wagen voraus, bleib aufmerksam."
+            "Vorsicht, stehendes Fahrzeug voraus.", "Achtung, vor dir steht ein Wagen.", "Stehender Wagen voraus, bleib aufmerksam.",
+            "Wagen steht auf der Strecke voraus. Weite Linie, Tempo raus.",
+            "Vorsicht, liegengebliebenes Auto voraus.",
+            "Achtung, da vorne steht einer. Rechtzeitig ausweichen."
         };
         private static readonly string[] StoppedPhrasesEn = {
-            "Careful, stopped car ahead.", "Watch out, there's a car stopped ahead of you.", "Stationary car ahead, stay alert."
+            "Careful, stopped car ahead.", "Watch out, there's a car stopped ahead of you.", "Stationary car ahead, stay alert.",
+            "Car stopped on track ahead. Go wide, ease off.",
+            "Careful, stranded car ahead.",
+            "Heads up, someone's stopped ahead. Move over in time."
         };
         private static readonly string[] StoppedPhrasesEs = {
-            "Cuidado, vehículo parado delante.", "Atención, hay un coche parado delante de ti.", "Coche detenido delante, mantente atento."
+            "Cuidado, vehículo parado delante.", "Atención, hay un coche parado delante de ti.", "Coche detenido delante, mantente atento.",
+            "Coche parado en pista delante. Abre la trazada y afloja.",
+            "Cuidado, coche averiado delante.",
+            "Atención, hay uno parado delante. Esquiva a tiempo."
         };
         public static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
         private static readonly string[] SlowPhrasesDe = {
@@ -55,11 +64,15 @@ namespace CrewChiefV4.AiTeam
         };
         private static readonly string[] SlowPhrasesEn = {
             "Watch out, very slow car ahead.", "Car ahead is going much slower. Stay alert.",
-            "Careful, slow traffic right ahead."
+            "Careful, slow traffic right ahead.",
+            "Watch out, the car ahead is very slow.",
+            "Heads up ahead, you're closing on a very slow car."
         };
         private static readonly string[] SlowPhrasesEs = {
             "Atención, vehículo muy lento delante.", "Delante va un coche mucho más lento. Mantente atento.",
-            "Cuidado, tráfico lento justo delante."
+            "Cuidado, tráfico lento justo delante.",
+            "Ojo, el coche de delante va muy lento.",
+            "Atención delante, te acercas a un coche muy lento."
         };
         public static string[] SlowPhrases => RadioLanguage.Pick(SlowPhrasesDe, SlowPhrasesEn, SlowPhrasesEs);
         private static readonly string[] RearPhrasesDe = {
@@ -175,9 +188,21 @@ namespace CrewChiefV4.AiTeam
         // Rob 16.11.: Ein Auto, das dauerhaft an derselben Stelle steht, wird einmal gemeldet, dann einmal kurz erinnert, dann nicht mehr.
         private sealed class Parked { public int Cell; public int Reports; }
         private readonly Dictionary<string,Parked> parked = new Dictionary<string,Parked>();
-        private static readonly string[] StillThereDe = { "Der stehende Wagen ist noch an derselben Stelle.", "Das Auto steht immer noch da, gleiche Stelle." };
-        private static readonly string[] StillThereEn = { "The stopped car is still in the same place.", "That car is still stopped, same spot." };
-        private static readonly string[] StillThereEs = { "El coche parado sigue en el mismo sitio.", "Ese coche sigue parado, mismo lugar." };
+        private static readonly string[] StillThereDe = { "Der stehende Wagen ist noch an derselben Stelle.", "Das Auto steht immer noch da, gleiche Stelle.",
+            "Der Wagen steht weiter dort. Gleiche Stelle wie eben.",
+            "Unverändert: Das Auto steht noch auf der Strecke.",
+            "Denk dran, der stehende Wagen ist noch da."
+        };
+        private static readonly string[] StillThereEn = { "The stopped car is still in the same place.", "That car is still stopped, same spot.",
+            "That car is still there. Same place as before.",
+            "Unchanged: the car is still on track.",
+            "Remember, the stopped car is still there."
+        };
+        private static readonly string[] StillThereEs = { "El coche parado sigue en el mismo sitio.", "Ese coche sigue parado, mismo lugar.",
+            "Ese coche sigue ahí. En el mismo sitio.",
+            "Sin cambios: el coche sigue en pista.",
+            "Recuerda, el coche parado sigue ahí."
+        };
         public static string[] StillTherePhrases => RadioLanguage.Pick(StillThereDe, StillThereEn, StillThereEs);
         private TrackAwareness tracks;
         private ObservedRaceCall pending;

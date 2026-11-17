@@ -13,17 +13,26 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] UnknownLimitPhrasesDe={
             "Achte auf das ausgeschilderte Boxenlimit.",
             "Denk ans Tempolimit in der Boxengasse.",
-            "Boxenlimit beachten. Schau auf die Beschilderung."
+            "Boxenlimit beachten. Schau auf die Beschilderung.",
+            "Box: Limiter rechtzeitig rein, auf die Linie achten.",
+            "Gleich Boxengasse – Tempolimit nicht vergessen.",
+            "Boxeneinfahrt: runterbremsen aufs Limit."
         };
         private static readonly string[] UnknownLimitPhrasesEn={
             "Watch the posted pit speed limit.",
             "Remember the speed limit in the pit lane.",
-            "Mind the pit limit. Check the signs."
+            "Mind the pit limit. Check the signs.",
+            "Pit lane: limiter on in time, watch the line.",
+            "Pit lane coming up – don't forget the speed limit.",
+            "Pit entry: brake down to the limit."
         };
         private static readonly string[] UnknownLimitPhrasesEs={
             "Atento al límite de boxes señalizado.",
             "Recuerda el límite de velocidad en el pit lane.",
-            "Respeta el límite de boxes. Mira la señalización."
+            "Respeta el límite de boxes. Mira la señalización.",
+            "Boxes: limitador a tiempo, atento a la línea.",
+            "Llega el pit lane, no olvides el límite de velocidad.",
+            "Entrada a boxes: frena hasta el límite."
         };
         public static string[] UnknownLimitPhrases => RadioLanguage.Pick(UnknownLimitPhrasesDe,UnknownLimitPhrasesEn,UnknownLimitPhrasesEs);
         public static bool Known(float value)

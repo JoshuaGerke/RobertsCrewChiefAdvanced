@@ -34,6 +34,8 @@ using System.Windows.Forms;
             // Tests prüfen deutsche Funktexte; unabhängig von der Windows-Sprache des Testrechners
             CrewChiefV4.UserSettings.GetUserSettings().setProperty("ai_team_radio_language", "de");
             CrewChiefV4.AiTeam.RadioLanguage.Current = CrewChiefV4.AiTeam.RadioLanguage.German;
+            // Funk-Abwechslung: in Tests immer die erste Formulierung, damit Wortlaut-Prüfungen stabil bleiben.
+            CrewChiefV4.AiTeam.RadioVariants.Deterministic = true;
         }
     }
 namespace UnitTest.Misc

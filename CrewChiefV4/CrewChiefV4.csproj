@@ -277,6 +277,7 @@
     <Compile Include="AiTeam\AnswerClaimCheck.cs" />
     <Compile Include="AiTeam\CrewMemory.cs" />
     <Compile Include="AiTeam\PitLossMeter.cs" />
+    <Compile Include="AiTeam\RadioVariants.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />

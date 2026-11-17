@@ -12,49 +12,76 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] CatchingPhrasesDe = {
             "Sehr langsamer Wagen vor dir. Du läufst gleich auf ihn auf.",
             "Achtung, langsamer Verkehr direkt voraus. Behalte ihn im Blick.",
-            "Vor dir rollt ein Wagen deutlich langsamer. Du bist gleich dran."
+            "Vor dir rollt ein Wagen deutlich langsamer. Du bist gleich dran.",
+            "Langsames Auto voraus, du kommst schnell ran. Früh entscheiden, wo du vorbei willst.",
+            "Achtung, du holst stark auf einen langsamen Wagen auf.",
+            "Vor dir rollt einer gemütlich. Rechtzeitig Platz suchen."
         };
         private static readonly string[] CatchingPhrasesEn = {
             "Very slow car ahead. You'll be on him shortly.",
             "Careful, slow traffic right ahead. Keep an eye on him.",
-            "Car ahead is rolling much slower. You're on him shortly."
+            "Car ahead is rolling much slower. You're on him shortly.",
+            "Slow car ahead, you're closing fast. Decide early where to pass.",
+            "Careful, you're closing quickly on a slow car.",
+            "Someone's cruising ahead. Find your space in time."
         };
         private static readonly string[] CatchingPhrasesEs = {
             "Coche muy lento delante. Lo vas a alcanzar enseguida.",
             "Atención, tráfico lento justo delante. No lo pierdas de vista.",
-            "Delante va un coche mucho más lento. Lo tienes encima enseguida."
+            "Delante va un coche mucho más lento. Lo tienes encima enseguida.",
+            "Coche lento delante, te acercas rápido. Decide pronto por dónde pasar.",
+            "Cuidado, te acercas rápido a un coche lento.",
+            "Delante va uno rodando tranquilo. Busca hueco a tiempo."
         };
         internal static string[] CatchingPhrases => RadioLanguage.Pick(CatchingPhrasesDe, CatchingPhrasesEn, CatchingPhrasesEs);
         private static readonly string[] StoppedPhrasesDe = {
             "Achtung, vor dir steht ein Wagen.",
             "Stehendes Fahrzeug voraus. Bleib aufmerksam.",
-            "Vorsicht, der Wagen direkt vor dir steht."
+            "Vorsicht, der Wagen direkt vor dir steht.",
+            "Stehendes Auto voraus. Weite Linie, Tempo raus.",
+            "Achtung, da steht einer auf der Strecke.",
+            "Vorsicht, Wagen steht. Rechtzeitig ausweichen."
         };
         private static readonly string[] StoppedPhrasesEn = {
             "Careful, there's a stopped car ahead.",
             "Stationary car ahead. Stay alert.",
-            "Watch out, the car right ahead of you is stopped."
+            "Watch out, the car right ahead of you is stopped.",
+            "Stopped car ahead. Go wide, ease off.",
+            "Heads up, someone's stopped on track.",
+            "Careful, car stopped. Move over in time."
         };
         private static readonly string[] StoppedPhrasesEs = {
             "Atención, hay un coche parado delante.",
             "Vehículo detenido delante. Mantente atento.",
-            "Cuidado, el coche justo delante de ti está parado."
+            "Cuidado, el coche justo delante de ti está parado.",
+            "Coche parado delante. Trazada abierta, afloja.",
+            "Atención, hay uno parado en pista.",
+            "Cuidado, coche parado. Esquiva a tiempo."
         };
         internal static string[] StoppedPhrases => RadioLanguage.Pick(StoppedPhrasesDe, StoppedPhrasesEn, StoppedPhrasesEs);
         private static readonly string[] ApproachingPhrasesDe = {
             "Schneller Wagen von hinten.",
             "Schneller Verkehr hinter dir.",
-            "Von hinten kommt ein schnellerer Wagen."
+            "Von hinten kommt ein schnellerer Wagen.",
+            "Im Spiegel: schneller Wagen kommt.",
+            "Schneller Wagen hinter dir, Linie halten.",
+            "Achtung hinten, da kommt einer mit mehr Tempo."
         };
         private static readonly string[] ApproachingPhrasesEn = {
             "Fast car coming from behind.",
             "Fast traffic behind you.",
-            "Faster car closing from behind."
+            "Faster car closing from behind.",
+            "In your mirrors: quick car coming.",
+            "Fast car behind, hold your line.",
+            "Heads up behind, someone with more pace is coming."
         };
         private static readonly string[] ApproachingPhrasesEs = {
             "Coche rápido por detrás.",
             "Tráfico rápido detrás de ti.",
-            "Se acerca un coche más rápido por detrás."
+            "Se acerca un coche más rápido por detrás.",
+            "En los espejos: viene un coche rápido.",
+            "Coche rápido detrás, mantén la trazada.",
+            "Atención detrás, viene uno con más ritmo."
         };
         internal static string[] ApproachingPhrases => RadioLanguage.Pick(ApproachingPhrasesDe, ApproachingPhrasesEn, ApproachingPhrasesEs);
         internal static string ClosingAheadPhrase => RadioLanguage.T("Du holst auf den Wagen vor dir auf.", "You're catching the car ahead.", "Estás alcanzando al coche de delante.");
