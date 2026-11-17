@@ -335,6 +335,22 @@ namespace UnitTest.AiTeamTests
             RaceStartLatch.Reset();
         }
 
+        [Test]
+        public void Very_short_local_yellow_gets_no_separate_all_clear()
+        {
+            GameStateData Frame(bool yellow)
+            {
+                var g = new GameStateData(T.Ticks);
+                g.SessionData.SessionType = SessionType.Race; g.SessionData.SessionPhase = SessionPhase.Green; g.FlagData.isLocalYellow = yellow;
+                return g;
+            }
+            var watch = new FlagWatch();
+            Assert.AreEqual(1, watch.Evaluate(Frame(false), Frame(true), T).Count);
+            CollectionAssert.IsEmpty(watch.Evaluate(Frame(true), Frame(false), T.AddSeconds(2)), "2 s Gelb: kein „Gelb vorbei“");
+            Assert.AreEqual(1, watch.Evaluate(Frame(false), Frame(true), T.AddSeconds(10)).Count);
+            CollectionAssert.Contains(watch.Evaluate(Frame(true), Frame(false), T.AddSeconds(16)), FlagWatch.Phrases[1]);
+        }
+
         // ---------- Kurven-Coaching mit 100 Hz ----------
 
         /// <summary>Eine Runde auf 1000 m mit einer Kurve 400–500 m, abgetastet mit 100 Hz statt in 5-m-Schritten.</summary>

@@ -38,10 +38,12 @@ namespace CrewChiefV4.AiTeam
 
         private DateTime lastIncidentCallUtc = DateTime.MinValue;
         private DateTime lastBlueUtc = DateTime.MinValue;
+        private DateTime localYellowSinceUtc = DateTime.MinValue;
+        internal static readonly TimeSpan ShortYellow = TimeSpan.FromSeconds(4);
 
         public void Reset()
         {
-            lastIncidentCallUtc = lastBlueUtc = DateTime.MinValue;
+            lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = DateTime.MinValue;
         }
 
         internal static bool FreshClear(string phrase, DateTime detected, DateTime now)
@@ -109,11 +111,15 @@ namespace CrewChiefV4.AiTeam
             // lokale Gelbphase
             if (f.isLocalYellow && !pf.isLocalYellow)
             {
+                localYellowSinceUtc = nowUtc;
                 result.Add(Phrases[0]);
             }
             else if (!f.isLocalYellow && pf.isLocalYellow)
             {
-                result.Add(Phrases[1]);
+                // RaceRoom Monza 17.11.: „Gelb!“ und zwei Sekunden später „Gelb vorbei“ im Minutentakt. Ein Gelb, das kürzer als
+                // vier Sekunden stand, braucht kein eigenes „vorbei“.
+                if (localYellowSinceUtc == DateTime.MinValue || nowUtc - localYellowSinceUtc >= ShortYellow) result.Add(Phrases[1]);
+                localYellowSinceUtc = DateTime.MinValue;
             }
 
             // Flagge für den eigenen Wagen
