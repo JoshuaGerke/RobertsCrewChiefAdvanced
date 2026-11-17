@@ -52,7 +52,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         internal const float LockRatio = .80f, HeavyRatio = .35f, SpinRatio = 1.12f;
-        internal const double LockMin = .05, LockMinWithoutAbsFlag = .15, HeavyMin = .30, SpinMin = .15, OffMin = .20, OffRecover = .30;
+        internal const double BigOffMin = .6, LockMin = .05, LockMinWithoutAbsFlag = .15, HeavyMin = .30, SpinMin = .15, OffMin = .20, OffRecover = .30;
         internal const int CalibrationSamples = 30;
 
         private readonly object gate = new object();
@@ -72,7 +72,7 @@ namespace CrewChiefV4.AiTeam
         private float offDistance, offSpeed;
         private int offWheels, lap = int.MinValue;
         private readonly List<Event> events = new List<Event>();
-        private readonly Queue<Event> heavy = new Queue<Event>();
+        private readonly Queue<Event> heavy = new Queue<Event>(), bigOff = new Queue<Event>();
         private readonly Dictionary<string, int> reported = new Dictionary<string, int>(StringComparer.Ordinal);
         private double firstFrame = double.NaN, lastFrame = double.NaN;
         private long frames;
@@ -94,7 +94,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 offSince = offClear = double.NaN; offWheels = 0; lap = int.MinValue;
                 steerGain = 0; steerSamples = 0; underSince = overSince = double.NaN;
-                events.Clear(); heavy.Clear(); reported.Clear();
+                events.Clear(); heavy.Clear(); bigOff.Clear(); reported.Clear();
                 firstFrame = lastFrame = double.NaN; frames = 0; lastFrameUtc = DateTime.MinValue;
                 lapPeakLat = lapPeakBrake = lastLapPeakLat = lastLapPeakBrake = 0;
             }
@@ -218,7 +218,12 @@ namespace CrewChiefV4.AiTeam
             if (double.IsNaN(offClear)) { offClear = f.TimeS; return; }
             if (f.TimeS - offClear < OffRecover) return;
             double d = offClear - offSince;
-            if (d >= OffMin) Add(Kind.OffTrack, -1, offWheels, offDistance, (float)d, 0, offSpeed);
+            if (d >= OffMin)
+            {
+                var e = Add(Kind.OffTrack, -1, offWheels, offDistance, (float)d, 0, offSpeed);
+                // Großer Ausritt: Die Reifen haben Gras, Kies oder Sand aufgenommen – das sagt die Crew sofort.
+                if (offWheels >= 3 && d >= BigOffMin) { bigOff.Enqueue(e); while (bigOff.Count > 3) bigOff.Dequeue(); }
+            }
             offSince = offClear = double.NaN;
         }
 
@@ -283,6 +288,12 @@ namespace CrewChiefV4.AiTeam
             : e.Kind == Kind.OffTrack ? "off|" + Place(e)
             : e.Kind == Kind.Understeer || e.Kind == Kind.Oversteer ? (e.Kind == Kind.Understeer ? "under|" : "over|") + Place(e) + "|" + e.Phase
             : "lock|" + Place(e) + "|" + e.Wheel;
+
+        /// <summary>Große Ausritte (mindestens drei Räder, 0,6 s) seit dem letzten Abruf – für „Reifen erst sauber fahren“.</summary>
+        internal Event TakeBigOff()
+        {
+            lock (gate) return bigOff.Count > 0 ? bigOff.Dequeue() : null;
+        }
 
         /// <summary>Starke Blockierer seit dem letzten Abruf (für die Sofort-Meldung „möglicher Bremsplatten“).</summary>
         internal Event TakeHeavy()

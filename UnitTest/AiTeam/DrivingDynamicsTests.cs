@@ -133,6 +133,33 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Big_off_with_three_wheels_is_reported_once_for_dirty_tyres()
+        {
+            var d = new Drive(); d.Calibrate();
+            var three = new[] { WheelSurface.Off, WheelSurface.Off, WheelSurface.Off, WheelSurface.Road };
+            d.Run(.8, 25, .3f, 0, null, three, 1100);
+            d.Run(.4, 25, .3f, 0, distance: 1150);
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 4; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.CompletedLaps = 3;
+            var watch = new DrivingDynamicsWatch(d.A, 2);
+            watch.Observe(gs, T, false, "Rob");
+            var call = watch.Take(gs, T, false);
+            Assert.IsNotNull(call); Assert.AreEqual("insight-dirty-tyres", call.Topic); Assert.AreEqual(TeamMember.Mik, call.Member);
+            Assert.IsNull(d.A.TakeBigOff(), "nur einmal");
+            var two = new[] { WheelSurface.Off, WheelSurface.Road, WheelSurface.Off, WheelSurface.Road };
+            d.Run(.8, 25, .3f, 0, null, two, 1100);
+            d.Run(.4, 25, .3f, 0, distance: 1150);
+            Assert.IsNull(d.A.TakeBigOff(), "zwei Räder neben der Strecke ist kein großer Ausritt");
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(3, Enumerable.Range(0, 3).Select(v => DrivingDynamicsWatch.DirtyTyres(4, v)).Distinct().Count(), lang);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
         public void Wheel_off_the_road_does_not_skew_calibration()
         {
             var d = new Drive();

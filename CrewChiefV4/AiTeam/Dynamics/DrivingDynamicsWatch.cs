@@ -14,7 +14,7 @@ namespace CrewChiefV4.AiTeam
         private readonly DrivingDynamicsAnalyzer analyzer;
         private readonly Random random;
         private ObservedRaceCall call;
-        private int session = int.MinValue, variant, lastHeavyLap = -100;
+        private int session = int.MinValue, variant, lastHeavyLap = -100, lastBigOffLap = -100;
 
         internal DrivingDynamicsWatch(DrivingDynamicsAnalyzer analyzer, int? seed = null)
         {
@@ -27,7 +27,7 @@ namespace CrewChiefV4.AiTeam
         {
             if (gs == null || analyzer == null) return;
             var s = gs.SessionData;
-            if (s.SessionId != session) { session = s.SessionId; call = null; lastHeavyLap = -100; }
+            if (s.SessionId != session) { session = s.SessionId; call = null; lastHeavyLap = lastBigOffLap = -100; }
             if (call != null && (call.DeliveryStartedUtc != DateTime.MinValue || !call.IsValid(gs, now))) call = null;
             if (call != null || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane) return;
 
@@ -37,6 +37,13 @@ namespace CrewChiefV4.AiTeam
                 lastHeavyLap = s.CompletedLaps;
                 Offer(gs, now, "insight-flatspot", TeamMember.Mik, FlatSpot(Wheel(heavy.Wheel), heavy.Corner, variant++), 4,
                     "wheel_locked_below_35_percent_for_at_least_0.3s");
+                return;
+            }
+            var off = analyzer.TakeBigOff();
+            if (off != null && s.CompletedLaps - lastBigOffLap >= 2)
+            {
+                lastBigOffLap = s.CompletedLaps;
+                Offer(gs, now, "insight-dirty-tyres", TeamMember.Mik, DirtyTyres(off.Wheels, variant++), 4, "three_or_more_wheels_off_track_for_at_least_0.6s");
                 return;
             }
             if (!lapCompleted) return;
@@ -205,6 +212,23 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Balance-Check: ", "Balance check: ", "Equilibrio: ") + Up(place) + " " + obs + ". " + advice;
                 default: return RadioLanguage.T("Aus den Daten: ", "From the data: ", "Según los datos: ") + Up(place) + " " + obs +
                     RadioLanguage.T(" – das sehen wir jetzt regelmäßig. ", " – we're seeing that regularly now. ", ", lo vemos con regularidad. ") + advice;
+            }
+        }
+
+        internal static string DirtyTyres(int wheels, int variant)
+        {
+            bool all = wheels >= 4;
+            switch (((variant % 3) + 3) % 3)
+            {
+                case 0: return RadioLanguage.T((all ? "Alle vier Räder waren draußen" : "Das war ein weiter Ausflug") + " – die Reifen haben Dreck aufgenommen. Die nächsten zwei Kurven etwas vorsichtiger.",
+                    (all ? "All four wheels were off" : "That was a big trip off") + " – the tyres have picked up dirt. Take the next couple of corners a bit easier.",
+                    (all ? "Las cuatro ruedas fuera" : "Eso fue una salida grande") + ": los neumáticos han cogido suciedad. Las dos próximas curvas con algo más de cuidado.");
+                case 1: return RadioLanguage.T("Erst die Reifen wieder sauber fahren, dann zurück auf Tempo. Bremspunkte in den nächsten Kurven etwas früher.",
+                    "Clean the tyres up first, then back to pace. Brake a little earlier for the next few corners.",
+                    "Primero limpia los neumáticos y luego vuelve al ritmo. Frena un poco antes en las próximas curvas.");
+                default: return RadioLanguage.T("Ruhig, das kostet nur kurz. Mit Dreck auf den Reifen fehlt Grip – eine halbe Runde sauber fahren, dann ist er wieder da.",
+                    "Easy, that only costs a moment. Dirty tyres mean less grip – half a lap of clean driving and it's back.",
+                    "Tranquilo, solo cuesta un momento. Con suciedad en los neumáticos falta agarre: media vuelta limpia y vuelve.");
             }
         }
 
