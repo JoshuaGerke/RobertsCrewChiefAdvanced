@@ -13,6 +13,13 @@ namespace CrewChiefV4.AiTeam
     {
         public readonly int Id, OverallPosition, ClassPosition;
         public readonly string Key, Name;
+        /// <summary>Safety Car / Pace Car der Sim (Bathurst 17.11.: „Überrundeter … das ist Safety Car KI“) – kein Gegner.</summary>
+        internal bool IsSafetyCar => IsSafetyCarName(NativeName);
+        internal static bool IsSafetyCarName(string name)
+        {
+            string n = (name ?? "").ToLowerInvariant();
+            return n.Contains("safety car") || n.Contains("safetycar") || n.Contains("pace car") || n.Contains("medical car");
+        }
         internal readonly string NativeName, NativeNumber;
         internal readonly string NativeIdentity;
         internal readonly int NativeCarId;

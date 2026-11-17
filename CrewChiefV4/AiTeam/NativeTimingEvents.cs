@@ -202,6 +202,9 @@ namespace CrewChiefV4.AiTeam
                         !context.Tracks.OpponentFresh(context, opponent))) { pending.Remove(entry); continue; }
                     RaceGapMeasurement measurement = ReadMeasurement(context, fact);
                     if (fact.Trend == NativeTimingTrend.Steady && !measurement.HasValue) { pending.Remove(entry); continue; }
+                    // Bathurst 17.11.: „93,9 Sekunden zu cart3r“, „DaOlum ist dein nächstes Ziel, 51,1 Sekunden“ – weit weg ist
+                    // kein Zweikampf und kein Ziel. Über 20 s schweigt die Abstandsmeldung.
+                    if (measurement.HasValue && measurement.Seconds > AiRadioSchedule.MaxRelevantGap) { pending.Remove(entry); continue; }
                     var cursor = variants[(int)fact.Relation, (int)fact.Trend];
                     string group = null;
                     int index = -1;

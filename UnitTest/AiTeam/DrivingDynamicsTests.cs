@@ -301,6 +301,25 @@ namespace UnitTest.AiTeamTests
             RadioLanguage.Current = RadioLanguage.German;
         }
 
+        [Test]
+        public void Safety_car_is_never_a_backmarker_or_traffic()
+        {
+            Assert.IsTrue(TrackCarPosition.IsSafetyCarName("Safety Car KI"));
+            Assert.IsTrue(TrackCarPosition.IsSafetyCarName("Pace Car"));
+            Assert.IsFalse(TrackCarPosition.IsSafetyCarName("RenIre"));
+            Assert.IsFalse(TrackCarPosition.IsSafetyCarName(null));
+            Assert.AreEqual(20f, AiRadioSchedule.MaxRelevantGap, "weiter weg ist kein Ziel");
+        }
+
+        [Test]
+        public void Provisional_fuel_estimate_is_spoken_only_once()
+        {
+            var watch = new FuelWatch();
+            Assert.IsNotNull(watch.Evaluate(1, 60f, 3.3f, 25, true, true, provisionalConsumption: true));
+            Assert.IsNull(watch.Evaluate(1, 59f, 3.4f, 25, true, true, provisionalConsumption: true), "kein „könnte knapp“ 15 s nach „könnte reichen“");
+            Assert.IsNotNull(watch.Evaluate(3, 55f, 3.3f, 24, true, true), "gemessener Verbrauch darf wieder warnen");
+        }
+
         // ---------- Kurven-Coaching mit 100 Hz ----------
 
         /// <summary>Eine Runde auf 1000 m mit einer Kurve 400–500 m, abgetastet mit 100 Hz statt in 5-m-Schritten.</summary>

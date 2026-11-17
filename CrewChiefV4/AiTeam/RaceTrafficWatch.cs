@@ -226,7 +226,7 @@ namespace CrewChiefV4.AiTeam
                     reference[cell]=new Reference {Speed=(float)s.PlayerSpeedMps.Value,Lap=gs.SessionData.CompletedLaps,Utc=now};
                 if (reference.Count>2000) reference.Clear();
             }
-            var candidates=s.Cars.Where(c=>Relevant(c,gs,s,now)).OrderBy(c=>c.RouteGapM>0?0:1)
+            var candidates=s.Cars.Where(c=>!c.IsSafetyCar && Relevant(c,gs,s,now)).OrderBy(c=>c.RouteGapM>0?0:1)
                 .ThenBy(c=>Math.Abs(c.RouteGapM.Value)/Math.Max(1,c.ClosingMps??1)).ToArray();
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
             if (pending!=null || now-lastRadio<TimeSpan.FromSeconds(3)) return;

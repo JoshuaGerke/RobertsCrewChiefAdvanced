@@ -1841,11 +1841,14 @@ namespace CrewChiefV4.AiTeam
             string advice = damage.Serious && settings.RadioMode != AiRadioMode.MINIMAL && settings.IsMemberEnabled(TeamMember.Ben)
                 ? IncidentWatch.PitAdviceAfterDamage(current) : null;
             bool paired = advice != null;
-            string report = IncidentWatch.DamageReport(current.CarDamageData, includeAdvice: !paired);
+            // Bathurst 17.11.: „Bremse vorne links-Schadenswert 0,1 Prozent“ nach einem leichten Kontakt. Ohne ernsten Schaden
+            // nur Werte ab 1 Prozent, sonst ein kurzer Satz.
+            bool brief = !damage.Serious;
+            string report = IncidentWatch.DamageReport(current.CarDamageData, brief, includeAdvice: !paired);
             if (string.IsNullOrWhiteSpace(report)) return;
             var valid = TimelyValidity(current, DateTime.UtcNow, 18, live =>
                 live.SessionData.SessionPhase == SessionPhase.Green &&
-                IncidentWatch.DamageReport(live.CarDamageData, includeAdvice: !paired) == report);
+                IncidentWatch.DamageReport(live.CarDamageData, brief, includeAdvice: !paired) == report);
             string incidentId = Guid.NewGuid().ToString("N");
             LiveDiagnostics.Decision("incident-damage", "detected", "mapped_damage_assessment", report, incidentId);
             Action<bool> afterReport = paired ? (Action<bool>)(interrupted =>

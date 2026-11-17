@@ -433,6 +433,15 @@ namespace UnitTest.AiTeamTests
             gs.CarDamageData.AeroDamagePercent=2;Assert.IsNotNull(DamageTick(w,o,gs,41));
         }
         [Test]
+        public void Creeping_brake_wear_is_not_a_damage_warning_but_a_brake_jump_is()
+        {
+            var gs=Frame(1,false,false,true);var w=new NumericDamageWatch();var o=new LiveWarningDispatcher();gs.CarDamageData.BrakeDamagePercent[1]=0;
+            Assert.IsNull(DamageTick(w,o,gs,0));
+            for(int i=1;i<=30;i++){gs.CarDamageData.BrakeDamagePercent[1]=i*.1f;Assert.IsNull(DamageTick(w,o,gs,i),"Bathurst: 1 → 2 → 3 % durch Verschleiß");}
+            gs.CarDamageData.BrakeDamagePercent[1]=4.5f;var call=DamageTick(w,o,gs,31);
+            Assert.IsNotNull(call,"Sprung durch Kontakt");StringAssert.Contains("Bremse vorne rechts",call.Text);
+        }
+        [Test]
         public void T11_Initial_measurement_repair_missing_value_and_session_change_are_not_new_incidents()
         {
             var gs=Frame(1,false,false,true);var w=new NumericDamageWatch();var o=new LiveWarningDispatcher();gs.CarDamageData.EngineDamagePercent=4;

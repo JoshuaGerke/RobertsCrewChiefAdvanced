@@ -139,7 +139,7 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
-        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; }
+        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -229,6 +229,13 @@ namespace CrewChiefV4.AiTeam
                 int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : topic == "vehicle" ? vehicleReports++ : gapGroup == null ? NextTurn(topic) : gapVariant;
                 string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
+                if (topic == "fuel")
+                {
+                    // Bathurst 17.11.: „So reicht es nicht bis ins Ziel“ dreimal – das Urteil nur, wenn es sich geändert hat.
+                    string verdict = FuelEstimate.From(ctx)?.Verdict();
+                    if (verdict != null && verdict == lastFuelVerdict && text.Contains(" " + verdict)) text = text.Replace(" " + verdict, "");
+                    else if (verdict != null) lastFuelVerdict = verdict;
+                }
                 // Wetter wie ein Ingenieur (Rob 17.11., Bathurst: zweimal „Luft 21,2 Grad, Strecke 25,4 Grad“ in sechs Minuten):
                 // nur bei spürbarer Änderung erneut, und dann mit der Veränderung statt nackter Zahlen.
                 if (topic == "weather")
@@ -333,6 +340,10 @@ namespace CrewChiefV4.AiTeam
             }
         }
         private static string Number(double n) { return n.ToString("0.0", RadioLanguage.Culture); }
+        private string lastFuelVerdict;
+        /// <summary>Über diesem Abstand (s) ist ein Gegner im Rennen weder Zweikampf noch Ziel – keine Abstandsmeldung.</summary>
+        internal const float MaxRelevantGap = 20f;
+
         private int NextTurn(string topic) { topicTurns.TryGetValue(topic, out int n); topicTurns[topic] = n + 1; return n; }
 
         /// <summary>Wählt Formulierung Nummer <paramref name="variant"/> (zyklisch) aus mehreren gleichwertigen.</summary>
@@ -440,7 +451,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 var measurement = RaceDataTools.ReadGap(ctx, op, ahead);
                 float gap = measurement.Seconds;
-                if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, 300)) return null;
+                if (op == null || !op.IsActive || !measurement.IsRaceGap || !Good(gap, 0.05, MaxRelevantGap)) return null;
                 string name = ctx.SendDriverNames && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
                 string duration = (measurement.IsEstimated ? RadioLanguage.T("ungefähr ", "about ", "unos ") : "") + Number(gap) + RadioLanguage.T(" Sekunden", " seconds", " segundos");
                 bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
@@ -500,8 +511,11 @@ namespace CrewChiefV4.AiTeam
             if (topic == "pace")
             {
                 var laps = ctx.Memory == null ? new LapRecord[0] : ctx.Memory.GetLaps(3).ToArray();
-                if (laps.Length < 3 || !laps.All(l => l.Valid && !l.InPitLap && Good(l.LapTime, 20, 1200)) ||
-                    laps[1].LapNumber != laps[0].LapNumber + 1 || laps[2].LapNumber != laps[1].LapNumber + 1) return null;
+                // Bathurst 17.11.: „im Mittel 2:34,483 … innerhalb von 83,4 Sekunden“ – FCY- und Unfallrunden gehören nicht in
+                // einen Tempo-Schnitt. Nur Grün-Runden, und nur wenn sie zusammenpassen (höchstens 4 s Spanne).
+                if (laps.Length < 3 || !laps.All(l => l.Valid && l.Green && !l.InPitLap && Good(l.LapTime, 20, 1200)) ||
+                    laps[1].LapNumber != laps[0].LapNumber + 1 || laps[2].LapNumber != laps[1].LapNumber + 1 ||
+                    laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime) > 4) return null;
                 string avg = LocalAnswers.LapTime(laps.Average(l => l.LapTime)), spread = Number(laps.Max(l => l.LapTime) - laps.Min(l => l.LapTime));
                 return Of(variant,
                     RadioLanguage.T("Die letzten drei sauberen Runden im Mittel ", "Last three clean laps average ", "Media de las últimas tres vueltas limpias: ") + avg +
