@@ -336,6 +336,9 @@ namespace CrewChiefV4.AiTeam
         public static string[] IncidentPhrases => ContactPhrases.Concat(HeavyContactPhrases).Concat(DamageDetectedPhrases).Concat(StoppedPhrases).Concat(OffTrackPhrases)
             .Concat(OffTrackPhrases.Select(p => p + WetTrackHint)).Concat(OffTrackPhrases.Select(p => p + RainTrackHint)).ToArray();
 
+        /// <summary>Rob 17.11.2026: Nur Sara als Spotterin darf eine laufende Crew-Ansage unterbrechen; Ben und Mik warten.</summary>
+        internal static bool MayInterruptCrew(TeamMember speaker) => speaker == TeamMember.Sara;
+
         public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
         { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
 

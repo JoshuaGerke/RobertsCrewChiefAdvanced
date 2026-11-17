@@ -2402,8 +2402,11 @@ namespace CrewChiefV4.AiTeam
                 // End-to-end deadline is checked again at driver playback by AiAudioStore.
                 var message = new QueuedMessage("ai_team_reply_" + id, Math.Max(1, (int)Math.Ceiling((deadline-DateTime.UtcNow).TotalSeconds)), messageFragments: fragments,
                     type: localOnly ? (localPriority >= 6 ? SoundType.CRITICAL_MESSAGE : SoundType.IMPORTANT_MESSAGE) : SoundType.VOICE_COMMAND_RESPONSE, priority: localOnly ? localPriority : 5);
-                audioPlayer.playMessageImmediately(message, interruptForAiHazard: localOnly && localPriority >= 7,
-                    interruptForAiResult: localOnly && (observedTopic == "own-lap" || observedTopic == "qualifying-last" || observedTopic == "position" && localPriority == 5),
+                // Rob 17.11.: Ben und Mik fallen sich nicht mehr ins Wort – sie stellen sich hinten an. Nur Sara (Spotterin) darf
+                // eine laufende Ansage unterbrechen.
+                bool mayInterrupt = CrewSpeechPolicy.MayInterruptCrew(member);
+                audioPlayer.playMessageImmediately(message, interruptForAiHazard: mayInterrupt && localOnly && localPriority >= 7,
+                    interruptForAiResult: mayInterrupt && localOnly && (observedTopic == "own-lap" || observedTopic == "qualifying-last" || observedTopic == "position" && localPriority == 5),
                     aiTopic: observedTopic);
             }
             else
