@@ -463,7 +463,7 @@ namespace CrewChiefV4.AiTeam
         {
             return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
                 member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == RaceRadioLanguage.DisqualificationCall || text == SessionLapObserver.TimedLapStartPhrase || text == SessionLapObserver.TimedLapApproachPhrase) ||
-                member == TeamMember.Ben && (text == TrackSituationWatch.ClosingAheadPhrase || text == IncidentWatch.DamagePitAdvicePhrase ||
+                member == TeamMember.Ben && (TrackSituationWatch.ClosingAheadPhrases.Contains(text) || text == IncidentWatch.DamagePitAdvicePhrase ||
                     TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) ||
                     TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) ||
                     RaceTrafficWatch.PreparedPhrases.Contains(text) || NativeIncidentWatch.Phrases.Contains(text));

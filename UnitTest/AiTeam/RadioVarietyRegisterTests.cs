@@ -71,5 +71,13 @@ namespace UnitTest.AiTeamTests
             }
             finally { RadioVariants.Deterministic = was; }
         }
+
+        [Test]
+        public void Closing_ahead_has_four_prepared_variants_for_the_cache()
+        {
+            Assert.GreaterOrEqual(TrackSituationWatch.ClosingAheadPhrases.Distinct().Count(), RadioVariants.Minimum);
+            foreach (var text in TrackSituationWatch.ClosingAheadPhrases)
+                Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(CrewChiefV4.AiTeam.TeamMember.Ben, text), text);
+        }
     }
 }

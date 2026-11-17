@@ -2832,7 +2832,7 @@ namespace CrewChiefV4.AiTeam
                 var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
                     .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(LiveWarningDispatcher.MikPhrases).Concat(ThermalWatch.PreparedPhrases).Concat(CrewSpeechPolicy.FinishPhrases).Concat(LapWatch.DisqualificationPhrases(settings.RadioName)).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(CrewSpeechPolicy.WeatherPhrases).Concat(PitLaneWatch.UnknownLimitPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase, SessionLapObserver.TimedLapApproachPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
                     .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.StoppedPhrases).Concat(TrackSituationWatch.ApproachingPhrases)
-                        .Concat(new[] { TrackSituationWatch.ClosingAheadPhrase, IncidentWatch.DamagePitAdvicePhrase })
+                        .Concat(TrackSituationWatch.ClosingAheadPhrases).Concat(new[] { IncidentWatch.DamagePitAdvicePhrase })
                         .Concat(RaceTrafficWatch.PreparedPhrases).Concat(hazardSections).Concat(NativeIncidentWatch.Phrases).Concat(RaceSituationWatch.PreparedPhrases(settings.RadioName))
                         .Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Ben,t)))
                     .Where(p=>settings.IsMemberEnabled(p.Key)).ToArray();

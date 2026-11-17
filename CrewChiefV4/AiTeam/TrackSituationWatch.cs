@@ -84,7 +84,12 @@ namespace CrewChiefV4.AiTeam
             "Atención detrás, viene uno con más ritmo."
         };
         internal static string[] ApproachingPhrases => RadioLanguage.Pick(ApproachingPhrasesDe, ApproachingPhrasesEn, ApproachingPhrasesEs);
-        internal static string ClosingAheadPhrase => RadioLanguage.T("Du holst auf den Wagen vor dir auf.", "You're catching the car ahead.", "Estás alcanzando al coche de delante.");
+        internal static string ClosingAheadPhrase => ClosingAheadPhrases[0];
+        private static readonly string[] ClosingAheadDe = { "Du holst auf den Wagen vor dir auf.", "Der Wagen vor dir kommt näher.", "Du läufst auf den Vordermann auf.", "Vorne wird es enger, du bist schneller." };
+        private static readonly string[] ClosingAheadEn = { "You're catching the car ahead.", "The car ahead is coming back to you.", "You're closing on the car in front.", "It's getting closer up front, you're quicker." };
+        private static readonly string[] ClosingAheadEs = { "Estás alcanzando al coche de delante.", "El coche de delante se acerca.", "Te estás echando encima del de delante.", "Delante se cierra el hueco, vas más rápido." };
+        /// <summary>Vorbereitete Sätze (Cache) für das gewöhnliche Auflaufen im Training/Quali, vier Formulierungen.</summary>
+        internal static string[] ClosingAheadPhrases => RadioLanguage.Pick(ClosingAheadDe, ClosingAheadEn, ClosingAheadEs);
         public const double AlertSeconds=6;
         private readonly Dictionary<string,DateTime> last=new Dictionary<string,DateTime>();
         private DateTime lastAny=DateTime.MinValue, lastTick=DateTime.MinValue;
@@ -149,7 +154,7 @@ namespace CrewChiefV4.AiTeam
                 string key=car.Id+"|"+topic;DateTime previous;
                 if(last.TryGetValue(key,out previous) && (now<previous || now-previous<TimeSpan.FromSeconds(90))) continue;
                 string[] phrases=topic=="traffic-approaching"?ApproachingPhrases:car.SpeedMps<=1?StoppedPhrases:CatchingPhrases;
-                string text=ordinaryClosing ? ClosingAheadPhrase : phrases[variant++%phrases.Length];
+                string text=ordinaryClosing ? RadioVariants.Pick("closing-ahead",ClosingAheadPhrases) : phrases[variant++%phrases.Length];
                 int id=car.Id;string opponentKey=car.Key;bool stopped=topic=="traffic-catching" && car.SpeedMps<=1;int callEpoch=epoch;
                 pending=new ObservedRaceCall {
                     Topic=topic,Text=text,Evidence="practice_quali;continuous_route_positions_1.5s;speed_vs_route_consistent;intercept_within_" +
