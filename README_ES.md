@@ -1,5 +1,7 @@
 # RRCA – Rob's Race Crew Advanced
 
+**La extensión para Crew Chief 4.0 con IA de verdad.**
+
 [![Descargas](https://img.shields.io/github/downloads/JoshuaGerke/RobertsCrewChiefAdvanced/total?label=Descargas&color=b9ef35)](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**

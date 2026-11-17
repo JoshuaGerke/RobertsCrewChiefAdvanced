@@ -320,6 +320,7 @@ namespace CrewChiefV4.AiTeam
                 case "openReadmeDe": OpenLocalNotice("README_DE.md"); break;
                 case "openReadmeEn": OpenLocalNotice("README_EN.md"); break;
                 case "openReadmeEs": OpenLocalNotice("README_ES.md"); break;
+                case "openKofi": System.Diagnostics.Process.Start("https://ko-fi.com/robertscrewchiefadvanced"); break;
                 case "openNotes":
                     string language = (string)m["uiLanguage"];
                     OpenLocalNotice(language == "es" ? "NOTICES_ES.md" : language == "en" ? "NOTICES_EN.md" : "HINWEISE_UND_DANK.md"); break;
