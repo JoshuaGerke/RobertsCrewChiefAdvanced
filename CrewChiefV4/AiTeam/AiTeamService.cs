@@ -1223,6 +1223,18 @@ namespace CrewChiefV4.AiTeam
                 if (cleanAnswer != answer)
                     LiveDiagnostics.Emit("radio.answer_quality", LiveDiagnostics.Data("status", cleanAnswer == null ? "rejected" : "repaired", "reason", "language_or_incomplete_tail"));
                 answer = cleanAnswer ?? RadioLanguage.T("Die Antwort war unklar. Frag bitte noch einmal.", "That answer was unclear. Ask again, please.", "La respuesta no ha quedado clara. Pregunta otra vez.");
+                // C4 (Rob 17.11.): Eindeutig widerlegte Behauptungen (eigener Platz, Runden bis zum Ziel) nicht aussprechen.
+                if (cleanAnswer != null)
+                {
+                    string checkedAnswer = AnswerClaimCheck.Check(answer, CrewChief.currentGameState ?? gs, out var refuted);
+                    if (refuted.Count > 0)
+                    {
+                        LiveDiagnostics.Emit("radio.claim_check", LiveDiagnostics.Data("status", checkedAnswer == null ? "rejected" : "repaired",
+                            "reason", string.Join(",", refuted)));
+                        answer = checkedAnswer ?? RadioLanguage.T("Da bin ich mir gerade nicht sicher. Frag bitte gleich noch einmal.",
+                            "I'm not sure about that right now. Ask me again in a moment.", "Ahora mismo no estoy seguro. Pregúntame otra vez en un momento.");
+                    }
+                }
                 if (driverCancel.IsCancellationRequested || generation != Volatile.Read(ref sessionGeneration))
                 {
                     return null;

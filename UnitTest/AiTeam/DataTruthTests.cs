@@ -320,5 +320,69 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("Sprit knapper als die Energie", VirtualEnergyWatch.Report(60, 6, 7, 0));
             Assert.IsNull(VirtualEnergyWatch.Report(-1, 6, 7, 0));
         }
+
+        // ---------- C4: Behauptungsprüfer ----------
+
+        private static GameStateData Standing(int position, int completedLaps = 10, int raceLaps = 20)
+        {
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 12; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.ClassPosition = position; gs.SessionData.OverallPosition = position;
+            gs.SessionData.CompletedLaps = completedLaps; gs.SessionData.SessionNumberOfLaps = raceLaps; gs.SessionData.SessionHasFixedTime = false;
+            gs.SessionData.SessionLapsRemaining = raceLaps - completedLaps;
+            return gs;
+        }
+
+        [Test]
+        public void Wrong_own_position_is_removed_and_rival_positions_stay()
+        {
+            var gs = Standing(7);
+            string a = AnswerClaimCheck.Check("Du liegst auf Platz 5. Keller liegt auf Platz 3, 1,2 Sekunden vor dir.", gs, out var removed);
+            Assert.AreEqual("Keller liegt auf Platz 3, 1,2 Sekunden vor dir.", a);
+            Assert.AreEqual(1, removed.Count);
+            Assert.AreEqual("Du liegst auf Platz 7. Gute Arbeit.", AnswerClaimCheck.Check("Du liegst auf Platz 7. Gute Arbeit.", gs, out removed));
+            Assert.AreEqual(0, removed.Count);
+            AnswerClaimCheck.Check("Mit diesem Tempo kannst du Platz 4 noch holen.", gs, out removed);
+            Assert.AreEqual(0, removed.Count, "ein Ziel ist keine Behauptung über den Stand");
+        }
+
+        [Test]
+        public void Answer_with_only_wrong_claims_falls_back_to_the_measured_position()
+        {
+            var gs = Standing(7);
+            string a = AnswerClaimCheck.Check("Wir sind auf P4.", gs, out var removed);
+            Assert.AreEqual(1, removed.Count);
+            StringAssert.Contains("7", a);
+        }
+
+        [Test]
+        public void Laps_to_go_are_checked_only_when_clearly_about_the_race_distance()
+        {
+            var gs = Standing(7, completedLaps: 10, raceLaps: 20);
+            int left = LapWatch.LapsLeft(gs.SessionData);
+            Assume.That(left > 0);
+            AnswerClaimCheck.Check("Noch " + (left + 5) + " Runden bis ins Ziel.", gs, out var removed);
+            Assert.AreEqual(1, removed.Count);
+            AnswerClaimCheck.Check("Der Sprit reicht noch 6 Runden.", gs, out removed);
+            Assert.AreEqual(0, removed.Count, "Spritreichweite ist keine Renndistanz");
+        }
+
+        [Test]
+        public void English_and_spanish_own_positions_are_checked_too()
+        {
+            var gs = Standing(7);
+            try
+            {
+                RadioLanguage.Current = RadioLanguage.English;
+                AnswerClaimCheck.Check("You're P3 now.", gs, out var removed);
+                Assert.AreEqual(1, removed.Count);
+                RadioLanguage.Current = RadioLanguage.Spanish;
+                AnswerClaimCheck.Check("Vas en el puesto 2.", gs, out removed);
+                Assert.AreEqual(1, removed.Count);
+                AnswerClaimCheck.Check("Vas en el puesto 7.", gs, out removed);
+                Assert.AreEqual(0, removed.Count);
+            }
+            finally { RadioLanguage.Current = RadioLanguage.German; }
+        }
     }
 }
