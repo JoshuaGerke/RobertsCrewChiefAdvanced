@@ -43,10 +43,26 @@ namespace CrewChiefV4.AiTeam
             if (!Comparable(topic, report, time, out var previous)) return null;
             double delta = report.Values[0] - previous.Values[0];
             if (double.IsNaN(delta) || Math.Abs(delta) < report.Thresholds[0]) return null;
-            if (topic == "pace") return delta < 0 ? RadioLanguage.T("Der Schnitt ist schneller als beim letzten Bericht.", "Average pace is quicker than at the last report.", "El ritmo medio es más rápido que en el último informe.") :
-                RadioLanguage.T("Der Schnitt ist langsamer als beim letzten Bericht.", "Average pace is slower than at the last report.", "El ritmo medio es más lento que en el último informe.");
-            if (topic == "stint") return delta < 0 ? RadioLanguage.T("Pro Runde verbrauchen wir weniger.", "We're using less fuel per lap.", "Gastamos menos por vuelta.") :
-                RadioLanguage.T("Der Verbrauch pro Runde ist gestiegen.", "Fuel use per lap has gone up.", "El consumo por vuelta ha subido.");
+            if (topic == "pace") return delta < 0 ? RadioVariants.Pick("memory-pace-faster",
+                RadioLanguage.T("Der Schnitt ist schneller als beim letzten Bericht.", "Average pace is quicker than at the last report.", "El ritmo medio es más rápido que en el último informe."),
+                RadioLanguage.T("Seit dem letzten Bericht bist du im Schnitt schneller.", "Since the last report you're quicker on average.", "Desde el último informe vas más rápido de media."),
+                RadioLanguage.T("Der Schnitt hat sich verbessert.", "The average has improved.", "La media ha mejorado."),
+                RadioLanguage.T("Im Mittel schneller als zuletzt, gut so.", "Quicker on average than last time, good.", "De media más rápido que antes, bien.")) :
+                RadioVariants.Pick("memory-pace-slower",
+                RadioLanguage.T("Der Schnitt ist langsamer als beim letzten Bericht.", "Average pace is slower than at the last report.", "El ritmo medio es más lento que en el último informe."),
+                RadioLanguage.T("Seit dem letzten Bericht bist du im Schnitt langsamer.", "Since the last report you're slower on average.", "Desde el último informe vas más lento de media."),
+                RadioLanguage.T("Der Schnitt ist etwas abgefallen.", "The average has dropped off a bit.", "La media ha caído un poco."),
+                RadioLanguage.T("Im Mittel langsamer als zuletzt.", "Slower on average than last time.", "De media más lento que antes."));
+            if (topic == "stint") return delta < 0 ? RadioVariants.Pick("memory-fuel-less",
+                RadioLanguage.T("Pro Runde verbrauchen wir weniger.", "We're using less fuel per lap.", "Gastamos menos por vuelta."),
+                RadioLanguage.T("Der Verbrauch pro Runde ist gesunken.", "Fuel use per lap has come down.", "El consumo por vuelta ha bajado."),
+                RadioLanguage.T("Wir brauchen jetzt weniger Sprit pro Runde.", "We need less fuel per lap now.", "Ahora necesitamos menos combustible por vuelta."),
+                RadioLanguage.T("Weniger Verbrauch pro Runde als zuletzt.", "Less fuel per lap than last time.", "Menos consumo por vuelta que antes.")) :
+                RadioVariants.Pick("memory-fuel-more",
+                RadioLanguage.T("Der Verbrauch pro Runde ist gestiegen.", "Fuel use per lap has gone up.", "El consumo por vuelta ha subido."),
+                RadioLanguage.T("Pro Runde verbrauchen wir mehr.", "We're using more fuel per lap.", "Gastamos más por vuelta."),
+                RadioLanguage.T("Wir brauchen jetzt mehr Sprit pro Runde.", "We need more fuel per lap now.", "Ahora necesitamos más combustible por vuelta."),
+                RadioLanguage.T("Mehr Verbrauch pro Runde als zuletzt.", "More fuel per lap than last time.", "Más consumo por vuelta que antes."));
             return null;
         }
 

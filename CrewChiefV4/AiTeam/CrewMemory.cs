@@ -14,7 +14,12 @@ namespace CrewChiefV4.AiTeam
     internal sealed class CrewMemory
     {
         internal static readonly TimeSpan Window = TimeSpan.FromMinutes(4);
+        /// <summary>RRCA 2.0 (6.3): Wie lange ein gemeldeter eigener Platz als „schon gesagt“ gilt.</summary>
+        internal static readonly TimeSpan PositionWindow = TimeSpan.FromSeconds(90);
         private readonly Dictionary<string, DateTime> said = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        private readonly Dictionary<string, DateTime> events = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        private int reportedPosition, reportedPositionSession = int.MinValue;
+        private DateTime reportedPositionUtc = DateTime.MinValue;
         private readonly object gate = new object();
 
         internal static string Normalize(string text)
@@ -42,8 +47,41 @@ namespace CrewChiefV4.AiTeam
             lock (gate) return said.TryGetValue(key, out var when) && now >= when && now - when < Window;
         }
 
+        /// <summary>
+        /// RRCA 2.0 (6.3) Semantische Wiederholsperre: Bringt die Ansage nichts Neues? Gleiche Ereignis-ID binnen vier Minuten,
+        /// oder sie nennt nur denselben eigenen Klassenplatz, den die Crew in den letzten 90 s schon gemeldet hat (Mosport 16.11.:
+        /// „guter Start, jetzt Platz 14“ und eine Sekunde später „du liegst jetzt auf Position 14“). Sicherheit und Warnungen
+        /// sind ausgenommen; ein neuer Platz ist immer neu.
+        /// </summary>
+        internal bool NothingNew(ObservedRaceCall call, DateTime now, out string reason)
+        {
+            reason = null;
+            if (Exempt(call)) return false;
+            lock (gate)
+            {
+                if (call.SemanticKey != null && events.TryGetValue(call.SemanticKey, out var when) && now >= when && now - when < Window)
+                { reason = "crew_memory_same_event"; return true; }
+                if (call.StatedPosition > 0 && call.SessionId == reportedPositionSession && call.StatedPosition == reportedPosition &&
+                    now >= reportedPositionUtc && now - reportedPositionUtc < PositionWindow)
+                { reason = "crew_memory_position_already_reported"; return true; }
+            }
+            return false;
+        }
+
         internal void Remember(ObservedRaceCall call, DateTime now)
         {
+            if (call != null)
+                lock (gate)
+                {
+                    if (call.SemanticKey != null)
+                    {
+                        if (events.Count > 200)
+                            foreach (var old in events.Where(p => now - p.Value > Window).Select(p => p.Key).ToArray()) events.Remove(old);
+                        events[call.SemanticKey] = now;
+                    }
+                    if (call.StatedPosition > 0)
+                    { reportedPosition = call.StatedPosition; reportedPositionSession = call.SessionId; reportedPositionUtc = now; }
+                }
             string key = call == null ? null : Normalize(call.Text);
             if (key == null) return;
             lock (gate)
@@ -54,6 +92,6 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        internal void Clear() { lock (gate) said.Clear(); }
+        internal void Clear() { lock (gate) { said.Clear(); events.Clear(); reportedPosition = 0; reportedPositionSession = int.MinValue; reportedPositionUtc = DateTime.MinValue; } }
     }
 }

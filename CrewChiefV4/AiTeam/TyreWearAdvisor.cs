@@ -56,8 +56,18 @@ namespace CrewChiefV4.AiTeam
             string n = string.IsNullOrWhiteSpace(name) ? "" : name;
             float front = (wear[0] + wear[1]) / 2, rear = (wear[2] + wear[3]) / 2;
             string text;
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 5) + 5) % 5)
             {
+                case 3:
+                    text = RadioLanguage.T("Reifen-Update: " + Cap(Corner(worst)) + " ist mit " + Pct(wear[worst]) + " Prozent am stärksten abgenutzt, vorne im Schnitt " + Pct(front) + ", hinten " + Pct(rear) + ".",
+                        "Tyre update: " + Corner(worst) + " leads with " + Pct(wear[worst]) + " percent wear, front average " + Pct(front) + ", rear " + Pct(rear) + ".",
+                        "Neumáticos: el " + Corner(worst) + " va primero con " + Pct(wear[worst]) + " por ciento, delante de media " + Pct(front) + ", detrás " + Pct(rear) + ".");
+                    break;
+                case 4:
+                    text = RadioLanguage.T("Verschleiß im Blick: höchster Wert " + Pct(wear[worst]) + " Prozent " + Corner(worst) + ".",
+                        "Keeping an eye on wear: highest is " + Pct(wear[worst]) + " percent " + Corner(worst) + ".",
+                        "Vigilando el desgaste: el máximo es " + Pct(wear[worst]) + " por ciento en el " + Corner(worst) + ".");
+                    break;
                 case 0:
                     text = RadioLanguage.T("Am stärksten abgenutzt ist der Reifen " + Corner(worst) + ": " + Pct(wear[worst]) + " Prozent Verschleiß.",
                         "Most worn tyre is " + Corner(worst) + ": " + Pct(wear[worst]) + " percent wear.",
@@ -96,10 +106,20 @@ namespace CrewChiefV4.AiTeam
                 "Seguro que aguanta al menos " + safe + (safe == 1 ? " vuelta." : " vueltas."));
         }
 
+        private static string Cap(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0], RadioLanguage.Culture) + s.Substring(1);
+
         internal static string Projection(int laps, int corner, string name, int variant)
         {
             string n = string.IsNullOrWhiteSpace(name) ? "" : name;
-            return ((variant % 2) + 2) % 2 == 0
+            string runden = laps + (laps == 1 ? " Runde" : " Runden"), laps_en = laps + (laps == 1 ? " lap" : " laps"), vueltas = laps + (laps == 1 ? " vuelta" : " vueltas");
+            int pv = ((variant % 4) + 4) % 4;
+            if (pv == 2) return RadioLanguage.T("Hochgerechnet ist " + Corner(corner) + " in etwa " + runden + " am Limit.",
+                "On current wear the " + Corner(corner) + " hits the limit in about " + laps_en + ".",
+                "Según el desgaste, el " + Corner(corner) + " llega al límite en unas " + vueltas + ".");
+            if (pv == 3) return RadioLanguage.T(Cap(Corner(corner)) + " reicht bei diesem Verschleiß noch für ungefähr " + runden + ".",
+                "At this rate of wear the " + Corner(corner) + " has about " + laps_en + " left.",
+                "Con este desgaste al " + Corner(corner) + " le quedan unas " + vueltas + ".");
+            return pv == 0
                 ? RadioLanguage.T("Pass auf" + (n.Length > 0 ? ", " + n : "") + ": Wenn du so weiter pushst, ist " + Corner(corner) + " in etwa " + laps + (laps == 1 ? " Runde" : " Runden") + " am Ende.",
                     "Careful" + (n.Length > 0 ? ", " + n : "") + ": if you keep pushing like this, the " + Corner(corner) + " is finished in about " + laps + (laps == 1 ? " lap." : " laps."),
                     "Ojo" + (n.Length > 0 ? ", " + n : "") + ": si sigues apretando así, el " + Corner(corner) + " estará acabado en unas " + laps + (laps == 1 ? " vuelta." : " vueltas."))

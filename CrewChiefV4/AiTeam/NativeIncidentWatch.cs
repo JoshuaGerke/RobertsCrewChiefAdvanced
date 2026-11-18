@@ -13,11 +13,23 @@ namespace CrewChiefV4.AiTeam
         private sealed class Subject {public string Key,Name,Identity;public bool CanUseName;}
         private sealed class Detection {public int Session;public SessionType Type;public DateTime Utc;public string Corner;public Subject[] Cars;}
         private static readonly string[] PhrasesDe={"Vorsicht, Vorfall voraus. Dort steht oder rollt ein Wagen.",
-            "Sehr langsames Fahrzeug beim Vorfall voraus. Bleib aufmerksam.","Achtung, stehender oder sehr langsamer Wagen voraus."};
+            "Sehr langsames Fahrzeug beim Vorfall voraus. Bleib aufmerksam.","Achtung, stehender oder sehr langsamer Wagen voraus.",
+            "Gefahr voraus: Wagen langsam oder stehend. Vorsicht beim Einlenken.",
+            "Da vorne ist was passiert. Tempo raus, Augen auf.",
+            "Vorfall voraus. Rechne mit einem langsamen Auto auf der Linie."
+        };
         private static readonly string[] PhrasesEn={"Careful, incident ahead. There's a car stopped or rolling there.",
-            "Very slow car at the incident ahead. Stay alert.","Watch out, stopped or very slow car ahead."};
+            "Very slow car at the incident ahead. Stay alert.","Watch out, stopped or very slow car ahead.",
+            "Hazard ahead: car slow or stopped. Careful on turn-in.",
+            "Something's happened up ahead. Ease off, eyes open.",
+            "Incident ahead. Expect a slow car on the line."
+        };
         private static readonly string[] PhrasesEs={"Cuidado, incidente delante. Hay un coche parado o rodando despacio.",
-            "Vehículo muy lento en el incidente de delante. Mantente atento.","Atención, coche parado o muy lento delante."};
+            "Vehículo muy lento en el incidente de delante. Mantente atento.","Atención, coche parado o muy lento delante.",
+            "Peligro delante: coche lento o parado. Cuidado al girar.",
+            "Algo ha pasado delante. Afloja, ojos abiertos.",
+            "Incidente delante. Cuenta con un coche lento en la trazada."
+        };
         public static string[] Phrases => RadioLanguage.Pick(PhrasesDe,PhrasesEn,PhrasesEs);
         private static readonly ConcurrentQueue<Detection> incoming=new ConcurrentQueue<Detection>();
         public static volatile bool Enabled;

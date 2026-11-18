@@ -21,6 +21,13 @@ namespace CrewChiefV4.AiTeam.Probe
         internal virtual int SequenceOffset { get { return -1; } }
         /// <summary>Liefert das Spiel einen eigenen Physik-Takt (Ticks), der mehr sagt als die Bildfolge?</summary>
         internal virtual bool HasSimClock { get { return true; } }
+        /// <summary>
+        /// Eigene Quelle für Spiele, die mehr als eine Abbildung brauchen oder anders gegen halb geschriebene Bilder
+        /// schützen (LMU: Telemetrie und Wertung mit rF2-Versionsblock). null = eine Abbildung über <see cref="SharedMemoryName"/>.
+        /// </summary>
+        internal virtual ProbeSource CreateSource() { return null; }
+        /// <summary>Wird vor jeder Auswertung eines Rohbilds aufgerufen (z. B. um das eigene Auto an eine feste Stelle zu kopieren).</summary>
+        protected virtual void Prepare(byte[] buffer) { }
 
         protected readonly double ticksPerMs;
         private ProbeChannel[] singles = new ProbeChannel[0], opponents = new ProbeChannel[0], ownEntry = new ProbeChannel[0];
@@ -90,6 +97,7 @@ namespace CrewChiefV4.AiTeam.Probe
         internal void Observe(byte[] buffer, long now, long costTicks)
         {
             if (!ReadyFor(buffer)) return;
+            Prepare(buffer);
             Polls++;
             CostTicksSum += costTicks;
             if (costTicks > CostTicksMax) CostTicksMax = costTicks;
@@ -217,5 +225,22 @@ namespace CrewChiefV4.AiTeam.Probe
         internal double MsSinceLastFrame(long now) { return !hasFrame ? double.PositiveInfinity : (now - lastFrameTicks) / ticksPerMs; }
 
         internal double TicksPerMs { get { return ticksPerMs; } }
+    }
+
+    /// <summary>Lesezugriff auf eine Abbildung des Spiels. Eigene Schnittstelle, damit die Kopierlogik ohne Spiel prüfbar ist.</summary>
+    internal interface IProbeMap
+    {
+        uint U32(int at);
+        int I32(int at);
+        void Bytes(int at, byte[] target, int targetOffset, int count);
+    }
+
+    /// <summary>Quelle mit eigener Öffnungs- und Kopierlogik (siehe <see cref="ProbeAnalyzer.CreateSource"/>). Nur lesend.</summary>
+    internal abstract class ProbeSource : IDisposable
+    {
+        internal abstract bool Open();
+        /// <summary>Kopiert ein vollständiges Rohbild. Rückgabe false und <paramref name="torn"/> 0 = Verbindung verloren.</summary>
+        internal abstract bool Copy(byte[] buffer, out int torn);
+        public abstract void Dispose();
     }
 }

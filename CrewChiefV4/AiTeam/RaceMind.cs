@@ -25,6 +25,11 @@ namespace CrewChiefV4.AiTeam
         public int FrontLapsToCatch = -1, RearLapsToCatch = -1, LapsLeft = -1;
         public string FrontName, RearName;
         public bool FuelShort, IncidentsTight, FrontInPits;
+        /// <summary>C7: Rennstimmung des Fahrers aus den letzten drei Runden.</summary>
+        public DriverMoodState Mood;
+        public string MoodReason;
+        /// <summary>Funklast: Anspannung 0–1 (geglättet) aus Abständen, Zweikampf, Verkehr, Gelb, Phase und Stimmung.</summary>
+        public double Tension;
         public string[] Threats = new string[0], Opportunities = new string[0];
 
         internal bool Fresh(DateTime now) => now >= Utc && now - Utc <= TimeSpan.FromSeconds(1.5);
@@ -39,7 +44,11 @@ namespace CrewChiefV4.AiTeam
                 ["gefahren"] = new JArray(Threats),
                 ["chancen"] = new JArray(Opportunities),
                 ["runden_uebrig"] = LapsLeft > 0 ? (JToken)LapsLeft : null,
+                ["fahrerstimmung"] = DriverMood.Name(Mood),
+                ["ton"] = DriverMood.Tone(Mood),
+                ["funklast"] = RadioLoad.Level(Tension),
             };
+            if (Tension >= .75) o["funk_hinweis"] = "Hohe Anspannung: nur das Nötigste, ein kurzer Satz.";
             if (FrontRate != 0) o["vorne_abstand_aenderung_s_pro_runde"] = Math.Round(-FrontRate, 2);
             if (FrontLapsToCatch > 0) o["vorne_dran_in_runden"] = FrontLapsToCatch;
             if (RearRate != 0) o["hinten_abstand_aenderung_s_pro_runde"] = Math.Round(-RearRate, 2);
@@ -49,7 +58,7 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
-        internal string Summary() => PhaseName(Phase) + "/" + AttentionName(Attention) + "/" + FocusName(Focus) +
+        internal string Summary() => PhaseName(Phase) + "/" + AttentionName(Attention) + "/" + FocusName(Focus) + "/" + DriverMood.Name(Mood) +
             (Threats.Length > 0 ? " gefahren=" + string.Join(",", Threats) : "") + (Opportunities.Length > 0 ? " chancen=" + string.Join(",", Opportunities) : "");
 
         internal static string PhaseName(RacePhase p)
@@ -127,11 +136,18 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private DateTime battleUntil, trafficUntil;
         private bool fuelShort;
-        private string lastSummary;
+        private string lastSummary, moodReason;
+        private DriverMoodState mood;
+        private DateTime lastFrustratedCoaching = DateTime.MinValue;
+        /// <summary>Funklast: Anspannung und Sprechzeit entscheiden, wie viel gerade gefunkt wird.</summary>
+        internal readonly RadioLoad Load = new RadioLoad();
+
+        /// <summary>Vom Dienst bei jedem Sprechbeginn: zählt die Sprechzeit für die Funklast.</summary>
+        internal void NoteSpoken(string topic, string text, DateTime now) => Load.NoteSpoken(topic, text, now);
 
         internal void Reset()
         {
-            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null;
+            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null; mood = DriverMoodState.Neutral; moodReason = null; lastFrustratedCoaching = DateTime.MinValue; Load.Reset();
             Front.Id = Rear.Id = null; Front.Clear(); Rear.Clear();
             Volatile.Write(ref latest, null);
         }
@@ -207,8 +223,11 @@ namespace CrewChiefV4.AiTeam
                 bool ownPitLap = gs.PitData.InPitlane || gs.PitData.OnOutLap || gs.PitData.OnInLap;
                 Sample(Front, RaceDataTools.Neighbour(gs, true), front, ownPitLap);
                 Sample(Rear, RaceDataTools.Neighbour(gs, false), rear, ownPitLap);
-                var fuel = FuelEstimate.From(context(), 2);
+                var ctx = context();
+                var fuel = FuelEstimate.From(ctx, 2);
                 fuelShort = fuel != null && !fuel.ProvisionalConsumption && fuel.AdditionalWithoutReserve > 0;
+                bool tight = IncidentPointsWatch.Known(s) && IncidentPointsWatch.Level(s.CurrentIncidentCount, s.MaxIncidentCount) >= 3;
+                mood = DriverMood.Assess(ctx?.Memory?.GetLaps(), tight, out moodReason);
             }
 
             var x = new RaceSituation { Utc = now, SessionId = s.SessionId, Phase = phase, GapAhead = ahead, GapBehind = behind, LapsLeft = LapWatch.LapsLeft(s) };
@@ -243,6 +262,8 @@ namespace CrewChiefV4.AiTeam
             if (x.FrontInPits) chances.Add("vordermann_in_der_box");
             x.Threats = threats.ToArray(); x.Opportunities = chances.ToArray();
             x.Focus = FocusOf(x);
+            x.Mood = mood; x.MoodReason = moodReason;
+            x.Tension = Load.Update(RadioLoad.RawTension(ahead, behind, overlap, x.Attention, phase, mood), now);
             Volatile.Write(ref latest, x);
 
             string summary = x.Summary();
@@ -302,6 +323,17 @@ namespace CrewChiefV4.AiTeam
             string t = call.Topic ?? "";
             bool lastLaps = x.Phase == RacePhase.LastLap || x.Phase == RacePhase.Finished;
             bool driverBusy = x.Attention == RaceAttention.Battle || x.Attention == RaceAttention.Caution;
+
+            // C7 (Rob 18.11.): Kritik bleibt drin, nur das Timing folgt der Stimmung. Unter Druck wartet sie, bis Luft ist;
+            // frustriert kommt höchstens ein Punkt auf einmal (Taktung im Rennkopf) und aufbauend formuliert.
+            if (DriverMood.IsCoaching(t) && x.Mood == DriverMoodState.Pressure) { reason = "driver_under_pressure"; return MindVerdict.Hold; }
+            // Nachfragen nach Platzverlust oder Dreher kommen auch, wenn noch Autos in der Nähe sind – nur nicht unter Gelb oder in der Box.
+            if (t == "judge-dropped" || t == "judge-spin")
+            {
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit) { reason = "caution_or_pit_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
 
             if (Background(call))
             {
@@ -369,6 +401,14 @@ namespace CrewChiefV4.AiTeam
             if ((t == "status" || t == "summary") && now - lastPositionNews < TimeSpan.FromSeconds(20))
             { reason = "position_just_reported"; return MindVerdict.Drop; }
             if (t == "position" || t == "position-loss") lastPositionNews = now;
+            // Funklast: je angespannter und je mehr schon gefunkt wurde, desto wichtiger muss eine Ansage sein.
+            if (!Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }
+            // Frustriert: höchstens ein Fahrtechnik-Hinweis je zwei Minuten, die übrigen entfallen.
+            if (DriverMood.IsCoaching(t) && latest != null && latest.SessionId == call.SessionId && latest.Fresh(now) && latest.Mood == DriverMoodState.Frustration)
+            {
+                if (now - lastFrustratedCoaching < TimeSpan.FromMinutes(2)) { reason = "driver_frustrated_one_point_at_a_time"; return MindVerdict.Drop; }
+                lastFrustratedCoaching = now;
+            }
             return verdict;
         }
     }

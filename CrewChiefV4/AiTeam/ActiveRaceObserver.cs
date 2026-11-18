@@ -66,6 +66,12 @@ namespace CrewChiefV4.AiTeam
             ReferenceTemplate = RadioPhraseCatalog.Current.ReferenceFor(group, index);
         }
         internal string ReferenceTemplate;
+        /// <summary>RRCA 2.0 (6.3): Platz, den diese Ansage als aktuellen eigenen Klassenplatz nennt (0 = keiner).
+        /// Damit erkennt das Crew-Gedächtnis, wenn derselbe Stand schon gemeldet wurde.</summary>
+        internal int StatedPosition;
+        /// <summary>RRCA 2.0 (6.3): semantische Ereignis-ID (z. B. „klassenbestzeit|80.108“). Gleiche ID = gleicher Vorfall,
+        /// auch wenn ein anderer Wächter ihn anders formuliert.</summary>
+        internal string SemanticKey;
         internal PitGainEvidence PitGain;
         internal bool FieldNamesAllowed;
         internal bool IsReserved => Volatile.Read(ref deliveryState) == 1;
@@ -453,7 +459,7 @@ namespace CrewChiefV4.AiTeam
                 gs.carClass != null && entering.CarClass != null && CarData.IsCarClassEqual(gs.carClass, entering.CarClass, false))
                 recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
             if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
-            if (startPosition == 0 && s.SessionStartClassPosition > 0) startPosition = s.SessionStartClassPosition;
+            if (startPosition == 0) startPosition = RaceStartLatch.Position(s);
             // Kurzes Startfazit nach der ersten halben Runde (Robs Wunsch), einmal pro Rennen, in wechselnden Formulierungen
             float trackLength = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float lapDistance = gs.PositionAndMotionData.DistanceRoundTrack;
@@ -789,7 +795,9 @@ namespace CrewChiefV4.AiTeam
         {
             if (pending.Count >= 8) pending.RemoveAt(0);
             pending.Add(new ObservedRaceCall { Topic = topic, Text = text, Evidence = evidence, Position = gs.SessionData.ClassPosition,
-                SessionId = gs.SessionData.SessionId, DetectedUtc = now, ExpiresUtc = now.AddSeconds(seconds), Priority = priority });
+                SessionId = gs.SessionData.SessionId, DetectedUtc = now, ExpiresUtc = now.AddSeconds(seconds), Priority = priority,
+                // Diese Ansagen nennen den aktuellen Klassenplatz („jetzt Platz 5“, „von 7 auf 9“, „guter Start … Platz 14“).
+                StatedPosition = topic == "position" || topic == "position-loss" || topic == "start-verdict" ? gs.SessionData.ClassPosition : 0 });
             LiveDiagnostics.Decision(topic, "detected", evidence, text, pending.Last().EventId);
         }
 
@@ -935,12 +943,32 @@ namespace CrewChiefV4.AiTeam
         {
             int pos = s.ClassPosition;
             int cars = RaceRadioLanguage.SeparateClass(s) ? s.NumCarsInPlayerClass : Math.Max(s.NumCarsOverall, s.NumCarsInPlayerClass);
-            if (pos == 1) return RadioLanguage.T("Du führst. ", "You're leading. ", "Vas líder. ");
-            if (pos <= 3) return RadioLanguage.T("Das ist ein Podiumsplatz. ", "That's a podium place. ", "Es puesto de podio. ");
+            if (pos == 1) return RadioVariants.Pick("assess-lead",
+                RadioLanguage.T("Du führst. ", "You're leading. ", "Vas líder. "),
+                RadioLanguage.T("Du führst, vorne ist frei. ", "You're leading, clear road ahead. ", "Vas líder, pista libre delante. "),
+                RadioLanguage.T("Du führst das Feld an. ", "You're leading the field. ", "Encabezas el grupo. "),
+                RadioLanguage.T("Du führst, alles in deiner Hand. ", "You're leading, it's all in your hands. ", "Vas líder, todo en tus manos. "));
+            if (pos <= 3) return RadioVariants.Pick("assess-podium",
+                RadioLanguage.T("Das ist ein Podiumsplatz. ", "That's a podium place. ", "Es puesto de podio. "),
+                RadioLanguage.T("Damit stehst du auf dem Podium. ", "That puts you on the podium. ", "Con eso estás en el podio. "),
+                RadioLanguage.T("Podiumsplatz, festhalten. ", "Podium place, hold on to it. ", "Puesto de podio, a mantenerlo. "),
+                RadioLanguage.T("Wir sind auf Podiumskurs. ", "We're on course for the podium. ", "Vamos camino del podio. "));
             if (cars < 6) return "";
-            if (pos <= Math.Max(4, cars / 3)) return RadioLanguage.T("Damit bist du im vorderen Feld. ", "That's the front part of the field. ", "Estás en la parte delantera. ");
-            if (pos <= cars * 2 / 3) return RadioLanguage.T("Das ist Mittelfeld, da geht noch was. ", "That's midfield, there's more to come. ", "Es zona media, aún hay margen. ");
-            return RadioLanguage.T("Wir sind im hinteren Feld, Platz für Platz nach vorn. ", "We're towards the back, one place at a time. ", "Vamos atrás, posición a posición hacia delante. ");
+            if (pos <= Math.Max(4, cars / 3)) return RadioVariants.Pick("assess-front",
+                RadioLanguage.T("Damit bist du im vorderen Feld. ", "That's the front part of the field. ", "Estás en la parte delantera. "),
+                RadioLanguage.T("Das ist vorderes Feld, gute Lage. ", "That's up near the front, good spot. ", "Es la parte delantera, buena posición. "),
+                RadioLanguage.T("Wir sind im vorderen Feld unterwegs. ", "We're running near the front. ", "Rodamos en la zona delantera. "),
+                RadioLanguage.T("Vorderes Feld, da wollen wir bleiben. ", "Front part of the field, let's stay there. ", "Zona delantera, ahí queremos quedarnos. "));
+            if (pos <= cars * 2 / 3) return RadioVariants.Pick("assess-mid",
+                RadioLanguage.T("Das ist Mittelfeld, da geht noch was. ", "That's midfield, there's more to come. ", "Es zona media, aún hay margen. "),
+                RadioLanguage.T("Mittelfeld, nach vorn ist Luft. ", "Midfield, there's room to move up. ", "Zona media, hay margen para subir. "),
+                RadioLanguage.T("Wir stecken im Mittelfeld, Geduld bringt Plätze. ", "We're in the midfield, patience brings places. ", "Estamos en zona media, la paciencia da puestos. "),
+                RadioLanguage.T("Mittelfeld, hier wird viel gekämpft, bleib sauber. ", "Midfield, lots of fighting here, stay clean. ", "Zona media, aquí se pelea mucho, limpio. "));
+            return RadioVariants.Pick("assess-back",
+                RadioLanguage.T("Wir sind im hinteren Feld, Platz für Platz nach vorn. ", "We're towards the back, one place at a time. ", "Vamos atrás, posición a posición hacia delante. "),
+                RadioLanguage.T("Hinteres Feld, wir arbeiten uns nach vorn. ", "Towards the back, we'll work our way up. ", "Zona trasera, vamos escalando. "),
+                RadioLanguage.T("Noch hinten, aber das Rennen ist nicht vorbei. ", "Still at the back, but the race isn't over. ", "Aún atrás, pero la carrera no ha terminado. "),
+                RadioLanguage.T("Hinteres Feld, jeder saubere Überholer zählt. ", "Towards the back, every clean pass counts. ", "Zona trasera, cada adelantamiento limpio cuenta. "));
         }
 
         public static string Summary(GameStateData gs, IReadOnlyList<LapRecord> laps, int start, string name)
@@ -966,8 +994,16 @@ namespace CrewChiefV4.AiTeam
                 float spread = recent.Max(l => l.LapTime) - recent.Min(l => l.LapTime);
                 if (spread <= Math.Max(0.6f, recent.Average(l => l.LapTime) * 0.01f))
                     text += RadioLanguage.T("Die letzten drei sauberen Runden liegen innerhalb von ", "Last three clean laps within ", "Las últimas tres vueltas limpias están dentro de ") +
-                        RadioLanguage.Num(spread, "0.0") + RadioLanguage.T(" Sekunden. Weiter so.", " seconds. Keep it up.", " segundos. Sigue así.");
-                else text += RadioLanguage.T("Die letzten Rundenzeiten schwanken noch.", "Lap times are still inconsistent.", "Los tiempos por vuelta todavía varían.");
+                        RadioLanguage.Num(spread, "0.0") + RadioVariants.Pick("summary-consistent",
+                        RadioLanguage.T(" Sekunden. Weiter so.", " seconds. Keep it up.", " segundos. Sigue así."),
+                        RadioLanguage.T(" Sekunden. Sehr konstant.", " seconds. Very consistent.", " segundos. Muy constante."),
+                        RadioLanguage.T(" Sekunden. Genau so weiter.", " seconds. Exactly like that.", " segundos. Justo así."),
+                        RadioLanguage.T(" Sekunden. Schöner Rhythmus.", " seconds. Nice rhythm.", " segundos. Buen ritmo."));
+                else text += RadioVariants.Pick("summary-inconsistent",
+                    RadioLanguage.T("Die letzten Rundenzeiten schwanken noch.", "Lap times are still inconsistent.", "Los tiempos por vuelta todavía varían."),
+                    RadioLanguage.T("Die Rundenzeiten sind noch unruhig.", "The lap times are still up and down.", "Los tiempos aún suben y bajan."),
+                    RadioLanguage.T("Bei den Zeiten fehlt noch die Konstanz.", "Consistency is still missing in the times.", "Todavía falta constancia en los tiempos."),
+                    RadioLanguage.T("Die Zeiten springen noch, Rhythmus suchen.", "The times are still jumping, find a rhythm.", "Los tiempos aún saltan, busca el ritmo."));
             }
             // No claim about a plan, tyre advantage, race finish or corner attack without supporting measurements.
             return text.Trim();

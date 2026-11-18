@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
@@ -36,65 +37,101 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] FirstTrackLimitPhrasesDe = {
             "Pass auf die Streckenbegrenzung auf.",
             "Die Rennkommissare melden Tracklimits. Lass etwas Platz zum Rand.",
-            "Achte auf die Limits. Bleib innerhalb der Begrenzung."
+            "Achte auf die Limits. Bleib innerhalb der Begrenzung.",
+            "Track Limits im Blick behalten, die Kommissare schauen hin.",
+            "Da warst du drüber. Die Linie gehört zur Strecke, nicht weiter.",
+            "Tracklimit notiert. Einen halben Meter Reserve zum Rand, dann passt das."
         };
         private static readonly string[] FirstTrackLimitPhrasesEn = {
             "Watch the track limits.",
             "The sim is flagging track limits. Leave some margin to the edge.",
-            "Mind the limits. Stay inside the lines."
+            "Mind the limits. Stay inside the lines.",
+            "Mind the track limits, the stewards are watching.",
+            "That was over the line. The white line is the limit, no further.",
+            "Track limit noted. Half a metre of margin to the edge and you're fine."
         };
         private static readonly string[] FirstTrackLimitPhrasesEs = {
             "Cuidado con los límites de pista.",
             "El simulador marca límites de pista. Deja algo de margen al borde.",
-            "Atento a los límites. Mantente dentro de la pista."
+            "Atento a los límites. Mantente dentro de la pista.",
+            "Ojo con los límites de pista, los comisarios están mirando.",
+            "Te has pasado. La línea blanca es el límite, no más allá.",
+            "Límite de pista anotado. Medio metro de margen al borde y todo bien."
         };
         public static string[] FirstTrackLimitPhrases => RadioLanguage.Pick(FirstTrackLimitPhrasesDe, FirstTrackLimitPhrasesEn, FirstTrackLimitPhrasesEs);
         private static readonly string[] RepeatedTrackLimitPhrasesDe = {
             "Wieder außerhalb der Limits. Lass etwas mehr Platz zum Rand.",
             "Wieder Tracklimits von den Rennkommissaren. Lass etwas mehr Reserve.",
-            "Schon wieder über den Limits. Bleib sauber auf der Strecke."
+            "Schon wieder über den Limits. Bleib sauber auf der Strecke.",
+            "Noch einmal über den Limits. Das zählt mit – bitte etwas Reserve.",
+            "Die Limits sammeln sich. Lieber ein Zehntel liegen lassen als eine Strafe.",
+            "Wieder gemeldet. Rand meiden, die Strafe droht."
         };
         private static readonly string[] RepeatedTrackLimitPhrasesEn = {
             "Off the limits again. Leave a bit more margin to the edge.",
             "Another track limits warning. Give yourself more margin at the edge.",
-            "Over the limits again. Keep it clean on track."
+            "Over the limits again. Keep it clean on track.",
+            "Over the limits again. It all counts – leave some margin, please.",
+            "The limits are adding up. Better to leave a tenth than take a penalty.",
+            "Flagged again. Stay off the edge, a penalty is close."
         };
         private static readonly string[] RepeatedTrackLimitPhrasesEs = {
             "Otra vez fuera de los límites. Deja algo más de margen al borde.",
             "Otro aviso de límites de pista. Guarda algo más de margen en el borde.",
-            "Otra vez por fuera de los límites. Mantente limpio en pista."
+            "Otra vez por fuera de los límites. Mantente limpio en pista.",
+            "Otra vez fuera de límites. Todo cuenta, deja algo de margen.",
+            "Los límites se acumulan. Mejor perder una décima que una sanción.",
+            "Otra vez marcado. Evita el borde, la sanción está cerca."
         };
         public static string[] RepeatedTrackLimitPhrases => RadioLanguage.Pick(RepeatedTrackLimitPhrasesDe, RepeatedTrackLimitPhrasesEn, RepeatedTrackLimitPhrasesEs);
         private static readonly string[] FirstInvalidLapPhrasesDe = {
             "Diese Runde ist ungültig. Konzentrier dich auf die nächste Runde.",
             "Die Rundenzeit ist ungültig. Konzentrier dich auf die nächste gültige Zeit.",
-            "Runde ungültig. Ruhig bleiben und wieder eine gültige Zeit setzen."
+            "Runde ungültig. Ruhig bleiben und wieder eine gültige Zeit setzen.",
+            "Die Zeit ist ungültig, die zählt nicht. Abhaken, nächste Runde.",
+            "Runde ungültig, gestrichen. Neu aufbauen, du hast das Tempo.",
+            "Leider ungültig. Kopf frei und weiter."
         };
         private static readonly string[] FirstInvalidLapPhrasesEn = {
             "This lap is invalid. Focus on the next one.",
             "The lap time is invalid. Focus on the next valid time.",
-            "Lap invalid. Stay calm and set a valid time again."
+            "Lap invalid. Stay calm and set a valid time again.",
+            "That time is invalid, it won't count. Forget it, next lap.",
+            "Lap invalid, deleted. Build it again, you've got the pace.",
+            "Invalid, unfortunately. Clear your head and go again."
         };
         private static readonly string[] FirstInvalidLapPhrasesEs = {
             "Esta vuelta no es válida. Concéntrate en la siguiente.",
             "El tiempo de vuelta no es válido. Concéntrate en el próximo tiempo válido.",
-            "Vuelta invalidada. Tranquilo y vuelve a marcar un tiempo válido."
+            "Vuelta invalidada. Tranquilo y vuelve a marcar un tiempo válido.",
+            "Ese tiempo no es válido, no cuenta. Olvídalo, la próxima.",
+            "Vuelta inválida, anulada. Vuelve a construirla, tienes el ritmo.",
+            "Inválida, por desgracia. Cabeza despejada y otra vez."
         };
         public static string[] FirstInvalidLapPhrases => RadioLanguage.Pick(FirstInvalidLapPhrasesDe, FirstInvalidLapPhrasesEn, FirstInvalidLapPhrasesEs);
         private static readonly string[] RepeatedInvalidLapPhrasesDe = {
             "Noch eine ungültige Runde. Wir brauchen wieder eine gültige Zeit.",
             "Wieder keine gültige Rundenzeit. Bleib konzentriert.",
-            "Die Runde ist erneut ungültig. Konzentrier dich auf die nächste."
+            "Die Runde ist erneut ungültig. Konzentrier dich auf die nächste.",
+            "Wieder ungültig. Durchatmen, die nächste zählt.",
+            "Auch diese Zeit ist ungültig. Ruhig, die gültige kommt.",
+            "Schon wieder ungültig. Konzentration, eine saubere Runde reicht."
         };
         private static readonly string[] RepeatedInvalidLapPhrasesEn = {
             "Another invalid lap. We need a valid time again.",
             "No valid lap time again. Stay focused.",
-            "The lap is invalid again. Focus on the next one."
+            "The lap is invalid again. Focus on the next one.",
+            "Invalid again. Breathe, the next one counts.",
+            "This time is invalid too. Stay calm, the valid one will come.",
+            "Invalid once more. Focus, one clean lap is enough."
         };
         private static readonly string[] RepeatedInvalidLapPhrasesEs = {
             "Otra vuelta inválida. Necesitamos de nuevo un tiempo válido.",
             "Otra vez sin tiempo válido. Mantén la concentración.",
-            "La vuelta vuelve a ser inválida. Concéntrate en la siguiente."
+            "La vuelta vuelve a ser inválida. Concéntrate en la siguiente.",
+            "Inválida otra vez. Respira, la siguiente cuenta.",
+            "Este tiempo tampoco es válido. Tranquilo, la válida llegará.",
+            "Inválida de nuevo. Concentración, basta una vuelta limpia."
         };
         public static string[] RepeatedInvalidLapPhrases => RadioLanguage.Pick(RepeatedInvalidLapPhrasesDe, RepeatedInvalidLapPhrasesEn, RepeatedInvalidLapPhrasesEs);
         /// <summary>Zusatz, wenn eine Tracklimit-Meldung die Runde ungültig macht.</summary>
@@ -132,72 +169,126 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] RainStartPhrasesDe = {
             "Regen setzt ein. Achte auf die Bedingungen.",
             "Es fängt an zu regnen. Fahr vorausschauend.",
-            "Erste Regentropfen gemeldet. Bleib aufmerksam."
+            "Erste Regentropfen gemeldet. Bleib aufmerksam.",
+            "Regen kommt. Weiße Linien und Randsteine jetzt meiden.",
+            "Tropfen gemeldet. Sanft mit Gas und Bremse.",
+            "Es wird nass. Früher bremsen, Grip abtasten."
         };
         private static readonly string[] RainStartPhrasesEn = {
             "Rain is starting. Watch the conditions.",
             "It's starting to rain. Drive with anticipation.",
-            "First raindrops reported. Stay alert."
+            "First raindrops reported. Stay alert.",
+            "Rain is coming. Stay off white lines and kerbs now.",
+            "Drops reported. Gentle with throttle and brake.",
+            "It's getting wet. Brake earlier, feel for the grip."
         };
         private static readonly string[] RainStartPhrasesEs = {
             "Empieza a llover. Atento a las condiciones.",
             "Está empezando a llover. Conduce con previsión.",
-            "Primeras gotas de lluvia. Mantente atento."
+            "Primeras gotas de lluvia. Mantente atento.",
+            "Llega la lluvia. Evita ya las líneas blancas y los pianos.",
+            "Gotas en pista. Suave con gas y freno.",
+            "Se está mojando. Frena antes, busca el agarre."
         };
         public static string[] RainStartPhrases => RadioLanguage.Pick(RainStartPhrasesDe, RainStartPhrasesEn, RainStartPhrasesEs);
         private static readonly string[] RainStopPhrasesDe = {
             "Der Regen ist abgeklungen. Die Strecke kann weiter nass sein.",
             "Kein nennenswerter Regen mehr gemeldet. Pass weiter auf die Nässe auf.",
-            "Der Regen lässt nach. Mit der Strecke weiter vorsichtig bleiben."
+            "Der Regen lässt nach. Mit der Strecke weiter vorsichtig bleiben.",
+            "Kein Regen mehr. Die Linie trocknet zuerst ab.",
+            "Regen vorbei. Abseits der Linie bleibt es noch rutschig.",
+            "Es hört auf zu regnen. Grip kommt Runde für Runde zurück."
         };
         private static readonly string[] RainStopPhrasesEn = {
             "The rain has eased off. The track may still be wet.",
             "No significant rain reported anymore. Keep watching for wet patches.",
-            "The rain is easing. Stay careful on the track."
+            "The rain is easing. Stay careful on the track.",
+            "No more rain. The racing line will dry first.",
+            "Rain is over. Off-line it stays slippery for a while.",
+            "It's stopping. Grip will come back lap by lap."
         };
         private static readonly string[] RainStopPhrasesEs = {
             "La lluvia ha amainado. La pista puede seguir mojada.",
             "Ya no se reporta lluvia relevante. Sigue atento a la humedad.",
-            "La lluvia remite. Sigue con cuidado en pista."
+            "La lluvia remite. Sigue con cuidado en pista.",
+            "Ya no llueve. La trazada se secará primero.",
+            "Se acabó la lluvia. Fuera de la trazada seguirá resbaladizo.",
+            "Deja de llover. El agarre volverá vuelta a vuelta."
         };
         public static string[] RainStopPhrases => RadioLanguage.Pick(RainStopPhrasesDe, RainStopPhrasesEn, RainStopPhrasesEs);
         private static readonly string[] WetterPhrasesDe = {
             "Mehr Streckennässe gemeldet. Bleib vorsichtig.",
-            "Die gemeldete Streckennässe nimmt zu. Fahr mit Reserve."
+            "Die gemeldete Streckennässe nimmt zu. Fahr mit Reserve.",
+            "Die Strecke wird nasser. Mehr Reserve beim Bremsen.",
+            "Mehr Wasser auf der Strecke. Ruhige Hände, ruhige Füße.",
+            "Nässe nimmt zu. Aquaplaning in den Senken beachten.",
+            "Es wird rutschiger. Lieber ein Zehntel verschenken als den Wagen."
         };
         private static readonly string[] WetterPhrasesEn = {
             "Track reported wetter. Stay careful.",
-            "Reported track wetness is increasing. Drive with margin."
+            "Reported track wetness is increasing. Drive with margin.",
+            "The track is getting wetter. More margin on the brakes.",
+            "More water on track. Calm hands, calm feet.",
+            "Wetness increasing. Watch for aquaplaning in the dips.",
+            "It's getting slippier. Better to give away a tenth than the car."
         };
         private static readonly string[] WetterPhrasesEs = {
             "Se reporta más agua en pista. Ten cuidado.",
-            "La humedad reportada en pista aumenta. Conduce con margen."
+            "La humedad reportada en pista aumenta. Conduce con margen.",
+            "La pista está más mojada. Más margen en la frenada.",
+            "Más agua en pista. Manos y pies tranquilos.",
+            "Aumenta la humedad. Cuidado con el aquaplaning en las zonas bajas.",
+            "Está más resbaladizo. Mejor regalar una décima que el coche."
         };
         public static string[] WetterPhrases => RadioLanguage.Pick(WetterPhrasesDe, WetterPhrasesEn, WetterPhrasesEs);
         private static readonly string[] DrierPhrasesDe = {
             "Weniger Streckennässe gemeldet. Das heißt noch nicht, dass überall Grip da ist.",
-            "Die gemeldete Streckennässe nimmt ab. Geh weiter mit Gefühl ans Gas."
+            "Die gemeldete Streckennässe nimmt ab. Geh weiter mit Gefühl ans Gas.",
+            "Die Strecke trocknet. Auf der Linie kommt der Grip zuerst.",
+            "Weniger Wasser gemeldet. Taste dich ans Limit ran.",
+            "Es wird trockener. Bremspunkte schrittweise später.",
+            "Nässe geht zurück. Neben der Linie aber noch vorsichtig."
         };
         private static readonly string[] DrierPhrasesEn = {
             "Track reported drier. That doesn't mean there's grip everywhere yet.",
-            "Reported track wetness is dropping. Stay gentle on the throttle."
+            "Reported track wetness is dropping. Stay gentle on the throttle.",
+            "The track is drying. Grip comes back on the line first.",
+            "Less water reported. Feel your way up to the limit.",
+            "It's getting drier. Move the braking points later step by step.",
+            "Wetness is dropping. Still careful off the line though."
         };
         private static readonly string[] DrierPhrasesEs = {
             "Se reporta menos agua en pista. Eso no significa que haya agarre en todas partes.",
-            "La humedad reportada en pista baja. Sigue suave con el gas."
+            "La humedad reportada en pista baja. Sigue suave con el gas.",
+            "La pista se seca. El agarre vuelve primero en la trazada.",
+            "Menos agua en pista. Acércate al límite poco a poco.",
+            "Está más seco. Retrasa la frenada poco a poco.",
+            "Baja la humedad. Pero fuera de la trazada aún con cuidado."
         };
         public static string[] DrierPhrases => RadioLanguage.Pick(DrierPhrasesDe, DrierPhrasesEn, DrierPhrasesEs);
         private static readonly string[] PitSpeedPhrasesDe = {
             "Boxenlimit, du bist zu schnell. Tempo runter.",
-            "Achte aufs Boxenlimit. Reduziere dein Tempo."
+            "Achte aufs Boxenlimit. Reduziere dein Tempo.",
+            "Zu schnell in der Boxengasse! Runter vom Gas.",
+            "Speed in der Box zu hoch – Limiter rein.",
+            "Tempo raus, Boxenlimit! Sonst gibt's eine Strafe.",
+            "Vorsicht, über dem Limit in der Box. Bremsen."
         };
         private static readonly string[] PitSpeedPhrasesEn = {
             "Pit limit, you're too fast. Slow down.",
-            "Watch the pit speed limit. Bring your speed down."
+            "Watch the pit speed limit. Bring your speed down.",
+            "Too fast in the pit lane! Off the throttle.",
+            "Pit lane speed too high – limiter on.",
+            "Slow down, pit limit! Otherwise it's a penalty.",
+            "Careful, over the limit in the pits. Brake."
         };
         private static readonly string[] PitSpeedPhrasesEs = {
             "Límite de boxes, vas demasiado rápido. Baja la velocidad.",
-            "Atento al límite de boxes. Reduce la velocidad."
+            "Atento al límite de boxes. Reduce la velocidad.",
+            "¡Demasiado rápido en el pit lane! Levanta.",
+            "Velocidad en boxes demasiado alta, activa el limitador.",
+            "¡Baja el ritmo, límite de boxes! Si no, hay sanción.",
+            "Cuidado, por encima del límite en boxes. Frena."
         };
         public static string[] PitSpeedPhrases => RadioLanguage.Pick(PitSpeedPhrasesDe, PitSpeedPhrasesEn, PitSpeedPhrasesEs);
         public static string[] WeatherPhrases => PitSpeedPhrases.Concat(RainStartPhrases).Concat(RainStopPhrases).Concat(WetterPhrases).Concat(DrierPhrases).ToArray();
@@ -339,6 +430,21 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Rob 17.11.2026: Nur Sara als Spotterin darf eine laufende Crew-Ansage unterbrechen; Ben und Mik warten.</summary>
         internal static bool MayInterruptCrew(TeamMember speaker) => speaker == TeamMember.Sara;
 
+        /// <summary>Gefahr auf der Strecke: Unfall, stehendes oder langsames Auto vor dir.</summary>
+        internal static bool IsHazardTopic(string topic) =>
+            topic == "race-hazard-ahead" || topic == "traffic-catching" ||
+            (topic ?? "").StartsWith("warning-native-incident-", StringComparison.Ordinal);
+
+        /// <summary>Rob 18.11.2026: Gefahrenwarnungen spricht Sara, damit sie eine laufende Ansage unterbrechen darf.
+        /// Spottet Sara gerade nicht (aus, oder Realistisch auf einer Rundstrecke), bleibt die Warnung bei Ben – ohne Unterbrechung.</summary>
+        internal static TeamMember HazardSpeaker(string topic, TeamMember planned, bool saraSpotting) =>
+            planned == TeamMember.Ben && saraSpotting && IsHazardTopic(topic) ? TeamMember.Sara : planned;
+
+        /// <summary>Alle vorbereiteten Gefahrensätze, die Sara statt Ben sprechen kann.</summary>
+        internal static IEnumerable<string> HazardPhrases =>
+            RaceTrafficWatch.PreparedPhrases.Concat(NativeIncidentWatch.Phrases)
+                .Concat(TrackSituationWatch.CatchingPhrases).Concat(TrackSituationWatch.StoppedPhrases);
+
         public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
         { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
 
@@ -371,9 +477,9 @@ namespace CrewChiefV4.AiTeam
 
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
-            return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
+            return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60 || HazardPhrases.Contains(text)) ||
                 member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == RaceRadioLanguage.DisqualificationCall || text == SessionLapObserver.TimedLapStartPhrase || text == SessionLapObserver.TimedLapApproachPhrase) ||
-                member == TeamMember.Ben && (text == TrackSituationWatch.ClosingAheadPhrase || text == IncidentWatch.DamagePitAdvicePhrase ||
+                member == TeamMember.Ben && (TrackSituationWatch.ClosingAheadPhrases.Contains(text) || text == IncidentWatch.DamagePitAdvicePhrase ||
                     TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) ||
                     TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) ||
                     RaceTrafficWatch.PreparedPhrases.Contains(text) || NativeIncidentWatch.Phrases.Contains(text));

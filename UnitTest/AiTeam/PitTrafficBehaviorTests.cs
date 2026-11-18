@@ -187,7 +187,7 @@ namespace UnitTest.AiTeamTests
         [TestCase(40)] [TestCase(60)] [TestCase(80)] [TestCase(97)] [TestCase(120)]
         public void Numeric_reminders_are_varied_and_cacheable_in_the_selected_voice(int kmh)
         {
-            var phrases=PitLaneWatch.Phrases(kmh/3.6f).ToArray();Assert.AreEqual(3,phrases.Distinct().Count());
+            var phrases=PitLaneWatch.Phrases(kmh/3.6f).ToArray();Assert.GreaterOrEqual(phrases.Distinct().Count(),RadioVariants.Minimum,"Rob 17.11.: mindestens vier Formulierungen");
             foreach(string p in phrases){StringAssert.Contains(kmh.ToString(),p);Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,p));}
             foreach(string p in PitLaneWatch.SpeedPhrases(kmh/3.6f)){StringAssert.Contains(kmh.ToString(),p);Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,p));}
             Assert.IsFalse(CrewSpeechPolicy.IsPreparedPhrase(TeamMember.Mik,"Invented: 80 Kilometer pro Stunde."));
@@ -215,6 +215,15 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(known,(bool)data["boxenlimit_verfuegbar"]);
             if(known){Assert.AreEqual(80,(int)data["boxenlimit_kmh"]);Assert.IsNotNull(data["boxenlimit_ms"]);}
             else{Assert.IsNull(data["boxenlimit_kmh"]);Assert.IsNull(data["boxenlimit_ms"]);}
+        }
+
+        [Test]
+        public void Limit_reminder_waits_90_seconds_after_a_spoken_one_except_for_new_information()
+        {
+            Assert.IsFalse(PitLaneWatch.ReminderThrottled(T,DateTime.MinValue,false),"noch nichts gesagt");
+            Assert.IsTrue(PitLaneWatch.ReminderThrottled(T.AddSeconds(45),T,false),"Bathurst 17.11.: keine Wiederholung nach 45 s");
+            Assert.IsFalse(PitLaneWatch.ReminderThrottled(T.AddSeconds(91),T,false));
+            Assert.IsFalse(PitLaneWatch.ReminderThrottled(T.AddSeconds(30),T,true),"neues Limit, Losfahren und Boxenanforderung bleiben");
         }
     }
 }

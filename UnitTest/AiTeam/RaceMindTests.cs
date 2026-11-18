@@ -153,6 +153,22 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Summary_text_is_built_again_when_it_is_finally_spoken()
+        {
+            RaceStartLatch.Reset();
+            var gs = Race(12); gs.SessionData.SessionStartClassPosition = 19;
+            var ctx = new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T, Memory = new AiRaceMemory(), DriverName = "Rob" };
+            var watch = new RaceSummaryWatch(7);
+            StringAssert.Contains("Platz 12", watch.Refresh(ctx));
+            gs.SessionData.ClassPosition = gs.SessionData.OverallPosition = 10; // während die Ansage wartete, zwei Plätze gewonnen
+            string later = watch.Refresh(ctx);
+            StringAssert.Contains("Platz 10", later);
+            StringAssert.Contains("9 Plätze gutgemacht", later);
+            gs.PitData.InPitlane = true;
+            Assert.IsNull(watch.Refresh(ctx), "nicht mehr ruhig: Zwischenstand entfällt");
+        }
+
+        [Test]
         public void Start_position_question_is_answered_locally()
         {
             var gs = Race(5); gs.SessionData.SessionStartClassPosition = 9;

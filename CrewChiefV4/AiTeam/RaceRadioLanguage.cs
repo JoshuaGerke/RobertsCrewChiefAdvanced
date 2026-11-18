@@ -133,15 +133,18 @@ namespace CrewChiefV4.AiTeam
             string ranks = RaceRanks(s);
             if (ranks == null) return RadioLanguage.T("Im Ziel. Die endgültige Platzierung ist noch nicht gemeldet.", "Chequered flag. Final position isn't confirmed yet.", "En meta. La posición final aún no está confirmada.");
             string text = RadioLanguage.T("Im Ziel! ", "Chequered flag! ", "¡En meta! ") + ranks + ".";
-            if (s.ClassPosition == 1) return (text + RadioLanguage.T(" Klassensieg. Stark gefahren!", " Class win. Strong drive!", " Victoria de clase. ¡Gran carrera!") + " " + Debrief(s)).TrimEnd();
+            if (s.ClassPosition == 1) return (text + RadioVariants.Pick("finish-class-win", RadioLanguage.T(" Klassensieg. Stark gefahren!", " Class win. Strong drive!", " Victoria de clase. ¡Gran carrera!"), RadioLanguage.T(" Klassensieg! Das war richtig gut.", " Class win! That was really good.", " ¡Victoria de clase! Eso ha estado muy bien."), RadioLanguage.T(" Sieg in der Klasse, großartig gefahren!", " Winning the class, brilliant drive!", " Ganamos la clase, ¡carrerón!"), RadioLanguage.T(" Klassensieg, Glückwunsch vom ganzen Team!", " Class win, congratulations from the whole team!", " Victoria de clase, ¡enhorabuena de todo el equipo!")) + " " + Debrief(s)).TrimEnd();
             if (s.ClassPosition > 0 && s.SessionStartClassPosition > s.ClassPosition)
             {
                 int gain = s.SessionStartClassPosition - s.ClassPosition;
                 bool separate = SeparateClass(s);
-                text += RadioLanguage.T(
-                    " " + gain + (gain == 1 ? " Platz" : " Plätze") + (separate ? " in deiner Klasse gutgemacht." : " gutgemacht."),
-                    " Gained " + gain + (gain == 1 ? " place" : " places") + (separate ? " in your class." : "."),
-                    " Has ganado " + gain + (gain == 1 ? " puesto" : " puestos") + (separate ? " en tu clase." : "."));
+                string pl = gain + (gain == 1 ? " Platz" : " Plätze"), pe = gain + (gain == 1 ? " place" : " places"), ps = gain + (gain == 1 ? " puesto" : " puestos");
+                string inDe = separate ? " in deiner Klasse" : "", inEn = separate ? " in your class" : "", inEs = separate ? " en tu clase" : "";
+                text += RadioVariants.Pick("finish-gained",
+                    RadioLanguage.T(" " + pl + inDe + " gutgemacht.", " Gained " + pe + inEn + ".", " Has ganado " + ps + inEs + "."),
+                    RadioLanguage.T(" Seit dem Start " + pl + inDe + " nach vorn.", " " + pe + " up" + inEn + " since the start.", " " + ps + " arriba" + inEs + " desde la salida."),
+                    RadioLanguage.T(" " + pl + inDe + " gewonnen, starke Aufholjagd.", " " + pe + " gained" + inEn + ", strong comeback.", " " + ps + " ganados" + inEs + ", gran remontada."),
+                    RadioLanguage.T(" Unterm Strich " + pl + inDe + " besser als am Start.", " Net " + pe + " better than the start" + inEn + ".", " En total " + ps + " mejor que en la salida" + inEs + "."));
             }
             string debrief = Debrief(s);
             if (debrief.Length > 0) text += " " + debrief;
@@ -161,7 +164,7 @@ namespace CrewChiefV4.AiTeam
                 parts.Add(RadioLanguage.T("Schnellste Runde ", "Fastest lap ", "Vuelta rápida ") + LocalAnswers.LapTime(best) + ".");
             if (IncidentPointsWatch.Known(s))
                 parts.Add(s.CurrentIncidentCount == 0
-                    ? RadioLanguage.T("Ohne einen Vorfallpunkt, sauber gefahren.", "Not a single incident point, clean drive.", "Sin un solo punto de incidente, carrera limpia.")
+                    ? RadioVariants.Pick("debrief-clean", RadioLanguage.T("Ohne einen Vorfallpunkt, sauber gefahren.", "Not a single incident point, clean drive.", "Sin un solo punto de incidente, carrera limpia."), RadioLanguage.T("Null Vorfallpunkte, blitzsauber.", "Zero incident points, spotless.", "Cero puntos de incidente, impecable."), RadioLanguage.T("Kein einziger Vorfallpunkt, so muss das.", "Not one incident point, that's how it's done.", "Ni un punto de incidente, así se hace."), RadioLanguage.T("Sauber durchgefahren, keine Vorfallpunkte.", "Clean all the way, no incident points.", "Limpio de principio a fin, sin puntos de incidente."))
                     : RadioLanguage.T("Vorfallpunkte " + s.CurrentIncidentCount + " von " + s.MaxIncidentCount + ".",
                         "Incident points " + s.CurrentIncidentCount + " of " + s.MaxIncidentCount + ".",
                         "Puntos de incidente " + s.CurrentIncidentCount + " de " + s.MaxIncidentCount + "."));

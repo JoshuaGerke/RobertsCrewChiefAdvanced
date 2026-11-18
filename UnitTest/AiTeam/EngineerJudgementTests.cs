@@ -402,5 +402,133 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("lila", SessionLapObserver.FlyingLapText("Rob", true, false, -1, 1));
             StringAssert.Contains("0,4 Sekunden", SessionLapObserver.FlyingLapText(null, true, false, .36, 0));
         }
+
+        // ---------- Rob 18.11.: schneller Platzverlust, Dreher, Vorfallpunkte, wieder im Tritt ----------
+
+        [Test]
+        public void Losing_three_places_quickly_brings_a_refocus_call()
+        {
+            var gs = Race(5);
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.SessionData.ClassPosition = 6; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(4));
+            gs.SessionData.ClassPosition = 8; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(10));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(10), false, true), "erst wenn sich die Reihenfolge beruhigt hat");
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(16));
+            var call = watch.Take(gs, T.AddSeconds(16), false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("judge-dropped", call.Topic);
+            StringAssert.Contains("3 Plätze", call.Text);
+        }
+
+        [Test]
+        public void Own_pit_stop_is_no_position_loss()
+        {
+            var gs = Race(5);
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.PitData.InPitlane = true; gs.SessionData.ClassPosition = 9; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(10));
+            gs.PitData.InPitlane = false; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(30));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(30), false, true));
+        }
+
+        [Test]
+        public void Spin_without_contact_gets_a_word_once_moving_again()
+        {
+            var gs = Race(5); gs.PositionAndMotionData.CarSpeed = 35;
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.PositionAndMotionData.CarSpeed = 1; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(2));
+            watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(5));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(5), false, true), "steht noch");
+            gs.PositionAndMotionData.CarSpeed = 25; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(9));
+            var call = watch.Take(gs, T.AddSeconds(9), false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("judge-spin", call.Topic);
+        }
+
+        [Test]
+        public void Rising_incident_points_get_a_calm_down_call()
+        {
+            var gs = Race(5); gs.SessionData.CurrentIncidentCount = 2;
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, null, false, "Rob", true, T);
+            gs.SessionData.CurrentIncidentCount = 3; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(40));
+            gs.SessionData.CurrentIncidentCount = 4; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(80));
+            gs.SessionData.CurrentIncidentCount = 5; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(120));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(120), false, true), "drei Punkte sind noch kein Muster");
+            gs.SessionData.CurrentIncidentCount = 6; watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(150));
+            var call = watch.Take(gs, T.AddSeconds(150), false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("judge-incidents", call.Topic);
+            StringAssert.Contains("4", call.Text);
+        }
+
+        [Test]
+        public void New_human_calls_vary_in_every_language()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (string name in new[] { "Rob", null })
+                {
+                    var groups = new[]
+                    {
+                        Enumerable.Range(0, 6).Select(v => DriverJudgement.Dropped(name, 3, v)).ToList(),
+                        Enumerable.Range(0, 6).Select(v => DriverJudgement.Spin(name, v)).ToList(),
+                        Enumerable.Range(0, 5).Select(v => DriverJudgement.IncidentsRising(name, 4, v)).ToList(),
+                        Enumerable.Range(0, 5).Select(v => DriverJudgement.Recovered(name, v)).ToList(),
+                        Enumerable.Range(0, 5).Select(v => DriverJudgement.Impact(name, true, v)).ToList(),
+                    };
+                    foreach (var g in groups)
+                    {
+                        Assert.GreaterOrEqual(g.Distinct().Count(), 5, lang + ": " + g[0]);
+                        foreach (var t in g)
+                        {
+                            StringAssert.DoesNotContain("{n}", t);
+                            StringAssert.DoesNotContain("  ", t);
+                            Assert.IsFalse(char.IsLower(t.TrimStart('¿', '¡')[0]), t);
+                        }
+                    }
+                }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
+        public void Taking_the_place_back_from_the_same_rival_is_a_story()
+        {
+            // Synthetisches Szenario 2 (RRCA 2.0): Timo überholt Rob, Rob holt sich den Platz zurück.
+            var gs = Race(4); gs.SessionData.PlayerLapTimeSessionBest = 89f;
+            var timo = Rival(gs, "timo", "Timo", 5, 89.5f);
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T);
+            gs.SessionData.ClassPosition = 5; gs.SessionData.OverallPosition = 5; timo.ClassPosition = 4; timo.OverallPosition = 4;
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(1));
+            gs.SessionData.ClassPosition = 4; gs.SessionData.OverallPosition = 4; timo.ClassPosition = 5; timo.OverallPosition = 5;
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(40));
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(56));
+            var call = watch.Take(gs, T.AddSeconds(56), false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("judge-retake", call.Topic);
+            StringAssert.Contains("Timo", call.Text);
+        }
+
+        [Test]
+        public void Retake_lines_vary_in_every_language()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (string passed in new[] { "Timo", null })
+                    foreach (string name in new[] { "Rob", null })
+                    {
+                        var texts = Enumerable.Range(0, 6).Select(v => DriverJudgement.Retake(name, passed, v)).ToList();
+                        Assert.AreEqual(6, texts.Distinct().Count(), texts[0]);
+                        foreach (var t in texts) { StringAssert.DoesNotContain("{n}", t); StringAssert.DoesNotContain("  ", t); Assert.IsFalse(char.IsLower(t.TrimStart('¡', '¿')[0]), t); }
+                    }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
     }
 }

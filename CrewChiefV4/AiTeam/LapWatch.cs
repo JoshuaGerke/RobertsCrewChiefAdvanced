@@ -35,9 +35,9 @@ namespace CrewChiefV4.AiTeam
         }
         private int lastLapVariant;
         private static string[] LastLapMotivation => RadioLanguage.Pick(
-            new[] { "Sauber ins Ziel.", "Konzentration bis zur Linie.", "Bring ihn sicher heim." },
-            new[] { "Clean to the flag.", "Focus all the way to the line.", "Bring it home safely." },
-            new[] { "Limpio hasta meta.", "Concentración hasta la línea.", "Llévalo a casa con seguridad." });
+            new[] { "Sauber ins Ziel.", "Konzentration bis zur Linie.", "Bring ihn sicher heim.", "Jetzt noch einmal alles, aber sauber.", "Letzte Runde – kühler Kopf, schnelle Hände." },
+            new[] { "Clean to the flag.", "Focus all the way to the line.", "Bring it home safely.", "Everything one more time, but clean.", "Last lap – cool head, quick hands." },
+            new[] { "Limpio hasta meta.", "Concentración hasta la línea.", "Llévalo a casa con seguridad.", "Todo una vez más, pero limpio.", "Última vuelta: cabeza fría, manos rápidas." });
         private readonly RaceRadioLanguage language = new RaceRadioLanguage();
 
         public void Reset(bool sameDisqualification = false)
@@ -217,7 +217,11 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionPhase == SessionPhase.Checkered && ps.SessionPhase == SessionPhase.Green && lastCalledLap != s.CompletedLaps)
             {
                 lastCalledLap = s.CompletedLaps;
-                return RadioLanguage.T("Zielflagge ist draußen, bring die Runde sauber zu Ende.", "Chequered flag is out, bring the lap home clean.", "Bandera a cuadros, termina la vuelta limpio.") +
+                return RadioVariants.Pick("lap-chequered",
+                        RadioLanguage.T("Zielflagge ist draußen, bring die Runde sauber zu Ende.", "Chequered flag is out, bring the lap home clean.", "Bandera a cuadros, termina la vuelta limpio."),
+                        RadioLanguage.T("Die Flagge ist draußen – diese Runde noch sauber ins Ziel.", "The flag is out – bring this one home clean.", "Bandera fuera: esta vuelta limpia hasta meta."),
+                        RadioLanguage.T("Schachbrettflagge! Noch eine ruhige Runde.", "Chequered flag! One calm lap to go.", "¡Bandera a cuadros! Una vuelta tranquila más."),
+                        RadioLanguage.T("Zielflagge. Kein Risiko mehr, einfach heimbringen.", "Chequered flag. No more risk, just bring it home.", "Bandera a cuadros. Sin riesgos, llévalo a casa.")) +
                     (s.ClassPosition == 1 ? (separate ? RadioLanguage.T(" Du führst deine Klasse.", " You're leading your class.", " Lideras tu clase.") :
                         RadioLanguage.T(" Du führst, jetzt konzentriert nach Hause bringen.", " You're leading, bring it home focused.", " Vas líder, llévalo a casa concentrado.")) :
                     rank.Length > 0 ? " " + rank : "") + (finalTactic == null ? duel : " " + finalTactic);
@@ -231,18 +235,28 @@ namespace CrewChiefV4.AiTeam
                 {
                     lastCalledLap = s.CompletedLaps;
                     string name = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
-                    CoreCall = RadioLanguage.T("Die Uhr ist abgelaufen" + (name.Length > 0 ? ", " + name : "") + ". Das ist deine letzte Runde!",
-                        "The clock has run out" + (name.Length > 0 ? ", " + name : "") + ". This is your last lap!",
-                        "Se acabó el tiempo" + (name.Length > 0 ? ", " + name : "") + ". ¡Esta es tu última vuelta!") + (rank.Length > 0 ? " " + rank : "");
+                    string nm = name.Length > 0 ? ", " + name : "";
+                    CoreCall = RadioVariants.Pick("lap-clock-last",
+                        RadioLanguage.T("Die Uhr ist abgelaufen" + nm + ". Das ist deine letzte Runde!", "The clock has run out" + nm + ". This is your last lap!", "Se acabó el tiempo" + nm + ". ¡Esta es tu última vuelta!"),
+                        RadioLanguage.T("Zeit ist um" + nm + " – jetzt kommt die letzte Runde!", "Time's up" + nm + " – this is the final lap!", "Tiempo cumplido" + nm + ": ¡llega la última vuelta!"),
+                        RadioLanguage.T("Uhr bei null" + nm + ". Letzte Runde, alles reinlegen!", "Clock's at zero" + nm + ". Last lap, give it everything!", "Reloj a cero" + nm + ". ¡Última vuelta, dalo todo!"),
+                        RadioLanguage.T("Die Zeit ist abgelaufen" + nm + ", das hier ist die Schlussrunde!", "Time has expired" + nm + ", this is the final lap!", "Se agotó el tiempo" + nm + ", ¡esta es la vuelta final!")) + (rank.Length > 0 ? " " + rank : "");
                     if (s.ClassPosition != 1 && finalTactic == null) CoreCall += " " + LastLapMotivation[(lastLapVariant++) % LastLapMotivation.Length];
                     string front = FrontChase(current, preciseFront, gapAhead, rivalName);
                     IncludesFrontGap = front != null;
                     return CoreCall + (finalTactic == null ? front ?? duel : " " + finalTactic);
                 }
                 if (finalLap == s.CompletedLaps + 1)
-                    return RadioLanguage.T("Die Uhr ist abgelaufen. Noch diese Runde, dann kommt die letzte.", "The clock has run out. Finish this lap, then one more.",
-                        "Se acabó el tiempo. Termina esta vuelta y queda una más.");
-                return RadioLanguage.T("Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.", "Race time is up. Watch for the chequered flag.", "Se acabó el tiempo de carrera. Atento a la bandera a cuadros.");
+                    return RadioVariants.Pick("lap-clock-two",
+                        RadioLanguage.T("Die Uhr ist abgelaufen. Noch diese Runde, dann kommt die letzte.", "The clock has run out. Finish this lap, then one more.", "Se acabó el tiempo. Termina esta vuelta y queda una más."),
+                        RadioLanguage.T("Zeit ist um – diese Runde und noch eine.", "Time's up – this lap and one more.", "Tiempo cumplido: esta vuelta y una más."),
+                        RadioLanguage.T("Uhr bei null. Zwei Runden noch, diese mitgezählt.", "Clock's at zero. Two laps left, counting this one.", "Reloj a cero. Quedan dos vueltas, contando esta."),
+                        RadioLanguage.T("Rennzeit vorbei, aber es kommt noch eine volle Runde nach dieser.", "Race time is over, but there's one full lap after this.", "Se acabó el tiempo, pero queda una vuelta completa después de esta."));
+                return RadioVariants.Pick("lap-clock-flag",
+                    RadioLanguage.T("Die Rennzeit ist abgelaufen. Achte auf die Zielflagge.", "Race time is up. Watch for the chequered flag.", "Se acabó el tiempo de carrera. Atento a la bandera a cuadros."),
+                    RadioLanguage.T("Zeit ist um. Halt Ausschau nach der Flagge.", "Time's up. Look out for the flag.", "Tiempo cumplido. Atento a la bandera."),
+                    RadioLanguage.T("Uhr abgelaufen – gleich kommt die Zielflagge.", "Clock's run out – the flag is coming.", "Reloj agotado: llega la bandera."),
+                    RadioLanguage.T("Rennzeit vorbei. Sauber bleiben bis zur Flagge.", "Race time is over. Stay clean to the flag.", "Fin del tiempo de carrera. Limpio hasta la bandera."));
             }
             if (s.IsNewLap && s.SessionPhase == SessionPhase.Green)
             {
@@ -272,14 +286,22 @@ namespace CrewChiefV4.AiTeam
                 string front = FrontChase(current, preciseFront, gapAhead, rivalName);
                 IncludesFrontGap = front != null;
                 CoreCall = (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich letzte Runde! ", "Probably the last lap! ", "¡Probablemente última vuelta! ") :
-                        RadioLanguage.T("Letzte Runde! ", "Last lap! ", "¡Última vuelta! ")) +
+                        RadioVariants.Pick("lap-last",
+                            RadioLanguage.T("Letzte Runde! ", "Last lap! ", "¡Última vuelta! "),
+                            RadioLanguage.T("Das ist die letzte Runde! ", "This is the last lap! ", "¡Esta es la última vuelta! "),
+                            RadioLanguage.T("Letzte Runde, jetzt zählt's! ", "Last lap, this is it! ", "¡Última vuelta, ahora cuenta! "),
+                            RadioLanguage.T("Finale Runde! ", "Final lap! ", "¡Vuelta final! "))) +
                     (s.ClassPosition == 1 ? (separate ? RadioLanguage.T("Du führst deine Klasse. Bring es sauber nach Hause.", "You're leading your class. Bring it home clean.", "Lideras tu clase. Llévalo a casa limpio.") :
                         RadioLanguage.T("Du führst. Bleib ruhig, bring es sauber nach Hause.", "You're leading. Stay calm, bring it home clean.", "Vas líder. Tranquilo, llévalo a casa limpio.")) :
                         rank.Length > 0 ? rank : "");
                 string name = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
                 if (name.Length != 0) CoreCall = name + ", " + char.ToLower(CoreCall[0], RadioLanguage.Culture) + CoreCall.Substring(1);
                 if (s.ClassPosition != 1 && finalTactic == null)
-                    CoreCall += name.Length == 0 ? " " + RadioLanguage.T("Bleib konzentriert.", "Stay focused.", "Mantén la concentración.") :
+                    CoreCall += name.Length == 0 ? " " + RadioVariants.Pick("lap-last-focus",
+                        RadioLanguage.T("Bleib konzentriert.", "Stay focused.", "Mantén la concentración."),
+                        RadioLanguage.T("Noch eine Runde volle Konzentration.", "One more lap of full focus.", "Una vuelta más de máxima concentración."),
+                        RadioLanguage.T("Jetzt keine Fehler mehr.", "No mistakes now.", "Ahora sin errores."),
+                        RadioLanguage.T("Sauber und konzentriert bis zur Linie.", "Clean and focused to the line.", "Limpio y concentrado hasta la línea.")) :
                         " " + LastLapMotivation[(lastLapVariant++) % LastLapMotivation.Length];
                 return CoreCall + (finalTactic == null ? front ?? duel : " " + finalTactic);
             }
@@ -289,7 +311,11 @@ namespace CrewChiefV4.AiTeam
                 string front = FrontChase(current, preciseFront, gapAhead, rivalName);
                 IncludesFrontGap = front != null;
                 CoreCall = (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich noch zwei Runden", "Probably two laps to go", "Probablemente quedan dos vueltas") :
-                        RadioLanguage.T("Noch zwei Runden", "Two laps to go", "Quedan dos vueltas")) +
+                        RadioVariants.Pick("lap-two",
+                            RadioLanguage.T("Noch zwei Runden", "Two laps to go", "Quedan dos vueltas"),
+                            RadioLanguage.T("Zwei Runden noch", "Two more laps", "Dos vueltas más"),
+                            RadioLanguage.T("Vorletzte Runde", "Penultimate lap", "Penúltima vuelta"),
+                            RadioLanguage.T("Zwei Runden bis zur Flagge", "Two laps to the flag", "Dos vueltas hasta la bandera"))) +
                     (rank.Length > 0 ? ", " + rank : ".");
                 return CoreCall + front;
             }

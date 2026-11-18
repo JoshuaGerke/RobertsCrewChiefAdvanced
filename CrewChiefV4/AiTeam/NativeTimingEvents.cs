@@ -272,10 +272,10 @@ namespace CrewChiefV4.AiTeam
             {
                 string measured = RaceRadioLanguage.MeasuredGap(ahead, name, interval, true,
                     name.Length > 0 && selectVariant != null ? selectVariant(measuredGroup) : variant);
-                return fact.Trend == NativeTimingTrend.Decreasing ? measured + (ahead ? RadioLanguage.T(" Du holst auf.", " You're closing in.", " Estás recortando.") :
-                        RadioLanguage.T(" Der Abstand schrumpft.", " The gap is shrinking.", " La distancia se reduce.")) :
-                    fact.Trend == NativeTimingTrend.Increasing ? measured + (ahead ? RadioLanguage.T(" Die Lücke wächst.", " The gap is growing.", " El hueco crece.") :
-                        RadioLanguage.T(" Du setzt dich ab.", " You're pulling away.", " Te estás escapando.")) : measured;
+                return fact.Trend == NativeTimingTrend.Decreasing ? measured + (ahead ? RadioVariants.Pick("class-gap-front-closing", RadioLanguage.T(" Du holst auf.", " You're closing in.", " Estás recortando."), RadioLanguage.T(" Du kommst näher.", " You're getting closer.", " Te estás acercando."), RadioLanguage.T(" Es wird weniger.", " It's coming down.", " Va bajando."), RadioLanguage.T(" Du knabberst am Abstand.", " You're chipping away at it.", " Le vas comiendo distancia.")) :
+                        RadioVariants.Pick("class-gap-rear-closing", RadioLanguage.T(" Der Abstand schrumpft.", " The gap is shrinking.", " La distancia se reduce."), RadioLanguage.T(" Er kommt näher.", " They're getting closer.", " Se está acercando."), RadioLanguage.T(" Hinten wird es enger.", " It's getting tighter behind.", " Detrás se está cerrando."), RadioLanguage.T(" Das Polster wird kleiner.", " The cushion is getting smaller.", " El colchón se reduce."))) :
+                    fact.Trend == NativeTimingTrend.Increasing ? measured + (ahead ? RadioVariants.Pick("class-gap-front-growing", RadioLanguage.T(" Die Lücke wächst.", " The gap is growing.", " El hueco crece."), RadioLanguage.T(" Er zieht weg.", " They're pulling away.", " Se está escapando."), RadioLanguage.T(" Vorne wird es mehr.", " It's opening up ahead.", " Delante se abre el hueco."), RadioLanguage.T(" Der Abstand nach vorn wird größer.", " The gap ahead is getting bigger.", " La distancia por delante aumenta.")) :
+                        RadioVariants.Pick("class-gap-rear-growing", RadioLanguage.T(" Du setzt dich ab.", " You're pulling away.", " Te estás escapando."), RadioLanguage.T(" Das Polster wächst.", " The cushion is growing.", " El colchón crece."), RadioLanguage.T(" Du fährst ihm davon.", " You're driving away from them.", " Te vas alejando."), RadioLanguage.T(" Hinten wird es mehr Luft.", " More room behind now.", " Más aire por detrás."))) : measured;
             }
             if (separateClass) return null;
             string group = (ahead ? "gap-front-" : "gap-rear-") + fact.Trend.ToString().ToLowerInvariant();

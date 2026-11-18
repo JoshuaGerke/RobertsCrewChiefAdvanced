@@ -274,13 +274,41 @@ namespace CrewChiefV4.AiTeam
             if (last != null && !last.Finished) return "Die vorige Aufnahme wird noch abgeschlossen.";
             try
             {
+                int archived = ArchiveOldRecordings(folder ?? DefaultFolder, limits ?? new DiagnosticLimits());
                 var next = new DiagnosticRecorder(folder ?? DefaultFolder, limits, new[]{AiSecretStore.Load(),AiSecretStore.LoadElevenLabs()});
                 last = next; Interlocked.Exchange(ref lastSample,0); Interlocked.Exchange(ref lastTrackSampleTicks,0); Volatile.Write(ref recorder,next);
                 next.TryRecord("capture.build", Data("rrca_build", RrcaForm.Version()));
-                return "Lokale Diagnose aktiv: " + next.Folder;
+                return (archived > 0 ? "Ältere Aufnahmen ins Archiv verschoben: " + archived.ToString(CultureInfo.InvariantCulture) + " Dateien. " : "") + "Lokale Diagnose aktiv: " + next.Folder;
             }
+            catch (IOException e) when (e.Message.StartsWith("Diagnose-Speicherlimit", StringComparison.Ordinal)) { return LimitReached; }
             catch (Exception e) { return "Diagnose konnte nicht starten: " + e.GetType().Name; }
         }
+        internal const string ArchiveFolderName = "Archiv";
+
+        /// <summary>
+        /// Rob 18.11.: Ältere Aufnahmen füllten das Ordnerlimit, der Recorder startete nicht. Reicht der Platz nicht für eine
+        /// volle Aufnahme, werden die ältesten .jsonl-Dateien (Dateiname beginnt mit dem Zeitstempel) in den Unterordner
+        /// „Archiv“ verschoben. Nichts wird gelöscht; Unterordner zählen nicht zum Limit. Gibt die Zahl verschobener Dateien zurück.
+        /// </summary>
+        internal static int ArchiveOldRecordings(string folder, DiagnosticLimits limits)
+        {
+            if (!Directory.Exists(folder)) return 0;
+            var files = Directory.EnumerateFiles(folder, "*.jsonl").Select(p => new FileInfo(p)).OrderBy(f => f.Name, StringComparer.Ordinal).ToList();
+            long existing = files.Sum(f => f.Length), allowed = limits.FolderBytes - limits.CaptureBytes;
+            int moved = 0;
+            string archive = Path.Combine(folder, ArchiveFolderName);
+            foreach (var f in files)
+            {
+                if (existing <= allowed) break;
+                Directory.CreateDirectory(archive);
+                string target = Path.Combine(archive, f.Name);
+                if (File.Exists(target)) target = Path.Combine(archive, Path.GetFileNameWithoutExtension(f.Name) + "-" + DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture) + f.Extension);
+                try { File.Move(f.FullName, target); existing -= f.Length; moved++; } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+            return moved;
+        }
+        /// <summary>Klare Meldung statt Fehlername, wenn ältere Aufnahmen das Ordnerlimit füllen. Unterordner zählen nicht mit.</summary>
+        internal const string LimitReached = "Diagnose-Speicherlimit erreicht (512 MiB). Ältere .jsonl-Dateien im Diagnoseordner in einen Unterordner (z. B. Archiv) verschieben und neu einschalten.";
         public static void Stop() { var previous = Interlocked.Exchange(ref recorder,null); if(previous != null)previous.RequestStop(); }
         public static void Shutdown() { var r = Interlocked.Exchange(ref recorder,null) ?? last; if(r != null) r.Dispose(); }
         public static void Emit(string kind, Dictionary<string,object> fields = null, string correlation = null)

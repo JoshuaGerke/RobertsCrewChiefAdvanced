@@ -27,13 +27,17 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue, variant;
         private DateTime hotSince = DateTime.MinValue, coolSince = DateTime.MinValue, lastCall = DateTime.MinValue, offSince = DateTime.MinValue, backOnSince = DateTime.MinValue;
         private bool hotArmed = true, coldSeen, warmReported, dirtArmed = true, offLong;
+        private DateTime lastDirtUtc = DateTime.MinValue;
+        internal static readonly TimeSpan DirtSpacing = TimeSpan.FromMinutes(3);
+        /// <summary>Zuletzt gesprochene Dreck-Meldung (für andere Wächter, damit nichts doppelt kommt).</summary>
+        internal static DateTime LastDirtCallUtc = DateTime.MinValue;
         private string lastHotKey;
         private ObservedRaceCall call;
 
         internal void Reset()
         {
             session = int.MinValue; hotSince = coolSince = lastCall = offSince = backOnSince = DateTime.MinValue;
-            hotArmed = dirtArmed = true; coldSeen = warmReported = offLong = false; lastHotKey = null; call = null;
+            hotArmed = dirtArmed = true; coldSeen = warmReported = offLong = false; lastHotKey = null; call = null; lastDirtUtc = DateTime.MinValue;
         }
 
         /// <summary>Temperaturfenster (warm) aus den Crew-Chief-Grenzwerten; false ohne Klasse oder bei unplausiblen Werten.</summary>
@@ -139,8 +143,10 @@ namespace CrewChiefV4.AiTeam
                 : top > 0 ? RadioLanguage.T(" Fenster etwa " + RadioLanguage.Num(cold, "0") + " bis " + RadioLanguage.Num(top, "0") + " Grad.",
                     " Window about " + RadioLanguage.Num(cold, "0") + " to " + RadioLanguage.Num(top, "0") + " degrees.",
                     " Ventana de unos " + RadioLanguage.Num(cold, "0") + " a " + RadioLanguage.Num(top, "0") + " grados.") : "";
-            switch (((v % 3) + 3) % 3)
+            switch (((v % 5) + 5) % 5)
             {
+                case 3: return RadioLanguage.T("Reifen sind im Fenster. Ab jetzt zählt jede Runde.", "Tyres are in the window. Every lap counts from here.", "Neumáticos en ventana. Desde ahora cuenta cada vuelta.") + window;
+                case 4: return RadioLanguage.T("Temperatur passt rundum – volles Vertrauen in den Grip.", "Temperature is good all round – full trust in the grip.", "Temperatura bien en las cuatro – confía en el agarre.") + window;
                 case 0: return RadioLanguage.T("Alle vier Reifen jetzt über " + RadioLanguage.Num(cold, "0") + " Grad, du kannst pushen.",
                     "All four tyres above " + RadioLanguage.Num(cold, "0") + " degrees now, you can push.",
                     "Los cuatro neumáticos ya por encima de " + RadioLanguage.Num(cold, "0") + " grados, puedes apretar.") + window;
@@ -156,13 +162,19 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T("Nach dem Ausflug haben " + where + " vermutlich Dreck aufgenommen. Ein, zwei Kurven vorsichtig rantasten.",
                     "After that trip off track " + where + " have probably picked up dirt. Feel your way in for a corner or two.",
                     "Tras la salida de pista " + where + " probablemente llevan suciedad. Tantea una o dos curvas.");
-            return (((v % 2) + 2) % 2) == 0
-                ? RadioLanguage.T("Dreck auf " + where + ". Weniger Grip, bis sie wieder sauber sind, also die nächsten Kurven vorsichtig.",
+            return RadioVariants.At(v,
+                RadioLanguage.T("Dreck auf " + where + ". Weniger Grip, bis sie wieder sauber sind, also die nächsten Kurven vorsichtig.",
                     "Dirt on " + where + ". Less grip until they clean up, so careful in the next corners.",
-                    "Suciedad en " + where + ". Menos agarre hasta que se limpien, cuidado en las próximas curvas.")
-                : RadioLanguage.T(Cap(where) + " sind dreckig, das kostet Grip. Sauber fahren, dann putzen sie sich frei.",
+                    "Suciedad en " + where + ". Menos agarre hasta que se limpien, cuidado en las próximas curvas."),
+                RadioLanguage.T(Cap(where) + " sind dreckig, das kostet Grip. Sauber fahren, dann putzen sie sich frei.",
                     "Dirty " + where + ", that costs grip. Keep it tidy and it'll clean off.",
-                    "Hay suciedad en " + where + ", eso resta agarre. Conduce limpio y se irá.");
+                    "Hay suciedad en " + where + ", eso resta agarre. Conduce limpio y se irá."),
+                RadioLanguage.T("Gras oder Kies auf " + where + ". Eine halbe Runde sauber, dann ist der Grip zurück.",
+                    "Grass or gravel on " + where + ". Half a lap of clean driving and the grip is back.",
+                    "Hierba o grava en " + where + ". Media vuelta limpia y vuelve el agarre."),
+                RadioLanguage.T(Cap(where) + " müssen sich erst freifahren. Früher bremsen, sanft ans Gas.",
+                    Cap(where) + " need to clean up first. Brake earlier, smooth on the throttle.",
+                    "Primero hay que limpiar " + where + ". Frena antes, suave con el gas."));
         }
 
         private static string Cap(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0], RadioLanguage.Culture) + s.Substring(1);
@@ -224,9 +236,10 @@ namespace CrewChiefV4.AiTeam
             {
                 var dirty = Enumerable.Range(0, 4).Where(i => t.TyreDirtPickupStatus.hasValueAtLevel(TyreDirtPickupState.MAJOR) &&
                     DirtyCorner(t, i)).ToList();
-                if (dirty.Count > 0 && dirtArmed)
+                // RaceRoom Monza 17.11.: rund zehnmal „Dreck auf den Reifen“. Höchstens alle 3 Minuten.
+                if (dirty.Count > 0 && dirtArmed && now - lastDirtUtc >= DirtSpacing)
                 {
-                    dirtArmed = false;
+                    dirtArmed = false; lastDirtUtc = now; LastDirtCallUtc = now;
                     Offer(gs, now, "tyre-dirt", DirtText(dirty, true, variant++), 5, "game_tyre_dirt_level", live => true);
                     return;
                 }
@@ -235,6 +248,9 @@ namespace CrewChiefV4.AiTeam
             else if (offLong && backOnSince != DateTime.MinValue && now - backOnSince >= TimeSpan.FromSeconds(2))
             {
                 offLong = false;
+                // Liefert die 100-Hz-Fahrdynamik Daten, meldet sie den Ausritt genauer (insight-dirty-tyres) – nicht doppelt.
+                if (DynamicsSampler.FeedingFrames || now - lastDirtUtc < DirtSpacing) { TrackOffTrack(gs, now); return; }
+                lastDirtUtc = now; LastDirtCallUtc = now;
                 Offer(gs, now, "tyre-dirt", DirtText(null, false, variant++), 4, "off_track_excursion_dirt_assumed", live => !live.PenaltiesData.IsOffRacingSurface);
                 return;
             }

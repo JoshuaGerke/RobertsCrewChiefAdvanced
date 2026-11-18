@@ -277,6 +277,15 @@
     <Compile Include="AiTeam\AnswerClaimCheck.cs" />
     <Compile Include="AiTeam\CrewMemory.cs" />
     <Compile Include="AiTeam\PitLossMeter.cs" />
+    <Compile Include="AiTeam\RadioVariants.cs" />
+    <Compile Include="AiTeam\RaceStartLatch.cs" />
+    <Compile Include="AiTeam\StrategyOdds.cs" />
+    <Compile Include="AiTeam\DriverMood.cs" />
+    <Compile Include="AiTeam\DiagnosticReplay.cs" />
+    <Compile Include="AiTeam\RadioLoad.cs" />
+    <Compile Include="AiTeam\BattleSectorWatch.cs" />
+    <Compile Include="AiTeam\RaceEventLog.cs" />
+    <Compile Include="AiTeam\SimCapabilityMatrix.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />
@@ -287,6 +296,7 @@
     <Compile Include="AiTeam\Probe\ProbeAnalyzer.cs" />
     <Compile Include="AiTeam\Probe\R3EProbeAnalyzer.cs" />
     <Compile Include="AiTeam\Probe\AMS2ProbeAnalyzer.cs" />
+    <Compile Include="AiTeam\Probe\LMUProbeAnalyzer.cs" />
     <Compile Include="AiTeam\Probe\ProbeReport.cs" />
     <Compile Include="AiTeam\Probe\TelemetryProbe.cs" />
     <Compile Include="AiTeam\TelemetryMeasurementTools.cs" />

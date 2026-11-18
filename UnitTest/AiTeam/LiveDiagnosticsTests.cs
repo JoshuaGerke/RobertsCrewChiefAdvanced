@@ -87,6 +87,21 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(LiveDiagnostics.Enabled);
         }
         [Test]
+        public void Volles_Ordnerlimit_verschiebt_aelteste_Aufnahmen_ins_Archiv_statt_nicht_zu_starten()
+        {
+            // Rob 18.11.: Schalter sprang zurück, weil ältere Aufnahmen das Ordnerlimit füllten. Jetzt wird die älteste Aufnahme archiviert.
+            string folder=Folder();Directory.CreateDirectory(folder);
+            var limits=new DiagnosticLimits{CaptureBytes=16384,FolderBytes=32768};
+            File.WriteAllBytes(Path.Combine(folder,"20261031T102206-a-001.jsonl"),new byte[9000]);
+            File.WriteAllBytes(Path.Combine(folder,"20261116T150407-b-001.jsonl"),new byte[9000]);
+            string started=LiveDiagnostics.Start(folder,limits);
+            StringAssert.StartsWith("Ältere Aufnahmen ins Archiv verschoben: 1 Dateien. Lokale Diagnose aktiv",started,"älteste Aufnahme verschoben, nichts gelöscht");
+            Assert.IsTrue(File.Exists(Path.Combine(folder,"Archiv","20261031T102206-a-001.jsonl")));
+            Assert.IsTrue(File.Exists(Path.Combine(folder,"20261116T150407-b-001.jsonl")),"neuere Aufnahme bleibt");
+            Assert.IsTrue(LiveDiagnostics.Enabled);
+            LiveDiagnostics.Shutdown();
+        }
+        [Test]
         public void JSONL_enthaelt_UTC_monotone_Zeit_Session_und_Abschluss()
         {
             string folder=Folder();

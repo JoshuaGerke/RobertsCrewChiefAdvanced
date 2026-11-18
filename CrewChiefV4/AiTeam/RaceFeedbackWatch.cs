@@ -264,8 +264,16 @@ namespace CrewChiefV4.AiTeam
             const string group = "fuel-saving-review";
             int variant = fuelVariants.Select(group, catalog.Count(group));
             string comparison = average <= target + .005f
-                ? RadioLanguage.T("Sparziel erreicht.", "Fuel target met.", "Objetivo de ahorro cumplido.")
-                : RadioLanguage.T("Das ist noch über dem Sparziel.", "That is still above our fuel target.", "Seguimos por encima del objetivo de ahorro.");
+                ? RadioVariants.Pick("fuel-target-met",
+                    RadioLanguage.T("Sparziel erreicht.", "Fuel target met.", "Objetivo de ahorro cumplido."),
+                    RadioLanguage.T("Sparziel erreicht, sauber gespart.", "Fuel target met, nicely saved.", "Objetivo de ahorro cumplido, bien ahorrado."),
+                    RadioLanguage.T("Verbrauch passt, Sparziel erreicht.", "Consumption is right, target met.", "El consumo cuadra, objetivo cumplido."),
+                    RadioLanguage.T("Genau im Sparziel, so weiter.", "Right on the fuel target, keep that up.", "Justo en el objetivo de ahorro, sigue así."))
+                : RadioVariants.Pick("fuel-target-missed",
+                    RadioLanguage.T("Das ist noch über dem Sparziel.", "That is still above our fuel target.", "Seguimos por encima del objetivo de ahorro."),
+                    RadioLanguage.T("Noch etwas über dem Sparziel, früher vom Gas.", "Still a bit over the fuel target, lift earlier.", "Aún algo por encima del objetivo, levanta antes."),
+                    RadioLanguage.T("Verbrauch liegt noch über dem Sparziel.", "Consumption is still over the fuel target.", "El consumo sigue por encima del objetivo."),
+                    RadioLanguage.T("Über dem Sparziel, da müssen wir noch sparen.", "Over the fuel target, we still need to save.", "Por encima del objetivo, aún hay que ahorrar."));
             string text = catalog.Format(group, variant, RadioLanguage.Num(average, "0.00"), comparison);
             var fuelFeedback = Create(state, now, group, text, TeamMember.Ben, "two_complete_green_laps_after_delivered_fuel_advice");
             fuelFeedback.BindVariant(fuelVariants, group, variant);
@@ -297,12 +305,32 @@ namespace CrewChiefV4.AiTeam
             string name = context.SendDriverNames && rival.CanUseName ? RadioPhraseCatalog.SafeRivalName(rival.DriverRawName) : "";
             string who = name.Length == 0 ? RadioLanguage.T("den Vordermann", "the car ahead", "el coche de delante") : name;
             string result = gain >= .35f ?
-                RadioLanguage.T("Auf " + who + " hast du " + GermanRadioText.Interval(gain) + " aufgeholt.",
-                    "You gained " + GermanRadioText.Interval(gain) + " on " + who + ".",
-                    "Has recortado " + GermanRadioText.Interval(gain) + " a " + who + ".") :
-                RadioLanguage.T("Der Abstand nach vorn liegt bei " + GermanRadioText.Interval(lap.GapAhead) + ".",
-                    "The gap ahead is " + GermanRadioText.Interval(lap.GapAhead) + ".",
-                    "La diferencia por delante es de " + GermanRadioText.Interval(lap.GapAhead) + ".");
+                RadioVariants.Pick("chase-gained",
+                    RadioLanguage.T("Auf " + who + " hast du " + GermanRadioText.Interval(gain) + " aufgeholt.",
+                        "You gained " + GermanRadioText.Interval(gain) + " on " + who + ".",
+                        "Has recortado " + GermanRadioText.Interval(gain) + " a " + who + "."),
+                    RadioLanguage.T(GermanRadioText.Interval(gain) + " auf " + who + " aufgeholt, stark.",
+                        GermanRadioText.Interval(gain) + " taken out of " + who + ", strong.",
+                        GermanRadioText.Interval(gain) + " recortados a " + who + ", muy bien."),
+                    RadioLanguage.T("Du hast " + GermanRadioText.Interval(gain) + " auf " + who + " aufgeholt, dranbleiben.",
+                        "You've pulled " + GermanRadioText.Interval(gain) + " back on " + who + ", stay with it.",
+                        "Le has recortado " + GermanRadioText.Interval(gain) + " a " + who + ", sigue así."),
+                    RadioLanguage.T("Der Abstand auf " + who + " ist um " + GermanRadioText.Interval(gain) + " kleiner geworden.",
+                        "The gap to " + who + " is down by " + GermanRadioText.Interval(gain) + ".",
+                        "La diferencia con " + who + " ha bajado " + GermanRadioText.Interval(gain) + ".")) :
+                RadioVariants.Pick("chase-gap",
+                    RadioLanguage.T("Der Abstand nach vorn liegt bei " + GermanRadioText.Interval(lap.GapAhead) + ".",
+                        "The gap ahead is " + GermanRadioText.Interval(lap.GapAhead) + ".",
+                        "La diferencia por delante es de " + GermanRadioText.Interval(lap.GapAhead) + "."),
+                    RadioLanguage.T("Nach vorn sind es " + GermanRadioText.Interval(lap.GapAhead) + ".",
+                        "It's " + GermanRadioText.Interval(lap.GapAhead) + " to the car ahead.",
+                        "Hasta el de delante hay " + GermanRadioText.Interval(lap.GapAhead) + "."),
+                    RadioLanguage.T("Abstand nach vorn " + GermanRadioText.Interval(lap.GapAhead) + ".",
+                        "Gap ahead " + GermanRadioText.Interval(lap.GapAhead) + ".",
+                        "Diferencia hacia delante " + GermanRadioText.Interval(lap.GapAhead) + "."),
+                    RadioLanguage.T("Vorne fehlen weiter " + GermanRadioText.Interval(lap.GapAhead) + ".",
+                        "Still " + GermanRadioText.Interval(lap.GapAhead) + " to find up front.",
+                        "Siguen faltando " + GermanRadioText.Interval(lap.GapAhead) + " hacia delante."));
             const string group = "race-chase-review";
             int variant = chaseVariants.Select(group, catalog.Count(group));
             var call = Create(state, context.NowUtc, group, catalog.Format(group, variant, result),

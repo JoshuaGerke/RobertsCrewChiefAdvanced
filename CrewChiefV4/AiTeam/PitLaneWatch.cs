@@ -13,17 +13,26 @@ namespace CrewChiefV4.AiTeam
         private static readonly string[] UnknownLimitPhrasesDe={
             "Achte auf das ausgeschilderte Boxenlimit.",
             "Denk ans Tempolimit in der Boxengasse.",
-            "Boxenlimit beachten. Schau auf die Beschilderung."
+            "Boxenlimit beachten. Schau auf die Beschilderung.",
+            "Box: Limiter rechtzeitig rein, auf die Linie achten.",
+            "Gleich Boxengasse – Tempolimit nicht vergessen.",
+            "Boxeneinfahrt: runterbremsen aufs Limit."
         };
         private static readonly string[] UnknownLimitPhrasesEn={
             "Watch the posted pit speed limit.",
             "Remember the speed limit in the pit lane.",
-            "Mind the pit limit. Check the signs."
+            "Mind the pit limit. Check the signs.",
+            "Pit lane: limiter on in time, watch the line.",
+            "Pit lane coming up – don't forget the speed limit.",
+            "Pit entry: brake down to the limit."
         };
         private static readonly string[] UnknownLimitPhrasesEs={
             "Atento al límite de boxes señalizado.",
             "Recuerda el límite de velocidad en el pit lane.",
-            "Respeta el límite de boxes. Mira la señalización."
+            "Respeta el límite de boxes. Mira la señalización.",
+            "Boxes: limitador a tiempo, atento a la línea.",
+            "Llega el pit lane, no olvides el límite de velocidad.",
+            "Entrada a boxes: frena hasta el límite."
         };
         public static string[] UnknownLimitPhrases => RadioLanguage.Pick(UnknownLimitPhrasesDe,UnknownLimitPhrasesEn,UnknownLimitPhrasesEs);
         public static bool Known(float value)
@@ -35,13 +44,19 @@ namespace CrewChiefV4.AiTeam
             return RadioLanguage.Pick(
                 new[]{"Achte aufs Boxenlimit: "+number+" Kilometer pro Stunde.",
                     "Denk ans Tempo in der Box: "+number+" Kilometer pro Stunde.",
-                    "Boxenlimit beachten: "+number+" Kilometer pro Stunde."},
+                    "Boxenlimit beachten: "+number+" Kilometer pro Stunde.",
+                    "Gleich Boxengasse, Limiter auf "+number+" Kilometer pro Stunde.",
+                    "In der Box gelten "+number+" Kilometer pro Stunde – Limiter rechtzeitig rein."},
                 new[]{"Watch the pit limit: "+number+" kilometres per hour.",
                     "Mind your speed in the pits: "+number+" kilometres per hour.",
-                    "Respect the pit limit: "+number+" kilometres per hour."},
+                    "Respect the pit limit: "+number+" kilometres per hour.",
+                    "Pit lane coming up, limiter at "+number+" kilometres per hour.",
+                    "It's "+number+" kilometres per hour in the pits – limiter on in time."},
                 new[]{"Atento al límite de boxes: "+number+" kilómetros por hora.",
                     "Ojo a la velocidad en boxes: "+number+" kilómetros por hora.",
-                    "Respeta el límite de boxes: "+number+" kilómetros por hora."});
+                    "Respeta el límite de boxes: "+number+" kilómetros por hora.",
+                    "Llega el pit lane, limitador a "+number+" kilómetros por hora.",
+                    "En boxes son "+number+" kilómetros por hora, limitador a tiempo."});
         }
         public static string[] SpeedPhrases(float limit)
         {
@@ -49,11 +64,17 @@ namespace CrewChiefV4.AiTeam
             string number=Math.Round(limit*3.6f).ToString(CultureInfo.InvariantCulture);
             return RadioLanguage.Pick(
                 new[]{"Zu schnell für die Box. Hier gelten "+number+" Kilometer pro Stunde.",
-                    "Tempo runter, Boxenlimit: "+number+" Kilometer pro Stunde."},
+                    "Tempo runter, Boxenlimit: "+number+" Kilometer pro Stunde.",
+                    "Zu schnell in der Box! Limit "+number+" Kilometer pro Stunde.",
+                    "Runter auf "+number+", sonst gibt's eine Strafe."},
                 new[]{"Too fast for the pit lane. The limit here is "+number+" kilometres per hour.",
-                    "Slow down, pit limit: "+number+" kilometres per hour."},
+                    "Slow down, pit limit: "+number+" kilometres per hour.",
+                    "Too fast in the pits! Limit "+number+" kilometres per hour.",
+                    "Down to "+number+", or it's a penalty."},
                 new[]{"Demasiado rápido para boxes. Aquí el límite es de "+number+" kilómetros por hora.",
-                    "Baja la velocidad, límite de boxes: "+number+" kilómetros por hora."});
+                    "Baja la velocidad, límite de boxes: "+number+" kilómetros por hora.",
+                    "¡Demasiado rápido en boxes! Límite de "+number+" kilómetros por hora.",
+                    "Baja a "+number+", o habrá sanción."});
         }
         public static bool IsPreparedPhrase(string text)
         {
@@ -132,7 +153,7 @@ namespace CrewChiefV4.AiTeam
                 approachHandled=true;reportedLimit=Known(limit)?limit:-1;
                 if(changedLimit || (limitCall==null || !limitCall.IsValid(gs,now)) &&
                     (lastReminder==DateTime.MinValue || now-lastReminder>=TimeSpan.FromSeconds(20)))
-                    limitCall=Reminder(gs,now,limit,7,true,"confirmed_pit_approach_before_lane_entry");
+                    limitCall=Reminder(gs,now,limit,7,true,"confirmed_pit_approach_before_lane_entry",false,changedLimit);
             }
             if(inPits)
             {
@@ -144,7 +165,7 @@ namespace CrewChiefV4.AiTeam
                 if(newLimit || entered && !recentlyReminded && !remindedThisVisit || leavingBox && limitCall==null && !recentlyReminded)
                 {
                     if(leavingBox) departureHandled=true;
-                    limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit");
+                    limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit",false,newLimit || leavingBox);
                 }
                 if(Known(limit)) reportedLimit=limit;
                 if(leavingBox) departureHandled=true;
@@ -169,8 +190,14 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kurze Bestätigung der Boxenanforderung (Rob 16.11.); sagt bewusst nicht „diese/nächste Runde“.</summary>
         public static string[] RequestConfirmations => RadioLanguage.Pick(RequestConfirmDe,RequestConfirmEn,RequestConfirmEs);
         private int confirmVariant;
-        private ObservedRaceCall Reminder(GameStateData gs,DateTime now,float limit,int priority,bool approach,string evidence,bool request=false)
+        /// <summary>Bathurst 17.11.: achtmal Boxenlimit in einer Session. Nach einer gesprochenen Erinnerung höchstens eine weitere je 90 s.
+        /// Ausnahmen: Bestätigung einer Boxenanforderung, ein neu gemeldetes Limit und das Losfahren nach dem Stopp.</summary>
+        internal static readonly TimeSpan ReminderSpacing=TimeSpan.FromSeconds(90);
+        public static bool ReminderThrottled(DateTime now,DateTime lastSpoken,bool exempt)
+            => !exempt && lastSpoken!=DateTime.MinValue && now>=lastSpoken && now-lastSpoken<ReminderSpacing;
+        private ObservedRaceCall Reminder(GameStateData gs,DateTime now,float limit,int priority,bool approach,string evidence,bool request=false,bool exempt=false)
         {
+            if(ReminderThrottled(now,lastReminder,request || exempt)){LiveDiagnostics.Decision("pit-limit","suppressed","reminder_within_90s");return null;}
             var phrases=Phrases(limit).ToArray();
             string text=phrases[variant++%phrases.Length];
             if(request){var confirm=RequestConfirmations;text=confirm[confirmVariant++%confirm.Length]+" "+text;}

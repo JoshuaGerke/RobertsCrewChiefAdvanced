@@ -10,6 +10,17 @@ namespace CrewChiefV4.AiTeam
     {
         private static bool Good(float value,float low,float high)
         { return !float.IsNaN(value) && !float.IsInfinity(value) && value>=low && value<=high; }
+        /// <summary>RRCA 2.0 (2.2): statische Fähigkeitsmatrix der laufenden Simulation, falls eine der sechs Kernsimulationen.</summary>
+        private static JToken CurrentMatrix()
+        {
+            try
+            {
+                var def = CrewChief.gameDefinition;
+                string sim = def == null ? null : SimCapabilityMatrix.SimOf(def.gameEnum);
+                return sim == null ? null : SimCapabilityMatrix.Describe(sim)[sim];
+            }
+            catch (Exception) { return null; }
+        }
         public static JObject Describe(RaceDataContext ctx)
         {
             if(ctx==null || ctx.GameState==null)return new JObject { ["verfuegbar"]=false };
@@ -45,6 +56,7 @@ namespace CrewChiefV4.AiTeam
                 ["spiel_server_vorhersage"]=WeatherWatch.ForecastData(gs.Conditions,ctx.NowUtc),
                 ["lokaler_spotter_frisch"]=ctx.Spotter.IsFresh(ctx.NowUtc),
                 ["ereignislogik_vorhanden"]=new JArray("Position/Überholbeleg","Runden/Bestzeiten","Strafen/Tracklimits","Schäden","Flaggen","Verkehr/Annäherung","Wetter/Vorhersage","Boxengeschwindigkeit"),
+                ["faehigkeitsmatrix"]=CurrentMatrix(),
                 ["hinweise"]=new JArray("Die registrierte Ereignislogik ist keine Garantie, dass ein Teammitglied im Profil eingeschaltet ist.",
                     "Gegner-Reifen und Prognosen nicht aus verfügbaren Namen/Koordinaten erfinden.","Historische Erinnerungen ersetzen keine aktuellen Messwerte.")
             };

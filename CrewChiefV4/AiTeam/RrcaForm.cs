@@ -272,7 +272,11 @@ namespace CrewChiefV4.AiTeam
                     if (UserSettings.GetUserSettings().getBoolean("realistic_mode") == realistic)
                     {
                         GlobalBehaviourSettings.realisticMode = realistic;
-                        Notice("Spottermodus gespeichert. Gilt ab dem nächsten Start von Crew Chief.");
+                        // Sofort wirksam: auf Rundstrecken Sara an (Normal) oder aus (Realistisch); auf Ovalen bleibt sie immer an.
+                        if (!GlobalBehaviourSettings.useOvalLogic)
+                            GlobalBehaviourSettings.spotterEnabled = !realistic && GlobalBehaviourSettings.spotterEnabledInitialState;
+                        Notice(realistic ? "Spottermodus Realistisch: Sara spottet nur noch auf Ovalen. Gilt sofort."
+                            : "Spottermodus Normal: Sara spottet auf jeder Strecke. Gilt sofort.");
                     }
                     break;
                 case "setRadioEffect":

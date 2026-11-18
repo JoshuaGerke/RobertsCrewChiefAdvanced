@@ -11,7 +11,7 @@ namespace CrewChiefV4.AiTeam.Probe
     /// <summary>
     /// Telemetrie-Messung (P1): liest die Rohdaten des Spiels in einem eigenen Faden, unabhängig von der
     /// Crew-Chief-Hauptschleife, und schreibt einen Bericht in den Diagnoseordner. Nur lokal, nur lesend.
-    /// Ändert weder Spielzustand noch Funk. Erkennt RaceRoom und AMS2 automatisch; weitere Spiele folgen.
+    /// Ändert weder Spielzustand noch Funk. Erkennt RaceRoom, AMS2 und Le Mans Ultimate automatisch.
     /// </summary>
     public static class TelemetryProbe
     {
@@ -102,10 +102,10 @@ namespace CrewChiefV4.AiTeam.Probe
             /// <summary>Unterstützte Spiele in Prüfreihenfolge. Das laufende Spiel wird automatisch erkannt.</summary>
             private static ProbeAnalyzer[] CreateAnalyzers()
             {
-                return new ProbeAnalyzer[] { new R3EProbeAnalyzer(), new AMS2ProbeAnalyzer() };
+                return new ProbeAnalyzer[] { new R3EProbeAnalyzer(), new AMS2ProbeAnalyzer(), new LMUProbeAnalyzer() };
             }
 
-            private const string Waiting = "wartet auf RaceRoom oder AMS2";
+            private const string Waiting = "wartet auf RaceRoom, AMS2 oder LMU";
 
             private void Run()
             {
@@ -115,6 +115,7 @@ namespace CrewChiefV4.AiTeam.Probe
                 int current = -1, preferred = 0;
                 MemoryMappedFile file = null;
                 MemoryMappedViewAccessor view = null;
+                ProbeSource source = null;
                 bool timerRaised = false;
                 var cpuWatch = Stopwatch.StartNew();
                 TimeSpan cpuStart = TimeSpan.Zero;
@@ -132,14 +133,20 @@ namespace CrewChiefV4.AiTeam.Probe
                     status = Waiting;
                     while (!stopRequested)
                     {
-                        if (view == null)
+                        if (view == null && source == null)
                         {
                             current = -1;
                             for (int k = 0; k < analyzers.Length && current < 0; k++)
                             {
                                 int i = (preferred + k) % analyzers.Length;
                                 if (analyzers[i].LayoutError != null) continue;
-                                if (TryOpen(analyzers[i], out file, out view)) current = i;
+                                ProbeSource own = analyzers[i].CreateSource();
+                                if (own != null)
+                                {
+                                    if (own.Open()) { source = own; current = i; }
+                                    else own.Dispose();
+                                }
+                                else if (TryOpen(analyzers[i], out file, out view)) current = i;
                             }
                             if (current < 0)
                             {
@@ -154,11 +161,11 @@ namespace CrewChiefV4.AiTeam.Probe
                         byte[] buffer = buffers[current];
                         long t0 = Stopwatch.GetTimestamp();
                         int torn;
-                        bool ok = Copy(view, buffer, analyzer.SequenceOffset, out torn);
+                        bool ok = source != null ? source.Copy(buffer, out torn) : Copy(view, buffer, analyzer.SequenceOffset, out torn);
                         analyzer.TornFrames += torn;
                         if (!ok)
                         {
-                            if (torn == 0) { Close(ref file, ref view); continue; }
+                            if (torn == 0) { Close(ref file, ref view, ref source); continue; }
                             stop.WaitOne(1);
                             continue; // Spiel schreibt gerade: nächstes Bild abwarten
                         }
@@ -170,7 +177,7 @@ namespace CrewChiefV4.AiTeam.Probe
                         int stallLimit = analyzer.Inactive(buffer) ? StalledReopenMs * 3 : StalledReopenMs;
                         if (analyzer.MsSinceLastFrame(t1) > stallLimit && (t1 - lastReopenCheck) * 1000 / Stopwatch.Frequency > stallLimit)
                         {
-                            Close(ref file, ref view);
+                            Close(ref file, ref view, ref source);
                             preferred = (current + 1) % analyzers.Length;
                             lastReopenCheck = t1;
                             status = "keine neuen Daten – suche Spiel";
@@ -193,7 +200,7 @@ namespace CrewChiefV4.AiTeam.Probe
                 }
                 finally
                 {
-                    Close(ref file, ref view);
+                    Close(ref file, ref view, ref source);
                     if (timerRaised) { try { NativeMethods.timeEndPeriod(1); } catch (Exception) { } }
                     int written = analyzers == null ? 0 : WriteAll(analyzers, Cpu(cpuStart, cpuWatch));
                     if (written > 0) status = "beendet · Bericht im Diagnoseordner (Telemetrie-Probe)";
@@ -318,8 +325,10 @@ namespace CrewChiefV4.AiTeam.Probe
                 }
             }
 
-            private static void Close(ref MemoryMappedFile file, ref MemoryMappedViewAccessor view)
+            private static void Close(ref MemoryMappedFile file, ref MemoryMappedViewAccessor view, ref ProbeSource source)
             {
+                try { if (source != null) source.Dispose(); } catch (Exception) { }
+                source = null;
                 try { if (view != null) view.Dispose(); } catch (Exception) { }
                 try { if (file != null) file.Dispose(); } catch (Exception) { }
                 view = null; file = null;

@@ -298,7 +298,7 @@ namespace CrewChiefV4.AiTeam
             string what = lead ? RadioLanguage.T("die Führung", "the lead", "el liderato") : RadioLanguage.T("das Podium", "the podium", "el podio");
             string What = char.ToUpper(what[0], RadioLanguage.Culture) + what.Substring(1);
             string closing = rate > 0 ? RadioLanguage.T(", und du holst " + GapTrendWatch.Rate(rate) + " pro Runde auf", ", and you're gaining " + GapTrendWatch.Rate(rate) + " a lap", ", y recortas " + GapTrendWatch.Rate(rate) + " por vuelta") : "";
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T(What + " ist nur " + Sec(gap) + " entfernt" + closing + ". Bleib dran" + (n != null ? ", " + n : "") + "!",
                     What + " is only " + Sec(gap) + " away" + closing + ". Stay with it" + (n != null ? ", " + n : "") + "!",
@@ -306,6 +306,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T((n != null ? n + ", " : "") + Sec(gap) + " bis " + (lead ? "zur Führung" : "zum Podium") + closing + ". Jetzt zählt jede Kurve.",
                     (n != null ? n + ", " : "") + Sec(gap) + " to " + what + closing + ". Every corner counts now.",
                     (n != null ? n + ", " : "") + Sec(gap) + " hasta " + (lead ? "el liderato" : "el podio") + closing + ". Ahora cuenta cada curva.");
+                case 3: return RadioLanguage.T((n != null ? n + ", " : "") + Sec(gap) + " trennen dich von " + (lead ? "der Spitze" : "Platz drei") + closing + ". Geduldig bleiben, die Chance kommt.",
+                    (n != null ? n + ", " : "") + Sec(gap) + " between you and " + (lead ? "the lead" : "P3") + closing + ". Stay patient, the chance will come.",
+                    (n != null ? n + ", " : "") + Sec(gap) + " te separan " + (lead ? "del liderato" : "del tercer puesto") + closing + ". Paciencia, la ocasión llegará.");
                 default: return RadioLanguage.T("Da vorne wartet " + what + ": " + Sec(gap) + closing + ". Sauber bleiben, Druck aufbauen.",
                     What + " is right there: " + Sec(gap) + closing + ". Stay clean, build the pressure.",
                     "Ahí delante está " + what + ": " + Sec(gap) + closing + ". Limpio y metiendo presión.");
@@ -355,7 +358,7 @@ namespace CrewChiefV4.AiTeam
                     : RadioLanguage.T(" Mit unserem gemessenen Boxenverlust von etwa " + l + " liegst du nach dem Stopp rechnerisch vor " + List(turned) + ".",
                         " With our measured pit loss of about " + l + ", on paper you'll be ahead of " + List(turned) + " after the stop.",
                         " Con nuestra pérdida medida en boxes de unos " + l + ", sobre el papel quedas por delante de " + List(turned) + " tras su parada.");
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T("Zur Einordnung" + (n != null ? ", " + n : "") + ": " + list + " vor dir " + (many ? "haben" : "hat") + " einmal weniger gestoppt als du." + calc,
                     "For context" + (n != null ? ", " + n : "") + ": " + list + " ahead of you " + (many ? "have" : "has") + " stopped once less than you." + calc,
@@ -363,6 +366,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Die Reihenfolge vorne täuscht: " + list + " " + (many ? "müssen" : "muss") + ", wenn die Stoppzahl gleich sein soll, noch an die Box." + calc,
                     "The order ahead is misleading: " + list + " still " + (many ? "have" : "has") + " a stop to make if the stop count evens out." + calc,
                     "El orden de delante engaña: " + list + " aún " + (many ? "tienen" : "tiene") + " que parar si el número de paradas se iguala." + calc);
+                case 3: return RadioLanguage.T("Strategie-Blick" + (n != null ? ", " + n : "") + ": " + list + " " + (many ? "haben" : "hat") + " noch einen Stopp weniger auf dem Konto." + calc,
+                    "Strategy check" + (n != null ? ", " + n : "") + ": " + list + " " + (many ? "have" : "has") + " one stop fewer so far." + calc,
+                    "Vistazo a la estrategia" + (n != null ? ", " + n : "") + ": " + list + " " + (many ? "llevan" : "lleva") + " una parada menos." + calc);
                 default: return RadioLanguage.T("Stopp-Bilanz: Du warst schon öfter drin als " + list + "." + calc + " Bleib auf deinem Tempo.",
                     "Stop count: you've been in more often than " + list + "." + calc + " Stick to your pace.",
                     "Cuenta de paradas: has entrado más veces que " + list + "." + calc + " Mantén tu ritmo.");
@@ -383,7 +389,7 @@ namespace CrewChiefV4.AiTeam
                     : RadioLanguage.T(" Mit etwa " + l + " Boxenverlust liegt " + List(turned) + " nach deinem Stopp rechnerisch vor dir.",
                         " With about " + l + " of pit loss, " + List(turned) + " would be ahead of you after your stop on paper.",
                         " Con unos " + l + " de pérdida en boxes, " + List(turned) + " quedaría delante tras tu parada, sobre el papel.");
-            switch (((variant % 3) + 3) % 3)
+            switch (((variant % 4) + 4) % 4)
             {
                 case 0: return RadioLanguage.T("Achtung" + (n != null ? ", " + n : "") + ": " + list + " hinter dir " + (many ? "haben" : "hat") + " schon einmal mehr gestoppt als du." + calc,
                     "Heads up" + (n != null ? ", " + n : "") + ": " + list + " behind you " + (many ? "have" : "has") + " already stopped once more than you." + calc,
@@ -391,6 +397,9 @@ namespace CrewChiefV4.AiTeam
                 case 1: return RadioLanguage.T("Der Abstand nach hinten täuscht: " + list + " " + (many ? "haben" : "hat") + " den Stopp schon hinter sich, du noch nicht." + calc,
                     "The gap behind is misleading: " + list + " " + (many ? "have" : "has") + " already made the stop, you haven't." + calc,
                     "La distancia por detrás engaña: " + list + " ya " + (many ? "han" : "ha") + " hecho la parada, tú todavía no." + calc);
+                case 3: return RadioLanguage.T("Strategie-Blick" + (n != null ? ", " + n : "") + ": " + list + " hinter dir " + (many ? "sind" : "ist") + " schon einmal öfter rein." + calc,
+                    "Strategy check" + (n != null ? ", " + n : "") + ": " + list + " behind you " + (many ? "have" : "has") + " already pitted once more." + calc,
+                    "Vistazo a la estrategia" + (n != null ? ", " + n : "") + ": " + list + " detrás de ti ya " + (many ? "han" : "ha") + " parado una vez más." + calc);
                 default: return RadioLanguage.T("Blick auf die Stopps: " + list + " war schon öfter an der Box als du." + calc,
                     "Watch the stops: " + list + (many ? " have" : " has") + " pitted more often than you." + calc,
                     "Ojo a las paradas: " + list + (many ? " han" : " ha") + " entrado en boxes más veces que tú." + calc);

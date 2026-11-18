@@ -39,7 +39,7 @@ namespace CrewChiefV4.AiTeam
         // was auf die Bestzeit fehlt – leise, nicht zu oft.
         private int timedLapAttempts, lastGapLap = -100, gapVariant, startVariant;
         private DateTime lastGapUtc = DateTime.MinValue;
-        private bool wasInPit;
+        private bool wasInPit, pendingQualiTarget;
 
         /// <summary>Ansage zum Start einer schnellen Runde; <paramref name="attempt"/> 0 = erste der Session.</summary>
         internal static string TimedLapStart(int attempt, string name, int variant)
@@ -123,7 +123,7 @@ namespace CrewChiefV4.AiTeam
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
             edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
-            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false;
+            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue; lastAttemptsAnnounced = -1; lastOutlapGapLap = -1;
         }
 
         public static bool Supported(SessionType t)
@@ -169,6 +169,7 @@ namespace CrewChiefV4.AiTeam
                 distance - previous.PositionAndMotionData.DistanceRoundTrack <= 180 * step + 15)
             {
                 firstTimedLapCalled = true;
+                pendingQualiTarget = true;
                 Add(gs, now, "timed-lap-approach", timedLapAttempts == 0 ? TimedLapApproachPhrase : TimedLapStart(timedLapAttempts, sectorDriverName, startVariant++),
                     "confirmed_qualifying_outlap_approaching_line", 4);
             }
@@ -183,19 +184,41 @@ namespace CrewChiefV4.AiTeam
                 firstTimedLapCalled = true;
                 Add(gs, now, "timed-lap-start", TimedLapStart(timedLapAttempts, sectorDriverName, startVariant++),
                     "mapped_outlap_end_new_lap_and_start_finish_crossing", 3);
+                OfferQualiTarget(gs, now, names);
+                pendingQualiTarget = false;
             }
+            ObserveOutlapGap(gs, tracks, now);
+            // Nach der Ansage vor der Linie kommt die Zielzeit, sobald die schnelle Runde wirklich läuft.
+            if (pendingQualiTarget && !race && green && s.IsNewLap && !gs.PitData.OnOutLap && !gs.PitData.InPitlane && s.CurrentLapIsValid)
+            {
+                pendingQualiTarget = false;
+                OfferQualiTarget(gs, now, names);
+            }
+            if (gs.PitData.InPitlane) pendingQualiTarget = false;
+            // Zeitqualifying: Wie viele schnelle Runden passen nach dieser noch in die Restzeit?
+            int moreLaps = QualifyingResultWatch.Supported(type) && green && s.IsNewLap && !gs.PitData.InPitlane && s.CurrentLapIsValid
+                ? AttemptsAfterThisLap(s.SessionHasFixedTime ? s.SessionTimeRemaining : -1, Good(s.PlayerLapTimeSessionBest) ? s.PlayerLapTimeSessionBest : s.LapTimePrevious) : -1;
             bool finalQualifyingLap = QualifyingResultWatch.Supported(type) && previous?.SessionData.SessionId == session &&
                 previous.SessionData.SessionPhase == SessionPhase.Green && (s.SessionPhase == SessionPhase.Checkered ||
-                green && s.IsNewLap && s.SessionLapsRemaining == 1 && !s.SessionHasFixedTime);
+                green && s.IsNewLap && s.SessionLapsRemaining == 1 && !s.SessionHasFixedTime || moreLaps == 0 && s.CompletedLaps > 0);
+            if ((moreLaps == 1 || moreLaps == 2) && moreLaps != lastAttemptsAnnounced && !gs.PitData.OnOutLap && !pending.Any(c => c.Topic == "quali-target"))
+            {
+                lastAttemptsAnnounced = moreLaps;
+                var attempts = Add(gs, now, "quali-attempts", AttemptsText(moreLaps, attemptsVariant++), "session_time_remaining_vs_own_lap_time_" + moreLaps + "_more", 3);
+                attempts.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+            }
             if (!lastQualifyingLapOffered && finalQualifyingLap && !gs.PitData.InPitlane && !gs.PitData.OnOutLap &&
                 s.CurrentLapIsValid && gs.PositionAndMotionData.CarSpeed > 12 && s.CompletedLaps > 0)
             {
                 lastQualifyingLapOffered = true;
                 string name = AiPersonas.CleanForRadio(driverName ?? "Rob", 30, false);
                 string[] push = RadioLanguage.Pick(
-                    new[] { "Letzte schnelle Runde. Hol raus, was geht.", "Letzte Chance. Sauber durchziehen.", "Eine Runde noch, volle Konzentration." },
-                    new[] { "Last flying lap. Get everything out of it.", "Last chance. Make it clean.", "One more lap, full focus." },
-                    new[] { "Última vuelta rápida. Sácale todo.", "Última oportunidad. Hazla limpia.", "Una vuelta más, concentración total." });
+                    new[] { "Letzte schnelle Runde. Hol raus, was geht.", "Letzte Chance. Sauber durchziehen.", "Eine Runde noch, volle Konzentration.",
+                        "Die Uhr läuft ab, das ist dein letzter Versuch. Alles rein.", "Letzte Runde im Qualifying. Bremspunkte treffen, Ausgänge sauber." },
+                    new[] { "Last flying lap. Get everything out of it.", "Last chance. Make it clean.", "One more lap, full focus.",
+                        "The clock's run down, this is your last attempt. Everything in.", "Final lap of qualifying. Hit the braking points, clean exits." },
+                    new[] { "Última vuelta rápida. Sácale todo.", "Última oportunidad. Hazla limpia.", "Una vuelta más, concentración total.",
+                        "Se acaba el tiempo, es tu último intento. Dalo todo.", "Última vuelta de la clasificación. Clava las frenadas, salidas limpias." });
                 var last = Add(gs, now, "qualifying-last", RadioPhraseCatalog.Address(push[qualiLastVariation.Next(push.Length)], name),
                     "confirmed_final_qualifying_lap", 5);
                 last.Member = TeamMember.Ben;
@@ -209,9 +232,13 @@ namespace CrewChiefV4.AiTeam
                     Good(completed.LapTime) && TrackAwareness.InRange(completed.FuelUsed, .05, 50).HasValue)
                 {
                     firstFuelOffered = true;
-                    Add(gs, now, "first-lap-fuel", RadioLanguage.T("Erste volle Runde, " + FuelWatch.Litres(completed.FuelUsed) + " verbraucht.",
-                        "First full lap, " + FuelWatch.Litres(completed.FuelUsed) + " used.",
-                        "Primera vuelta completa, " + FuelWatch.Litres(completed.FuelUsed) + " gastados."), "measured_first_full_lap_fuel", 4);
+                    string used = FuelWatch.Litres(completed.FuelUsed);
+                    Add(gs, now, "first-lap-fuel", RadioVariants.Pick("first-lap-fuel",
+                        RadioLanguage.T("Erste volle Runde, " + used + " verbraucht.", "First full lap, " + used + " used.", "Primera vuelta completa, " + used + " gastados."),
+                        RadioLanguage.T("Erste Messrunde: " + used + " Sprit.", "First measured lap: " + used + " of fuel.", "Primera vuelta medida: " + used + " de combustible."),
+                        RadioLanguage.T("Verbrauch der ersten vollen Runde: " + used + ".", "Fuel on the first full lap: " + used + ".", "Consumo de la primera vuelta completa: " + used + "."),
+                        RadioLanguage.T("Die erste ganze Runde hat " + used + " gekostet.", "The first full lap took " + used + ".", "La primera vuelta entera se ha llevado " + used + ".")),
+                        "measured_first_full_lap_fuel", 4);
                 }
                 if (race && green && !fuelBaselineReported && !completed.InPitLap && !gs.PitData.InPitlane &&
                     !pending.Any(call => call.Topic == "fuel-baseline" && call.IsValid(gs, now)) && fuelHistory != null)
@@ -221,9 +248,19 @@ namespace CrewChiefV4.AiTeam
                     {
                         string consumption = FuelWatch.Litres(fuelPerLap);
                         var call = Add(gs, now, "fuel-baseline",
-                            RadioLanguage.T("Über drei volle Runden liegst du bei " + consumption + " pro Runde.",
-                                "Over three full laps you're using " + consumption + " per lap.",
-                                "En tres vueltas completas, el consumo es de " + consumption + " por vuelta."),
+                            RadioVariants.Pick("fuel-baseline",
+                                RadioLanguage.T("Über drei volle Runden liegst du bei " + consumption + " pro Runde.",
+                                    "Over three full laps you're using " + consumption + " per lap.",
+                                    "En tres vueltas completas, el consumo es de " + consumption + " por vuelta."),
+                                RadioLanguage.T("Verbrauch steht: " + consumption + " pro Runde, gemessen über drei Runden.",
+                                    "Consumption is set: " + consumption + " per lap, measured over three laps.",
+                                    "Consumo fijado: " + consumption + " por vuelta, medido en tres vueltas."),
+                                RadioLanguage.T("Drei saubere Runden, im Schnitt " + consumption + " pro Runde.",
+                                    "Three clean laps, averaging " + consumption + " per lap.",
+                                    "Tres vueltas limpias, de media " + consumption + " por vuelta."),
+                                RadioLanguage.T("Gemessener Schnitt nach drei Runden: " + consumption + " je Runde.",
+                                    "Measured average after three laps: " + consumption + " a lap.",
+                                    "Media medida tras tres vueltas: " + consumption + " por vuelta.")),
                             "three_measured_full_laps", 4);
                         call.AdditionalValidity = live => live.FuelData.FuelUseActive && !live.FlagData.isLocalYellow;
                     }
@@ -241,7 +278,11 @@ namespace CrewChiefV4.AiTeam
                         var variants = first ? firstValidVariants : improvements;
                         int heard = SelectVariant(group, variants);
                         string text = RadioPhraseCatalog.Current.Format(group, heard, formatted) +
-                            (classRecord ? RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!") :
+                            (classRecord ? RadioVariants.Pick("class-best-suffix",
+                                RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!"),
+                                RadioLanguage.T(" Damit hast du die Klassenbestzeit!", " That's the fastest in class!", " ¡Con eso tienes el mejor tiempo de la clase!"),
+                                RadioLanguage.T(" Schnellster in der Klasse!", " Quickest in class!", " ¡El más rápido de la clase!"),
+                                RadioLanguage.T(" Ganz oben in der Klasse.", " Top of the class.", " Primero de la clase.")) :
                                 first ? FirstLapComparison(gs, time, names, firstComparisonVariant++) : "");
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
@@ -289,6 +330,19 @@ namespace CrewChiefV4.AiTeam
                 var leader = gs.OpponentData.Values.FirstOrDefault(o => SameClass(gs, o) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - classBest) < .01f);
                 string leaderName = names && leader != null ? new string((leader.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()).Trim() : null;
                 Add(gs, now, "quali-gap", GapToBest(Math.Max(0, gap), s.ClassPosition, leaderName, gapVariant++), "own_session_best_vs_class_best_after_clean_lap", 2);
+            }
+            // Wo liegt die Zeit? Nach jeder sauberen Quali-Runde (höchstens jede Minute), außer der Zwischenstand kam gerade.
+            if (QualifyingResultWatch.Supported(type) && green && !s.SectorTimingEstimated && completed?.SectorTimes?.Length == 3 && completed.Valid &&
+                !completed.InPitLap && Good(completed.LapTime) && lastGapLap != s.CompletedLaps && s.CompletedLaps != lastAnalysisLap &&
+                now - lastAnalysisUtc >= TimeSpan.FromSeconds(60))
+            {
+                string analysis = LapAnalysis(completed.SectorTimes, FieldBestSectors(gs), analysisVariant++);
+                if (analysis != null)
+                {
+                    lastAnalysisLap = s.CompletedLaps; lastAnalysisUtc = now;
+                    var call = Add(gs, now, "quali-lap-analysis", analysis, "valid_lap_sectors_vs_class_opponent_best_lap_sectors", 2);
+                    call.AdditionalValidity = live => !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+                }
             }
             if (!s.SectorTimingEstimated && completed?.SectorTimes?.Length == 3 && completed.Valid && !completed.InPitLap && Good(completed.LapTime) &&
                 completed.LapNumber == s.CompletedLaps && s.IsNewLap &&
@@ -690,14 +744,14 @@ namespace CrewChiefV4.AiTeam
             if (!TrackAwareness.InRange(own, 1, 3600).HasValue) return;
             var leaders = state.OpponentData.Where(p => p.Value != null && p.Value.IsActive && p.Value.ClassPosition == 1 &&
                 state.carClass != null && CarData.IsCarClassEqual(state.carClass, p.Value.CarClass)).Take(2).ToArray();
-            if (leaders.Length != 1) return;
+            if (leaders.Length != 1) { FieldSector(state, sector, own, now); return; }
             var leader = leaders[0];
             if (tracks != null && !tracks.OpponentFresh(new RaceDataContext { GameState = state, NowUtc = now,
-                LastTelemetryUtc = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc }, leader.Value)) return;
+                LastTelemetryUtc = state.SourceTelemetryUtc == DateTime.MinValue ? state.Now : state.SourceTelemetryUtc }, leader.Value)) { FieldSector(state, sector, own, now); return; }
             var best = leader.Value.OpponentLapData.LastOrDefault(lap => lap.IsValid && !lap.InLap && !lap.OutLap &&
                 Good(lap.LapTime) && Math.Abs(lap.LapTime - leader.Value.CurrentBestLapTime) < .001f);
             if (best?.SectorTimes == null || sector >= best.SectorTimes.Length ||
-                !TrackAwareness.InRange(best.SectorTimes[sector], 1, 3600).HasValue) return;
+                !TrackAwareness.InRange(best.SectorTimes[sector], 1, 3600).HasValue) { FieldSector(state, sector, own, now); return; }
             double delta = own - best.SectorTimes[sector];
             if (Math.Abs(delta) < .025 || Math.Abs(delta) > 15) return;
 
@@ -725,6 +779,228 @@ namespace CrewChiefV4.AiTeam
         }
 
         private int firstComparisonVariant;
+
+        // ---------- Rob 18.11.: Qualifying professioneller – Zielzeit, Sektorvergleich, wo die Zeit liegt ----------
+
+        /// <summary>Sektorzeiten der schnellsten Runde der Konkurrenz in Robs Klasse (Crew-Chief-Zeitnahme); null ohne Daten.</summary>
+        internal static float[] FieldBestSectors(GameStateData gs)
+        {
+            var t = gs?.TimingData;
+            if (t == null) return null;
+            var v = new[] { t.getPlayerClassOpponentBestLapSector1Time(), t.getPlayerClassOpponentBestLapSector2Time(), t.getPlayerClassOpponentBestLapSector3Time() };
+            return v.All(x => x >= 1 && x < 3600) ? v : null;
+        }
+
+        /// <summary>Ersatz, wenn der Klassenführende keine prüfbaren Sektorzeiten liefert: Vergleich mit der schnellsten Runde der Konkurrenz.</summary>
+        private void FieldSector(GameStateData state, int sector, float own, DateTime now)
+        {
+            var s = state.SessionData;
+            var field = FieldBestSectors(state);
+            if (field == null) return;
+            double delta = own - field[sector];
+            if (Math.Abs(delta) < .025 || Math.Abs(delta) > 15) return;
+            var call = Add(state, now, "quali-sector", SectorVsField(sector, delta, fieldSectorVariant++), "completed_sector_vs_class_opponent_best_lap_sector", 4);
+            int observedSector = s.SectorNumber;
+            call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && live.SessionData.SectorNumber == observedSector && !live.FlagData.isLocalYellow;
+            lastSectorCallLap = s.CompletedLaps;
+            lastSectorCall = sector;
+        }
+        private int fieldSectorVariant, targetVariant, analysisVariant, lastAnalysisLap = -100, attemptsVariant, lastAttemptsAnnounced = -1;
+
+        private int lastOutlapGapLap = -1, outlapGapVariant;
+
+        /// <summary>Freie Bahn für die schnelle Runde? Auf der Aufwärmrunde im Qualifying (60–92 % der Runde) einmal den Abstand
+        /// zu den Autos vor und hinter Rob ansagen. Nur mit gemessenem Zeitabstand auf der Strecke (gleicher Streckenpunkt).</summary>
+        private void ObserveOutlapGap(GameStateData gs, TrackAwareness tracks, DateTime now)
+        {
+            var s = gs.SessionData;
+            if (!QualifyingResultWatch.Supported(type) || tracks == null || !gs.PitData.OnOutLap || gs.PitData.InPitlane ||
+                s.SessionPhase != SessionPhase.Green || lastOutlapGapLap == s.CompletedLaps) return;
+            var snap = tracks.Snapshot;
+            if (snap == null || snap.SessionId != s.SessionId || now < snap.Utc || now - snap.Utc > TimeSpan.FromSeconds(1) || !(snap.LengthM > 0) || !snap.PlayerDistanceM.HasValue) return;
+            double progress = snap.PlayerDistanceM.Value / snap.LengthM.Value;
+            if (progress < .6 || progress > .92) return;
+            TrackCarPosition ahead = null, behind = null;
+            foreach (var c in snap.Cars)
+            {
+                if (c.InPits || !c.SpatiallyConsistent || !c.RouteGapM.HasValue || !c.TrackIntervalSeconds.HasValue) continue;
+                if (c.RouteGapM > 0 && (ahead == null || c.RouteGapM < ahead.RouteGapM)) ahead = c;
+                if (c.RouteGapM < 0 && (behind == null || c.RouteGapM > behind.RouteGapM)) behind = c;
+            }
+            string text = OutlapGapText(ahead == null ? -1 : Math.Abs(ahead.TrackIntervalSeconds.Value), ahead != null && !ahead.OnOutLap && !ahead.OnInLap,
+                behind == null ? -1 : Math.Abs(behind.TrackIntervalSeconds.Value), behind != null && !behind.OnOutLap && !behind.OnInLap, outlapGapVariant++);
+            lastOutlapGapLap = s.CompletedLaps;
+            if (text == null) return;
+            var call = Add(gs, now, "quali-outlap-gap", text, "outlap_track_interval_to_nearest_cars_ahead_and_behind", 3);
+            call.AdditionalValidity = live => live.PitData.OnOutLap && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+        }
+
+        /// <summary>Ansage zur Lücke vor der schnellen Runde; null, wenn nichts Belastbares zu sagen ist.</summary>
+        internal static string OutlapGapText(double ahead, bool aheadFlying, double behind, bool behindFlying, int variant)
+        {
+            string a = ahead > 0 ? RadioLanguage.Num(ahead, "0") : null, b = behind > 0 ? RadioLanguage.Num(behind, "0") : null;
+            if (behind > 0 && behind < 4 && behindFlying)
+                return Of(variant,
+                    RadioLanguage.T("Hinter dir kommt einer auf schneller Runde, " + b + " Sekunden. Lass ihn vorbei, dann hast du freie Bahn.", "Car behind on a flying lap, " + b + " seconds. Let him by, then you've got clear track.", "Detrás viene uno en vuelta rápida, a " + b + " segundos. Déjale pasar y tendrás pista libre."),
+                    RadioLanguage.T("Achtung, schnelles Auto hinten, " + b + " Sekunden. Platz machen, nicht im Weg stehen.", "Heads up, fast car behind, " + b + " seconds. Make room, don't hold him up.", "Atención, coche rápido detrás, a " + b + " segundos. Hazle sitio, no le estorbes."),
+                    RadioLanguage.T(b + " Sekunden hinter dir einer auf seiner schnellen Runde. Erst vorbeilassen, dann starten.", b + " seconds behind you, someone on a flying lap. Let him through, then start yours.", "A " + b + " segundos detrás, uno en su vuelta rápida. Déjale pasar y luego empieza la tuya."),
+                    RadioLanguage.T("Schneller Verkehr von hinten, " + b + " Sekunden. Ideallinie freigeben.", "Fast traffic behind, " + b + " seconds. Give him the racing line.", "Tráfico rápido detrás, " + b + " segundos. Déjale la trazada."));
+            if (ahead > 0 && ahead < 5)
+                return aheadFlying ? Of(variant,
+                    RadioLanguage.T("Vor dir nur " + a + " Sekunden, der ist auf schneller Runde. Etwas rausnehmen, Lücke schaffen.", "Only " + a + " seconds to the car ahead, he's on a flying lap. Back off a bit, make a gap.", "Solo " + a + " segundos al de delante, va en vuelta rápida. Levanta un poco, haz hueco."),
+                    RadioLanguage.T(a + " Sekunden zum Vordermann, das ist zu knapp. Lass dir Luft für deine Runde.", a + " seconds to the car ahead, that's too close. Give yourself room for your lap.", a + " segundos al de delante, demasiado cerca. Date espacio para tu vuelta."),
+                    RadioLanguage.T("Zu dicht dran, " + a + " Sekunden. Etwas Abstand, sonst fährst du in seiner Luftverwirbelung.", "Too close, " + a + " seconds. Drop back a little or you'll be in his dirty air.", "Demasiado cerca, " + a + " segundos. Deja algo de distancia o irás en su aire sucio."),
+                    RadioLanguage.T("Vorne " + a + " Sekunden. Lücke auf mindestens fünf aufmachen.", "Ahead " + a + " seconds. Open the gap to at least five.", "Delante " + a + " segundos. Abre el hueco a por lo menos cinco.")) : Of(variant,
+                    RadioLanguage.T("Vor dir einer auf der Aufwärmrunde, " + a + " Sekunden. Lücke schaffen, bevor du loslegst.", "Car ahead on his out lap, " + a + " seconds. Make a gap before you go.", "Delante uno en vuelta de salida, a " + a + " segundos. Haz hueco antes de empezar."),
+                    RadioLanguage.T(a + " Sekunden zu einem langsamen Auto vorne. Zurückfallen lassen, freie Runde ist wichtiger.", a + " seconds to a slow car ahead. Drop back, a clear lap matters more.", a + " segundos a un coche lento delante. Quédate atrás, importa más una vuelta libre."),
+                    RadioLanguage.T("Vorne bummelt einer, " + a + " Sekunden. Abstand halten, sonst kostet es dich die Runde.", "Someone's cruising ahead, " + a + " seconds. Keep your distance or it'll cost you the lap.", "Uno va despacio delante, a " + a + " segundos. Mantén distancia o te costará la vuelta."),
+                    RadioLanguage.T("Verkehr vor dir, " + a + " Sekunden. Nimm etwas raus und such dir eine freie Lücke.", "Traffic ahead, " + a + " seconds. Ease off and find a clean gap.", "Tráfico delante, a " + a + " segundos. Levanta y busca un hueco libre."));
+            if ((ahead < 0 || ahead >= 8) && (behind < 0 || behind >= 6) && (ahead > 0 || behind > 0))
+                return Of(variant,
+                    RadioLanguage.T("Gute Lücke für die schnelle Runde" + (a != null ? ", vorne " + a + " Sekunden" : "") + (b != null ? ", hinten " + b + " Sekunden" : "") + ".", "Good gap for the flying lap" + (a != null ? ", " + a + " seconds ahead" : "") + (b != null ? ", " + b + " seconds behind" : "") + ".", "Buen hueco para la vuelta rápida" + (a != null ? ", " + a + " segundos delante" : "") + (b != null ? ", " + b + " segundos detrás" : "") + "."),
+                    RadioLanguage.T("Freie Bahn vor dir. Reifen und Bremsen vorbereiten, dann voll.", "Clear track ahead. Get tyres and brakes ready, then go flat out.", "Pista libre delante. Prepara neumáticos y frenos y luego a fondo."),
+                    RadioLanguage.T("Die Lücke passt" + (a != null ? ", " + a + " Sekunden nach vorn" : "") + ". Das wird eine saubere Runde.", "The gap is good" + (a != null ? ", " + a + " seconds ahead" : "") + ". That'll be a clean lap.", "El hueco es bueno" + (a != null ? ", " + a + " segundos delante" : "") + ". Será una vuelta limpia."),
+                    RadioLanguage.T("Platz nach vorn und hinten. Bereit machen für deine Runde.", "Room ahead and behind. Get ready for your lap.", "Espacio delante y detrás. Prepárate para tu vuelta."));
+            return null;
+        }
+
+        /// <summary>Schnelle Runden, die nach der gerade begonnenen noch starten können; -1, wenn unsicher (Restzeit nah an einer
+        /// Rundenzeit, ±3 s) oder ohne Messwerte. Eine Runde, die vor Ablauf beginnt, darf zu Ende gefahren werden.</summary>
+        internal static int AttemptsAfterThisLap(float remaining, float lapTime)
+        {
+            if (!(remaining > 0) || !Good(lapTime)) return -1;
+            double ratio = remaining / lapTime;
+            double frac = ratio - Math.Floor(ratio);
+            if (frac * lapTime < 3 || (1 - frac) * lapTime < 3) return -1;
+            return (int)Math.Ceiling(ratio) - 1;
+        }
+
+        internal static string AttemptsText(int more, int variant)
+        {
+            if (more == 1)
+                return Of(variant,
+                    RadioLanguage.T("Nach dieser Runde reicht die Zeit noch für einen Versuch.", "After this lap there's time for one more attempt.", "Después de esta vuelta queda tiempo para un intento más."),
+                    RadioLanguage.T("Zwei Versuche bleiben, diese und eine weitere.", "Two attempts left, this one and one more.", "Quedan dos intentos, esta y una más."),
+                    RadioLanguage.T("Die Uhr gibt noch eine Runde nach dieser her.", "The clock gives you one more lap after this.", "El reloj da para una vuelta más después de esta."),
+                    RadioLanguage.T("Eine Chance noch nach dieser. Jetzt die Zeit hinstellen.", "One more chance after this. Get the time in now.", "Una oportunidad más después de esta. Marca el tiempo ahora."),
+                    RadioLanguage.T("Danach noch ein Versuch, also diese Runde sauber durchbringen.", "One more go after this, so bring this lap home clean.", "Después queda un intento, así que termina esta vuelta limpia."));
+            return Of(variant,
+                RadioLanguage.T("Nach dieser Runde ist noch Zeit für zwei Versuche.", "After this lap there's time for two more attempts.", "Después de esta vuelta queda tiempo para dos intentos."),
+                RadioLanguage.T("Drei Runden passen noch rein, diese eingerechnet.", "Three laps still fit in, this one included.", "Aún caben tres vueltas, contando esta."),
+                RadioLanguage.T("Zeit für diese und zwei weitere. Aufbauen, dann zuschlagen.", "Time for this one and two more. Build up, then strike.", "Tiempo para esta y dos más. Construye y luego ataca."),
+                RadioLanguage.T("Zwei Chancen nach dieser. Keine Hektik.", "Two chances after this. No rush.", "Dos oportunidades después de esta. Sin prisa."),
+                RadioLanguage.T("Die Restzeit reicht noch für zwei schnelle Runden nach dieser.", "Remaining time covers two more flying laps after this.", "El tiempo restante da para dos vueltas rápidas más después de esta."));
+        }
+        private DateTime lastAnalysisUtc = DateTime.MinValue;
+
+        internal static string SectorVsField(int sector, double delta, int variant)
+        {
+            string n = (sector + 1).ToString(CultureInfo.InvariantCulture);
+            string d = RadioLanguage.Num(Math.Abs(delta), "0.000");
+            if (delta < 0)
+                return Of(variant,
+                    RadioLanguage.T("Sektor " + n + ": " + d + " schneller als die Bestzeit. Stark, weiter so.", "Sector " + n + ": " + d + " up on the best time. Strong, keep going.", "Sector " + n + ": " + d + " más rápido que el mejor tiempo. Muy bien, sigue."),
+                    RadioLanguage.T("Grüner Sektor " + n + ", minus " + d + " auf die Bestzeit.", "Green sector " + n + ", minus " + d + " to the best time.", "Sector " + n + " en verde, menos " + d + " respecto al mejor tiempo."),
+                    RadioLanguage.T("Du bist " + d + " vorn nach Sektor " + n + ". Jetzt nicht nachlassen.", "You're " + d + " up after sector " + n + ". Don't back off now.", "Vas " + d + " por delante tras el sector " + n + ". No aflojes."),
+                    RadioLanguage.T("Sektor " + n + " schneller als alle anderen, " + d + " Vorsprung. Sauber zu Ende bringen.", "Sector " + n + " quicker than everyone, " + d + " up. Bring it home clean.", "Sector " + n + " más rápido que todos, " + d + " de ventaja. Termínala limpia."),
+                    RadioLanguage.T("Minus " + d + " nach Sektor " + n + ". Das ist Pole-Tempo.", "Minus " + d + " after sector " + n + ". That's pole pace.", "Menos " + d + " tras el sector " + n + ". Eso es ritmo de pole."));
+            return Of(variant,
+                RadioLanguage.T("Sektor " + n + ": plus " + d + " auf die Bestzeit.", "Sector " + n + ": plus " + d + " to the best time.", "Sector " + n + ": más " + d + " respecto al mejor tiempo."),
+                RadioLanguage.T("Nach Sektor " + n + " " + d + " hinter der Bestzeit. Weiter pushen.", "After sector " + n + ", " + d + " behind the best time. Keep pushing.", "Tras el sector " + n + ", " + d + " detrás del mejor tiempo. Sigue apretando."),
+                RadioLanguage.T("Sektor " + n + " kostet " + d + " auf die Spitze. Da geht noch was.", "Sector " + n + " costs " + d + " to the top. There's more there.", "El sector " + n + " cuesta " + d + " respecto a la cabeza. Hay margen."),
+                RadioLanguage.T("Plus " + d + " in Sektor " + n + ". Ruhig bleiben, die Runde ist noch offen.", "Plus " + d + " in sector " + n + ". Stay calm, the lap is still open.", "Más " + d + " en el sector " + n + ". Tranquilo, la vuelta sigue abierta."),
+                RadioLanguage.T(d + " Rückstand nach Sektor " + n + ". Hol es dir im nächsten zurück.", d + " down after sector " + n + ". Get it back in the next one.", d + " de desventaja tras el sector " + n + ". Recupéralo en el siguiente."));
+        }
+
+        /// <summary>Beste Rundenzeit der Klasse, die für einen Zielplatz reicht (nächste Stufe: P10, P5, P3, Pole).</summary>
+        internal static int TargetPosition(int position) => position > 10 ? 10 : position > 5 ? 5 : position > 3 ? 3 : 1;
+
+        /// <summary>Zielansage beim Start einer schnellen Runde im Qualifying: Bestzeit, eigener Stand, was es für den nächsten Schritt braucht.</summary>
+        internal static string TargetText(float best, string bestName, int position, float mine, int targetPos, float targetTime, int variant)
+        {
+            if (!Good(best))
+                return Of(variant,
+                    RadioLanguage.T("Noch keine Zeit auf der Uhr. Du setzt die Marke.", "No times on the board yet. You set the benchmark.", "Aún no hay tiempos. Tú marcas la referencia."),
+                    RadioLanguage.T("Die Zeitenliste ist leer. Erste Referenz gehört dir.", "The timesheet is empty. First reference is yours.", "La tabla está vacía. La primera referencia es tuya."),
+                    RadioLanguage.T("Freie Bahn auf der Zeitenliste. Bau eine saubere Runde auf.", "Clear timesheet. Build a clean lap.", "Tabla libre. Construye una vuelta limpia."),
+                    RadioLanguage.T("Keiner hat bisher eine Zeit. Leg vor.", "Nobody's set a time yet. Put one in.", "Nadie tiene tiempo todavía. Pon uno."));
+            string b = LocalAnswers.LapTime(best);
+            string who = string.IsNullOrWhiteSpace(bestName) ? "" : bestName;
+            if (!Good(mine) || position <= 0)
+                return Of(variant,
+                    RadioLanguage.T("Die Bestzeit steht bei " + b + (who.Length > 0 ? " von " + who : "") + ". Das ist unsere Referenz.", "Best time is " + b + (who.Length > 0 ? " from " + who : "") + ". That's our reference.", "El mejor tiempo es " + b + (who.Length > 0 ? " de " + who : "") + ". Esa es nuestra referencia."),
+                    RadioLanguage.T("Referenz: " + b + ". Erst mal eine saubere Zeit hinstellen.", "Reference: " + b + ". Get a clean time on the board first.", "Referencia: " + b + ". Primero un tiempo limpio."),
+                    RadioLanguage.T((who.Length > 0 ? who + " führt mit " : "Vorne steht eine ") + b + ". Bau dich da ran.", (who.Length > 0 ? who + " leads with " : "Top time is ") + b + ". Build up to it.", (who.Length > 0 ? who + " lidera con " : "Arriba hay un ") + b + ". Acércate."),
+                    RadioLanguage.T("Zielmarke " + b + ". Rhythmus finden, dann angreifen.", "Benchmark " + b + ". Find your rhythm, then attack.", "Marca a batir " + b + ". Coge el ritmo y ataca."));
+            string p = position.ToString(RadioLanguage.Culture), m = LocalAnswers.LapTime(mine);
+            if (position == 1)
+                return Of(variant,
+                    RadioLanguage.T("Du stehst auf Pole mit " + m + ". Jede Zehntel mehr macht es sicherer.", "You're on pole with " + m + ". Every tenth makes it safer.", "Estás en la pole con " + m + ". Cada décima la hace más segura."),
+                    RadioLanguage.T("P1 mit " + m + ". Bau den Vorsprung aus.", "P1 with " + m + ". Extend the margin.", "P1 con " + m + ". Amplía la ventaja."),
+                    RadioLanguage.T("Pole steht, " + m + ". Jetzt noch eine Schippe drauf.", "Pole is yours, " + m + ". Now add a bit more.", "La pole es tuya, " + m + ". Ahora un poco más."),
+                    RadioLanguage.T("Ganz vorn mit " + m + ". Die anderen kommen noch, leg nach.", "Top with " + m + ". The others are still coming, go again.", "Arriba con " + m + ". Los demás aún vienen, mejora."));
+            string t = Good(targetTime) ? LocalAnswers.LapTime(targetTime) : null;
+            string goal = targetPos == 1 ? RadioLanguage.T("die Pole", "pole", "la pole") : RadioLanguage.T("Platz " + targetPos, "P" + targetPos, "P" + targetPos);
+            if (t == null)
+                return Of(variant,
+                    RadioLanguage.T("Du bist P" + p + " mit " + m + ", die Bestzeit ist " + b + ".", "You're P" + p + " with " + m + ", best time is " + b + ".", "Vas P" + p + " con " + m + ", el mejor tiempo es " + b + "."),
+                    RadioLanguage.T("Stand P" + p + ", " + m + ". Vorne steht " + b + ".", "P" + p + " right now, " + m + ". Top time " + b + ".", "Ahora P" + p + ", " + m + ". Arriba " + b + "."),
+                    RadioLanguage.T(b + " ist die Marke, du hast " + m + ". Angriff.", b + " is the mark, you've got " + m + ". Attack.", b + " es la marca, tienes " + m + ". Al ataque."),
+                    RadioLanguage.T("P" + p + " im Moment. Bis " + b + " ist noch Luft, hol sie dir.", "P" + p + " at the moment. There's a gap to " + b + ", go get it.", "P" + p + " ahora mismo. Hay margen hasta " + b + ", ve a por él."));
+            return Of(variant,
+                RadioLanguage.T("Du bist P" + p + " mit " + m + ". Für " + goal + " brauchst du eine " + t + ", Bestzeit " + b + ".", "You're P" + p + " with " + m + ". For " + goal + " you need a " + t + ", best is " + b + ".", "Vas P" + p + " con " + m + ". Para " + goal + " necesitas un " + t + ", el mejor es " + b + "."),
+                RadioLanguage.T("Ziel: " + t + ", das reicht für " + goal + ". Aktuell P" + p + ".", "Target: " + t + ", that's " + goal + ". Currently P" + p + ".", "Objetivo: " + t + ", eso da " + goal + ". Ahora P" + p + "."),
+                RadioLanguage.T(t + " bringt dich auf " + goal + ". Du hast " + m + ", das ist drin.", t + " puts you on " + goal + ". You've got " + m + ", it's in there.", t + " te pone en " + goal + ". Tienes " + m + ", se puede."),
+                RadioLanguage.T("P" + p + " im Moment. " + goal.Substring(0, 1).ToUpper(RadioLanguage.Culture) + goal.Substring(1) + " liegt bei " + t + ". Hol sie dir.", "P" + p + " at the moment. " + goal.Substring(0, 1).ToUpper(RadioLanguage.Culture) + goal.Substring(1) + " is a " + t + ". Go get it.", "P" + p + " ahora. " + goal.Substring(0, 1).ToUpper(RadioLanguage.Culture) + goal.Substring(1) + " está en " + t + ". Ve a por ella."),
+                RadioLanguage.T("Diese Runde: " + t + " für " + goal + ", Bestzeit " + b + ". Konzentration.", "This lap: " + t + " for " + goal + ", best " + b + ". Focus.", "Esta vuelta: " + t + " para " + goal + ", mejor tiempo " + b + ". Concentración."));
+        }
+
+        /// <summary>Nach einer sauberen Quali-Runde: In welchem Sektor liegt die Zeit gegenüber der schnellsten Runde der Konkurrenz?</summary>
+        internal static string LapAnalysis(float[] own, float[] field, int variant)
+        {
+            if (own == null || field == null || own.Length < 3 || field.Length < 3) return null;
+            var d = Enumerable.Range(0, 3).Select(i => (double)own[i] - field[i]).ToArray();
+            int worst = Array.IndexOf(d, d.Max()), best = Array.IndexOf(d, d.Min());
+            string W = (worst + 1).ToString(CultureInfo.InvariantCulture), B = (best + 1).ToString(CultureInfo.InvariantCulture);
+            string lose = RadioLanguage.Num(Math.Abs(d[worst]), "0.000"), gain = RadioLanguage.Num(Math.Abs(d[best]), "0.000");
+            if (d.All(x => x <= 0))
+                return Of(variant,
+                    RadioLanguage.T("In allen drei Sektoren schneller als die Konkurrenz. So sieht eine Pole-Runde aus.", "Quicker than the field in all three sectors. That's what a pole lap looks like.", "Más rápido que todos en los tres sectores. Así es una vuelta de pole."),
+                    RadioLanguage.T("Drei grüne Sektoren. Am meisten holst du in Sektor " + B + ", minus " + gain + ".", "Three green sectors. Most gained in sector " + B + ", minus " + gain + ".", "Tres sectores en verde. Lo que más ganas es en el sector " + B + ", menos " + gain + "."),
+                    RadioLanguage.T("Überall vorn, Sektor " + B + " ist deine Stärke mit " + gain + ".", "Ahead everywhere, sector " + B + " is your strength with " + gain + ".", "Por delante en todo, el sector " + B + " es tu fuerte con " + gain + "."),
+                    RadioLanguage.T("Keine Schwäche zu sehen. Sektor " + B + " besonders stark.", "No weakness to see. Sector " + B + " especially strong.", "Sin puntos débiles. El sector " + B + " especialmente fuerte."));
+            if (d[worst] < .025) return null;
+            bool strong = d[best] < 0;
+            return Of(variant,
+                RadioLanguage.T("Die Zeit liegt in Sektor " + W + ": " + lose + " auf die Bestzeit." + (strong ? " Sektor " + B + " war schneller als alle." : ""), "The time is in sector " + W + ": " + lose + " to the best." + (strong ? " Sector " + B + " was quicker than everyone." : ""), "El tiempo está en el sector " + W + ": " + lose + " respecto al mejor." + (strong ? " El sector " + B + " fue el más rápido." : "")),
+                RadioLanguage.T("Sektor " + W + " kostet am meisten, " + lose + ". Da müssen wir ran.", "Sector " + W + " costs the most, " + lose + ". That's where we work.", "El sector " + W + " es el que más cuesta, " + lose + ". Ahí hay que trabajar."),
+                RadioLanguage.T("Analyse: " + lose + " Verlust in Sektor " + W + (strong ? ", in Sektor " + B + " bist du vorn" : "") + ".", "Analysis: " + lose + " lost in sector " + W + (strong ? ", you're ahead in sector " + B : "") + ".", "Análisis: " + lose + " perdidos en el sector " + W + (strong ? ", vas por delante en el sector " + B : "") + "."),
+                RadioLanguage.T("Größter Rückstand in Sektor " + W + ", " + lose + ". Konzentrier dich nächste Runde darauf.", "Biggest deficit in sector " + W + ", " + lose + ". Focus on that next lap.", "Mayor desventaja en el sector " + W + ", " + lose + ". Céntrate ahí la próxima vuelta."),
+                RadioLanguage.T((strong ? "Sektor " + B + " top, " : "") + "Sektor " + W + " mit " + lose + " Rückstand. Da liegt deine Zeit.", (strong ? "Sector " + B + " top, " : "") + "sector " + W + " " + lose + " down. That's where your time is.", (strong ? "Sector " + B + " de primera, " : "") + "sector " + W + " con " + lose + " de desventaja. Ahí está tu tiempo."));
+        }
+
+        /// <summary>Zeit der Konkurrenz auf einem Klassenplatz (Bestzeit), -1 ohne Daten.</summary>
+        internal static float TimeAtPosition(GameStateData gs, int position)
+        {
+            var o = gs.OpponentData.Values.FirstOrDefault(x => SameClass(gs, x) && x.ClassPosition == position && Good(x.CurrentBestLapTime));
+            return o == null ? -1 : o.CurrentBestLapTime;
+        }
+
+        private void OfferQualiTarget(GameStateData gs, DateTime now, bool names)
+        {
+            if (!QualifyingResultWatch.Supported(type)) return;
+            var s = gs.SessionData;
+            float best = FieldBest(gs), mine = s.PlayerLapTimeSessionBest;
+            var holder = Good(best) ? gs.OpponentData.Values.Where(o => SameClass(gs, o) && Good(o.CurrentBestLapTime) && Math.Abs(o.CurrentBestLapTime - best) < .01f).Take(2).ToArray() : new OpponentData[0];
+            string who = names && holder.Length == 1 && holder[0].CanUseName ? RadioPhraseCatalog.SafeRivalName(holder[0].DriverRawName) : "";
+            int pos = s.ClassPosition, target = TargetPosition(pos);
+            float targetTime = Good(mine) && pos > 1 ? TimeAtPosition(gs, target) : -1;
+            if (Good(mine) && Good(best) && mine < best) best = mine; // Rob selbst hat die Bestzeit
+            var call = Add(gs, now, "quali-target", TargetText(best, who, Good(mine) ? pos : 0, mine, target, targetTime, targetVariant++),
+                "timed_lap_start_class_best_own_best_and_target_position_time", 3);
+            call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+            call.FieldNamesAllowed = who.Length > 0;
+        }
 
         /// <summary>
         /// Rob 16.11.: Nach der ersten gezeiteten Runde ein kurzer, natürlicher Vergleich mit der aktuellen Bestzeit der Klasse
@@ -834,7 +1110,7 @@ namespace CrewChiefV4.AiTeam
                 AllowLapFinish=topic == "own-lap" || topic == "near-best",
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic.StartsWith("timed-lap-", StringComparison.Ordinal) ? 4 :
                     topic == "own-lap" ? 22 : topic == "first-lap-fuel" || topic == "fuel-baseline" ? 30 :
-                    topic == "qualifying-last" ? 7 : type == SessionType.Race ? 8 : 12) };
+                    topic == "qualifying-last" ? 7 : topic == "quali-target" ? 15 : type == SessionType.Race ? 8 : 12) };
             if (group != null) call.BindVariant(cursor, group, variant);
             if (topic == "timed-lap-approach")
                 call.AdditionalValidity = live => live.PitData.OnOutLap && live.SessionData.CurrentLapIsValid;
@@ -861,7 +1137,7 @@ namespace CrewChiefV4.AiTeam
             if (busy) return null;
             var call = pending.Where(c => c.CanReserve(now) && (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
                 c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || !ownLapOnly &&
-                (c.Topic == "near-best" || c.Topic == "lap-on-pace" || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
+                (c.Topic == "near-best" || c.Topic == "lap-on-pace" || c.Topic == "quali-target" && now - lastRadio >= TimeSpan.FromSeconds(3) || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
             return call != null && call.TryReserve(now) ? call : null;
         }
     }

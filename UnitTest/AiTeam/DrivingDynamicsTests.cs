@@ -135,6 +135,7 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Big_off_with_three_wheels_is_reported_once_for_dirty_tyres()
         {
+            TyreGripWatch.LastDirtCallUtc = DateTime.MinValue;
             var d = new Drive(); d.Calibrate();
             var three = new[] { WheelSurface.Off, WheelSurface.Off, WheelSurface.Off, WheelSurface.Road };
             d.Run(.8, 25, .3f, 0, null, three, 1100);
@@ -219,6 +220,25 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(WheelSurface.Off, LMUDynamicsSource.Surface(2));
             Assert.AreEqual(WheelSurface.Kerb, LMUDynamicsSource.Surface(5));
             Assert.AreEqual(WheelSurface.Unknown, LMUDynamicsSource.Surface(6));
+        }
+
+        [Test]
+        public void AC_EVO_feeds_the_100_Hz_analysis_and_counts_wheels_off_track()
+        {
+            Assert.IsTrue(DynamicsSampler.Supports(CrewChiefV4.GameEnum.ASSETTO_EVO));
+            var surfaces = new WheelSurface[4];
+            ACEDynamicsSource.Surfaces(2, surfaces);
+            Assert.AreEqual(2, surfaces.Count(x => x == WheelSurface.Off), "AC EVO meldet die Anzahl, nicht welche Räder");
+            Assert.AreEqual(2, surfaces.Count(x => x == WheelSurface.Unknown), "die übrigen sind unbekannt, nicht „Strecke“");
+            ACEDynamicsSource.Surfaces(0, surfaces);
+            Assert.IsTrue(surfaces.All(x => x == WheelSurface.Unknown));
+            ACEDynamicsSource.Surfaces(7, surfaces);
+            Assert.IsTrue(surfaces.All(x => x == WheelSurface.Off));
+            using (var source = new ACEDynamicsSource())
+            {
+                Assert.AreEqual("AC EVO", source.Name);
+                Assert.IsFalse(source.Read(new DynamicsFrame(), 0), "ohne laufendes Spiel kein Bild");
+            }
         }
 
         [Test]
@@ -318,6 +338,36 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(watch.Evaluate(1, 60f, 3.3f, 25, true, true, provisionalConsumption: true));
             Assert.IsNull(watch.Evaluate(1, 59f, 3.4f, 25, true, true, provisionalConsumption: true), "kein „könnte knapp“ 15 s nach „könnte reichen“");
             Assert.IsNotNull(watch.Evaluate(3, 55f, 3.3f, 24, true, true), "gemessener Verbrauch darf wieder warnen");
+        }
+
+        [Test]
+        public void Start_position_is_latched_once_per_race_session()
+        {
+            RaceStartLatch.Reset();
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 77; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionStartClassPosition = 16;
+            Assert.AreEqual(16, RaceStartLatch.Position(gs.SessionData));
+            gs.SessionData.SessionStartClassPosition = 4;
+            Assert.AreEqual(16, RaceStartLatch.Position(gs.SessionData), "RaceRoom Monza: Startplatz darf sich im Rennen nicht ändern");
+            gs.SessionData.SessionId = 78;
+            Assert.AreEqual(4, RaceStartLatch.Position(gs.SessionData), "neue Sitzung, neuer Startplatz");
+            RaceStartLatch.Reset();
+        }
+
+        [Test]
+        public void Very_short_local_yellow_gets_no_separate_all_clear()
+        {
+            GameStateData Frame(bool yellow)
+            {
+                var g = new GameStateData(T.Ticks);
+                g.SessionData.SessionType = SessionType.Race; g.SessionData.SessionPhase = SessionPhase.Green; g.FlagData.isLocalYellow = yellow;
+                return g;
+            }
+            var watch = new FlagWatch();
+            Assert.AreEqual(1, watch.Evaluate(Frame(false), Frame(true), T).Count);
+            CollectionAssert.IsEmpty(watch.Evaluate(Frame(true), Frame(false), T.AddSeconds(2)), "2 s Gelb: kein „Gelb vorbei“");
+            Assert.AreEqual(1, watch.Evaluate(Frame(false), Frame(true), T.AddSeconds(10)).Count);
+            CollectionAssert.Contains(watch.Evaluate(Frame(true), Frame(false), T.AddSeconds(16)), FlagWatch.Phrases[1]);
         }
 
         // ---------- Kurven-Coaching mit 100 Hz ----------
