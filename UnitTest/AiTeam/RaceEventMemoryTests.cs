@@ -122,6 +122,28 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Question_for_a_switched_off_member_is_answered_by_someone_who_is_on()
+        {
+            // LMU-Test 18.11.: „Seid ihr alle da?“ ging an den ausgeschalteten Mik und blieb ohne Antwort.
+            Func<TeamMember, bool> noMik = m => m != TeamMember.Mik;
+            Assert.AreEqual(TeamMember.Ben, TeamRouter.Available(TeamMember.Ben, noMik, null), "eingeschaltet: bleibt");
+            Assert.AreEqual(TeamMember.Sara, TeamRouter.Available(TeamMember.Mik, noMik, TeamMember.Sara), "zuerst der letzte Gesprächspartner");
+            Assert.AreEqual(TeamMember.Ben, TeamRouter.Available(TeamMember.Mik, noMik, null), "sonst Ben");
+            Assert.AreEqual(TeamMember.Ben, TeamRouter.Available(TeamMember.Mik, noMik, TeamMember.Mik));
+            Assert.IsNull(TeamRouter.Available(TeamMember.Mik, m => false, null), "niemand eingeschaltet");
+        }
+
+        [Test]
+        public void Misheard_sim_name_is_corrected_before_the_crew_repeats_it()
+        {
+            Assert.AreEqual("Hallo Sarah, wir legen gleich los mit Le Mans Ultimate.", TeamRouter.FixSimNames("Hallo Sarah, wir legen gleich los mit Lemon Ultimate."));
+            Assert.AreEqual("Le Mans Ultimate läuft", TeamRouter.FixSimNames("Lemans Ultimate läuft"));
+            Assert.AreEqual("Le Mans Ultimate", TeamRouter.FixSimNames("Le Mans Ultimate"), "richtig bleibt richtig");
+            Assert.AreEqual("Zitronen sind gelb", TeamRouter.FixSimNames("Zitronen sind gelb"));
+            Assert.IsNull(TeamRouter.FixSimNames(null));
+        }
+
+        [Test]
         public void Pure_memory_request_is_confirmed_without_a_second_model_round()
         {
             Assert.IsTrue(AiTeamService.PureMemoryRequest("[an Mik] Merk dir bitte, dass ich Sektorvergleiche im Training will."));

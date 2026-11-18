@@ -1087,7 +1087,7 @@ namespace CrewChiefV4.AiTeam
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("stt.input",LiveDiagnostics.Data("utterance_sequence",sequence,"bytes",wav.Length,"source","microphone_in_memory_only"));
             try
             {
-                text = await TranscribeWithFallbackAsync(wav).ConfigureAwait(false);
+                text = TeamRouter.FixSimNames(await TranscribeWithFallbackAsync(wav).ConfigureAwait(false));
             }
             catch (Exception e)
             {
@@ -1127,6 +1127,12 @@ namespace CrewChiefV4.AiTeam
             DateTime started = askedUtc ?? DateTime.UtcNow;
             int generation = Volatile.Read(ref sessionGeneration);
             var routed = TeamRouter.Route(transcript, RecentMember());
+            var available = TeamRouter.Available(routed.Member, settings.IsMemberEnabled, RecentMember());
+            if (available.HasValue && available.Value != routed.Member)
+            {
+                LiveDiagnostics.Decision("question","rerouted","member_disabled:" + routed.Member + "->" + available.Value);
+                routed.Member = available.Value;
+            }
             var memoryState=CrewChief.currentGameState;
             DriverMemory.RememberDialogue(routed.Member,routed.Question,null,CrewChief.gameDefinition==null?null:CrewChief.gameDefinition.friendlyName,
                 memoryState==null||memoryState.SessionData.TrackDefinition==null?null:memoryState.SessionData.TrackDefinition.name,
@@ -1565,9 +1571,9 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         private async Task<string> TranscribeWithFallbackAsync(byte[] wav)
         {
-            string hint = RadioLanguage.T("Rennfunk an die Boxencrew Mik, Ben und Sara. Simracing, Reifen, Sprit, Boxenstopp, Undercut.",
-                "Race radio to the pit crew Mik, Ben and Sara. Sim racing, tyres, fuel, pit stop, undercut.",
-                "Radio de carrera al equipo de boxes Mik, Ben y Sara. Simracing, neumáticos, combustible, parada en boxes, undercut.");
+            string hint = RadioLanguage.T("Rennfunk an die Boxencrew Mik, Ben und Sara. Simracing, Le Mans Ultimate, RaceRoom, Reifen, Sprit, Boxenstopp, Undercut.",
+                "Race radio to the pit crew Mik, Ben and Sara. Sim racing, Le Mans Ultimate, RaceRoom, tyres, fuel, pit stop, undercut.",
+                "Radio de carrera al equipo de boxes Mik, Ben y Sara. Simracing, Le Mans Ultimate, RaceRoom, neumáticos, combustible, parada en boxes, undercut.");
             try
             {
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds)))
