@@ -328,6 +328,101 @@ namespace CrewChiefV4.AiTeam
     }
 
     /// <summary>
+    /// Assetto Corsa EVO über die drei Puffer „acevo_pmf_physics“, „…_graphics“ und „…_static“ (Crew-Chief-Strukturen,
+    /// Offsets per Marshal aus denselben Typen, mit denen Crew Chief liest). Neue Bilder erkennt die Quelle an der
+    /// Paketnummer der Physik. AC EVO meldet nur, WIE VIELE Räder neben der Strecke sind, nicht welche: die Quelle setzt
+    /// so viele Räder auf „neben der Strecke“ und die übrigen auf „unbekannt“ – die Ausritt-Erkennung zählt nur Räder.
+    /// </summary>
+    internal sealed class ACEDynamicsSource : DynamicsSource
+    {
+        private static int POff(string f) => Marshal.OffsetOf(typeof(CrewChiefV4.ACE.aceData.SPageFilePhysics), f).ToInt32();
+        private static int GOff(string f) => Marshal.OffsetOf(typeof(CrewChiefV4.ACE.aceData.SPageFileGraphicEvo), f).ToInt32();
+        private static int SOff(string f) => Marshal.OffsetOf(typeof(CrewChiefV4.ACE.aceData.SPageFileStaticEvo), f).ToInt32();
+        private static readonly int pSize = Marshal.SizeOf(typeof(CrewChiefV4.ACE.aceData.SPageFilePhysics)),
+            gSize = Marshal.SizeOf(typeof(CrewChiefV4.ACE.aceData.SPageFileGraphicEvo)), sSize = Marshal.SizeOf(typeof(CrewChiefV4.ACE.aceData.SPageFileStaticEvo));
+        private static readonly int pPacket = POff("packetId"), pGas = POff("gas"), pBrake = POff("brake"), pGear = POff("gear"),
+            pSteer = POff("steerAngle"), pSpeed = POff("speedKmh"), pAcc = POff("accG"), pWheel = POff("wheelAngularSpeed"),
+            pOut = POff("numberOfTyresOut"), pYaw = POff("localAngularVel"), pAbs = POff("absInAction"), pAi = POff("isAIControlled"),
+            gStatus = GOff("status"), gNpos = GOff("npos"), gLocation = GOff("carLocation"), gLaps = GOff("totalLapCount"), gPitLane = GOff("isInPitLane"),
+            sLength = SOff("trackLengthM");
+        private const int Live = 2, PitLane = 1, PitExit = 3;
+        private const float G = 9.81f;
+
+        private MemoryMappedFile pFile, gFile, sFile;
+        private MemoryMappedViewAccessor pView, gView, sView;
+        private int lastPacket = int.MinValue;
+
+        internal override string Name => "AC EVO";
+        protected override string MapName => CrewChiefV4.ACE.aceConstant.SharedMemoryNamePhysics;
+        protected override int Size => pSize;
+        protected override bool Parse(byte[] b, DynamicsFrame f) => false; // liest feldweise, siehe Read
+
+        internal override bool IsOpen => pView != null && gView != null && sView != null;
+
+        internal override bool Open()
+        {
+            Close();
+            try
+            {
+                pFile = MemoryMappedFile.OpenExisting(CrewChiefV4.ACE.aceConstant.SharedMemoryNamePhysics, MemoryMappedFileRights.Read);
+                pView = pFile.CreateViewAccessor(0, pSize, MemoryMappedFileAccess.Read);
+                gFile = MemoryMappedFile.OpenExisting(CrewChiefV4.ACE.aceConstant.SharedMemoryNameGraphic, MemoryMappedFileRights.Read);
+                gView = gFile.CreateViewAccessor(0, gSize, MemoryMappedFileAccess.Read);
+                sFile = MemoryMappedFile.OpenExisting(CrewChiefV4.ACE.aceConstant.SharedMemoryNameStatic, MemoryMappedFileRights.Read);
+                sView = sFile.CreateViewAccessor(0, sSize, MemoryMappedFileAccess.Read);
+                return true;
+            }
+            catch (Exception) { Close(); return false; }
+        }
+
+        internal override void Close()
+        {
+            foreach (var d in new IDisposable[] { pView, pFile, gView, gFile, sView, sFile }) { try { d?.Dispose(); } catch (Exception) { } }
+            pView = gView = sView = null; pFile = gFile = sFile = null;
+        }
+
+        /// <summary>Räder neben der Strecke aus der gemeldeten Anzahl; welches Rad, verrät AC EVO nicht.</summary>
+        internal static void Surfaces(int tyresOut, WheelSurface[] target)
+        {
+            int n = Math.Max(0, Math.Min(4, tyresOut));
+            for (int i = 0; i < 4; i++) target[i] = i < n ? WheelSurface.Off : WheelSurface.Unknown;
+        }
+
+        internal override bool Read(DynamicsFrame f, double timeS)
+        {
+            if (!IsOpen) return false;
+            try
+            {
+                int packet = pView.ReadInt32(pPacket);
+                if (packet == lastPacket) return false;
+                float speed = pView.ReadSingle(pSpeed) / 3.6f;
+                f.Speed = Math.Max(0, speed);
+                f.Throttle = Math.Max(0, pView.ReadSingle(pGas)); f.Brake = Math.Max(0, pView.ReadSingle(pBrake));
+                f.Steering = pView.ReadSingle(pSteer);
+                f.Gear = pView.ReadInt32(pGear) - 1; // AC zählt 0 = Rückwärts, 1 = Leerlauf
+                f.LatAccel = pView.ReadSingle(pAcc) * G; f.LongAccel = pView.ReadSingle(pAcc + 8) * G;
+                f.YawRate = pView.ReadSingle(pYaw + 4);
+                f.AbsActive = pView.ReadInt32(pAbs) != 0; f.AbsUnknown = false;
+                for (int w = 0; w < 4; w++) f.WheelRotation[w] = pView.ReadSingle(pWheel + 4 * w);
+                Surfaces(pView.ReadInt32(pOut), f.Surfaces);
+                bool ai = pView.ReadInt32(pAi) != 0;
+                if (pView.ReadInt32(pPacket) != packet) return false; // während des Lesens überschrieben
+
+                int location = gView.ReadInt32(gLocation);
+                f.InPit = gView.ReadByte(gPitLane) != 0 || location >= PitLane && location <= PitExit;
+                f.CompletedLaps = gView.ReadInt32(gLaps);
+                float length = sView.ReadSingle(sLength), npos = gView.ReadSingle(gNpos);
+                f.LapDistance = length > 0 && npos >= 0 && npos <= 1 ? npos * length : -1;
+                f.Driving = gView.ReadInt32(gStatus) == Live && !ai && speed >= 0;
+                lastPacket = packet;
+                f.TimeS = timeS;
+                return true;
+            }
+            catch (Exception) { Close(); return false; }
+        }
+    }
+
+    /// <summary>
     /// Schnelle Abtastung (Rob 17.11.2026: 100 Hz) in einem eigenen Hintergrundfaden, unabhängig von Crew Chiefs
     /// Hauptschleife. Liest alle 4 ms und wertet jedes neue Bild der Sim aus – bei AMS2 also gut hundert Bilder pro Sekunde.
     /// Läuft nur, solange der Dienst ihn anfordert (<see cref="Ensure"/>), und beendet sich 15 s nach der letzten Anforderung.
@@ -353,7 +448,7 @@ namespace CrewChiefV4.AiTeam
         internal static Newtonsoft.Json.Linq.JObject Facts(int completedLaps) =>
             DateTime.UtcNow - Analyzer.LastFrameUtc < TimeSpan.FromSeconds(3) ? Analyzer.Snapshot(completedLaps) : null;
 
-        internal static bool Supports(GameEnum game) => game == GameEnum.AMS2 || game == GameEnum.RACE_ROOM || game == GameEnum.LMU;
+        internal static bool Supports(GameEnum game) => game == GameEnum.AMS2 || game == GameEnum.RACE_ROOM || game == GameEnum.LMU || game == GameEnum.ASSETTO_EVO;
 
         /// <summary>Vom Dienst je Takt aufgerufen: startet bzw. hält den Faden für das laufende Spiel.</summary>
         internal static void Ensure(GameEnum game)
@@ -371,7 +466,8 @@ namespace CrewChiefV4.AiTeam
 
         private static DynamicsSource Create(GameEnum game) =>
             game == GameEnum.AMS2 ? new AMS2DynamicsSource() : game == GameEnum.RACE_ROOM ? new R3EDynamicsSource()
-                : game == GameEnum.LMU ? (DynamicsSource)new LMUDynamicsSource() : null;
+                : game == GameEnum.LMU ? (DynamicsSource)new LMUDynamicsSource()
+                : game == GameEnum.ASSETTO_EVO ? new ACEDynamicsSource() : null;
 
         private static void Run()
         {

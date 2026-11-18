@@ -223,6 +223,25 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void AC_EVO_feeds_the_100_Hz_analysis_and_counts_wheels_off_track()
+        {
+            Assert.IsTrue(DynamicsSampler.Supports(CrewChiefV4.GameEnum.ASSETTO_EVO));
+            var surfaces = new WheelSurface[4];
+            ACEDynamicsSource.Surfaces(2, surfaces);
+            Assert.AreEqual(2, surfaces.Count(x => x == WheelSurface.Off), "AC EVO meldet die Anzahl, nicht welche Räder");
+            Assert.AreEqual(2, surfaces.Count(x => x == WheelSurface.Unknown), "die übrigen sind unbekannt, nicht „Strecke“");
+            ACEDynamicsSource.Surfaces(0, surfaces);
+            Assert.IsTrue(surfaces.All(x => x == WheelSurface.Unknown));
+            ACEDynamicsSource.Surfaces(7, surfaces);
+            Assert.IsTrue(surfaces.All(x => x == WheelSurface.Off));
+            using (var source = new ACEDynamicsSource())
+            {
+                Assert.AreEqual("AC EVO", source.Name);
+                Assert.IsFalse(source.Read(new DynamicsFrame(), 0), "ohne laufendes Spiel kein Bild");
+            }
+        }
+
+        [Test]
         public void Engineer_radio_for_dynamics_varies_and_exists_in_three_languages()
         {
             foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
