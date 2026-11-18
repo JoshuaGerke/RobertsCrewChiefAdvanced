@@ -12,7 +12,7 @@ namespace CrewChiefV4.AiTeam
     internal enum DataOrigin { Measured, SimulatorReportedEvent, Calculated, Interpolated, Estimated, Unavailable, Stale }
 
     /// <summary>Ein Eintrag im Ereignisgedächtnis: was, wann, warum, von wem gemeldet oder warum nicht.</summary>
-    internal sealed class RaceEventRecord
+    internal sealed class CrewEventRecord
     {
         public string EventId, SemanticKey, Topic, Evidence, Reason;
         public int SessionId, Priority;
@@ -32,8 +32,8 @@ namespace CrewChiefV4.AiTeam
     {
         internal const int Capacity = 256;
         private readonly object gate = new object();
-        private readonly LinkedList<RaceEventRecord> records = new LinkedList<RaceEventRecord>();
-        private readonly Dictionary<string, LinkedListNode<RaceEventRecord>> byId = new Dictionary<string, LinkedListNode<RaceEventRecord>>(StringComparer.Ordinal);
+        private readonly LinkedList<CrewEventRecord> records = new LinkedList<CrewEventRecord>();
+        private readonly Dictionary<string, LinkedListNode<CrewEventRecord>> byId = new Dictionary<string, LinkedListNode<CrewEventRecord>>(StringComparer.Ordinal);
 
         internal void Clear() { lock (gate) { records.Clear(); byId.Clear(); } }
 
@@ -46,7 +46,7 @@ namespace CrewChiefV4.AiTeam
             {
                 if (!byId.TryGetValue(call.EventId, out var node))
                 {
-                    var r = new RaceEventRecord
+                    var r = new CrewEventRecord
                     {
                         EventId = call.EventId, SemanticKey = call.SemanticKey ?? StatedKey(call), Topic = call.Topic, Evidence = call.Evidence,
                         SessionId = call.SessionId, Priority = call.Priority, DetectedAt = call.DetectedUtc == DateTime.MinValue ? now : call.DetectedUtc
@@ -65,7 +65,7 @@ namespace CrewChiefV4.AiTeam
 
         internal static string StatedKey(ObservedRaceCall call) => call != null && call.StatedPosition > 0 ? "eigener-platz|" + call.StatedPosition : null;
 
-        internal RaceEventRecord[] Recent(int sessionId, int count, EventStatus? status = null)
+        internal CrewEventRecord[] Recent(int sessionId, int count, EventStatus? status = null)
         {
             lock (gate)
                 return records.Where(r => r.SessionId == sessionId && (status == null || r.Status == status))
