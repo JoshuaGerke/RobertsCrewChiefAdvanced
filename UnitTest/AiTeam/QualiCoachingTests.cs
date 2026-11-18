@@ -73,6 +73,24 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(5, Enumerable.Range(0, 5).Select(v => SessionLapObserver.SectorVsField(1, -.2, v)).Distinct().Count());
         }
 
+        [Test]
+        public void Remaining_attempts_are_counted_from_clock_and_own_lap_time()
+        {
+            Assert.AreEqual(2, SessionLapObserver.AttemptsAfterThisLap(250, 100));
+            Assert.AreEqual(1, SessionLapObserver.AttemptsAfterThisLap(150, 100));
+            Assert.AreEqual(0, SessionLapObserver.AttemptsAfterThisLap(50, 100), "das ist die letzte");
+            Assert.AreEqual(-1, SessionLapObserver.AttemptsAfterThisLap(201, 100), "zu knapp an der Grenze: nichts behaupten");
+            Assert.AreEqual(-1, SessionLapObserver.AttemptsAfterThisLap(-1, 100), "Rundenqualifying ohne Uhr");
+            Assert.AreEqual(-1, SessionLapObserver.AttemptsAfterThisLap(250, -1), "ohne Rundenzeit nichts");
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(5, Enumerable.Range(0, 5).Select(v => SessionLapObserver.AttemptsText(1, v)).Distinct().Count());
+                Assert.AreEqual(5, Enumerable.Range(0, 5).Select(v => SessionLapObserver.AttemptsText(2, v)).Distinct().Count());
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
         private static GameStateData State()
         {
             var s = new GameStateData(T.Ticks);

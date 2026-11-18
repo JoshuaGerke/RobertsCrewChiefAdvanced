@@ -123,7 +123,7 @@ namespace CrewChiefV4.AiTeam
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
             edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
-            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue;
+            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue; lastAttemptsAnnounced = -1;
         }
 
         public static bool Supported(SessionType t)
@@ -194,18 +194,30 @@ namespace CrewChiefV4.AiTeam
                 OfferQualiTarget(gs, now, names);
             }
             if (gs.PitData.InPitlane) pendingQualiTarget = false;
+            // Zeitqualifying: Wie viele schnelle Runden passen nach dieser noch in die Restzeit?
+            int moreLaps = QualifyingResultWatch.Supported(type) && green && s.IsNewLap && !gs.PitData.InPitlane && s.CurrentLapIsValid
+                ? AttemptsAfterThisLap(s.SessionHasFixedTime ? s.SessionTimeRemaining : -1, Good(s.PlayerLapTimeSessionBest) ? s.PlayerLapTimeSessionBest : s.LapTimePrevious) : -1;
             bool finalQualifyingLap = QualifyingResultWatch.Supported(type) && previous?.SessionData.SessionId == session &&
                 previous.SessionData.SessionPhase == SessionPhase.Green && (s.SessionPhase == SessionPhase.Checkered ||
-                green && s.IsNewLap && s.SessionLapsRemaining == 1 && !s.SessionHasFixedTime);
+                green && s.IsNewLap && s.SessionLapsRemaining == 1 && !s.SessionHasFixedTime || moreLaps == 0 && s.CompletedLaps > 0);
+            if ((moreLaps == 1 || moreLaps == 2) && moreLaps != lastAttemptsAnnounced && !gs.PitData.OnOutLap && !pending.Any(c => c.Topic == "quali-target"))
+            {
+                lastAttemptsAnnounced = moreLaps;
+                var attempts = Add(gs, now, "quali-attempts", AttemptsText(moreLaps, attemptsVariant++), "session_time_remaining_vs_own_lap_time_" + moreLaps + "_more", 3);
+                attempts.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+            }
             if (!lastQualifyingLapOffered && finalQualifyingLap && !gs.PitData.InPitlane && !gs.PitData.OnOutLap &&
                 s.CurrentLapIsValid && gs.PositionAndMotionData.CarSpeed > 12 && s.CompletedLaps > 0)
             {
                 lastQualifyingLapOffered = true;
                 string name = AiPersonas.CleanForRadio(driverName ?? "Rob", 30, false);
                 string[] push = RadioLanguage.Pick(
-                    new[] { "Letzte schnelle Runde. Hol raus, was geht.", "Letzte Chance. Sauber durchziehen.", "Eine Runde noch, volle Konzentration." },
-                    new[] { "Last flying lap. Get everything out of it.", "Last chance. Make it clean.", "One more lap, full focus." },
-                    new[] { "Última vuelta rápida. Sácale todo.", "Última oportunidad. Hazla limpia.", "Una vuelta más, concentración total." });
+                    new[] { "Letzte schnelle Runde. Hol raus, was geht.", "Letzte Chance. Sauber durchziehen.", "Eine Runde noch, volle Konzentration.",
+                        "Die Uhr läuft ab, das ist dein letzter Versuch. Alles rein.", "Letzte Runde im Qualifying. Bremspunkte treffen, Ausgänge sauber." },
+                    new[] { "Last flying lap. Get everything out of it.", "Last chance. Make it clean.", "One more lap, full focus.",
+                        "The clock's run down, this is your last attempt. Everything in.", "Final lap of qualifying. Hit the braking points, clean exits." },
+                    new[] { "Última vuelta rápida. Sácale todo.", "Última oportunidad. Hazla limpia.", "Una vuelta más, concentración total.",
+                        "Se acaba el tiempo, es tu último intento. Dalo todo.", "Última vuelta de la clasificación. Clava las frenadas, salidas limpias." });
                 var last = Add(gs, now, "qualifying-last", RadioPhraseCatalog.Address(push[qualiLastVariation.Next(push.Length)], name),
                     "confirmed_final_qualifying_lap", 5);
                 last.Member = TeamMember.Ben;
@@ -792,7 +804,35 @@ namespace CrewChiefV4.AiTeam
             lastSectorCallLap = s.CompletedLaps;
             lastSectorCall = sector;
         }
-        private int fieldSectorVariant, targetVariant, analysisVariant, lastAnalysisLap = -100;
+        private int fieldSectorVariant, targetVariant, analysisVariant, lastAnalysisLap = -100, attemptsVariant, lastAttemptsAnnounced = -1;
+
+        /// <summary>Schnelle Runden, die nach der gerade begonnenen noch starten können; -1, wenn unsicher (Restzeit nah an einer
+        /// Rundenzeit, ±3 s) oder ohne Messwerte. Eine Runde, die vor Ablauf beginnt, darf zu Ende gefahren werden.</summary>
+        internal static int AttemptsAfterThisLap(float remaining, float lapTime)
+        {
+            if (!(remaining > 0) || !Good(lapTime)) return -1;
+            double ratio = remaining / lapTime;
+            double frac = ratio - Math.Floor(ratio);
+            if (frac * lapTime < 3 || (1 - frac) * lapTime < 3) return -1;
+            return (int)Math.Ceiling(ratio) - 1;
+        }
+
+        internal static string AttemptsText(int more, int variant)
+        {
+            if (more == 1)
+                return Of(variant,
+                    RadioLanguage.T("Nach dieser Runde reicht die Zeit noch für einen Versuch.", "After this lap there's time for one more attempt.", "Después de esta vuelta queda tiempo para un intento más."),
+                    RadioLanguage.T("Zwei Versuche bleiben, diese und eine weitere.", "Two attempts left, this one and one more.", "Quedan dos intentos, esta y una más."),
+                    RadioLanguage.T("Die Uhr gibt noch eine Runde nach dieser her.", "The clock gives you one more lap after this.", "El reloj da para una vuelta más después de esta."),
+                    RadioLanguage.T("Eine Chance noch nach dieser. Jetzt die Zeit hinstellen.", "One more chance after this. Get the time in now.", "Una oportunidad más después de esta. Marca el tiempo ahora."),
+                    RadioLanguage.T("Danach noch ein Versuch, also diese Runde sauber durchbringen.", "One more go after this, so bring this lap home clean.", "Después queda un intento, así que termina esta vuelta limpia."));
+            return Of(variant,
+                RadioLanguage.T("Nach dieser Runde ist noch Zeit für zwei Versuche.", "After this lap there's time for two more attempts.", "Después de esta vuelta queda tiempo para dos intentos."),
+                RadioLanguage.T("Drei Runden passen noch rein, diese eingerechnet.", "Three laps still fit in, this one included.", "Aún caben tres vueltas, contando esta."),
+                RadioLanguage.T("Zeit für diese und zwei weitere. Aufbauen, dann zuschlagen.", "Time for this one and two more. Build up, then strike.", "Tiempo para esta y dos más. Construye y luego ataca."),
+                RadioLanguage.T("Zwei Chancen nach dieser. Keine Hektik.", "Two chances after this. No rush.", "Dos oportunidades después de esta. Sin prisa."),
+                RadioLanguage.T("Die Restzeit reicht noch für zwei schnelle Runden nach dieser.", "Remaining time covers two more flying laps after this.", "El tiempo restante da para dos vueltas rápidas más después de esta."));
+        }
         private DateTime lastAnalysisUtc = DateTime.MinValue;
 
         internal static string SectorVsField(int sector, double delta, int variant)

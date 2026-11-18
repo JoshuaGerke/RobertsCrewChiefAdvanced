@@ -85,5 +85,42 @@ namespace UnitTest.AiTeamTests
             mind.Load.Update(0, T.AddSeconds(40));
             Assert.AreEqual(MindVerdict.Admit, mind.Judge(data, T.AddSeconds(40), out _));
         }
+
+        [Test]
+        public void Driver_can_ask_for_more_or_less_radio_and_it_is_kept()
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rrca-density-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(folder);
+            try
+            {
+                System.IO.File.WriteAllText(System.IO.Path.Combine(folder, "funkwuensche.json"), "{\"schema\":3,\"routine\":1,\"gaps\":1,\"qualifying_sectors\":true,\"rear_traffic_seconds\":3}");
+                var prefs = new DriverRadioPreferences(folder);
+                Assert.AreEqual(1, prefs.Density, "alte Datei ohne Funkdichte: normal");
+                Assert.IsTrue(prefs.TryCommand("Bitte weniger Funk", out string reply));
+                StringAssert.Contains("zurück", reply);
+                Assert.AreEqual(2, new DriverRadioPreferences(folder).Density, "bleibt gespeichert");
+                Assert.IsTrue(prefs.TryCommand("Mehr Infos!", out _));
+                Assert.AreEqual(0, new DriverRadioPreferences(folder).Density);
+                Assert.IsTrue(prefs.TryCommand("less radio", out _));
+                Assert.IsTrue(prefs.TryCommand("Más radio", out _));
+                Assert.AreEqual(0, new DriverRadioPreferences(folder).Density);
+                Assert.IsTrue(new DriverRadioPreferences(folder).QualifyingSectors, "andere Wünsche bleiben erhalten");
+                Assert.IsTrue(prefs.TryCommand("Funkwünsche zurücksetzen", out _));
+                Assert.AreEqual(1, new DriverRadioPreferences(folder).Density);
+            }
+            finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
+        }
+
+        [Test]
+        public void Density_moves_only_the_data_limits()
+        {
+            var quiet = new RadioLoad { DensityOverride = 2 };
+            var chatty = new RadioLoad { DensityOverride = 0 };
+            quiet.Update(.5, T); chatty.Update(.5, T);
+            Assert.IsFalse(quiet.Allows("fuel-range", 3, T, out _), "weniger Funk: Daten nur bei richtig ruhiger Lage");
+            Assert.IsTrue(chatty.Allows("fuel-range", 3, T, out _));
+            Assert.IsTrue(quiet.Allows("position", 4, T, out _), "das Rennen selbst bleibt");
+            Assert.IsTrue(quiet.Allows("race-hazard-ahead", 7, T, out _));
+        }
     }
 }

@@ -138,14 +138,23 @@ namespace CrewChiefV4.AiTeam
                     if (t > CoachingLimit) { reason = "load_tension_coaching_waits"; return false; }
                     break;
                 case RadioClass.Data:
-                    if (t > DataLimit) { reason = "load_tension_data_waits"; return false; }
-                    if (DataAirtime(now) >= DataAirtimePerMinute) { reason = "load_data_budget_used"; return false; }
-                    lock (gate) if (lastSpoken != DateTime.MinValue && now >= lastSpoken && now - lastSpoken < DataGap) { reason = "load_data_needs_a_gap"; return false; }
+                    // Funkdichte des Fahrers („mehr Funk“ / „weniger Funk“): verschiebt nur die Datengrenzen.
+                    int density = Density;
+                    double limit = density == 0 ? DataLimit + .1 : density == 2 ? DataLimit - .1 : DataLimit;
+                    double budget = density == 0 ? DataAirtimePerMinute * 1.5 : density == 2 ? DataAirtimePerMinute * .6 : DataAirtimePerMinute;
+                    TimeSpan gap = density == 0 ? TimeSpan.FromSeconds(6) : density == 2 ? TimeSpan.FromSeconds(12) : DataGap;
+                    if (t > limit) { reason = "load_tension_data_waits"; return false; }
+                    if (DataAirtime(now) >= budget) { reason = "load_data_budget_used"; return false; }
+                    lock (gate) if (lastSpoken != DateTime.MinValue && now >= lastSpoken && now - lastSpoken < gap) { reason = "load_data_needs_a_gap"; return false; }
                     break;
             }
             if (Airtime(now) >= AirtimePerMinute) { reason = "load_airtime_per_minute_used"; return false; }
             return true;
         }
+
+        /// <summary>Funkdichte; in Tests direkt setzbar, sonst aus den gespeicherten Funkwünschen des Fahrers.</summary>
+        internal int? DensityOverride;
+        private int Density => DensityOverride ?? DriverMemory.RadioDensity;
 
         internal static string Level(double tension) => tension >= .75 ? "hoch" : tension >= .4 ? "mittel" : "niedrig";
     }
