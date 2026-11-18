@@ -28,6 +28,8 @@ namespace CrewChiefV4.AiTeam
         /// <summary>C7: Rennstimmung des Fahrers aus den letzten drei Runden.</summary>
         public DriverMoodState Mood;
         public string MoodReason;
+        /// <summary>Funklast: Anspannung 0–1 (geglättet) aus Abständen, Zweikampf, Verkehr, Gelb, Phase und Stimmung.</summary>
+        public double Tension;
         public string[] Threats = new string[0], Opportunities = new string[0];
 
         internal bool Fresh(DateTime now) => now >= Utc && now - Utc <= TimeSpan.FromSeconds(1.5);
@@ -44,7 +46,9 @@ namespace CrewChiefV4.AiTeam
                 ["runden_uebrig"] = LapsLeft > 0 ? (JToken)LapsLeft : null,
                 ["fahrerstimmung"] = DriverMood.Name(Mood),
                 ["ton"] = DriverMood.Tone(Mood),
+                ["funklast"] = RadioLoad.Level(Tension),
             };
+            if (Tension >= .75) o["funk_hinweis"] = "Hohe Anspannung: nur das Nötigste, ein kurzer Satz.";
             if (FrontRate != 0) o["vorne_abstand_aenderung_s_pro_runde"] = Math.Round(-FrontRate, 2);
             if (FrontLapsToCatch > 0) o["vorne_dran_in_runden"] = FrontLapsToCatch;
             if (RearRate != 0) o["hinten_abstand_aenderung_s_pro_runde"] = Math.Round(-RearRate, 2);
@@ -135,10 +139,15 @@ namespace CrewChiefV4.AiTeam
         private string lastSummary, moodReason;
         private DriverMoodState mood;
         private DateTime lastFrustratedCoaching = DateTime.MinValue;
+        /// <summary>Funklast: Anspannung und Sprechzeit entscheiden, wie viel gerade gefunkt wird.</summary>
+        internal readonly RadioLoad Load = new RadioLoad();
+
+        /// <summary>Vom Dienst bei jedem Sprechbeginn: zählt die Sprechzeit für die Funklast.</summary>
+        internal void NoteSpoken(string topic, string text, DateTime now) => Load.NoteSpoken(topic, text, now);
 
         internal void Reset()
         {
-            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null; mood = DriverMoodState.Neutral; moodReason = null; lastFrustratedCoaching = DateTime.MinValue;
+            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null; mood = DriverMoodState.Neutral; moodReason = null; lastFrustratedCoaching = DateTime.MinValue; Load.Reset();
             Front.Id = Rear.Id = null; Front.Clear(); Rear.Clear();
             Volatile.Write(ref latest, null);
         }
@@ -254,6 +263,7 @@ namespace CrewChiefV4.AiTeam
             x.Threats = threats.ToArray(); x.Opportunities = chances.ToArray();
             x.Focus = FocusOf(x);
             x.Mood = mood; x.MoodReason = moodReason;
+            x.Tension = Load.Update(RadioLoad.RawTension(ahead, behind, overlap, x.Attention, phase, mood), now);
             Volatile.Write(ref latest, x);
 
             string summary = x.Summary();
@@ -391,6 +401,8 @@ namespace CrewChiefV4.AiTeam
             if ((t == "status" || t == "summary") && now - lastPositionNews < TimeSpan.FromSeconds(20))
             { reason = "position_just_reported"; return MindVerdict.Drop; }
             if (t == "position" || t == "position-loss") lastPositionNews = now;
+            // Funklast: je angespannter und je mehr schon gefunkt wurde, desto wichtiger muss eine Ansage sein.
+            if (!Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }
             // Frustriert: höchstens ein Fahrtechnik-Hinweis je zwei Minuten, die übrigen entfallen.
             if (DriverMood.IsCoaching(t) && latest != null && latest.SessionId == call.SessionId && latest.Fresh(now) && latest.Mood == DriverMoodState.Frustration)
             {

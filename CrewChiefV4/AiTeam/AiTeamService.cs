@@ -2380,6 +2380,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 Memory.AddRadio(member, text, DateTime.UtcNow);
                 DriverMemory.RememberRadio(member,text,Memory.SessionId);
+                raceMind.NoteSpoken(observedTopic, text, DateTime.UtcNow);
                 if (playbackStarted != null) playbackStarted();
                 return true;
             }
@@ -2397,6 +2398,7 @@ namespace CrewChiefV4.AiTeam
                 () => { if (generation == Volatile.Read(ref sessionGeneration)) {
                     Memory.AddRadio(member, text, DateTime.UtcNow);
                 DriverMemory.RememberRadio(member,text,Memory.SessionId);
+                    raceMind.NoteSpoken(observedTopic, text, DateTime.UtcNow);
                     if (playbackStarted != null) playbackStarted();
                 } }, discarded, playbackEnded, eventId, observedTopic);
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("radio.enqueue",LiveDiagnostics.Data("clip_id",id,"topic",observedTopic,"speaker",member.ToString(),"text",text,"priority",localOnly?localPriority:isReply?5:SoundMetadata.DEFAULT_PRIORITY,"immediate",isReply,"event_id",eventId),eventId);

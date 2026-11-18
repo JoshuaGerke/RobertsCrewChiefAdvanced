@@ -282,6 +282,7 @@
     <Compile Include="AiTeam\StrategyOdds.cs" />
     <Compile Include="AiTeam\DriverMood.cs" />
     <Compile Include="AiTeam\DiagnosticReplay.cs" />
+    <Compile Include="AiTeam\RadioLoad.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />
