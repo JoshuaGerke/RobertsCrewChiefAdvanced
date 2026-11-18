@@ -66,6 +66,31 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Latency_chain_is_measured_with_millisecond_resolution()
+        {
+            var session = DiagnosticReplay.Load(new[]
+            {
+                Line(10.000, "decision", "{\"topic\":\"position\",\"status\":\"detected\",\"event_id\":\"e1\"}"),
+                Line(10.250, "radio.enqueue", "{\"topic\":\"position\",\"speaker\":\"Ben\",\"text\":\"P5\",\"priority\":4,\"event_id\":\"e1\"}"),
+                Line(10.900, "audio.driver_submit", "{\"event_id\":\"e1\"}"),
+                Line(11.000, "tts.end", "{\"duration_ms\":420,\"status\":\"completed\"}"),
+                Line(11.000, "api.end", "{\"duration_ms\":640,\"status\":\"ok\"}"),
+                Line(20.000, "ptt.released", "{\"utterance_sequence\":1}"),
+                Line(26.500, "audio.driver_submit", "{\"event_id\":\"e2\"}"),
+            });
+            var l = RadioAudit.Latencies(session);
+            Assert.AreEqual(250, l["erkannt_bis_eingereiht"].Single(), 1);
+            Assert.AreEqual(650, l["eingereiht_bis_audio"].Single(), 1);
+            Assert.AreEqual(900, l["erkannt_bis_audio"].Single(), 1);
+            Assert.AreEqual(420, l["tts_erzeugung"].Single(), 1);
+            Assert.AreEqual(6500, l["frage_bis_antwort_audio"].Single(), 1);
+            Assert.AreEqual(5, RadioAudit.Percentile(new List<double> { 1, 3, 5, 7, 9 }, 50), 1e-9);
+            Assert.AreEqual(8.6, RadioAudit.Percentile(new List<double> { 1, 3, 5, 7, 9 }, 95), 1e-9);
+            Assert.IsTrue(double.IsNaN(RadioAudit.Percentile(new List<double>(), 50)));
+            StringAssert.Contains("p95", RadioAudit.LatencyReport(session));
+        }
+
+        [Test]
         public void Crowded_radio_counts_only_the_engineers()
         {
             var crowded = DiagnosticReplay.Load(new[]

@@ -31,6 +31,12 @@ namespace CrewChiefV4.AiTeam
         public string Game, Track;
         public readonly List<ReplayFrame> Frames = new List<ReplayFrame>();
         public readonly List<ReplayRadio> Radio = new List<ReplayRadio>();
+        /// <summary>RRCA 2.0 (7/10): Zeitpunkte der Funkkette je Ereignis-ID und gemessene Dauern (TTS, Sprachmodell, Antwort).</summary>
+        public readonly Dictionary<string, DateTime> Detected = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        public readonly Dictionary<string, DateTime> Enqueued = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        public readonly Dictionary<string, DateTime> AudioStarted = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        public readonly List<double> TtsMs = new List<double>(), ApiMs = new List<double>(), AnswerMs = new List<double>();
+        internal readonly List<DateTime> PttReleased = new List<DateTime>(), AnyAudioStart = new List<DateTime>();
     }
 
     internal sealed class AuditFinding
@@ -59,7 +65,7 @@ namespace CrewChiefV4.AiTeam
                 try { j = JObject.Parse(line); } catch (Exception) { continue; } // abgeschnittene letzte Zeile
                 string kind = (string)j["kind"];
                 var d = j["data"] as JObject;
-                if (d == null || !DateTime.TryParse((string)j["utc"], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var utc)) continue;
+                if (d == null || !Utc(j["utc"], out var utc)) continue;
                 switch (kind)
                 {
                     case "session.start":
@@ -77,8 +83,34 @@ namespace CrewChiefV4.AiTeam
                         break;
                     case "radio.enqueue":
                         session.Radio.Add(new ReplayRadio { Utc = utc, Topic = (string)d["topic"], Speaker = (string)d["speaker"], Text = (string)d["text"], Priority = Int(d["priority"]) });
+                        First(session.Enqueued, (string)d["event_id"], utc);
+                        break;
+                    case "decision":
+                        if ((string)d["status"] == "detected") First(session.Detected, (string)d["event_id"], utc);
+                        break;
+                    case "audio.driver_submit":
+                        First(session.AudioStarted, (string)d["event_id"], utc);
+                        session.AnyAudioStart.Add(utc);
+                        break;
+                    case "tts.end":
+                        if ((string)d["status"] == "completed" || (string)d["status"] == "ok" || d["status"] == null) AddMs(session.TtsMs, d["duration_ms"]);
+                        break;
+                    case "api.end":
+                        AddMs(session.ApiMs, d["duration_ms"]);
+                        break;
+                    case "ptt.released":
+                        session.PttReleased.Add(utc);
                         break;
                 }
+            }
+            // Antwortzeit: Taste losgelassen bis zum nächsten Audiostart (höchstens 30 s, sonst keine Antwort).
+            session.AnyAudioStart.Sort();
+            foreach (var released in session.PttReleased)
+            {
+                int i = session.AnyAudioStart.BinarySearch(released);
+                if (i < 0) i = ~i;
+                if (i < session.AnyAudioStart.Count && session.AnyAudioStart[i] - released <= TimeSpan.FromSeconds(30))
+                    session.AnswerMs.Add((session.AnyAudioStart[i] - released).TotalMilliseconds);
             }
             session.Frames.Sort((a, b) => a.Utc.CompareTo(b.Utc));
             session.Radio.Sort((a, b) => a.Utc.CompareTo(b.Utc));
@@ -104,6 +136,27 @@ namespace CrewChiefV4.AiTeam
             if (f.Distance >= 0) gs.PositionAndMotionData.DistanceRoundTrack = f.Distance;
             if (f.Fuel >= 0) { gs.FuelData.FuelUseActive = true; gs.FuelData.FuelLeft = f.Fuel; }
             return gs;
+        }
+
+        /// <summary>Zeitstempel mit voller Auflösung: Newtonsoft liest ISO-Zeiten schon als Datum ein; ein Umweg über
+        /// Text würde die Millisekunden verlieren.</summary>
+        private static bool Utc(JToken t, out DateTime utc)
+        {
+            utc = DateTime.MinValue;
+            if (t == null) return false;
+            if (t.Type == JTokenType.Date) { utc = ((DateTime)t).ToUniversalTime(); return true; }
+            return DateTime.TryParse((string)t, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out utc);
+        }
+
+        private static void First(Dictionary<string, DateTime> map, string id, DateTime utc)
+        {
+            if (!string.IsNullOrEmpty(id) && !map.ContainsKey(id)) map[id] = utc;
+        }
+
+        private static void AddMs(List<double> list, JToken t)
+        {
+            float ms = Float(t, -1);
+            if (ms >= 0 && ms < 600000) list.Add(ms);
         }
 
         private static int Int(JToken t) { try { return t == null || t.Type == JTokenType.Null ? 0 : (int)t; } catch (Exception) { return 0; } }
@@ -177,6 +230,38 @@ namespace CrewChiefV4.AiTeam
             lines.AddRange(findings.Select(f => "  " + f));
             foreach (var g in session.Radio.GroupBy(r => Family(r.Topic)).OrderByDescending(g => g.Count()).Take(8))
                 lines.Add("  Thema " + g.Key + ": " + g.Count() + "x");
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>Perzentil (0–100) einer Liste in ms; NaN ohne Werte.</summary>
+        internal static double Percentile(IList<double> values, double p)
+        {
+            if (values == null || values.Count == 0) return double.NaN;
+            var sorted = values.OrderBy(v => v).ToList();
+            double rank = Math.Max(0, Math.Min(sorted.Count - 1, p / 100.0 * (sorted.Count - 1)));
+            int lo = (int)Math.Floor(rank), hi = (int)Math.Ceiling(rank);
+            return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
+        }
+
+        /// <summary>RRCA 2.0 (7/10): Latenzen der Funkkette aus einer Aufnahme (p50/p95/p99 in ms).</summary>
+        internal static Dictionary<string, List<double>> Latencies(ReplaySession s)
+        {
+            var detectToQueue = s.Enqueued.Where(e => s.Detected.ContainsKey(e.Key)).Select(e => (e.Value - s.Detected[e.Key]).TotalMilliseconds).Where(v => v >= 0).ToList();
+            var queueToAudio = s.AudioStarted.Where(e => s.Enqueued.ContainsKey(e.Key)).Select(e => (e.Value - s.Enqueued[e.Key]).TotalMilliseconds).Where(v => v >= 0).ToList();
+            var detectToAudio = s.AudioStarted.Where(e => s.Detected.ContainsKey(e.Key)).Select(e => (e.Value - s.Detected[e.Key]).TotalMilliseconds).Where(v => v >= 0).ToList();
+            return new Dictionary<string, List<double>>
+            {
+                ["erkannt_bis_eingereiht"] = detectToQueue, ["eingereiht_bis_audio"] = queueToAudio, ["erkannt_bis_audio"] = detectToAudio,
+                ["tts_erzeugung"] = s.TtsMs, ["sprachmodell"] = s.ApiMs, ["frage_bis_antwort_audio"] = s.AnswerMs,
+            };
+        }
+
+        internal static string LatencyReport(ReplaySession s)
+        {
+            var lines = new List<string> { "Latenzen (ms): Anzahl, p50, p95, p99" };
+            foreach (var kv in Latencies(s))
+                lines.Add("  " + kv.Key + ": " + kv.Value.Count + (kv.Value.Count == 0 ? " (keine Daten)" :
+                    ", " + Math.Round(Percentile(kv.Value, 50)) + ", " + Math.Round(Percentile(kv.Value, 95)) + ", " + Math.Round(Percentile(kv.Value, 99))));
             return string.Join(Environment.NewLine, lines);
         }
 
