@@ -102,7 +102,8 @@ namespace CrewChiefV4.AiTeam.Probe
             /// <summary>Unterstützte Spiele in Prüfreihenfolge. Das laufende Spiel wird automatisch erkannt.</summary>
             private static ProbeAnalyzer[] CreateAnalyzers()
             {
-                return new ProbeAnalyzer[] { new R3EProbeAnalyzer(), new AMS2ProbeAnalyzer(), new LMUProbeAnalyzer() };
+                // LMU: zuerst das native „LMU_Data“, sonst die rF2-Abbilder.
+                return new ProbeAnalyzer[] { new R3EProbeAnalyzer(), new AMS2ProbeAnalyzer(), new LMUProbeAnalyzer(true), new LMUProbeAnalyzer() };
             }
 
             private const string Waiting = "wartet auf RaceRoom, AMS2 oder LMU";

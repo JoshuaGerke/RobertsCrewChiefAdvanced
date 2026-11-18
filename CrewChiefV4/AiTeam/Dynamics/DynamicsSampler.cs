@@ -466,7 +466,7 @@ namespace CrewChiefV4.AiTeam
 
         private static DynamicsSource Create(GameEnum game) =>
             game == GameEnum.AMS2 ? new AMS2DynamicsSource() : game == GameEnum.RACE_ROOM ? new R3EDynamicsSource()
-                : game == GameEnum.LMU ? (DynamicsSource)new LMUDynamicsSource()
+                : game == GameEnum.LMU ? (DynamicsSource)new LMUPreferredDynamicsSource()
                 : game == GameEnum.ASSETTO_EVO ? new ACEDynamicsSource() : null;
 
         private static void Run()
