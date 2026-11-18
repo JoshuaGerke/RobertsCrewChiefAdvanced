@@ -285,6 +285,7 @@
     <Compile Include="AiTeam\RadioLoad.cs" />
     <Compile Include="AiTeam\BattleSectorWatch.cs" />
     <Compile Include="AiTeam\RaceEventLog.cs" />
+    <Compile Include="AiTeam\SimCapabilityMatrix.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />
