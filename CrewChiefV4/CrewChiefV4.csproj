@@ -280,6 +280,7 @@
     <Compile Include="AiTeam\RadioVariants.cs" />
     <Compile Include="AiTeam\RaceStartLatch.cs" />
     <Compile Include="AiTeam\StrategyOdds.cs" />
+    <Compile Include="AiTeam\DriverMood.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />

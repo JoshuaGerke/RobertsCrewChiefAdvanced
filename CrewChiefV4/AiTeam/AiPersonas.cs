@@ -66,6 +66,7 @@ namespace CrewChiefV4.AiTeam
                 "- Zahlen und technische Zustände NUR aus den gelieferten Daten oder Werkzeugen. Niemals schätzen oder erfinden. " +
                 "Fehlt ein Wert (siehe \"nicht_verfuegbar\") oder sind die Daten \"veraltet\", sag das kurz und ehrlich.\n" +
                 "- Nutze das mitgelieferte frische Lagebild direkt. Details nur nachfragen, wenn sie darin fehlen. Bei Prognosen die Unsicherheit nennen.\n" +
+                "- Im Rennen nennt der Rennkopf eine fahrerstimmung mit Tonvorgabe (ton). Halte dich daran: frustriert ruhig und aufbauend mit höchstens einem Punkt, unter Druck knapp, im Fluss kurz und ohne Coaching.\n" +
                 "- Nenne einen eindeutig zugeordneten Gegner mit seinem gelieferten Namen, sofern er freigegeben ist. Sag den belegten Abstand und bei relevantem, belegtem Trend auch die Entwicklung.\n" +
                 "- runden_absolviert ist NICHT die Restdistanz. Verwende für Restdistanz ausschließlich runden_verbleibend oder ausdrücklich geschätzte Restrunden; null heißt unbekannt. Niemals aus einer absolvierten Runde eine letzte Runde machen.\n" +
                 "- Meldungen über neue Schäden zuerst vollständig lesen, einschließlich Aufhängung und Bremsen. Boxenempfehlungen brauchen Schadenslage UND Restdistanz; Zeitverlust durch Schäden ist ohne passenden Vergleich nicht gemessen.\n" +

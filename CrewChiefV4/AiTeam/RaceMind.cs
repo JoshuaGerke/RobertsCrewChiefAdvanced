@@ -25,6 +25,9 @@ namespace CrewChiefV4.AiTeam
         public int FrontLapsToCatch = -1, RearLapsToCatch = -1, LapsLeft = -1;
         public string FrontName, RearName;
         public bool FuelShort, IncidentsTight, FrontInPits;
+        /// <summary>C7: Rennstimmung des Fahrers aus den letzten drei Runden.</summary>
+        public DriverMoodState Mood;
+        public string MoodReason;
         public string[] Threats = new string[0], Opportunities = new string[0];
 
         internal bool Fresh(DateTime now) => now >= Utc && now - Utc <= TimeSpan.FromSeconds(1.5);
@@ -39,6 +42,8 @@ namespace CrewChiefV4.AiTeam
                 ["gefahren"] = new JArray(Threats),
                 ["chancen"] = new JArray(Opportunities),
                 ["runden_uebrig"] = LapsLeft > 0 ? (JToken)LapsLeft : null,
+                ["fahrerstimmung"] = DriverMood.Name(Mood),
+                ["ton"] = DriverMood.Tone(Mood),
             };
             if (FrontRate != 0) o["vorne_abstand_aenderung_s_pro_runde"] = Math.Round(-FrontRate, 2);
             if (FrontLapsToCatch > 0) o["vorne_dran_in_runden"] = FrontLapsToCatch;
@@ -49,7 +54,7 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
-        internal string Summary() => PhaseName(Phase) + "/" + AttentionName(Attention) + "/" + FocusName(Focus) +
+        internal string Summary() => PhaseName(Phase) + "/" + AttentionName(Attention) + "/" + FocusName(Focus) + "/" + DriverMood.Name(Mood) +
             (Threats.Length > 0 ? " gefahren=" + string.Join(",", Threats) : "") + (Opportunities.Length > 0 ? " chancen=" + string.Join(",", Opportunities) : "");
 
         internal static string PhaseName(RacePhase p)
@@ -127,11 +132,12 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private DateTime battleUntil, trafficUntil;
         private bool fuelShort;
-        private string lastSummary;
+        private string lastSummary, moodReason;
+        private DriverMoodState mood;
 
         internal void Reset()
         {
-            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null;
+            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null; mood = DriverMoodState.Neutral; moodReason = null;
             Front.Id = Rear.Id = null; Front.Clear(); Rear.Clear();
             Volatile.Write(ref latest, null);
         }
@@ -207,8 +213,11 @@ namespace CrewChiefV4.AiTeam
                 bool ownPitLap = gs.PitData.InPitlane || gs.PitData.OnOutLap || gs.PitData.OnInLap;
                 Sample(Front, RaceDataTools.Neighbour(gs, true), front, ownPitLap);
                 Sample(Rear, RaceDataTools.Neighbour(gs, false), rear, ownPitLap);
-                var fuel = FuelEstimate.From(context(), 2);
+                var ctx = context();
+                var fuel = FuelEstimate.From(ctx, 2);
                 fuelShort = fuel != null && !fuel.ProvisionalConsumption && fuel.AdditionalWithoutReserve > 0;
+                bool tight = IncidentPointsWatch.Known(s) && IncidentPointsWatch.Level(s.CurrentIncidentCount, s.MaxIncidentCount) >= 3;
+                mood = DriverMood.Assess(ctx?.Memory?.GetLaps(), tight, out moodReason);
             }
 
             var x = new RaceSituation { Utc = now, SessionId = s.SessionId, Phase = phase, GapAhead = ahead, GapBehind = behind, LapsLeft = LapWatch.LapsLeft(s) };
@@ -243,6 +252,7 @@ namespace CrewChiefV4.AiTeam
             if (x.FrontInPits) chances.Add("vordermann_in_der_box");
             x.Threats = threats.ToArray(); x.Opportunities = chances.ToArray();
             x.Focus = FocusOf(x);
+            x.Mood = mood; x.MoodReason = moodReason;
             Volatile.Write(ref latest, x);
 
             string summary = x.Summary();
@@ -302,6 +312,14 @@ namespace CrewChiefV4.AiTeam
             string t = call.Topic ?? "";
             bool lastLaps = x.Phase == RacePhase.LastLap || x.Phase == RacePhase.Finished;
             bool driverBusy = x.Attention == RaceAttention.Battle || x.Attention == RaceAttention.Caution;
+
+            // C7: Fahrtechnik-Kritik nach Stimmung. Frustriert: keine Fehlerliste. Unter Druck: warten. Im Fluss: kein Kurven-Coaching.
+            if (DriverMood.IsCoaching(t))
+            {
+                if (x.Mood == DriverMoodState.Frustration) { reason = "driver_frustrated_no_criticism"; return MindVerdict.Drop; }
+                if (x.Mood == DriverMoodState.Pressure) { reason = "driver_under_pressure"; return MindVerdict.Hold; }
+                if (x.Mood == DriverMoodState.Flow && t == "corner-coaching") { reason = "driver_in_flow"; return MindVerdict.Drop; }
+            }
 
             if (Background(call))
             {

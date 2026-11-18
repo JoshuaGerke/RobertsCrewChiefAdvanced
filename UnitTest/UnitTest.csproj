@@ -97,6 +97,7 @@
     <Compile Include="AiTeam\DrivingDynamicsTests.cs" />
     <Compile Include="AiTeam\RadioVarietyRegisterTests.cs" />
     <Compile Include="AiTeam\StrategyOddsTests.cs" />
+    <Compile Include="AiTeam\DriverMoodTests.cs" />
     <Compile Include="AiTeam\PitTrafficBehaviorTests.cs" />
     <Compile Include="AiTeam\LiveRaceReliabilityTests.cs" />
     <Compile Include="AiTeam\WorkmapRegressionTests.cs" />
