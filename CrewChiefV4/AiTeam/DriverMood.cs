@@ -8,9 +8,9 @@ namespace CrewChiefV4.AiTeam
 
     /// <summary>
     /// C7 Rennstimmung: Wie läuft es gerade für den Fahrer? Nur aus Fakten der letzten drei sauberen Runden – Plätze
-    /// verloren, ungültige Runden, Konstanz, Hintermann direkt dran, knappe Vorfallpunkte. Steuert den Ton: Wer frustriert
-    /// ist, bekommt keine Fehlerliste, wer im Fluss ist, wird nicht mit Coaching gestört, wer unter Druck steht, hört nur
-    /// das Nötige. Keine Gefühle raten: ohne genug Runden bleibt die Stimmung neutral.
+    /// verloren, ungültige Runden, Konstanz, Hintermann direkt dran, knappe Vorfallpunkte. Steuert Ton und Timing: Wer
+    /// frustriert ist, bekommt einen Punkt nach dem anderen und aufbauend formuliert, wer unter Druck steht, hört Kritik
+    /// erst, wenn Luft ist. Keine Gefühle raten: ohne genug Runden bleibt die Stimmung neutral.
     /// </summary>
     internal static class DriverMood
     {
@@ -63,14 +63,22 @@ namespace CrewChiefV4.AiTeam
         {
             switch (m)
             {
-                case DriverMoodState.Flow: return "Läuft rund: kurz bestätigen, nicht mit Coaching stören.";
+                case DriverMoodState.Flow: return "Läuft rund: kurz bestätigen und loben, Hinweise knapp halten.";
                 case DriverMoodState.Pressure: return "Druck von hinten oder knappe Vorfallpunkte: knapp, ruhig, nur das Nötige.";
                 case DriverMoodState.Frustration: return "Es läuft gerade nicht: ruhig und aufbauend, höchstens ein konkreter Punkt, keine Fehlerliste.";
                 default: return "Normaler Ton.";
             }
         }
 
-        /// <summary>Fahrtechnik-Kritik und Kurven-Coaching, die je nach Stimmung warten oder entfallen.</summary>
+        /// <summary>Aufbauender Einstieg für einen Fahrtechnik-Hinweis, wenn es gerade nicht läuft (Rob 18.11.: Kritik bleibt, nur menschlicher).</summary>
+        internal static string Softener() => RadioVariants.Pick("coaching-soft",
+            RadioLanguage.T("Kopf hoch, das wird. Eine Sache noch:", "Chin up, it's coming. Just one thing:", "Ánimo, ya llegará. Solo una cosa:"),
+            RadioLanguage.T("Ganz ruhig, nur ein Punkt:", "Easy now, just one point:", "Tranquilo, solo un detalle:"),
+            RadioLanguage.T("Kein Stress, ein Tipp für dich:", "No stress, one tip for you:", "Sin estrés, un consejo:"),
+            RadioLanguage.T("Du bist gleich wieder drin. Achte mal hierauf:", "You'll be back in it soon. Watch this:", "Enseguida vuelves a estar dentro. Fíjate en esto:"),
+            RadioLanguage.T("Durchatmen, eine Kleinigkeit:", "Breathe, one small thing:", "Respira, un pequeño detalle:"));
+
+        /// <summary>Fahrtechnik-Kritik und Kurven-Coaching, deren Timing der Stimmung folgt.</summary>
         internal static bool IsCoaching(string topic) =>
             topic == "corner-coaching" || topic == "insight-lockup" || topic == "insight-wheelspin" ||
             topic == "insight-balance" || topic == "insight-offtrack";

@@ -74,6 +74,10 @@ namespace CrewChiefV4.AiTeam
 
         private void Offer(GameStateData gs, DateTime now, string topic, TeamMember member, string text, int priority, string evidence)
         {
+            // Rob 18.11.: Läuft es gerade nicht, bleibt der Hinweis – aber aufbauend eingeleitet.
+            var mind = RaceMind.Latest;
+            if (DriverMood.IsCoaching(topic) && mind != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(now) && mind.Mood == DriverMoodState.Frustration)
+                text = DriverMood.Softener() + " " + text;
             call = new ObservedRaceCall
             {
                 Topic = topic, Text = text, Evidence = evidence, Member = member, Priority = priority, Position = -1,

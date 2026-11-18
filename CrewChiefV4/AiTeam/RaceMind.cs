@@ -134,10 +134,11 @@ namespace CrewChiefV4.AiTeam
         private bool fuelShort;
         private string lastSummary, moodReason;
         private DriverMoodState mood;
+        private DateTime lastFrustratedCoaching = DateTime.MinValue;
 
         internal void Reset()
         {
-            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null; mood = DriverMoodState.Neutral; moodReason = null;
+            session = int.MinValue; SampledLap = -1; battleUntil = trafficUntil = lastPositionNews = DateTime.MinValue; fuelShort = false; lastSummary = null; mood = DriverMoodState.Neutral; moodReason = null; lastFrustratedCoaching = DateTime.MinValue;
             Front.Id = Rear.Id = null; Front.Clear(); Rear.Clear();
             Volatile.Write(ref latest, null);
         }
@@ -313,12 +314,15 @@ namespace CrewChiefV4.AiTeam
             bool lastLaps = x.Phase == RacePhase.LastLap || x.Phase == RacePhase.Finished;
             bool driverBusy = x.Attention == RaceAttention.Battle || x.Attention == RaceAttention.Caution;
 
-            // C7: Fahrtechnik-Kritik nach Stimmung. Frustriert: keine Fehlerliste. Unter Druck: warten. Im Fluss: kein Kurven-Coaching.
-            if (DriverMood.IsCoaching(t))
+            // C7 (Rob 18.11.): Kritik bleibt drin, nur das Timing folgt der Stimmung. Unter Druck wartet sie, bis Luft ist;
+            // frustriert kommt höchstens ein Punkt auf einmal (Taktung im Rennkopf) und aufbauend formuliert.
+            if (DriverMood.IsCoaching(t) && x.Mood == DriverMoodState.Pressure) { reason = "driver_under_pressure"; return MindVerdict.Hold; }
+            // Nachfragen nach Platzverlust oder Dreher kommen auch, wenn noch Autos in der Nähe sind – nur nicht unter Gelb oder in der Box.
+            if (t == "judge-dropped" || t == "judge-spin")
             {
-                if (x.Mood == DriverMoodState.Frustration) { reason = "driver_frustrated_no_criticism"; return MindVerdict.Drop; }
-                if (x.Mood == DriverMoodState.Pressure) { reason = "driver_under_pressure"; return MindVerdict.Hold; }
-                if (x.Mood == DriverMoodState.Flow && t == "corner-coaching") { reason = "driver_in_flow"; return MindVerdict.Drop; }
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit) { reason = "caution_or_pit_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
             }
 
             if (Background(call))
@@ -387,6 +391,12 @@ namespace CrewChiefV4.AiTeam
             if ((t == "status" || t == "summary") && now - lastPositionNews < TimeSpan.FromSeconds(20))
             { reason = "position_just_reported"; return MindVerdict.Drop; }
             if (t == "position" || t == "position-loss") lastPositionNews = now;
+            // Frustriert: höchstens ein Fahrtechnik-Hinweis je zwei Minuten, die übrigen entfallen.
+            if (DriverMood.IsCoaching(t) && latest != null && latest.SessionId == call.SessionId && latest.Fresh(now) && latest.Mood == DriverMoodState.Frustration)
+            {
+                if (now - lastFrustratedCoaching < TimeSpan.FromMinutes(2)) { reason = "driver_frustrated_one_point_at_a_time"; return MindVerdict.Drop; }
+                lastFrustratedCoaching = now;
+            }
             return verdict;
         }
     }

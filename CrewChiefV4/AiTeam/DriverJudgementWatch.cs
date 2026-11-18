@@ -157,6 +157,48 @@ namespace CrewChiefV4.AiTeam
                 new[] { "{n}, bleib bei dir. Lieber eine saubere Runde als zu viel wollen, dann holen wir uns die Plätze zurück.", "{n}, stay with yourself. A clean lap beats trying too hard, then we'll win those places back.", "{n}, céntrate en lo tuyo. Mejor una vuelta limpia que querer demasiado, luego recuperamos las posiciones." });
         }
 
+        /// <summary>Rob 18.11.: Viele Plätze in kurzer Zeit verloren – nachfragen, beruhigen, neu fokussieren.</summary>
+        internal static string Dropped(string name, int lost, int variant)
+        {
+            string p = lost.ToString(RadioLanguage.Culture);
+            return Pick(variant, name,
+                new[] { "{n}, alles klar bei dir? Das waren gerade " + p + " Plätze. Konzentrier dich, die holen wir uns wieder.", "{n}, are you okay? That was " + p + " places just now. Focus, we'll get them back.", "{n}, ¿todo bien? Acabamos de perder " + p + " puestos. Concéntrate, los recuperaremos." },
+                new[] { "Okay, {n}, " + p + " Plätze sind weg. Durchatmen, fokussieren, das Rennen ist noch lang.", "Okay, {n}, " + p + " places gone. Breathe, focus, there's plenty of race left.", "Vale, {n}, se han ido " + p + " puestos. Respira, céntrate, queda mucha carrera." },
+                new[] { "{n}, bleib ruhig. " + p + " Plätze verloren, aber die Pace hast du. Eine saubere Runde nach der anderen.", "{n}, stay calm. " + p + " places lost, but you've got the pace. One clean lap after another.", "{n}, tranquilo. " + p + " puestos perdidos, pero tienes ritmo. Una vuelta limpia tras otra." },
+                new[] { "Das hat " + p + " Plätze gekostet, {n}. Abhaken und konzentrieren, wir arbeiten uns zurück nach vorn.", "That cost us " + p + " places, {n}. Let it go and focus, we'll work our way back up.", "Eso nos ha costado " + p + " puestos, {n}. Olvídalo y céntrate, vamos a remontar." },
+                new[] { "Alles okay, {n}? " + p + " Plätze in kurzer Zeit. Kopf frei machen, Bremspunkte sauber treffen, dann kommen sie zurück.", "All good, {n}? " + p + " places in a short time. Clear your head, hit your braking points, and they'll come back.", "¿Todo bien, {n}? " + p + " puestos en poco tiempo. Despeja la cabeza, clava las frenadas y volverán." },
+                new[] { "{n}, nicht nervös werden. " + p + " Plätze sind aufholbar, wenn du jetzt sauber bleibst.", "{n}, don't get rattled. " + p + " places can be won back if you stay clean now.", "{n}, sin nervios. " + p + " puestos se pueden recuperar si ahora vas limpio." });
+        }
+
+        /// <summary>Nach einem Dreher oder Abflug ohne Kontakt, sobald das Auto wieder fährt.</summary>
+        internal static string Spin(string name, int variant) => Pick(variant, name,
+            new[] { "{n}, alles okay? Kurz sammeln, das kostet nur Zeit, nicht das Rennen.", "{n}, all okay? Gather yourself, that only costs time, not the race.", "{n}, ¿todo bien? Recupérate, eso solo cuesta tiempo, no la carrera." },
+            new[] { "Passiert. Reifen erst wieder auf Temperatur bringen, dann wieder angreifen, {n}.", "It happens. Get the tyres back up to temperature first, then attack again, {n}.", "Pasa. Primero recupera la temperatura de los neumáticos y luego vuelve a atacar, {n}." },
+            new[] { "Ausrutscher abhaken, {n}. Ruhig wieder reinfinden, die nächste Runde zählt.", "Put the slip behind you, {n}. Ease back in, the next lap is what counts.", "Olvida el error, {n}. Vuelve a entrar con calma, cuenta la próxima vuelta." },
+            new[] { "Weiter geht's, {n}. Nicht gleich alles zurückholen wollen, erst mal Rhythmus.", "Off we go again, {n}. Don't try to get it all back at once, rhythm first.", "Seguimos, {n}. No intentes recuperarlo todo de golpe, primero el ritmo." },
+            new[] { "Durchatmen. Das Auto ist heil, {n}, jetzt wieder Kurve für Kurve.", "Breathe. The car is fine, {n}, now corner by corner again.", "Respira. El coche está bien, {n}, ahora curva a curva otra vez." },
+            new[] { "Kopf hoch, {n}. Jeder dreht sich mal, wichtig ist die Runde danach.", "Chin up, {n}. Everyone spins sometimes, the lap after is what matters.", "Ánimo, {n}. Todos hacemos un trompo alguna vez, lo importante es la vuelta siguiente." });
+
+        /// <summary>Vorfallpunkte steigen schnell (iRacing u. a.): ruhig und sauber werden.</summary>
+        internal static string IncidentsRising(string name, int added, int variant)
+        {
+            string a = added.ToString(RadioLanguage.Culture);
+            return Pick(variant, name,
+                new[] { "{n}, das sind " + a + " Vorfallpunkte in den letzten Minuten. Etwas ruhiger, sauber bleiben.", "{n}, that's " + a + " incident points in the last few minutes. Calm it down a bit, stay clean.", "{n}, son " + a + " puntos de incidente en los últimos minutos. Un poco más de calma, limpio." },
+                new[] { "Die Vorfallpunkte werden mehr, plus " + a + ". Lieber eine Zehntel langsamer und dafür sauber, {n}.", "Incident points are adding up, plus " + a + ". Better a tenth slower and clean, {n}.", "Los puntos de incidente suben, más " + a + ". Mejor una décima más lento y limpio, {n}." },
+                new[] { "Plus " + a + " Vorfallpunkte, {n}. Mehr Abstand zu den anderen und weg von den Randsteinen.", "Plus " + a + " incident points, {n}. More room to the others and off the kerbs.", "Más " + a + " puntos de incidente, {n}. Más espacio con los demás y fuera de los pianos." },
+                new[] { "{n}, " + a + " neue Vorfallpunkte. Das kostet uns mehr als jede Position, also sauber fahren.", "{n}, " + a + " new incident points. That costs us more than any position, so drive clean.", "{n}, " + a + " puntos de incidente nuevos. Eso cuesta más que cualquier posición, así que limpio." },
+                new[] { "Achtung bei den Vorfallpunkten, " + a + " in kurzer Zeit. Durchatmen und mit Reserve fahren, {n}.", "Watch the incident points, " + a + " in a short time. Breathe and drive with some margin, {n}.", "Cuidado con los puntos de incidente, " + a + " en poco tiempo. Respira y conduce con margen, {n}." });
+        }
+
+        /// <summary>Nach einer schwierigen Phase wieder im Tritt: das bestätigen.</summary>
+        internal static string Recovered(string name, int variant) => Pick(variant, name,
+            new[] { "Siehst du, {n}, wieder drin. Genau so weiter.", "See, {n}, back in it. Keep it exactly like that.", "¿Ves, {n}? Otra vez dentro. Sigue justo así." },
+            new[] { "Gut gefangen, {n}. Das sieht wieder richtig gut aus.", "Well recovered, {n}. That looks really good again.", "Bien recuperado, {n}. Vuelve a tener muy buena pinta." },
+            new[] { "Da ist der Rhythmus wieder. Stark, wie du das zurückgeholt hast, {n}.", "There's the rhythm again. Strong how you pulled that back, {n}.", "Ahí está el ritmo otra vez. Muy bien cómo lo has recuperado, {n}." },
+            new[] { "{n}, so gefällt mir das. Ruhig, sauber, wieder auf Kurs.", "{n}, that's what I like. Calm, clean, back on track.", "{n}, así me gusta. Tranquilo, limpio, otra vez en camino." },
+            new[] { "Wieder voll da, {n}. Jetzt bauen wir darauf auf.", "Fully back, {n}. Now we build on that.", "Otra vez a tope, {n}. Ahora construimos sobre eso." });
+
         /// <summary>Mitgefühl nach einem Einschlag oder Kontakt, sobald das Auto wieder fährt; beim zweiten Treffer kurz hintereinander deutlicher.</summary>
         internal static string Impact(string name, bool repeated, int variant)
         {
@@ -164,6 +206,8 @@ namespace CrewChiefV4.AiTeam
                 return Pick(variant, name,
                     new[] { "{n}, das ist schon der zweite Treffer. Ein bisschen Tempo raus, wir brauchen das Auto im Ziel.", "{n}, that's the second hit already. Ease off a touch, we need the car at the finish.", "{n}, ya es el segundo golpe. Levanta un poco, necesitamos el coche en la meta." },
                     new[] { "Noch einer. Ganz ruhig jetzt, {n}, erst mal ein paar saubere Runden.", "Another one. Calm down now, {n}, just a few clean laps first.", "Otro más. Tranquilo ahora, {n}, primero unas vueltas limpias." },
+                    new[] { "Wieder Kontakt, {n}. Lass den anderen jetzt mehr Platz, das Rennen ist lang genug.", "Contact again, {n}. Give the others more room now, the race is long enough.", "Otro contacto, {n}. Deja más espacio a los demás, la carrera es larga." },
+                    new[] { "Das Auto hat schon genug abbekommen, {n}. Ab jetzt mit Köpfchen, nicht mit der Brechstange.", "The car has taken enough already, {n}. Use your head from here, not the crowbar.", "El coche ya ha sufrido bastante, {n}. Ahora con cabeza, no a lo bruto." },
                     new[] { "Zweimal kurz hintereinander, das ist ein Zeichen. Atme durch und fahr wieder mit Abstand.", "Twice in a short time, that's a sign. Take a breath and drive with some margin again.", "Dos veces en poco tiempo, es una señal. Respira y vuelve a conducir con margen." });
             return Pick(variant, name,
                 // Die erste Frage „Alles okay?“ stellt schon die Kontaktmeldung; Ben schaut danach nach vorn.
@@ -188,6 +232,13 @@ namespace CrewChiefV4.AiTeam
         private DateTime impactUtc = DateTime.MinValue;
         private bool impactRepeated;
         private int lastIncidents = -1;
+        // Rob 18.11.: schneller Platzverlust, Dreher, steigende Vorfallpunkte, wieder im Tritt.
+        internal static readonly TimeSpan DropWindow = TimeSpan.FromSeconds(45), DropSettle = TimeSpan.FromSeconds(5), IncidentWindow = TimeSpan.FromMinutes(3);
+        internal const int DropPlaces = 3, IncidentStep = 4;
+        private readonly Queue<KeyValuePair<DateTime, int>> positions = new Queue<KeyValuePair<DateTime, int>>();
+        private readonly Queue<KeyValuePair<DateTime, int>> incidentHistory = new Queue<KeyValuePair<DateTime, int>>();
+        private DateTime lastPositionChange = DateTime.MinValue, lastDropCall = DateTime.MinValue, spinUtc = DateTime.MinValue, lastSpinCall = DateTime.MinValue, lastIncidentCall = DateTime.MinValue;
+        private int frustratedLap = -100;
         private float lastImpactTime = -1;
         private bool impactBaseline;
         private DateTime impactCandidateUtc = DateTime.MinValue;
@@ -208,6 +259,8 @@ namespace CrewChiefV4.AiTeam
             defendedAttacker = null; overtake = null; impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
             lastImpactTime = -1; impactBaseline = false; impactCandidateUtc = DateTime.MinValue; speeds.Clear();
             lastPraise = lastAny = lastImpact = lastImpactCall = DateTime.MinValue; lastVariant.Clear(); call = null;
+            positions.Clear(); incidentHistory.Clear(); frustratedLap = -100;
+            lastPositionChange = lastDropCall = spinUtc = lastSpinCall = lastIncidentCall = DateTime.MinValue;
         }
 
         /// <summary>Zufällige Variante ohne direkte Wiederholung derselben Formulierung.</summary>
@@ -248,8 +301,40 @@ namespace CrewChiefV4.AiTeam
             bool green = s.SessionPhase == SessionPhase.Green && !gs.PitData.InPitlane;
             ObserveImpact(gs, now, green);
             if (race) ObserveOvertake(gs, laps, names, now, green);
+            ObservePositions(gs, now, race && green);
+            ObserveSpin(gs, now, green);
+            ObserveIncidents(s, now);
             if (call != null || !green) return;
             string name = Name(radioName);
+
+            // Viele Plätze in kurzer Zeit verloren: erst wenn sich die Reihenfolge kurz beruhigt hat.
+            int dropped = race && s.CompletedLaps >= 1 ? LostInWindow(s.ClassPosition) : 0;
+            if (dropped >= DropPlaces && now - lastPositionChange >= DropSettle && now - lastDropCall > TimeSpan.FromMinutes(3))
+            {
+                Offer(gs, now, "judge-dropped", DriverJudgement.Dropped(name, dropped, Variant("dropped", 6)), "class_position_lost_" + dropped + "_within_45s_without_own_stop", 5, TimeSpan.FromSeconds(40));
+                lastDropCall = now; positions.Clear();
+                if (laps != null && laps.Count > 0) lastSlideLap = laps[laps.Count - 1].LapNumber + 1; // nicht gleich noch einmal als Rundenbilanz
+                return;
+            }
+            // Dreher oder Abflug ohne Kontakt: wenn das Auto wieder Fahrt aufnimmt.
+            if (spinUtc != DateTime.MinValue)
+            {
+                if (now - spinUtc > TimeSpan.FromSeconds(40) || now - lastImpact < TimeSpan.FromSeconds(15)) spinUtc = DateTime.MinValue;
+                else if (now - spinUtc >= TimeSpan.FromSeconds(5) && gs.PositionAndMotionData.CarSpeed > 15 && now - lastSpinCall > TimeSpan.FromMinutes(2))
+                {
+                    Offer(gs, now, "judge-spin", DriverJudgement.Spin(name, Variant("spin", 6)), "speed_from_above_20_to_below_3_mps_within_3s_no_impact", 5, TimeSpan.FromSeconds(25));
+                    lastSpinCall = now; spinUtc = DateTime.MinValue;
+                    return;
+                }
+            }
+            // Vorfallpunkte steigen schnell (ohne den Kontakt, den schon das Mitgefühl abdeckt).
+            int added = IncidentsAdded(s);
+            if (added >= IncidentStep && now - lastIncidentCall > TimeSpan.FromMinutes(5) && now - lastImpactCall > TimeSpan.FromSeconds(60))
+            {
+                Offer(gs, now, "judge-incidents", DriverJudgement.IncidentsRising(name, added, Variant("incidents", 5)), "incident_points_plus_" + added + "_within_3_minutes", 4, TimeSpan.FromSeconds(30));
+                lastIncidentCall = now; incidentHistory.Clear();
+                return;
+            }
 
             // Mitgefühl nach einem Einschlag: erst wenn das Auto wieder rollt, nicht im Moment selbst.
             if (impactUtc != DateTime.MinValue)
@@ -257,7 +342,7 @@ namespace CrewChiefV4.AiTeam
                 if (now - impactUtc > TimeSpan.FromSeconds(30)) impactUtc = DateTime.MinValue;
                 else if (now - impactUtc >= TimeSpan.FromSeconds(8) && gs.PositionAndMotionData.CarSpeed > 25 && now - lastImpactCall > TimeSpan.FromSeconds(90))
                 {
-                    Offer(gs, now, "judge-impact", DriverJudgement.Impact(name, impactRepeated, Variant(impactRepeated ? "impact2" : "impact", impactRepeated ? 3 : 5)),
+                    Offer(gs, now, "judge-impact", DriverJudgement.Impact(name, impactRepeated, Variant(impactRepeated ? "impact2" : "impact", 5)),
                         "damage_or_incident_increase_then_moving_again", 5, TimeSpan.FromSeconds(20));
                     lastImpactCall = now; impactUtc = DateTime.MinValue;
                     return;
@@ -284,6 +369,20 @@ namespace CrewChiefV4.AiTeam
 
             if (!lapCompleted || laps == null || laps.Count == 0) return;
             int lap = laps[laps.Count - 1].LapNumber;
+            // Wieder im Tritt nach einer frustrierenden Phase (Rennstimmung des Rennkopfs).
+            var mind = RaceMind.Latest;
+            if (race && mind != null && mind.SessionId == s.SessionId && mind.Fresh(now))
+            {
+                if (mind.Mood == DriverMoodState.Frustration) frustratedLap = lap;
+                else if ((mind.Mood == DriverMoodState.Flow || mind.Mood == DriverMoodState.Neutral) && frustratedLap > 0 && lap - frustratedLap <= 6 &&
+                    laps[laps.Count - 1].Valid && now - lastAny >= AnyGap)
+                {
+                    frustratedLap = -100;
+                    Offer(gs, now, "judge-recovered", DriverJudgement.Recovered(name, Variant("recovered", 5)), "race_mind_mood_back_from_frustration_valid_lap", 3, TimeSpan.FromSeconds(30));
+                    lastPraise = now;
+                    return;
+                }
+            }
             if (race && s.CompletedLaps >= 3 && lap - lastSlideLap >= 4)
             {
                 int lost = DriverJudgement.PositionsLost(laps, 2);
@@ -363,7 +462,43 @@ namespace CrewChiefV4.AiTeam
             if (!hit || !green || s.SessionType != SessionType.Race && s.SessionType != SessionType.Practice && s.SessionType != SessionType.Qualify) return;
             if (now - lastImpact < TimeSpan.FromSeconds(10)) { lastImpact = now; return; } // derselbe Abflug
             impactRepeated = lastImpact != DateTime.MinValue && now - lastImpact < TimeSpan.FromMinutes(4);
-            lastImpact = now; impactUtc = now; overtake = null; damage.Clear(); impactCandidateUtc = DateTime.MinValue;
+            lastImpact = now; impactUtc = now; overtake = null; damage.Clear(); impactCandidateUtc = DateTime.MinValue; spinUtc = DateTime.MinValue;
+        }
+
+        private void ObservePositions(GameStateData gs, DateTime now, bool racingGreen)
+        {
+            int pos = gs.SessionData.ClassPosition;
+            if (!racingGreen || pos <= 0 || gs.PitData.InPitlane || gs.PitData.OnOutLap) { positions.Clear(); return; } // eigener Stopp ist kein Platzverlust
+            if (positions.Count > 0 && positions.Last().Value != pos) lastPositionChange = now;
+            while (positions.Count > 0 && (now < positions.Peek().Key || now - positions.Peek().Key > DropWindow)) positions.Dequeue();
+            if (positions.Count == 0 || positions.Last().Value != pos || now - positions.Last().Key > TimeSpan.FromSeconds(1))
+                positions.Enqueue(new KeyValuePair<DateTime, int>(now, pos));
+        }
+
+        /// <summary>Plätze, die im Fenster der letzten 45 s verloren gingen (aktueller Platz minus bester Platz im Fenster).</summary>
+        private int LostInWindow(int pos) => pos <= 0 || positions.Count == 0 ? 0 : pos - positions.Min(p => p.Value);
+
+        private void ObserveSpin(GameStateData gs, DateTime now, bool green)
+        {
+            if (!green) return;
+            float speed = gs.PositionAndMotionData.CarSpeed;
+            // „speeds“ hält die letzten 3 s (siehe ObserveImpact): von über 20 m/s auf unter 3 m/s ohne Box = Dreher oder Abflug.
+            if (spinUtc == DateTime.MinValue && speed < 3 && speeds.Count > 0 && speeds.Max(p => p.Value) > 20 && now - lastImpact > TimeSpan.FromSeconds(15))
+                spinUtc = now;
+        }
+
+        private void ObserveIncidents(SessionData s, DateTime now)
+        {
+            int incidents = Incidents(s);
+            if (incidents < 0) return;
+            while (incidentHistory.Count > 0 && (now < incidentHistory.Peek().Key || now - incidentHistory.Peek().Key > IncidentWindow)) incidentHistory.Dequeue();
+            if (incidentHistory.Count == 0 || incidentHistory.Last().Value != incidents) incidentHistory.Enqueue(new KeyValuePair<DateTime, int>(now, incidents));
+        }
+
+        private int IncidentsAdded(SessionData s)
+        {
+            int incidents = Incidents(s);
+            return incidents < 0 || incidentHistory.Count == 0 ? 0 : incidents - incidentHistory.Min(p => p.Value);
         }
 
         /// <summary>Höchstes Tempo kurz vor dem Einschlag minus geringstes Tempo danach (m/s).</summary>

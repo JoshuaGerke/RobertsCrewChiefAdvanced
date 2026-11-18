@@ -53,16 +53,48 @@ namespace UnitTest.AiTeamTests
             RaceMind.Judge(Situation(mood), new ObservedRaceCall { Topic = topic, Text = topic, Priority = priority, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) }, T, out _);
 
         [Test]
-        public void Mood_steers_driving_criticism_but_never_safety()
+        public void Criticism_stays_only_its_timing_follows_the_mood()
         {
-            Assert.AreEqual(MindVerdict.Drop, Judge(DriverMoodState.Frustration, "insight-lockup"), "frustriert: keine Fehlerliste");
-            Assert.AreEqual(MindVerdict.Drop, Judge(DriverMoodState.Frustration, "corner-coaching"));
-            Assert.AreEqual(MindVerdict.Hold, Judge(DriverMoodState.Pressure, "insight-wheelspin"), "unter Druck wartet Kritik");
-            Assert.AreEqual(MindVerdict.Drop, Judge(DriverMoodState.Flow, "corner-coaching"), "im Fluss kein Kurven-Coaching");
-            Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Flow, "insight-lockup"), "ein Muster wird im Fluss trotzdem gemeldet");
+            Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Frustration, "insight-lockup"), "Rob 18.11.: Kritik bleibt drin");
+            Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Flow, "corner-coaching"), "auch im Fluss");
+            Assert.AreEqual(MindVerdict.Hold, Judge(DriverMoodState.Pressure, "insight-wheelspin"), "unter Druck wartet Kritik, bis Luft ist");
             Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Neutral, "insight-lockup"));
-            Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Frustration, "insight-flatspot"), "Bremsplatten ist Fahrzeugzustand, keine Kritik");
+            Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Pressure, "insight-flatspot"), "Bremsplatten ist Fahrzeugzustand, keine Kritik");
             Assert.AreEqual(MindVerdict.Admit, Judge(DriverMoodState.Frustration, "race-hazard-ahead", 7), "Sicherheit geht immer durch");
+        }
+
+        [Test]
+        public void Frustrated_driver_gets_one_point_at_a_time_softly_introduced()
+        {
+            var mind = new RaceMind();
+            try
+            {
+                RaceMind.Publish(Situation(DriverMoodState.Frustration));
+                ObservedRaceCall Call(string topic) => new ObservedRaceCall { Topic = topic, Text = topic, Priority = 3, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+                Assert.AreEqual(MindVerdict.Admit, mind.Judge(Call("insight-lockup"), T, out _));
+                Assert.AreEqual(MindVerdict.Drop, mind.Judge(Call("insight-wheelspin"), T, out string why), "nicht gleich der nächste Fehler");
+                StringAssert.Contains("one_point", why);
+                Assert.AreEqual(MindVerdict.Admit, mind.Judge(Call("judge-dropped"), T, out _), "Nachfragen kommt durch");
+            }
+            finally { RaceMind.Publish(null); }
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                var soft = Enumerable.Range(0, 20).Select(_ => DriverMood.Softener()).Distinct().ToList();
+                Assert.GreaterOrEqual(soft.Count, 1);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
+        public void Quick_position_loss_after_a_spin_is_still_asked_about_near_other_cars()
+        {
+            var battle = Situation(DriverMoodState.Neutral); battle.Attention = RaceAttention.Battle;
+            ObservedRaceCall Call(string topic) => new ObservedRaceCall { Topic = topic, Text = topic, Priority = 5, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(battle, Call("judge-dropped"), T, out _));
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(battle, Call("judge-spin"), T, out _));
+            battle.Attention = RaceAttention.Caution;
+            Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(battle, Call("judge-dropped"), T, out _), "unter Gelb wartet es");
         }
 
         [Test]
