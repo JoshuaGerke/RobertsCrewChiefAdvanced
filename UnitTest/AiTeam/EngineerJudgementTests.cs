@@ -494,5 +494,41 @@ namespace UnitTest.AiTeamTests
             }
             RadioLanguage.Current = RadioLanguage.German;
         }
+
+        [Test]
+        public void Taking_the_place_back_from_the_same_rival_is_a_story()
+        {
+            // Synthetisches Szenario 2 (RRCA 2.0): Timo überholt Rob, Rob holt sich den Platz zurück.
+            var gs = Race(4); gs.SessionData.PlayerLapTimeSessionBest = 89f;
+            var timo = Rival(gs, "timo", "Timo", 5, 89.5f);
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T);
+            gs.SessionData.ClassPosition = 5; gs.SessionData.OverallPosition = 5; timo.ClassPosition = 4; timo.OverallPosition = 4;
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(1));
+            gs.SessionData.ClassPosition = 4; gs.SessionData.OverallPosition = 4; timo.ClassPosition = 5; timo.OverallPosition = 5;
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(40));
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(56));
+            var call = watch.Take(gs, T.AddSeconds(56), false, true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("judge-retake", call.Topic);
+            StringAssert.Contains("Timo", call.Text);
+        }
+
+        [Test]
+        public void Retake_lines_vary_in_every_language()
+        {
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (string passed in new[] { "Timo", null })
+                    foreach (string name in new[] { "Rob", null })
+                    {
+                        var texts = Enumerable.Range(0, 6).Select(v => DriverJudgement.Retake(name, passed, v)).ToList();
+                        Assert.AreEqual(6, texts.Distinct().Count(), texts[0]);
+                        foreach (var t in texts) { StringAssert.DoesNotContain("{n}", t); StringAssert.DoesNotContain("  ", t); Assert.IsFalse(char.IsLower(t.TrimStart('¡', '¿')[0]), t); }
+                    }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
     }
 }

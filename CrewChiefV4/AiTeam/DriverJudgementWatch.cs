@@ -157,6 +157,25 @@ namespace CrewChiefV4.AiTeam
                 new[] { "{n}, bleib bei dir. Lieber eine saubere Runde als zu viel wollen, dann holen wir uns die Plätze zurück.", "{n}, stay with yourself. A clean lap beats trying too hard, then we'll win those places back.", "{n}, céntrate en lo tuyo. Mejor una vuelta limpia que querer demasiado, luego recuperamos las posiciones." });
         }
 
+        /// <summary>Den Platz gegen denselben Gegner zurückgeholt, der uns vorher überholt hatte.</summary>
+        internal static string Retake(string name, string passed, int variant)
+        {
+            string p = string.IsNullOrWhiteSpace(passed) ? null : passed;
+            return p != null ? Pick(variant, name,
+                new[] { "Den hast du dir zurückgeholt, {n}! " + p + " ist wieder hinter dir.", "You got that one back, {n}! " + p + " is behind you again.", "¡Lo has recuperado, {n}! " + p + " vuelve a estar detrás." },
+                new[] { "Revanche gelungen. " + p + " hatte dich vorhin, jetzt bist wieder du vorn, {n}.", "Payback done. " + p + " had you earlier, now you're back ahead, {n}.", "Revancha cumplida. " + p + " te pasó antes, ahora vuelves a ir delante, {n}." },
+                new[] { "Platz zurück gegen " + p + ". Genau so antwortet man, {n}.", "Place back from " + p + ". That's how you answer, {n}.", "Puesto recuperado frente a " + p + ". Así se responde, {n}." },
+                new[] { p + " ist wieder hinter dir. Stark gekontert, {n}!", p + " is behind you again. Strong counter, {n}!", p + " vuelve a estar detrás. ¡Gran respuesta, {n}!" },
+                new[] { "Und " + p + " ist wieder eingesammelt. Jetzt sauber wegfahren, {n}.", "And " + p + " is reeled back in. Now pull clear cleanly, {n}.", "Y " + p + " otra vez cazado. Ahora escápate limpio, {n}." },
+                new[] { "Zurückgeschlagen, {n}! Gegen " + p + " ist die Rechnung beglichen.", "Struck back, {n}! The score with " + p + " is settled.", "¡Devuelto, {n}! Cuentas saldadas con " + p + "." }) : Pick(variant, name,
+                new[] { "Den hast du dir zurückgeholt, {n}! Der Platz ist wieder unser.", "You got that one back, {n}! The place is ours again.", "¡Lo has recuperado, {n}! El puesto vuelve a ser nuestro." },
+                new[] { "Revanche gelungen, {n}. Der hatte dich vorhin, jetzt bist wieder du vorn.", "Payback done, {n}. He had you earlier, now you're back ahead.", "Revancha cumplida, {n}. Te pasó antes, ahora vuelves a ir delante." },
+                new[] { "Platz zurückgeholt. Genau so antwortet man, {n}.", "Place taken back. That's how you answer, {n}.", "Puesto recuperado. Así se responde, {n}." },
+                new[] { "Wieder vorbei am selben Auto. Stark gekontert, {n}!", "Back past the same car. Strong counter, {n}!", "Otra vez delante del mismo coche. ¡Gran respuesta, {n}!" },
+                new[] { "Der ist wieder eingesammelt. Jetzt sauber wegfahren, {n}.", "He's reeled back in. Now pull clear cleanly, {n}.", "Otra vez cazado. Ahora escápate limpio, {n}." },
+                new[] { "Zurückgeschlagen, {n}! Die Rechnung ist beglichen.", "Struck back, {n}! Score settled.", "¡Devuelto, {n}! Cuentas saldadas." });
+        }
+
         /// <summary>Rob 18.11.: Viele Plätze in kurzer Zeit verloren – nachfragen, beruhigen, neu fokussieren.</summary>
         internal static string Dropped(string name, int lost, int variant)
         {
@@ -248,15 +267,19 @@ namespace CrewChiefV4.AiTeam
 
         private sealed class Pending
         {
-            public DateTime Utc; public int Position, Incidents; public float Damage; public string PassedName, PassedIdentity; public bool Stronger;
+            public DateTime Utc; public int Position, Incidents; public float Damage; public string PassedName, PassedIdentity; public bool Stronger, Retake;
         }
+        // RRCA 2.0 (4.2) Rivalengeschichte: wer uns zuletzt überholt hat. Holt Rob sich den Platz gegen denselben Gegner zurück,
+        // ist das eine Geschichte („den hast du dir zurückgeholt“), nicht nur ein weiteres Überholen.
+        internal static readonly TimeSpan RetakeWindow = TimeSpan.FromMinutes(10);
+        private readonly Dictionary<string, DateTime> passedBy = new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
         internal DriverJudgementWatch(int? seed = null) { random = seed.HasValue ? new Random(seed.Value) : new Random(); }
 
         internal void Reset()
         {
             session = int.MinValue; lastPosition = -1; lastConsistencyLap = lastSlideLap = lastDefenceLap = -100; overtakeCount = spokenCount = 0;
-            defendedAttacker = null; overtake = null; impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
+            defendedAttacker = null; overtake = null; passedBy.Clear(); impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
             lastImpactTime = -1; impactBaseline = false; impactCandidateUtc = DateTime.MinValue; speeds.Clear();
             lastPraise = lastAny = lastImpact = lastImpactCall = DateTime.MinValue; lastVariant.Clear(); call = null;
             positions.Clear(); incidentHistory.Clear(); frustratedLap = -100;
@@ -356,6 +379,15 @@ namespace CrewChiefV4.AiTeam
                     (o.Damage < 0 || ImpactDamage(gs.CarDamageData) - o.Damage < 1f) && now - o.Utc < TimeSpan.FromSeconds(45);
                 bool hardFought = laps != null && o.PassedIdentity != null && laps.Reverse().Take(3)
                     .Any(l => l.FrontIdentity == o.PassedIdentity && l.GapAhead > 0 && l.GapAhead < 1.2f);
+                // Platz gegen denselben Gegner zurückgeholt: immer erwähnenswert.
+                if (clean && o.Retake)
+                {
+                    passedBy.Remove(o.PassedIdentity);
+                    Offer(gs, now, "judge-retake", DriverJudgement.Retake(name, o.PassedName, Variant("retake", 6)),
+                        "class_position_regained_against_the_rival_who_passed_us_held_without_new_damage", 4, TimeSpan.FromSeconds(25));
+                    lastPraise = now;
+                    return;
+                }
                 // Nicht jedes Überholen braucht ein Lob – nur hart erarbeitete, gegen Schnellere oder jedes dritte saubere.
                 if (clean && (hardFought || o.Stronger || ++overtakeCount % 3 == 0))
                 {
@@ -518,6 +550,17 @@ namespace CrewChiefV4.AiTeam
             int before = lastPosition; lastPosition = pos;
             if (before <= 0) return;
             if (overtake != null && pos > overtake.Position) overtake = null; // Platz gleich wieder verloren
+            if (pos == before + 1 && green && !gs.PitData.InPitlane)
+            {
+                // Ein Platz verloren: Wer steht jetzt direkt vor uns? Nur ein Gegner auf der Strecke (kein eigener Stopp).
+                var by = RaceDataTools.Neighbour(gs, true);
+                var byKey = by == null ? null : gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, by)).Key;
+                if (by != null && !by.InPits && byKey != null)
+                {
+                    if (passedBy.Count > 32) passedBy.Clear();
+                    passedBy[RaceReader.Identity(byKey, by)] = now;
+                }
+            }
             if (pos != before - 1 || !green || s.CompletedLaps < 1) return;
             var passed = RaceDataTools.Neighbour(gs, false);
             if (passed == null || passed.InPits || passed.isEnteringPits()) return; // Platz durch Boxenstopp des Gegners ist kein Überholmanöver
@@ -530,6 +573,8 @@ namespace CrewChiefV4.AiTeam
                 PassedIdentity = key == null ? null : RaceReader.Identity(key, passed),
                 Stronger = passed.CurrentBestLapTime > 0 && mine > 0 && passed.CurrentBestLapTime < mine - .1f
             };
+            if (overtake.PassedIdentity != null && passedBy.TryGetValue(overtake.PassedIdentity, out var lostAt) && now >= lostAt && now - lostAt < RetakeWindow)
+                overtake.Retake = true;
         }
 
         private void Offer(GameStateData gs, DateTime now, string topic, string text, string evidence, int priority, TimeSpan life)
