@@ -101,6 +101,7 @@
     <Compile Include="AiTeam\DiagnosticReplayTests.cs" />
     <Compile Include="AiTeam\RadioLoadTests.cs" />
     <Compile Include="AiTeam\QualiCoachingTests.cs" />
+    <Compile Include="AiTeam\BattleSectorTests.cs" />
     <Compile Include="AiTeam\PitTrafficBehaviorTests.cs" />
     <Compile Include="AiTeam\LiveRaceReliabilityTests.cs" />
     <Compile Include="AiTeam\WorkmapRegressionTests.cs" />

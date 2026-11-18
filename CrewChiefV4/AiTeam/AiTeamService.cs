@@ -54,6 +54,7 @@ namespace CrewChiefV4.AiTeam
         private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
+        private readonly BattleSectorWatch battleSector = new BattleSectorWatch();
         /// <summary>Renningenieur-Kopf: führt die Rennlage zusammen und entscheidet, welche Info-Meldung jetzt wichtig ist.</summary>
         private readonly RaceMind raceMind = new RaceMind();
         private readonly TyreGripWatch tyreGrip = new TyreGripWatch();
@@ -296,6 +297,7 @@ namespace CrewChiefV4.AiTeam
                 incidentPoints.Reset();
                 raceSummary.Reset();
                 gapTrend.Reset();
+                battleSector.Reset();
                 raceMind.Reset();
                 tyreGrip.Reset();
                 qualiFuel.Reset();
@@ -598,6 +600,7 @@ namespace CrewChiefV4.AiTeam
             incidentPoints.Observe(current,now);
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
             gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
+            battleSector.Observe(current, raceMind, Memory, settings.SendDriverNames, now);
             {
                 var frontCar = RaceDataTools.Neighbour(current, true); var rearCar = RaceDataTools.Neighbour(current, false);
                 string frontName = settings.SendDriverNames && frontCar != null && frontCar.CanUseName ? RadioPhraseCatalog.SafeRivalName(frontCar.DriverRawName) : null;
@@ -693,6 +696,9 @@ namespace CrewChiefV4.AiTeam
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
+                    settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = battleSector.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (routineDue && raceCall == null && !proactiveRunning && settings.RadioMode != AiRadioMode.MINIMAL &&
                 current.SessionData.SessionType == SessionType.Race && radioSchedule.StatusIsOverdue(now, radioPrefs) &&
