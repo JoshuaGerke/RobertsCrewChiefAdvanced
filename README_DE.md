@@ -16,7 +16,7 @@ Du drückst einen Knopf am Lenkrad, fragst in normalen Worten, und die Crew antw
 
 > **Testversion.** Die Crew spricht **Deutsch, Englisch oder Spanisch**, du wählst. Das Programmfenster gibt es in denselben drei Sprachen, es richtet sich nach deiner Windows-Sprache. Ansagen können falsch, verspätet oder ausbleiben. Nur für Rennsimulationen.
 
-> **Schwerpunkt Simulationen.** Aktuell wird RRCA für **Automobilista 2** und **RaceRoom** optimiert. Danach folgen **Le Mans Ultimate**, **Assetto Corsa EVO** und **iRacing**. Andere Simulationen, die Crew Chief unterstützt, funktionieren auch, sind aber noch weniger ausgefeilt.
+> **Schwerpunkt Simulationen.** Aktuell wird RRCA für **Automobilista 2**, **RaceRoom** und **Le Mans Ultimate** optimiert. Danach folgen **Assetto Corsa EVO** und **iRacing**. Andere Simulationen, die Crew Chief unterstützt, funktionieren auch, sind aber noch weniger ausgefeilt.
 
 **[Aktuelle Version herunterladen](https://github.com/JoshuaGerke/RobertsCrewChiefAdvanced/releases/latest)** · Im Download liegt außerdem eine bebilderte Schritt-für-Schritt-Anleitung: `ANLEITUNG_RRCA_DE.pdf`.
 
