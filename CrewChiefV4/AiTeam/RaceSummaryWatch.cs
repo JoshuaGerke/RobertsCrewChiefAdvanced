@@ -105,9 +105,19 @@ namespace CrewChiefV4.AiTeam
             {
                 Topic = "race-summary", Text = text, Evidence = "calm_window_measured_position_gaps_fuel", Member = TeamMember.Ben, Priority = 2,
                 Position = s.ClassPosition, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(15),
-                AdditionalValidity = live => Calm(live, -1, -1)
+                AdditionalValidity = live => Calm(live, -1, -1),
+                // C3: Platz und Abstände erst beim Sprechen festlegen – wartet die Ansage, sagt Ben trotzdem den aktuellen Stand.
+                RefreshText = Refresh
             };
             LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, text, call.EventId);
+        }
+
+        /// <summary>Zwischenstand mit den Werten von jetzt; null, wenn es gerade nicht ruhig ist.</summary>
+        internal string Refresh(RaceDataContext ctx)
+        {
+            if (ctx?.GameState == null) return null;
+            float ahead = Gap(ctx, true), behind = Gap(ctx, false);
+            return Calm(ctx.GameState, ahead, behind) ? Compose(ctx, ahead, behind) : null;
         }
 
         /// <summary>Die rundenweise Abstandsmessung des Rennkopfs, nur wenn sie zum aktuellen Nachbarn gehört (letzte bis zu vier Runden).</summary>
