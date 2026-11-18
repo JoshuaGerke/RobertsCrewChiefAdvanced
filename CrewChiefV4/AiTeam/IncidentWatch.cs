@@ -371,7 +371,7 @@ namespace CrewChiefV4.AiTeam
             bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED;
             return text + (destroyed
                 ? RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya.")
-                : RadioLanguage.T(" Plan den Boxenstopp ein, so verlierst du viel Zeit.", " Plan the pit stop, you'll lose a lot of time like this.", " Prepara la parada, así pierdes mucho tiempo."));
+                : RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."));
         }
 
         internal static string PitAdviceAfterDamage(GameStateData state)

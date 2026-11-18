@@ -1131,7 +1131,8 @@ namespace CrewChiefV4.AiTeam
             DateTime started = askedUtc ?? DateTime.UtcNow;
             int generation = Volatile.Read(ref sessionGeneration);
             var routed = TeamRouter.Route(transcript, RecentMember());
-            var available = TeamRouter.Available(routed.Member, settings.IsMemberEnabled, RecentMember());
+            // Nur ohne ausdrücklichen Namen umleiten; wer „Ben, …“ sagt, erfährt, dass Ben ausgeschaltet ist.
+            var available = routed.AddressedByName ? (TeamMember?)routed.Member : TeamRouter.Available(routed.Member, settings.IsMemberEnabled, RecentMember());
             if (available.HasValue && available.Value != routed.Member)
             {
                 LiveDiagnostics.Decision("question","rerouted","member_disabled:" + routed.Member + "->" + available.Value);

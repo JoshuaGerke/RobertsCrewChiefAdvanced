@@ -569,7 +569,8 @@ namespace UnitTest.AiTeamTests
                 double t=i*.1;Move(s,one,t,-250,70);Move(s,two,t,-312.5,75);
                 tracks.Observe(s,T.AddSeconds(t));watch.Observe(tracks,s,T.AddSeconds(t));found=watch.Take(s,T.AddSeconds(t),false,true);end=t;
             }
-            Assert.IsNotNull(found);CollectionAssert.Contains(RaceTrafficWatch.RearGroupPhrases,found.Text);
+            // Andere Klasse: seit dem LMU-Test 18.11. mit Klassennamen; sonst der allgemeine Gruppensatz.
+            Assert.IsNotNull(found);Assert.IsTrue(RaceTrafficWatch.RearGroupPhrases.Contains(found.Text) || MulticlassTraffic.PreparedPhrases.Contains(found.Text),found.Text);
             two.InPits=true;Move(s,one,end+.1,-250,70);Move(s,two,end+.1,-312.5,75);
             tracks.Observe(s,T.AddSeconds(end+.1));watch.Observe(tracks,s,T.AddSeconds(end+.1));
             Assert.IsFalse(found.IsValid(s,T.AddSeconds(end+.1)),"Do not announce multiple cars after only one remains.");

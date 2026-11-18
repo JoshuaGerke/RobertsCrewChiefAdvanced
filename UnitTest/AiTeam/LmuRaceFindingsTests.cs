@@ -17,7 +17,12 @@ namespace UnitTest.AiTeamTests
         private static readonly DateTime T = new DateTime(2026, 11, 18, 21, 0, 0, DateTimeKind.Utc);
 
         [SetUp]
-        public void German() { RadioLanguage.Current = RadioLanguage.German; RadioVariants.Deterministic = true; }
+        public void German() { wasDeterministic = RadioVariants.Deterministic; RadioLanguage.Current = RadioLanguage.German; RadioVariants.Deterministic = true; }
+
+        private bool wasDeterministic;
+
+        [TearDown]
+        public void Restore() { RadioLanguage.Current = RadioLanguage.German; RadioVariants.Deterministic = wasDeterministic; MulticlassTraffic.LastRearClassCallUtc = DateTime.MinValue; }
 
         private static GameStateData State(SessionType type = SessionType.Race)
         {
@@ -210,7 +215,7 @@ namespace UnitTest.AiTeamTests
         {
             var d = new CarDamageData { DamageEnabled = true, OverallAeroDamage = DamageLevel.MAJOR, OverallEngineDamage = DamageLevel.NONE, OverallTransmissionDamage = DamageLevel.NONE };
             string major = IncidentWatch.DamageReport(d);
-            StringAssert.Contains("Plan den Boxenstopp ein", major);
+            StringAssert.Contains("komm an die Box", major);
             StringAssert.DoesNotContain("komisch", major);
             d.OverallAeroDamage = DamageLevel.DESTROYED;
             StringAssert.Contains("Komm sofort an die Box", IncidentWatch.DamageReport(d));
