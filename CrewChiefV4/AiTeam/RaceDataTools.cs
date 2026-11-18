@@ -29,6 +29,8 @@ namespace CrewChiefV4.AiTeam
         internal PitStopTimer.Measurement LastPitStop;
         /// <summary>Gemessener eigener Boxenverlust dieser Session (Median) und Anzahl Messungen; -1 ohne Messung.</summary>
         internal float PitLossSeconds = -1;
+        /// <summary>RRCA 2.0 (4.2): Ereignisgedächtnis der Crew (was schon gemeldet wurde).</summary>
+        internal RaceEventLog EventLog;
         internal int PitLossSamples;
 
         public double TelemetryAgeSeconds
@@ -1065,6 +1067,12 @@ namespace CrewChiefV4.AiTeam
                 ["typ"]=e.Topic,["gegner_id"]=e.SubjectKey,["quelle"]=e.Source,["erkannt_utc"]=e.TimeUtc.ToString("o"),["text"]=e.Text }));
             var radio = ctx.Memory.GetRadio(TimeSpan.FromMinutes(5), ctx.NowUtc);
             o["letzte_funksprueche"] = new JArray(radio.Select(e => "vor " + (int)(ctx.NowUtc - e.TimeUtc).TotalSeconds + " s: " + e.Text));
+            // RRCA 2.0 (6.3): bereits gemeldete Vorfälle nicht als neue Information erzählen.
+            if (ctx.EventLog != null && ctx.GameState != null)
+            {
+                o["gemeldete_crew_ereignisse"] = ctx.EventLog.DescribeReported(ctx.GameState.SessionData.SessionId, ctx.NowUtc);
+                o["hinweis_gemeldet"] = "Diese Vorfälle hat die Crew schon gesagt. Nur neue Zusammenhänge ergänzen, nicht als Neuigkeit wiederholen.";
+            }
             return o;
         }
 

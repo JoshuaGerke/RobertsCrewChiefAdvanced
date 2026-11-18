@@ -66,6 +66,12 @@ namespace CrewChiefV4.AiTeam
             ReferenceTemplate = RadioPhraseCatalog.Current.ReferenceFor(group, index);
         }
         internal string ReferenceTemplate;
+        /// <summary>RRCA 2.0 (6.3): Platz, den diese Ansage als aktuellen eigenen Klassenplatz nennt (0 = keiner).
+        /// Damit erkennt das Crew-Gedächtnis, wenn derselbe Stand schon gemeldet wurde.</summary>
+        internal int StatedPosition;
+        /// <summary>RRCA 2.0 (6.3): semantische Ereignis-ID (z. B. „klassenbestzeit|80.108“). Gleiche ID = gleicher Vorfall,
+        /// auch wenn ein anderer Wächter ihn anders formuliert.</summary>
+        internal string SemanticKey;
         internal PitGainEvidence PitGain;
         internal bool FieldNamesAllowed;
         internal bool IsReserved => Volatile.Read(ref deliveryState) == 1;
@@ -789,7 +795,9 @@ namespace CrewChiefV4.AiTeam
         {
             if (pending.Count >= 8) pending.RemoveAt(0);
             pending.Add(new ObservedRaceCall { Topic = topic, Text = text, Evidence = evidence, Position = gs.SessionData.ClassPosition,
-                SessionId = gs.SessionData.SessionId, DetectedUtc = now, ExpiresUtc = now.AddSeconds(seconds), Priority = priority });
+                SessionId = gs.SessionData.SessionId, DetectedUtc = now, ExpiresUtc = now.AddSeconds(seconds), Priority = priority,
+                // Diese Ansagen nennen den aktuellen Klassenplatz („jetzt Platz 5“, „von 7 auf 9“, „guter Start … Platz 14“).
+                StatedPosition = topic == "position" || topic == "position-loss" || topic == "start-verdict" ? gs.SessionData.ClassPosition : 0 });
             LiveDiagnostics.Decision(topic, "detected", evidence, text, pending.Last().EventId);
         }
 

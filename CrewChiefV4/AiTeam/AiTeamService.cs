@@ -67,6 +67,8 @@ namespace CrewChiefV4.AiTeam
         private readonly BackmarkerWatch backmarkers = new BackmarkerWatch();
         private readonly DriverJudgementWatch judgement = new DriverJudgementWatch();
         private readonly CrewMemory crewMemory = new CrewMemory();
+        /// <summary>RRCA 2.0 (4.2): Ereignisgedächtnis mit Status je Ansage.</summary>
+        private readonly RaceEventLog eventLog = new RaceEventLog();
         private readonly RaceInsightWatch insights = new RaceInsightWatch();
         private readonly PitLossMeter pitLoss = new PitLossMeter();
         private readonly DrivingDynamicsWatch dynamics = new DrivingDynamicsWatch(DynamicsSampler.Analyzer);
@@ -307,6 +309,7 @@ namespace CrewChiefV4.AiTeam
                 backmarkers.Reset();
                 judgement.Reset();
                 crewMemory.Clear();
+                eventLog.Clear();
                 insights.Reset();
                 OpponentStopLog.Reset();
                 lapWatch.Reset(LapWatch.SameDisqualification(previous, current));
@@ -389,7 +392,7 @@ namespace CrewChiefV4.AiTeam
             if (raceReader.IsDue(now))
             {
                 var readerContext = new RaceDataContext { GameState = current, NowUtc = now, LastTelemetryUtc = Memory.LastTickUtc,
-                    Memory = Memory, Tracks = Tracks, SendDriverNames = settings.SendDriverNames, DriverName = settings.RadioName };
+                    Memory = Memory, Tracks = Tracks, SendDriverNames = settings.SendDriverNames, DriverName = settings.RadioName, EventLog = eventLog };
                 raceReader.Observe(readerContext, workload, thermalWatch);
             }
             if (sampleDue && detectCorners && !current.PitData.InPitlane)
@@ -2077,6 +2080,7 @@ namespace CrewChiefV4.AiTeam
         private void RememberLocalCall(ObservedRaceCall call, DateTime now)
         {
             crewMemory.Remember(call, now);
+            eventLog.Note(call, EventStatus.Reported, now);
             string key = RepeatKey(call, out _);
             if (key == null) return;
             lock (recentLocalCalls)
@@ -2099,6 +2103,7 @@ namespace CrewChiefV4.AiTeam
         private void QueueLocalRaceCall(ObservedRaceCall call)
         {
             call.Member = CrewSpeechPolicy.HazardSpeaker(call.Topic, call.Member, SaraSpotting());
+            eventLog.Note(call, EventStatus.Detected, DateTime.UtcNow);
             int generation = Volatile.Read(ref sessionGeneration);
             bool ownResult = call.Topic == "own-lap" || call.Topic == "qualifying-last" ||
                 call.Topic == "first-lap-fuel" || call.Topic == "fuel-baseline";
@@ -2119,6 +2124,16 @@ namespace CrewChiefV4.AiTeam
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "crew_memory_same_sentence", call.Text);
+                eventLog.Note(call, EventStatus.Dropped, at, "crew_memory_same_sentence");
+                return;
+            }
+            // RRCA 2.0 (6.3): derselbe Vorfall bzw. derselbe gemeldete Platz in anderer Formulierung – nichts Neues.
+            if (crewMemory.NothingNew(call, DateTime.UtcNow, out string sameEvent))
+            {
+                var at = DateTime.UtcNow;
+                call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", sameEvent, call.Text);
+                eventLog.Note(call, EventStatus.Dropped, at, sameEvent);
                 return;
             }
             // Renningenieur-Kopf: Ist diese Info in der aktuellen Rennlage wichtig genug? Sicherheit und eigene Rennereignisse gehen immer durch.
@@ -2126,6 +2141,7 @@ namespace CrewChiefV4.AiTeam
             if (mindVerdict == MindVerdict.Hold)
             {
                 call.HoldBack(DateTime.UtcNow, TimeSpan.FromSeconds(2), "race_mind:" + mindReason);
+                eventLog.Note(call, EventStatus.Deferred, DateTime.UtcNow, "race_mind:" + mindReason);
                 return;
             }
             if (mindVerdict == MindVerdict.Drop)
@@ -2133,6 +2149,7 @@ namespace CrewChiefV4.AiTeam
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "race_mind:" + mindReason, call.Text);
+                eventLog.Note(call, EventStatus.Dropped, at, "race_mind:" + mindReason);
                 return;
             }
             if (call.CanRefresh && (currentRequest != null || Spotter().HasOverlap || !AllowsRadioNow(IsShortTactical(call.Topic))))
@@ -2892,6 +2909,7 @@ namespace CrewChiefV4.AiTeam
                 PitLossSeconds = pitLoss.Seconds,
                 PitLossSamples = pitLoss.Samples,
                 LastPitStop = pitStopTimer.Last,
+                EventLog = eventLog,
             };
         }
 

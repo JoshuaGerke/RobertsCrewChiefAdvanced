@@ -269,7 +269,7 @@ namespace CrewChiefV4.AiTeam
                 if(!relevant){LiveDiagnostics.Decision("field-"+f.Kind,"stored","session_or_rival_not_relevant",text);continue;}
                 var fact=f;
                 if (pending.Count >= 16) Remove(pending[0]);
-                var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,
+                var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,SemanticKey="field|"+id,
                     SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=fastest?4:3,
                     DetectedUtc=now,ExpiresUtc=now.AddSeconds(10),AdditionalValidity=live=>StillCurrent(fact,live)};
                 pending.Add(call);
