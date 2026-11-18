@@ -123,7 +123,7 @@ namespace CrewChiefV4.AiTeam
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
             edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
-            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue; lastAttemptsAnnounced = -1;
+            timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue; lastAttemptsAnnounced = -1; lastOutlapGapLap = -1;
         }
 
         public static bool Supported(SessionType t)
@@ -187,6 +187,7 @@ namespace CrewChiefV4.AiTeam
                 OfferQualiTarget(gs, now, names);
                 pendingQualiTarget = false;
             }
+            ObserveOutlapGap(gs, tracks, now);
             // Nach der Ansage vor der Linie kommt die Zielzeit, sobald die schnelle Runde wirklich läuft.
             if (pendingQualiTarget && !race && green && s.IsNewLap && !gs.PitData.OnOutLap && !gs.PitData.InPitlane && s.CurrentLapIsValid)
             {
@@ -805,6 +806,63 @@ namespace CrewChiefV4.AiTeam
             lastSectorCall = sector;
         }
         private int fieldSectorVariant, targetVariant, analysisVariant, lastAnalysisLap = -100, attemptsVariant, lastAttemptsAnnounced = -1;
+
+        private int lastOutlapGapLap = -1, outlapGapVariant;
+
+        /// <summary>Freie Bahn für die schnelle Runde? Auf der Aufwärmrunde im Qualifying (60–92 % der Runde) einmal den Abstand
+        /// zu den Autos vor und hinter Rob ansagen. Nur mit gemessenem Zeitabstand auf der Strecke (gleicher Streckenpunkt).</summary>
+        private void ObserveOutlapGap(GameStateData gs, TrackAwareness tracks, DateTime now)
+        {
+            var s = gs.SessionData;
+            if (!QualifyingResultWatch.Supported(type) || tracks == null || !gs.PitData.OnOutLap || gs.PitData.InPitlane ||
+                s.SessionPhase != SessionPhase.Green || lastOutlapGapLap == s.CompletedLaps) return;
+            var snap = tracks.Snapshot;
+            if (snap == null || snap.SessionId != s.SessionId || now < snap.Utc || now - snap.Utc > TimeSpan.FromSeconds(1) || !(snap.LengthM > 0) || !snap.PlayerDistanceM.HasValue) return;
+            double progress = snap.PlayerDistanceM.Value / snap.LengthM.Value;
+            if (progress < .6 || progress > .92) return;
+            TrackCarPosition ahead = null, behind = null;
+            foreach (var c in snap.Cars)
+            {
+                if (c.InPits || !c.SpatiallyConsistent || !c.RouteGapM.HasValue || !c.TrackIntervalSeconds.HasValue) continue;
+                if (c.RouteGapM > 0 && (ahead == null || c.RouteGapM < ahead.RouteGapM)) ahead = c;
+                if (c.RouteGapM < 0 && (behind == null || c.RouteGapM > behind.RouteGapM)) behind = c;
+            }
+            string text = OutlapGapText(ahead == null ? -1 : Math.Abs(ahead.TrackIntervalSeconds.Value), ahead != null && !ahead.OnOutLap && !ahead.OnInLap,
+                behind == null ? -1 : Math.Abs(behind.TrackIntervalSeconds.Value), behind != null && !behind.OnOutLap && !behind.OnInLap, outlapGapVariant++);
+            lastOutlapGapLap = s.CompletedLaps;
+            if (text == null) return;
+            var call = Add(gs, now, "quali-outlap-gap", text, "outlap_track_interval_to_nearest_cars_ahead_and_behind", 3);
+            call.AdditionalValidity = live => live.PitData.OnOutLap && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+        }
+
+        /// <summary>Ansage zur Lücke vor der schnellen Runde; null, wenn nichts Belastbares zu sagen ist.</summary>
+        internal static string OutlapGapText(double ahead, bool aheadFlying, double behind, bool behindFlying, int variant)
+        {
+            string a = ahead > 0 ? RadioLanguage.Num(ahead, "0") : null, b = behind > 0 ? RadioLanguage.Num(behind, "0") : null;
+            if (behind > 0 && behind < 4 && behindFlying)
+                return Of(variant,
+                    RadioLanguage.T("Hinter dir kommt einer auf schneller Runde, " + b + " Sekunden. Lass ihn vorbei, dann hast du freie Bahn.", "Car behind on a flying lap, " + b + " seconds. Let him by, then you've got clear track.", "Detrás viene uno en vuelta rápida, a " + b + " segundos. Déjale pasar y tendrás pista libre."),
+                    RadioLanguage.T("Achtung, schnelles Auto hinten, " + b + " Sekunden. Platz machen, nicht im Weg stehen.", "Heads up, fast car behind, " + b + " seconds. Make room, don't hold him up.", "Atención, coche rápido detrás, a " + b + " segundos. Hazle sitio, no le estorbes."),
+                    RadioLanguage.T(b + " Sekunden hinter dir einer auf seiner schnellen Runde. Erst vorbeilassen, dann starten.", b + " seconds behind you, someone on a flying lap. Let him through, then start yours.", "A " + b + " segundos detrás, uno en su vuelta rápida. Déjale pasar y luego empieza la tuya."),
+                    RadioLanguage.T("Schneller Verkehr von hinten, " + b + " Sekunden. Ideallinie freigeben.", "Fast traffic behind, " + b + " seconds. Give him the racing line.", "Tráfico rápido detrás, " + b + " segundos. Déjale la trazada."));
+            if (ahead > 0 && ahead < 5)
+                return aheadFlying ? Of(variant,
+                    RadioLanguage.T("Vor dir nur " + a + " Sekunden, der ist auf schneller Runde. Etwas rausnehmen, Lücke schaffen.", "Only " + a + " seconds to the car ahead, he's on a flying lap. Back off a bit, make a gap.", "Solo " + a + " segundos al de delante, va en vuelta rápida. Levanta un poco, haz hueco."),
+                    RadioLanguage.T(a + " Sekunden zum Vordermann, das ist zu knapp. Lass dir Luft für deine Runde.", a + " seconds to the car ahead, that's too close. Give yourself room for your lap.", a + " segundos al de delante, demasiado cerca. Date espacio para tu vuelta."),
+                    RadioLanguage.T("Zu dicht dran, " + a + " Sekunden. Etwas Abstand, sonst fährst du in seiner Luftverwirbelung.", "Too close, " + a + " seconds. Drop back a little or you'll be in his dirty air.", "Demasiado cerca, " + a + " segundos. Deja algo de distancia o irás en su aire sucio."),
+                    RadioLanguage.T("Vorne " + a + " Sekunden. Lücke auf mindestens fünf aufmachen.", "Ahead " + a + " seconds. Open the gap to at least five.", "Delante " + a + " segundos. Abre el hueco a por lo menos cinco.")) : Of(variant,
+                    RadioLanguage.T("Vor dir einer auf der Aufwärmrunde, " + a + " Sekunden. Lücke schaffen, bevor du loslegst.", "Car ahead on his out lap, " + a + " seconds. Make a gap before you go.", "Delante uno en vuelta de salida, a " + a + " segundos. Haz hueco antes de empezar."),
+                    RadioLanguage.T(a + " Sekunden zu einem langsamen Auto vorne. Zurückfallen lassen, freie Runde ist wichtiger.", a + " seconds to a slow car ahead. Drop back, a clear lap matters more.", a + " segundos a un coche lento delante. Quédate atrás, importa más una vuelta libre."),
+                    RadioLanguage.T("Vorne bummelt einer, " + a + " Sekunden. Abstand halten, sonst kostet es dich die Runde.", "Someone's cruising ahead, " + a + " seconds. Keep your distance or it'll cost you the lap.", "Uno va despacio delante, a " + a + " segundos. Mantén distancia o te costará la vuelta."),
+                    RadioLanguage.T("Verkehr vor dir, " + a + " Sekunden. Nimm etwas raus und such dir eine freie Lücke.", "Traffic ahead, " + a + " seconds. Ease off and find a clean gap.", "Tráfico delante, a " + a + " segundos. Levanta y busca un hueco libre."));
+            if ((ahead < 0 || ahead >= 8) && (behind < 0 || behind >= 6) && (ahead > 0 || behind > 0))
+                return Of(variant,
+                    RadioLanguage.T("Gute Lücke für die schnelle Runde" + (a != null ? ", vorne " + a + " Sekunden" : "") + (b != null ? ", hinten " + b + " Sekunden" : "") + ".", "Good gap for the flying lap" + (a != null ? ", " + a + " seconds ahead" : "") + (b != null ? ", " + b + " seconds behind" : "") + ".", "Buen hueco para la vuelta rápida" + (a != null ? ", " + a + " segundos delante" : "") + (b != null ? ", " + b + " segundos detrás" : "") + "."),
+                    RadioLanguage.T("Freie Bahn vor dir. Reifen und Bremsen vorbereiten, dann voll.", "Clear track ahead. Get tyres and brakes ready, then go flat out.", "Pista libre delante. Prepara neumáticos y frenos y luego a fondo."),
+                    RadioLanguage.T("Die Lücke passt" + (a != null ? ", " + a + " Sekunden nach vorn" : "") + ". Das wird eine saubere Runde.", "The gap is good" + (a != null ? ", " + a + " seconds ahead" : "") + ". That'll be a clean lap.", "El hueco es bueno" + (a != null ? ", " + a + " segundos delante" : "") + ". Será una vuelta limpia."),
+                    RadioLanguage.T("Platz nach vorn und hinten. Bereit machen für deine Runde.", "Room ahead and behind. Get ready for your lap.", "Espacio delante y detrás. Prepárate para tu vuelta."));
+            return null;
+        }
 
         /// <summary>Schnelle Runden, die nach der gerade begonnenen noch starten können; -1, wenn unsicher (Restzeit nah an einer
         /// Rundenzeit, ±3 s) oder ohne Messwerte. Eine Runde, die vor Ablauf beginnt, darf zu Ende gefahren werden.</summary>

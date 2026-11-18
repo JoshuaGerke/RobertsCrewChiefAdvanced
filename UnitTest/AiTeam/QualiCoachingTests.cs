@@ -91,6 +91,29 @@ namespace UnitTest.AiTeamTests
             RadioLanguage.Current = RadioLanguage.German;
         }
 
+        [Test]
+        public void Outlap_gap_advice_reads_the_track_like_an_engineer()
+        {
+            StringAssert.Contains("vorbei", SessionLapObserver.OutlapGapText(12, true, 2.6, true, 0), "schnelles Auto hinten zuerst");
+            StringAssert.Contains("schneller Runde", SessionLapObserver.OutlapGapText(3, true, -1, false, 0));
+            StringAssert.Contains("Aufwärmrunde", SessionLapObserver.OutlapGapText(3, false, -1, false, 0));
+            StringAssert.Contains("Gute Lücke", SessionLapObserver.OutlapGapText(12, true, 9, true, 0));
+            Assert.IsNull(SessionLapObserver.OutlapGapText(-1, false, -1, false, 0), "ohne gemessene Abstände nichts");
+            Assert.IsNull(SessionLapObserver.OutlapGapText(6, true, 9, true, 0), "zwischen knapp und frei: nichts Belastbares");
+            Assert.IsNull(SessionLapObserver.OutlapGapText(-1, false, 2, false, 0), "langsames Auto hinten stört nicht");
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (var args in new[] { (12.0, true, 2.6, true), (3.0, true, -1.0, false), (3.0, false, -1.0, false), (12.0, true, 9.0, true) })
+                {
+                    var texts = Enumerable.Range(0, 4).Select(v => SessionLapObserver.OutlapGapText(args.Item1, args.Item2, args.Item3, args.Item4, v)).ToList();
+                    Assert.AreEqual(4, texts.Distinct().Count(), texts[0]);
+                    foreach (var t in texts) StringAssert.DoesNotContain("  ", t);
+                }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
         private static GameStateData State()
         {
             var s = new GameStateData(T.Ticks);
