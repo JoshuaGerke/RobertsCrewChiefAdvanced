@@ -2092,6 +2092,7 @@ namespace CrewChiefV4.AiTeam
 
         private void QueueLocalRaceCall(ObservedRaceCall call)
         {
+            call.Member = CrewSpeechPolicy.HazardSpeaker(call.Topic, call.Member, SaraSpotting());
             int generation = Volatile.Read(ref sessionGeneration);
             bool ownResult = call.Topic == "own-lap" || call.Topic == "qualifying-last" ||
                 call.Topic == "first-lap-fuel" || call.Topic == "fuel-baseline";
@@ -2174,8 +2175,8 @@ namespace CrewChiefV4.AiTeam
                     {
                         LiveDiagnostics.Decision(call.Topic, "names_omitted",
                             settings.SendDriverNames ? "prepared_name_unavailable" : "name_permission_disabled", eventId: call.EventId);
-                        if (settings.SendDriverNames && call.Member == TeamMember.Ben)
-                            WarmOpponentName(new[] { call.OpponentNameClip }, generation);
+                        if (settings.SendDriverNames && call.Member != TeamMember.Mik)
+                            WarmOpponentName(new[] { call.OpponentNameClip }, generation, call.Member);
                     }
                     bool combinedPit = call.PitGain != null && detailIsCurrent != null;
                     bool CanRefreshRenderedFacts(GameStateData live) => spokenGap < 0 ||
@@ -2737,7 +2738,10 @@ namespace CrewChiefV4.AiTeam
                 Volatile.Read(ref sessionGeneration));
         }
 
-        private void WarmOpponentName(string[] phrases, int generation)
+        /// <summary>Sara spottet gerade: KI-Sara aktiv und der Spotter auf dieser Strecke eingeschaltet (Realistisch: nur Ovale).</summary>
+        private bool SaraSpotting() => settings.IsMemberEnabled(TeamMember.Sara) && GlobalBehaviourSettings.spotterEnabled;
+
+        private void WarmOpponentName(string[] phrases, int generation, TeamMember member = TeamMember.Ben)
         {
             if (phrases.Length == 0 || Volatile.Read(ref opponentVoiceWarmCount) >= 24 ||
                 Interlocked.CompareExchange(ref opponentVoiceWarmRunning, 1, 0) != 0) return;
@@ -2746,20 +2750,20 @@ namespace CrewChiefV4.AiTeam
                 try
                 {
                     if (generation != Volatile.Read(ref sessionGeneration) || !settings.SendDriverNames ||
-                        !settings.IsMemberEnabled(TeamMember.Ben) || currentRequest != null ||
+                        !settings.IsMemberEnabled(member) || currentRequest != null ||
                         settings.TtsProvider == AiTtsProvider.WINDOWS && radioRenderGate.Busy) return;
                     var phrase = phrases.FirstOrDefault(candidate =>
-                        !attemptedOpponentVoiceClips.Contains(CrewSpeechPolicy.CacheKey(settings, TeamMember.Ben, candidate)) &&
-                        CachedOpponentName(TeamMember.Ben, candidate) == null);
+                        !attemptedOpponentVoiceClips.Contains(CrewSpeechPolicy.CacheKey(settings, member, candidate)) &&
+                        CachedOpponentName(member, candidate) == null);
                     if (phrase == null) return;
-                    string key = CrewSpeechPolicy.CacheKey(settings, TeamMember.Ben, phrase);
+                    string key = CrewSpeechPolicy.CacheKey(settings, member, phrase);
                     attemptedOpponentVoiceClips.Add(key);
                     Interlocked.Increment(ref opponentVoiceWarmCount);
                     byte[] pcm;
                     using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
-                        pcm = await RenderAsync(TeamMember.Ben, phrase, deadline.Token).ConfigureAwait(false);
+                        pcm = await RenderAsync(member, phrase, deadline.Token).ConfigureAwait(false);
                     if (!settings.SendDriverNames || generation != Volatile.Read(ref sessionGeneration) ||
-                        key != CrewSpeechPolicy.CacheKey(settings, TeamMember.Ben, phrase) || !AiAudio.HasSpeechSignal(pcm)) return;
+                        key != CrewSpeechPolicy.CacheKey(settings, member, phrase) || !AiAudio.HasSpeechSignal(pcm)) return;
                     lock (preparedOpponentNames)
                         preparedOpponentNames[key] = pcm;
                     LiveDiagnostics.Decision("race-traffic-name", "prepared", "selected_voice_opponent_clip");
@@ -2829,7 +2833,8 @@ namespace CrewChiefV4.AiTeam
                 var live = CrewChief.currentGameState;
                 var hazardSections = live == null ? Enumerable.Empty<string>() :
                     RaceTrafficWatch.SectionPhrases(live.SessionData.TrackDefinition, live.PositionAndMotionData.DistanceRoundTrack);
-                var phrases = sara.Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
+                // Gefahrensätze auch in Saras Stimme, weil sie diese Warnungen spricht, sobald sie spottet.
+                var phrases = sara.Concat(CrewSpeechPolicy.HazardPhrases).Concat(hazardSections).Distinct().Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Sara,t))
                     .Concat(CrewSpeechPolicy.TrackLimitPhrases.Concat(LiveWarningDispatcher.MikPhrases).Concat(ThermalWatch.PreparedPhrases).Concat(CrewSpeechPolicy.FinishPhrases).Concat(LapWatch.DisqualificationPhrases(settings.RadioName)).Concat(CrewSpeechPolicy.IncidentPhrases).Concat(CrewSpeechPolicy.WeatherPhrases).Concat(PitLaneWatch.UnknownLimitPhrases).Concat(new[]{SessionLapObserver.TimedLapStartPhrase, SessionLapObserver.TimedLapApproachPhrase}).Select(t => new KeyValuePair<TeamMember,string>(TeamMember.Mik,t)))
                     .Concat(TrackSituationWatch.CatchingPhrases.Concat(TrackSituationWatch.StoppedPhrases).Concat(TrackSituationWatch.ApproachingPhrases)
                         .Concat(TrackSituationWatch.ClosingAheadPhrases).Concat(new[] { IncidentWatch.DamagePitAdvicePhrase })

@@ -79,5 +79,22 @@ namespace UnitTest.AiTeamTests
             foreach (var text in TrackSituationWatch.ClosingAheadPhrases)
                 Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(CrewChiefV4.AiTeam.TeamMember.Ben, text), text);
         }
+
+        [Test]
+        public void Hazard_warnings_go_to_Sara_while_she_spots_otherwise_Ben_stays()
+        {
+            var ben = CrewChiefV4.AiTeam.TeamMember.Ben; var sara = CrewChiefV4.AiTeam.TeamMember.Sara; var mik = CrewChiefV4.AiTeam.TeamMember.Mik;
+            foreach (var topic in new[] { "race-hazard-ahead", "traffic-catching", "warning-native-incident-12" })
+            {
+                Assert.AreEqual(sara, CrewSpeechPolicy.HazardSpeaker(topic, ben, true), topic);
+                Assert.AreEqual(ben, CrewSpeechPolicy.HazardSpeaker(topic, ben, false), "Realistisch auf Rundstrecke oder Sara aus: " + topic);
+            }
+            Assert.AreEqual(ben, CrewSpeechPolicy.HazardSpeaker("traffic-closing-ahead", ben, true), "gewöhnliches Auflaufen bleibt Ben");
+            Assert.AreEqual(ben, CrewSpeechPolicy.HazardSpeaker("race-traffic-rear", ben, true));
+            Assert.AreEqual(mik, CrewSpeechPolicy.HazardSpeaker("race-hazard-ahead", mik, true), "nur Bens Warnungen wandern");
+            Assert.IsTrue(CrewSpeechPolicy.MayInterruptCrew(CrewSpeechPolicy.HazardSpeaker("race-hazard-ahead", ben, true)));
+            foreach (var text in CrewSpeechPolicy.HazardPhrases)
+                Assert.IsTrue(CrewSpeechPolicy.IsPreparedPhrase(sara, text) && CrewSpeechPolicy.IsPreparedPhrase(ben, text), text);
+        }
     }
 }

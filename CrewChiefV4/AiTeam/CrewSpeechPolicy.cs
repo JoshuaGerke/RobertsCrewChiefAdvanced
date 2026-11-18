@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
@@ -429,6 +430,21 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Rob 17.11.2026: Nur Sara als Spotterin darf eine laufende Crew-Ansage unterbrechen; Ben und Mik warten.</summary>
         internal static bool MayInterruptCrew(TeamMember speaker) => speaker == TeamMember.Sara;
 
+        /// <summary>Gefahr auf der Strecke: Unfall, stehendes oder langsames Auto vor dir.</summary>
+        internal static bool IsHazardTopic(string topic) =>
+            topic == "race-hazard-ahead" || topic == "traffic-catching" ||
+            (topic ?? "").StartsWith("warning-native-incident-", StringComparison.Ordinal);
+
+        /// <summary>Rob 18.11.2026: Gefahrenwarnungen spricht Sara, damit sie eine laufende Ansage unterbrechen darf.
+        /// Spottet Sara gerade nicht (aus, oder Realistisch auf einer Rundstrecke), bleibt die Warnung bei Ben – ohne Unterbrechung.</summary>
+        internal static TeamMember HazardSpeaker(string topic, TeamMember planned, bool saraSpotting) =>
+            planned == TeamMember.Ben && saraSpotting && IsHazardTopic(topic) ? TeamMember.Sara : planned;
+
+        /// <summary>Alle vorbereiteten Gefahrensätze, die Sara statt Ben sprechen kann.</summary>
+        internal static IEnumerable<string> HazardPhrases =>
+            RaceTrafficWatch.PreparedPhrases.Concat(NativeIncidentWatch.Phrases)
+                .Concat(TrackSituationWatch.CatchingPhrases).Concat(TrackSituationWatch.StoppedPhrases);
+
         public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
         { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
 
@@ -461,7 +477,7 @@ namespace CrewChiefV4.AiTeam
 
         public static bool IsPreparedPhrase(TeamMember member, string text)
         {
-            return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60) ||
+            return member == TeamMember.Sara && (FlagWatch.Phrases.Contains(text) || text.Length <= 60 || HazardPhrases.Contains(text)) ||
                 member == TeamMember.Mik && (LiveWarningDispatcher.MikPhrases.Contains(text) || ThermalWatch.PreparedPhrases.Contains(text) || TrackLimitPhrases.Contains(text) || IncidentPhrases.Contains(text) || WeatherPhrases.Contains(text) || PitLaneWatch.IsPreparedPhrase(text)) || member == TeamMember.Mik && (FinishPhrases.Contains(text) || text == RaceRadioLanguage.DisqualificationCall || text == SessionLapObserver.TimedLapStartPhrase || text == SessionLapObserver.TimedLapApproachPhrase) ||
                 member == TeamMember.Ben && (TrackSituationWatch.ClosingAheadPhrases.Contains(text) || text == IncidentWatch.DamagePitAdvicePhrase ||
                     TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) ||
