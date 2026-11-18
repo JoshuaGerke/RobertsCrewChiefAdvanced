@@ -32,6 +32,10 @@ namespace CrewChiefV4.AiTeam.Probe
         /// <summary>Lage der Blöcke im Rohbild.</summary>
         internal static readonly int OwnTelemetry = TelemetrySize + ScoringSize, OwnScoring = OwnTelemetry + VehicleSize, Aligned = OwnScoring + ScoredSize;
 
+        // Lage im Rohbild je Weg: rF2-Abbilder (Telemetrie+Wertung hintereinander) oder natives „LMU_Data“.
+        private readonly bool native;
+        private readonly int tCount, tVehicles, sInfo, sVehicles, sCount, ownTel, ownSco, aligned, maxCars;
+        private readonly int vEt = VOff("mElapsedTime");
         private readonly int vId = VOff("mID"), vsId = SOff("mID"), vsPlayer = SOff("mIsPlayer");
         private readonly int iPhase = IOff("mGamePhase"), iRealtime = IOff("mInRealtime"), iSession = IOff("mSession"), iTrack = IOff("mTrackName"), iLapDist = IOff("mLapDist");
         private readonly int[] scoringOfId = new int[MaxIds], stamp = new int[MaxIds];
@@ -43,18 +47,33 @@ namespace CrewChiefV4.AiTeam.Probe
 
         private static readonly string[] CornerIds = { "vl", "vr", "hl", "hr" };
 
-        internal override string SimName { get { return "LMU"; } }
-        internal override string FilePrefix { get { return "LMU"; } }
-        internal override string SharedMemoryName { get { return LMUConstants.MM_TELEMETRY_FILE_NAME; } }
+        internal override string SimName { get { return native ? "LMU nativ" : "LMU"; } }
+        internal override string FilePrefix { get { return native ? "LMU_nativ" : "LMU"; } }
+        internal override string SharedMemoryName { get { return native ? LMUNativeLayout.MapName : LMUConstants.MM_TELEMETRY_FILE_NAME; } }
         internal override bool HasSimClock { get { return false; } }
-        internal override ProbeSource CreateSource() { return new LMUProbeSource(); }
+        internal override ProbeSource CreateSource() { return native ? (ProbeSource)new NativeSource() : new LMUProbeSource(); }
 
         internal LMUProbeAnalyzer() : this(Stopwatch.Frequency) { }
+        internal LMUProbeAnalyzer(bool native) : this(Stopwatch.Frequency, native) { }
 
-        internal LMUProbeAnalyzer(long tickFrequency) : base(tickFrequency)
+        internal LMUProbeAnalyzer(long tickFrequency, bool native = false) : base(tickFrequency)
         {
-            StructSize = Aligned + Max * ScoredSize;
-            if (TelemetrySize != LMUConstants.MM_TELEMETRY_STRUCT_SIZE)
+            this.native = native;
+            if (native)
+            {
+                tCount = LMUNativeLayout.ActiveVehiclesOffset; tVehicles = LMUNativeLayout.TelemetryVehiclesOffset;
+                sInfo = LMUNativeLayout.ScoringOffset; sVehicles = LMUNativeLayout.ScoringVehiclesOffset; sCount = LMUNativeLayout.ScoringCountOffset;
+                ownTel = LMUNativeLayout.TotalSize; maxCars = LMUNativeLayout.MaxVehicles;
+            }
+            else
+            {
+                tCount = TelemetryCount; tVehicles = TelemetryVehicles; sInfo = TelemetrySize + ScoringInfo; sVehicles = TelemetrySize + ScoringVehicles;
+                sCount = TelemetrySize + ScoringCount; ownTel = OwnTelemetry; maxCars = Max;
+            }
+            ownSco = ownTel + VehicleSize; aligned = ownSco + ScoredSize;
+            StructSize = aligned + maxCars * ScoredSize;
+            if (native) LayoutError = LMUNativeLayout.LayoutProblem();
+            else if (TelemetrySize != LMUConstants.MM_TELEMETRY_STRUCT_SIZE)
                 LayoutError = "Telemetrie " + TelemetrySize + " statt " + LMUConstants.MM_TELEMETRY_STRUCT_SIZE + " Byte";
             else if (ScoringSize != LMUConstants.MM_SCORING_STRUCT_SIZE)
                 LayoutError = "Wertung " + ScoringSize + " statt " + LMUConstants.MM_SCORING_STRUCT_SIZE + " Byte";
@@ -88,20 +107,20 @@ namespace CrewChiefV4.AiTeam.Probe
         {
             int extra = axis < 0 ? 0 : (typeof(rF2VehicleTelemetry).GetField(field).FieldType == typeof(rF2Vec3) ? axis * 8 : axis * ElementSize(typeof(rF2VehicleTelemetry), field));
             AddChannel(id, group, "Telemetrie.eigenes." + field + (axis < 0 ? "" : "[" + axis + "]"), unit, ProbeScope.Player,
-                Kind(typeof(rF2VehicleTelemetry), field), OwnTelemetry + VOff(field) + extra, 0, note);
+                Kind(typeof(rF2VehicleTelemetry), field), ownTel + VOff(field) + extra, 0, note);
         }
 
         /// <summary>Feld des eigenen Autos aus der Wertung (Wertungs-Takt).</summary>
         private void Scored(string id, string group, string field, string unit, int axis = -1, string note = null)
         {
             AddChannel(id, group, "Wertung.eigenes." + field + (axis < 0 ? "" : "[" + axis + "]"), unit, ProbeScope.Player,
-                Kind(typeof(rF2VehicleScoring), field), OwnScoring + SOff(field) + Math.Max(0, axis) * 8, 0, note);
+                Kind(typeof(rF2VehicleScoring), field), ownSco + SOff(field) + Math.Max(0, axis) * 8, 0, note);
         }
 
         private void Session(string id, string group, string field, string unit, string note = null)
         {
             AddChannel(id, group, "Wertung.mScoringInfo." + field, unit, ProbeScope.Session, Kind(typeof(rF2ScoringInfo), field),
-                TelemetrySize + ScoringInfo + IOff(field), 0, note);
+                sInfo + IOff(field), 0, note);
         }
 
         private void Corners(string id, string group, string field, string unit, int element = -1, string note = null)
@@ -109,27 +128,35 @@ namespace CrewChiefV4.AiTeam.Probe
             for (int w = 0; w < 4; w++)
                 AddChannel(id + "_" + CornerIds[w], group, "Telemetrie.eigenes.mWheels[" + w + "]." + field + (element < 0 ? "" : "[" + element + "]"), unit,
                     ProbeScope.Player, Kind(typeof(rF2Wheel), field),
-                    OwnTelemetry + VOff("mWheels") + w * WheelSize + WOff(field) + Math.Max(0, element) * ElementSize(typeof(rF2Wheel), field), 0, w == 0 ? note : null);
+                    ownTel + VOff("mWheels") + w * WheelSize + WOff(field) + Math.Max(0, element) * ElementSize(typeof(rF2Wheel), field), 0, w == 0 ? note : null);
         }
 
         /// <summary>Gegnerfeld aus der Telemetrie (Eintrag i).</summary>
         private void Rival(string id, string field, string unit, int axis = -1, string note = null)
         {
             AddChannel(id, "Gegner (je Auto)", "Telemetrie.mVehicles[i]." + field + (axis < 0 ? "" : "[" + axis + "]"), unit, ProbeScope.Opponents,
-                Kind(typeof(rF2VehicleTelemetry), field), TelemetryVehicles + VOff(field) + Math.Max(0, axis) * 8, VehicleSize, note);
+                Kind(typeof(rF2VehicleTelemetry), field), tVehicles + VOff(field) + Math.Max(0, axis) * 8, VehicleSize, note);
         }
 
         /// <summary>Gegnerfeld aus der Wertung, passend zum Telemetrie-Eintrag i umsortiert.</summary>
         private void RivalScored(string id, string field, string unit, int axis = -1, string note = null)
         {
             AddChannel(id, "Gegner (je Auto)", "Wertung.mVehicles[i]." + field + (axis < 0 ? "" : "[" + axis + "]"), unit, ProbeScope.Opponents,
-                Kind(typeof(rF2VehicleScoring), field), Aligned + SOff(field) + Math.Max(0, axis) * 8, ScoredSize, note);
+                Kind(typeof(rF2VehicleScoring), field), aligned + SOff(field) + Math.Max(0, axis) * 8, ScoredSize, note);
         }
 
         private void DefineChannels()
         {
-            AddChannel("quelle.version_telemetrie", "Quelle", "Telemetrie.mVersionUpdateBegin", "Zähler", ProbeScope.Session, ProbeKind.UInt32, 0, 0, "steigt je Telemetrie-Bild");
-            AddChannel("quelle.version_wertung", "Quelle", "Wertung.mVersionUpdateBegin", "Zähler", ProbeScope.Session, ProbeKind.UInt32, TelemetrySize, 0, "steigt je Wertungs-Bild");
+            if (!native)
+            {
+                AddChannel("quelle.version_telemetrie", "Quelle", "Telemetrie.mVersionUpdateBegin", "Zähler", ProbeScope.Session, ProbeKind.UInt32, 0, 0, "steigt je Telemetrie-Bild");
+                AddChannel("quelle.version_wertung", "Quelle", "Wertung.mVersionUpdateBegin", "Zähler", ProbeScope.Session, ProbeKind.UInt32, TelemetrySize, 0, "steigt je Wertungs-Bild");
+            }
+            else
+            {
+                AddChannel("quelle.aktive_autos", "Quelle", "LMU_Data.telemetry.activeVehicles", "Anzahl", ProbeScope.Session, ProbeKind.Byte, LMUNativeLayout.ActiveVehiclesOffset, 0);
+                AddChannel("quelle.eigener_index", "Quelle", "LMU_Data.telemetry.playerVehicleIdx", "Index", ProbeScope.Session, ProbeKind.Byte, LMUNativeLayout.PlayerIndexOffset, 0, "eigenes Auto direkt vom Spiel");
+            }
             Own("quelle.zeit", "Quelle", "mElapsedTime", "s", -1, "Sitzungszeit des Telemetrie-Bilds");
 
             Own("bewegung.pos_x", "Bewegung", "mPos", "m", 0, "Karte: Weltposition");
@@ -253,8 +280,8 @@ namespace CrewChiefV4.AiTeam.Probe
             RivalScored("gegner.abstand_vordermann", "mTimeBehindNext", "s");
         }
 
-        private int TelemetryVehicleCount(byte[] b) { return Math.Min(Math.Max(BitConverter.ToInt32(b, TelemetryCount), 0), Max); }
-        private int ScoringVehicleCount(byte[] b) { return Math.Min(Math.Max(BitConverter.ToInt32(b, TelemetrySize + ScoringCount), 0), Max); }
+        private int TelemetryVehicleCount(byte[] b) { return Math.Min(Math.Max(native ? b[tCount] : BitConverter.ToInt32(b, tCount), 0), maxCars); }
+        private int ScoringVehicleCount(byte[] b) { return Math.Min(Math.Max(BitConverter.ToInt32(b, sCount), 0), maxCars); }
 
         /// <summary>Eigenes Auto an feste Stellen kopieren und Wertung nach Telemetrie-Einträgen ordnen.</summary>
         protected override void Prepare(byte[] b)
@@ -264,7 +291,7 @@ namespace CrewChiefV4.AiTeam.Probe
             int ownId = -1, ownScoring = -1;
             for (int i = 0; i < nS; i++)
             {
-                int o = TelemetrySize + ScoringVehicles + i * ScoredSize;
+                int o = sVehicles + i * ScoredSize;
                 int id = BitConverter.ToInt32(b, o + vsId);
                 if ((uint)id < MaxIds && stamp[id] != generation) { stamp[id] = generation; scoringOfId[id] = i; }
                 if (ownScoring < 0 && b[o + vsPlayer] != 0) { ownScoring = i; ownId = id; }
@@ -272,48 +299,51 @@ namespace CrewChiefV4.AiTeam.Probe
             int own = -1;
             for (int i = 0; i < nT; i++)
             {
-                int id = BitConverter.ToInt32(b, TelemetryVehicles + i * VehicleSize + vId);
-                int target = Aligned + i * ScoredSize;
+                int id = BitConverter.ToInt32(b, tVehicles + i * VehicleSize + vId);
+                int target = aligned + i * ScoredSize;
                 if ((uint)id < MaxIds && stamp[id] == generation)
-                    Buffer.BlockCopy(b, TelemetrySize + ScoringVehicles + scoringOfId[id] * ScoredSize, b, target, ScoredSize);
+                    Buffer.BlockCopy(b, sVehicles + scoringOfId[id] * ScoredSize, b, target, ScoredSize);
                 else Array.Clear(b, target, ScoredSize);
                 if (own < 0 && ownId >= 0 && id == ownId) own = i;
             }
+            // Natives Abbild: das Spiel nennt das eigene Auto direkt.
+            if (native && b[LMUNativeLayout.PlayerHasVehicleOffset] != 0 && b[LMUNativeLayout.PlayerIndexOffset] < nT) own = b[LMUNativeLayout.PlayerIndexOffset];
             OwnIndex = own;
             OwnFound = own >= 0 && ownScoring >= 0;
-            if (own >= 0) Buffer.BlockCopy(b, TelemetryVehicles + own * VehicleSize, b, OwnTelemetry, VehicleSize);
-            if (ownScoring >= 0) Buffer.BlockCopy(b, TelemetrySize + ScoringVehicles + ownScoring * ScoredSize, b, OwnScoring, ScoredSize);
+            if (own >= 0) Buffer.BlockCopy(b, tVehicles + own * VehicleSize, b, ownTel, VehicleSize);
+            if (ownScoring >= 0) Buffer.BlockCopy(b, sVehicles + ownScoring * ScoredSize, b, ownSco, ScoredSize);
         }
 
         protected override void ReadState(byte[] b, out bool paused, out bool menu, out bool replay, out long clock, out double clockTime)
         {
-            int info = TelemetrySize + ScoringInfo;
+            int info = sInfo;
             paused = b[info + iPhase] == PhasePaused;
             // Monitor, Garage, Wiederholung und Zuschauen: kein eigenes Auto in Echtzeit. LMU meldet Wiederholungen nicht gesondert.
             menu = !paused && (b[info + iRealtime] == 0 || !OwnFound);
             replay = false;
-            clock = BitConverter.ToUInt32(b, 0);
-            clockTime = 0;
+            // rF2: Versionszähler je Telemetrie-Bild; nativ: Fahrzeit des eigenen Autos.
+            clock = native ? 0 : BitConverter.ToUInt32(b, 0);
+            clockTime = native && OwnFound ? BitConverter.ToDouble(b, ownTel + vEt) : 0;
         }
 
         protected override string CheckHeader(byte[] b)
         {
-            DataVersion = "SMMP 3.8";
-            int nT = BitConverter.ToInt32(b, TelemetryCount), nS = BitConverter.ToInt32(b, TelemetrySize + ScoringCount);
-            if (nT < 0 || nT > Max) return "Telemetrie meldet " + nT + " Fahrzeuge";
-            if (nS < 0 || nS > Max) return "Wertung meldet " + nS + " Fahrzeuge";
+            DataVersion = native ? "LMU_Data" : "SMMP 3.8";
+            int nT = native ? b[tCount] : BitConverter.ToInt32(b, tCount), nS = BitConverter.ToInt32(b, sCount);
+            if (nT < 0 || nT > maxCars) return "Telemetrie meldet " + nT + " Fahrzeuge";
+            if (nS < 0 || nS > maxCars) return "Wertung meldet " + nS + " Fahrzeuge";
             return null;
         }
 
         protected override long SessionKey(byte[] b)
         {
-            int info = TelemetrySize + ScoringInfo;
+            int info = sInfo;
             return ((long)BitConverter.ToInt32(b, info + iSession) << 32) ^ (uint)BitConverter.DoubleToInt64Bits(BitConverter.ToDouble(b, info + iLapDist)).GetHashCode();
         }
 
         protected override void ReadTrack(byte[] b, out string track, out string layout)
         {
-            track = Utf8(b, TelemetrySize + ScoringInfo + iTrack, 64);
+            track = Utf8(b, sInfo + iTrack, 64);
             layout = "";
         }
 
@@ -324,7 +354,7 @@ namespace CrewChiefV4.AiTeam.Probe
             for (int i = 0; i < nT && n < index.Length; i++)
             {
                 if (i == own) continue;
-                int id = BitConverter.ToInt32(b, TelemetryVehicles + i * VehicleSize + vId);
+                int id = BitConverter.ToInt32(b, tVehicles + i * VehicleSize + vId);
                 if (id < 0) continue;
                 index[n] = i; slot[n] = id % ProbeChannel.MaxSlots; n++;
             }
@@ -376,6 +406,27 @@ namespace CrewChiefV4.AiTeam.Probe
                 try { view.Dispose(); } catch (Exception) { }
                 try { file.Dispose(); } catch (Exception) { }
             }
+        }
+
+        /// <summary>Natives „LMU_Data“ mit der kurzen Sperre des Spiels.</summary>
+        private sealed class NativeSource : ProbeSource
+        {
+            private readonly LMUNativeReader reader = new LMUNativeReader();
+            internal override bool Open() { return reader.Open(); }
+            internal override bool Copy(byte[] buffer, out int torn)
+            {
+                torn = 0;
+                if (!reader.IsOpen) return false;
+                long misses = reader.LockMisses;
+                try
+                {
+                    bool ok = reader.Copy(buffer);
+                    if (!ok) torn = 1 + (int)Math.Min(100, reader.LockMisses - misses); // Spiel hielt die Sperre oder Bild unplausibel: nächstes Bild
+                    return ok;
+                }
+                catch (Exception) { torn = 0; return false; }
+            }
+            public override void Dispose() { reader.Dispose(); }
         }
 
         /// <summary>Beide LMU-Abbildungen, nur lesend.</summary>

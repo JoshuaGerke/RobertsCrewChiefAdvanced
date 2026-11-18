@@ -287,6 +287,8 @@
     <Compile Include="AiTeam\MulticlassTraffic.cs" />
     <Compile Include="AiTeam\PitDamageWatch.cs" />
     <Compile Include="AiTeam\RaceFuelPlan.cs" />
+    <Compile Include="AiTeam\LMUNative.cs" />
+    <Compile Include="AiTeam\Dynamics\LMUNativeDynamicsSource.cs" />
     <Compile Include="AiTeam\RaceEventLog.cs" />
     <Compile Include="AiTeam\SimCapabilityMatrix.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
