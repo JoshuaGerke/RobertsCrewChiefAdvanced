@@ -297,6 +297,36 @@ namespace CrewChiefV4.AiTeam
 
         private static float Best(float individual, float fallback) => Sector(individual) && individual < fallback ? individual : fallback;
 
+        internal static bool AskedTimeLeft(string q) =>
+            AnyOf(q, "zeit bleibt", "zeit noch", "restzeit", "wie lange noch", "wie lange geht", "minuten noch", "wie viel zeit", "wieviel zeit",
+                "time left", "time remaining", "how long left", "how long to go", "how much time", "minutes left",
+                "tiempo queda", "tiempo me queda", "tiempo restante", "cuánto queda", "cuanto queda", "minutos quedan") &&
+            !AnyOf(q, "runde", " lap", "vuelta", "stint", "reifen", "tyre", "tire", "neumátic", "sprit", "fuel", "combustible", "box", "pit");
+
+        /// <summary>Restzeit wie auf der Uhr: Minuten abgerundet, unter zehn Minuten mit Sekunden.</summary>
+        internal static string TimeLeftAnswer(SessionData s)
+        {
+            if (s == null || !s.SessionHasFixedTime || !(s.SessionTimeRemaining >= 0) || s.SessionTimeRemaining > 200000)
+            {
+                if (s != null && !s.SessionHasFixedTime && s.SessionNumberOfLaps > 0 && s.SessionLapsRemaining > 0 && s.SessionLapsRemaining < 10000)
+                    return RadioLanguage.T("Das ist ein Rennen über Runden: noch " + s.SessionLapsRemaining + (s.SessionLapsRemaining == 1 ? " Runde." : " Runden."),
+                        "It's a lap race: " + s.SessionLapsRemaining + (s.SessionLapsRemaining == 1 ? " lap" : " laps") + " to go.",
+                        "Es una carrera por vueltas: " + (s.SessionLapsRemaining == 1 ? "queda 1 vuelta." : "quedan " + s.SessionLapsRemaining + " vueltas."));
+                return RadioLanguage.T("Die Restzeit liefert das Spiel gerade nicht sicher.", "The sim isn't giving a reliable time remaining right now.",
+                    "El simulador no da ahora un tiempo restante fiable.");
+            }
+            return RadioLanguage.T("Noch ", "", "Quedan ") + TimeLeftText(s.SessionTimeRemaining) + RadioLanguage.T(".", " to go.", ".");
+        }
+
+        internal static string TimeLeftText(double seconds)
+        {
+            int total = (int)Math.Floor(Math.Max(0, seconds)), m = total / 60, sec = total % 60;
+            if (m >= 10) return m + RadioLanguage.T(" Minuten", " minutes", " minutos");
+            if (m == 0) return sec + RadioLanguage.T(" Sekunden", " seconds", " segundos");
+            string min = m == 1 ? RadioLanguage.T("eine Minute", "1 minute", "1 minuto") : m + RadioLanguage.T(" Minuten", " minutes", " minutos");
+            return sec == 0 ? min : min + RadioLanguage.T(" " + sec, " " + sec, " y " + sec);
+        }
+
         public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory, bool allowDriverNames = true)
         {
             if (gs == null || string.IsNullOrWhiteSpace(question))
@@ -304,6 +334,12 @@ namespace CrewChiefV4.AiTeam
                 return null;
             }
             string q = question.ToLowerInvariant();
+            // LMU 18.11.: Spritmenge für eine genannte Renndistanz rechnet die Crew sofort selbst, auch bei längerer Frage.
+            if (RaceFuelPlan.AsksFuelForDistance(q))
+            {
+                string plan = RaceFuelPlan.Answer(question, gs, memory);
+                if (plan != null) return plan;
+            }
             if (q.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length > 10 || complexMarkers.Any(m => q.Contains(m)))
             {
                 return null;
@@ -366,6 +402,11 @@ namespace CrewChiefV4.AiTeam
                     litres + " litres in the tank. I haven't measured consumption cleanly yet.",
                     "Quedan " + litres + " litros en el depósito. Aún no tengo bien medido el consumo.");
             }
+
+            // LMU 18.11.: „Wie viel Zeit bleibt mir noch?“ beantwortete das Modell aus einem älteren Stand (5:18 statt 6:17).
+            // Die Restzeit kommt jetzt direkt aus dem aktuellen Spielstand, auf die Sekunde wie die Anzeige.
+            if (AskedTimeLeft(q))
+                return TimeLeftAnswer(gs.SessionData);
 
             // Startplatz (Rob 16.11.2026: „Welche Position zum Start?“ blieb unbeantwortet). Ohne Gegnerbezug ist der eigene Platz gemeint.
             bool rivalWords = AnyOf(q, "gegner", "vordermann", "hintermann", "führende", "fuehrende", "leader", "opponent", "rival", "car ahead",

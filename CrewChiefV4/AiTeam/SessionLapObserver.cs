@@ -472,6 +472,19 @@ namespace CrewChiefV4.AiTeam
                 s.CurrentLapIsValid && !gs.PitData.InPitlane && s.SessionPhase == SessionPhase.Green;
         }
 
+        /// <summary>
+        /// LMU 18.11. (Quali): Die Ansage zur schnellen Runde verfiel, weil kurz vor der Linie eine Bestzeit-Info des Gegners
+        /// und eine lange Antwort liefen. Letztes Viertel der Aufwärmrunde und die ersten 400 m danach: Platz für die Ansage.
+        /// </summary>
+        internal static bool FlyingLapWindow(GameStateData gs)
+        {
+            var s = gs?.SessionData;
+            if (s == null || s.SessionType == SessionType.Race || !QualifyingResultWatch.Supported(s.SessionType) || s.SessionPhase != SessionPhase.Green ||
+                gs.PitData.InPitlane || s.TrackDefinition == null || s.TrackDefinition.trackLength <= 100) return false;
+            float length = s.TrackDefinition.trackLength, distance = gs.PositionAndMotionData.DistanceRoundTrack;
+            return gs.PitData.OnOutLap ? distance > length * .75f && distance <= length : s.CurrentLapIsValid && distance >= 0 && distance < 400 && s.CompletedLaps >= 1 && s.LapTimeCurrent > 0 && s.LapTimeCurrent < 8;
+        }
+
         /// <summary>Nur für Tests: markiert die laufende Runde als schnelle Runde.</summary>
         internal void MarkHotLapForTest(int lapNumber) { hotLap = lapNumber; }
         private bool flyingS1Own, flyingS1Purple;
@@ -838,7 +851,8 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Ansage zur Lücke vor der schnellen Runde; null, wenn nichts Belastbares zu sagen ist.</summary>
         internal static string OutlapGapText(double ahead, bool aheadFlying, double behind, bool behindFlying, int variant)
         {
-            string a = ahead > 0 ? RadioLanguage.Num(ahead, "0") : null, b = behind > 0 ? RadioLanguage.Num(behind, "0") : null;
+            // LMU 18.11.: „schnelles Auto hinten, 0 Sekunden“ – unter einer Sekunde mit Zehntel.
+            string a = ahead > 0 ? RadioLanguage.Num(ahead, ahead < 1 ? "0.0" : "0") : null, b = behind > 0 ? RadioLanguage.Num(behind, behind < 1 ? "0.0" : "0") : null;
             if (behind > 0 && behind < 4 && behindFlying)
                 return Of(variant,
                     RadioLanguage.T("Hinter dir kommt einer auf schneller Runde, " + b + " Sekunden. Lass ihn vorbei, dann hast du freie Bahn.", "Car behind on a flying lap, " + b + " seconds. Let him by, then you've got clear track.", "Detrás viene uno en vuelta rápida, a " + b + " segundos. Déjale pasar y tendrás pista libre."),

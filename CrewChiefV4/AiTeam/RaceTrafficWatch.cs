@@ -217,7 +217,7 @@ namespace CrewChiefV4.AiTeam
         }
         internal const double RearSameCarSeconds = 300, RearAnySeconds = 45;
         private DateTime lastRear = DateTime.MinValue, lastRearGroup = DateTime.MinValue;
-        private bool pendingGroup;
+        private bool pendingGroup, pendingOtherClass;
 
         public void Observe(TrackAwareness observer, GameStateData gs, DateTime now)
         {
@@ -231,6 +231,7 @@ namespace CrewChiefV4.AiTeam
             {
                 reported[pendingKey]=lastRadio=pending.DeliveryStartedUtc;
                 if (pending.Topic=="race-traffic-rear") { lastRear=pending.DeliveryStartedUtc; if (pendingGroup) lastRearGroup=lastRear; }
+                if (pendingOtherClass && pending.Topic=="race-traffic-rear") MulticlassTraffic.LastRearClassCallUtc=pending.DeliveryStartedUtc;
                 pending=null;
             }
             if (pending!=null && !pending.IsValid(gs,now)) pending=null;
@@ -257,15 +258,22 @@ namespace CrewChiefV4.AiTeam
             if (pending!=null || now-lastRadio<TimeSpan.FromSeconds(3)) return;
             foreach (var car in candidates)
             {
-                bool rear=car.RouteGapM<0, stopped=!rear && car.SpeedMps<=1;
+                bool rear=car.RouteGapM<0, stopped=!rear && car.SpeedMps<=1, otherClass=MulticlassTraffic.OtherClass(car);
+                bool classAhead=!rear && !stopped && otherClass && !SlowAgainstReference(car,gs,s,now);
                 string key=car.Id+"|"+(rear?"rear":"hazard"); DateTime previous;
                 // Rob 17.11., Bathurst: ~25 Warnungen „schneller Verkehr von hinten“ beim Überrunden. Jetzt: dasselbe Auto
                 // höchstens alle 5 Minuten, Verkehr von hinten insgesamt höchstens alle 45 s, und nichts, solange die blaue
                 // Flagge weht – die sagt Sara bereits an.
                 if (reported.TryGetValue(key,out previous) && now-previous<TimeSpan.FromSeconds(rear ? RearSameCarSeconds : 60)) continue;
-                if (rear && (now-lastRear<TimeSpan.FromSeconds(RearAnySeconds) || gs.SessionData.Flag==FlagEnum.BLUE)) continue;
-                bool group=rear && candidates.Count(c=>c.RouteGapM<0)>1;
+                // Klassenfremder Verkehr wird auch bei blauer Flagge genannt (LMU 18.11.): Die Klasse ist die Information, die
+                // Sara mit „Blaue Flagge“ nicht gibt; FlagWatch lässt ihre allgemeine Ansage dann weg.
+                if (rear && (now-lastRear<TimeSpan.FromSeconds(RearAnySeconds) || gs.SessionData.Flag==FlagEnum.BLUE && !otherClass)) continue;
+                var rearCars=candidates.Where(c=>c.RouteGapM<0).ToArray();
+                bool group=rear && rearCars.Length>1;
                 if (group && now-lastRearGroup<TimeSpan.FromSeconds(120)) continue;
+                bool classGroup=group && rearCars.All(MulticlassTraffic.OtherClass);
+                if (group && !classGroup) otherClass=false;
+                string groupLabel=classGroup && rearCars.Select(c=>c.ClassLabel).Distinct().Count()==1 ? rearCars[0].ClassLabel : null;
                 var phrases=rear?(group?RearGroupPhrases:RearPhrases):stopped?StoppedPhrases:SlowPhrases;
                 bool reminder=false;
                 if (stopped && car.LapDistanceM.HasValue)
@@ -283,17 +291,20 @@ namespace CrewChiefV4.AiTeam
                 else if (!rear && parked.ContainsKey(car.Key)) parked.Remove(car.Key); // fährt wieder
                 int id=car.Id, generation=epoch; string opponentKey=car.Key;
                 pending=new ObservedRaceCall {
-                    Topic=rear?"race-traffic-rear":"race-hazard-ahead", Text=phrases[variant++%phrases.Length],
+                    Topic=rear?"race-traffic-rear":classAhead?"race-class-ahead":"race-hazard-ahead",
+                    Text=rear && otherClass ? (group ? MulticlassTraffic.RearGroup(groupLabel,variant++) : MulticlassTraffic.Rear(car.ClassLabel,variant++)) :
+                        classAhead ? MulticlassTraffic.Ahead(car.ClassLabel,variant++) : phrases[variant++%phrases.Length],
                     Member=TeamMember.Ben, Priority=7, Position=-1, SessionId=s.SessionId, SessionType=s.SessionType,
                     DetectedUtc=now, ExpiresUtc=now.AddSeconds(3),
-                    HazardIdentity=rear ? null : car.NativeIdentity,
+                    HazardIdentity=rear || classAhead ? null : car.NativeIdentity,
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
-                if (!group && !reminder && !string.IsNullOrWhiteSpace(car.Name))
+                // Bei klassenfremdem Verkehr zählt die Klasse, nicht der Name (Rob 18.11.: „lass ihn durch, andere Klasse“).
+                if (!group && !reminder && !otherClass && !string.IsNullOrWhiteSpace(car.Name))
                     pending.OpponentNameClip = NameClipText(car.Name);
-                if(!rear && !reminder) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
-                pendingKey=key; pendingGroup=group; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
+                if(!rear && !reminder && !classAhead) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
+                pendingKey=key; pendingGroup=group; pendingOtherClass=otherClass; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();
         }
@@ -344,8 +355,15 @@ namespace CrewChiefV4.AiTeam
             if (intercept<.5 || intercept>(rear?10:7)) return false;
             if (rear) return c.ClassComparisonKnown && (!c.SameClass || c.LapOffset>0) && c.SpeedMps>s.PlayerSpeedMps*1.08;
             if (c.SpeedMps<=5) return true;
+            if (SlowAgainstReference(c,gs,s,now)) return true;
+            // Langsamere Klasse voraus, noch nicht überrundet (Überrundete meldet BackmarkerWatch).
+            return MulticlassTraffic.OtherClass(c) && (c.LapOffset ?? 0) >= 0 && closing >= 4 && intercept <= 6 && c.SpeedMps < s.PlayerSpeedMps;
+        }
+
+        private bool SlowAgainstReference(TrackCarPosition c,GameStateData gs,TrackPositionSnapshot s,DateTime now)
+        {
             Reference normal;
-            return c.LapDistanceM.HasValue && reference.TryGetValue((int)(c.LapDistanceM.Value/100),out normal) &&
+            return c.LapDistanceM.HasValue && c.SpeedMps.HasValue && s.PlayerSpeedMps.HasValue && reference.TryGetValue((int)(c.LapDistanceM.Value/100),out normal) &&
                 normal.Lap<gs.SessionData.CompletedLaps && now>=normal.Utc && now-normal.Utc<TimeSpan.FromMinutes(10) &&
                 normal.Speed>=15 && c.SpeedMps<normal.Speed*.45 && c.SpeedMps<s.PlayerSpeedMps*.6;
         }

@@ -62,29 +62,30 @@ namespace CrewChiefV4.AiTeam
                 (mode == 1 || mode == 2) && (phase == 0 || phase == 1);
         }
         // Own wording for confirmed phases; no coaching, forecasts or invented race facts.
+        // Folgen auf „Rob, “ – deshalb klein, außer Substantiven (LMU 18.11.: „Rob, Ruhig durch die Formation“).
         private static readonly string[] FormationPhrasesDe = {
             "Formation. Ruhig bleiben und sauber in Position halten.",
-            "Konzentriert in den Start. Bleib aufmerksam, wir sind bei dir.",
-            "Noch Formation. Lass dir Raum und geh ohne unnötiges Risiko in den Start.",
-            "Ruhig durch die Formation. Wir behalten den Verkehr im Blick.",
+            "konzentriert in den Start. Bleib aufmerksam, wir sind bei dir.",
+            "noch Formation. Lass dir Raum und geh ohne unnötiges Risiko in den Start.",
+            "ruhig durch die Formation. Wir behalten den Verkehr im Blick.",
             "Fokus auf den Start. Bleib bei deinem Rhythmus und lass dir Platz.",
-            "Wir sind bei dir. Formation sauber zu Ende bringen, dann geht es los."
+            "wir sind bei dir. Formation sauber zu Ende bringen, dann geht es los."
         };
         private static readonly string[] FormationPhrasesEn = {
-            "Formation. Stay calm and hold your position cleanly.",
-            "Focused into the start. Stay alert, we're with you.",
-            "Still formation. Give yourself room and go into the start without needless risk.",
-            "Easy through the formation. We're watching the traffic.",
-            "Focus on the start. Keep your rhythm and leave yourself space.",
-            "We're with you. Finish the formation cleanly, then we go."
+            "formation. Stay calm and hold your position cleanly.",
+            "focused into the start. Stay alert, we're with you.",
+            "still formation. Give yourself room and go into the start without needless risk.",
+            "easy through the formation. We're watching the traffic.",
+            "focus on the start. Keep your rhythm and leave yourself space.",
+            "we're with you. Finish the formation cleanly, then we go."
         };
         private static readonly string[] FormationPhrasesEs = {
-            "Vuelta de formación. Tranquilo y mantén la posición limpio.",
-            "Concentrado para la salida. Atento, estamos contigo.",
-            "Todavía en formación. Déjate espacio y sal sin riesgos innecesarios.",
-            "Tranquilo en la formación. Vigilamos el tráfico.",
-            "Céntrate en la salida. Mantén tu ritmo y déjate espacio.",
-            "Estamos contigo. Termina bien la formación y luego empezamos."
+            "vuelta de formación. Tranquilo y mantén la posición limpio.",
+            "concentrado para la salida. Atento, estamos contigo.",
+            "todavía en formación. Déjate espacio y sal sin riesgos innecesarios.",
+            "tranquilo en la formación. Vigilamos el tráfico.",
+            "céntrate en la salida. Mantén tu ritmo y déjate espacio.",
+            "estamos contigo. Termina bien la formación y luego empezamos."
         };
         private static string[] FormationPhrases => RadioLanguage.Pick(FormationPhrasesDe, FormationPhrasesEn, FormationPhrasesEs);
         private static readonly string[] StartPhrasesDe = {

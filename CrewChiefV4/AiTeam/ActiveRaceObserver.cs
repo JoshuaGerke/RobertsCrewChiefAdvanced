@@ -255,7 +255,7 @@ namespace CrewChiefV4.AiTeam
         public void ReleaseForRetry(DateTime now, string reason = "delivery_failed")
         {
             bool terminal = now > ExpiresUtc || Volatile.Read(ref attempts) >= MaximumDeliveryAttempts;
-            bool immediateTraffic = Topic == "race-hazard-ahead" || Topic == "race-traffic-rear";
+            bool immediateTraffic = Topic == "race-hazard-ahead" || Topic == "race-traffic-rear" || Topic == "race-class-ahead";
             Interlocked.Exchange(ref retryNotBeforeTicks, now.AddMilliseconds(immediateTraffic ? 100 : 1000).Ticks);
             if (Interlocked.CompareExchange(ref deliveryState, terminal ? 3 : 0, 1) == 1)
             {
@@ -290,7 +290,8 @@ namespace CrewChiefV4.AiTeam
                 (now < gs.SourceTelemetryUtc || now - gs.SourceTelemetryUtc > TimeSpan.FromSeconds(1))) return false;
             var s = gs.SessionData;
             bool weather = AllowPitlane && (Topic ?? "").StartsWith("weather-", StringComparison.Ordinal);
-            bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed" || Topic == "pit-exit");
+            bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed" || Topic == "pit-exit" ||
+                Topic == "pit-arrival-support" || Topic == "pit-repair-wait" || Topic == "race-retired");
             bool greeting = AllowPitlane && Topic == "greeting" && SessionGreetingDirector.SafeToGreet(
                 s.SessionType, s.SessionPhase, gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed);
             if (Topic == "greeting" && !greeting) return false;
@@ -306,7 +307,9 @@ namespace CrewChiefV4.AiTeam
                 (s.SessionPhase == SessionPhase.Green || s.SessionPhase == SessionPhase.Checkered);
             bool liveWarning=(Topic??"").StartsWith("warning-",StringComparison.Ordinal) &&
                 (s.SessionPhase==SessionPhase.Green || s.SessionPhase==SessionPhase.FullCourseYellow);
-            bool phaseValid = disqualified || liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            bool retiredAfterFlag = AllowPitlane && Topic == "race-retired" && s.SessionType == SessionType.Race &&
+                (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
+            bool phaseValid = retiredAfterFlag || disqualified || liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
