@@ -57,7 +57,7 @@ namespace CrewChiefV4.AiTeam.Probe
 
     internal enum ProbeScope { Player, OwnListEntry, Opponents, Session }
 
-    internal enum ProbeKind { Int32, UInt32, Single, Double, Byte }
+    internal enum ProbeKind { Int32, UInt32, Single, Double, Byte, Int16, SByte }
 
     /// <summary>Ein gemessener Kanal mit Zählern. Für Gegner werden Werte je Fahrzeug-Slot verfolgt.</summary>
     internal sealed class ProbeChannel
@@ -108,6 +108,8 @@ namespace CrewChiefV4.AiTeam.Probe
                 case ProbeKind.UInt32: return BitConverter.ToUInt32(buffer, at);
                 case ProbeKind.Single: return BitConverter.ToSingle(buffer, at);
                 case ProbeKind.Byte: return buffer[at];
+                case ProbeKind.Int16: return BitConverter.ToInt16(buffer, at);
+                case ProbeKind.SByte: return (sbyte)buffer[at];
                 default: return BitConverter.ToDouble(buffer, at);
             }
         }
@@ -119,6 +121,8 @@ namespace CrewChiefV4.AiTeam.Probe
             if (type == typeof(float)) return ProbeKind.Single;
             if (type == typeof(double)) return ProbeKind.Double;
             if (type == typeof(byte) || type == typeof(bool)) return ProbeKind.Byte;
+            if (type == typeof(short)) return ProbeKind.Int16;
+            if (type == typeof(sbyte)) return ProbeKind.SByte;
             throw new NotSupportedException("Kein Zahlenfeld: " + type.Name);
         }
 
