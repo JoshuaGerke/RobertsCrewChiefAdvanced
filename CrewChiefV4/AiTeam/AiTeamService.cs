@@ -1463,6 +1463,8 @@ namespace CrewChiefV4.AiTeam
                 }
                 messages.Add(new JObject { ["role"] = "assistant", ["content"] = message["content"], ["tool_calls"] = toolCalls });
                 RaceDataContext ctx = contextProvider();
+                var savedNotes = new List<string>();
+                bool allSaved = true;
                 foreach (var call in toolCalls)
                 {
                     string name = (string)call.SelectToken("function.name");
@@ -1472,6 +1474,7 @@ namespace CrewChiefV4.AiTeam
                         string note = null;
                         try { note = (string)JObject.Parse((string)call.SelectToken("function.arguments") ?? "{}")["notiz"]; } catch (Exception) { }
                         bool saved=DriverMemory.TryAddNote(note);
+                        if (saved) savedNotes.Add(note); else allSaved = false;
                         if (saved && log != null)
                         {
                             log("Fahrerwunsch dauerhaft gespeichert.");
@@ -1481,6 +1484,7 @@ namespace CrewChiefV4.AiTeam
                     else
                     {
                         result = RaceDataTools.Execute(name, ctx, (string)call.SelectToken("function.arguments"));
+                        allSaved = false;
                     }
                     messages.Add(new JObject
                     {
@@ -1489,8 +1493,41 @@ namespace CrewChiefV4.AiTeam
                         ["content"] = result.ToString(Newtonsoft.Json.Formatting.None),
                     });
                 }
+                // RRCA 2.0 (7): Nur ein Fahrerwunsch gespeichert – dafür keine zweite Modellrunde (Mosport 16.11.: ein Drittel
+                // aller Fragen, je rund 2 s). Die Bestätigung kommt lokal, mit dem gespeicherten Wunsch.
+                string question = (string)messages.LastOrDefault(m => (string)m["role"] == "user")?["content"];
+                string quick = PureMemoryRequest(question) ? SaveOnlyAnswer(allSaved, savedNotes, (string)message["content"], round) : null;
+                if (quick != null)
+                {
+                    if (log != null) log("Fahrerwunsch gespeichert, Bestätigung ohne zweite Modellrunde.");
+                    return quick.Length > maxChars && maxChars > 0 ? quick.Substring(0, maxChars) : quick;
+                }
             }
             return RadioLanguage.T("Ich komm mit der Auswertung gerade nicht zu einem sauberen Ergebnis.", "I can't get a clean result from the analysis right now.", "Ahora mismo no consigo un resultado limpio del análisis.");
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex MemoryVerb = new System.Text.RegularExpressions.Regex(
+            @"\b(merk|speicher|notier|vergiss nicht|behalt|remember|save|note|keep in mind|guarda|recuerda|apunta|anota)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        private static readonly System.Text.RegularExpressions.Regex QuestionWord = new System.Text.RegularExpressions.Regex(
+            @"\?|\b(wie|was|wann|wo|warum|wieso|welche[rsnm]?|wieviel|how|what|when|where|why|which|qué|cómo|cuándo|dónde|por qué|cuánto)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        /// <summary>Nur ein Merkauftrag ohne eigentliche Frage („Merk dir: …“)? Dann reicht die Bestätigung.</summary>
+        internal static bool PureMemoryRequest(string question) =>
+            !string.IsNullOrWhiteSpace(question) && MemoryVerb.IsMatch(question) && !QuestionWord.IsMatch(question);
+
+        /// <summary>Bestätigung, wenn eine Modellrunde nur Fahrerwünsche gespeichert hat; null, wenn noch eine Antwort nötig ist.</summary>
+        internal static string SaveOnlyAnswer(bool allSaved, IList<string> notes, string modelContent, int variant)
+        {
+            if (!allSaved || notes == null || notes.Count == 0) return null;
+            if (!string.IsNullOrWhiteSpace(modelContent)) return modelContent.Trim();
+            string note = string.Join(" ", notes.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim().TrimEnd('.') + "."));
+            string head = RadioVariants.At(variant + Environment.TickCount % 5,
+                RadioLanguage.T("Notiert:", "Noted:", "Anotado:"),
+                RadioLanguage.T("Ist gespeichert:", "Saved:", "Guardado:"),
+                RadioLanguage.T("Verstanden, merke ich mir:", "Copy, I'll remember:", "Entendido, lo recuerdo:"),
+                RadioLanguage.T("Alles klar, gespeichert:", "All right, saved:", "De acuerdo, guardado:"),
+                RadioLanguage.T("Geht klar, steht im Gedächtnis:", "Will do, it's in memory:", "Hecho, queda en memoria:"));
+            return note.Length > 1 ? head + " " + note : RadioLanguage.T("Ist gespeichert.", "Saved.", "Guardado.");
         }
 
         /// <summary>Unter dieser Restzeit wird keine weitere Werkzeugrunde mehr erlaubt.</summary>

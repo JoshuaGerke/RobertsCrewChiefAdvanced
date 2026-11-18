@@ -120,5 +120,20 @@ namespace UnitTest.AiTeamTests
                 Assert.IsTrue(call == null || !call.Topic.StartsWith("judge-impact"), call?.Text);
             }
         }
+
+        [Test]
+        public void Pure_memory_request_is_confirmed_without_a_second_model_round()
+        {
+            Assert.IsTrue(AiTeamService.PureMemoryRequest("[an Mik] Merk dir bitte, dass ich Sektorvergleiche im Training will."));
+            Assert.IsTrue(AiTeamService.PureMemoryRequest("[an Ben] Please remember I prefer short gaps."));
+            Assert.IsTrue(AiTeamService.PureMemoryRequest("[an Ben] Guarda que quiero menos radio."));
+            Assert.IsFalse(AiTeamService.PureMemoryRequest("[an Ben] Merk dir das und sag mir, wie viel Sprit ich habe?"), "mit Frage braucht es die Antwort");
+            Assert.IsFalse(AiTeamService.PureMemoryRequest("[an Ben] Wie ist der Abstand nach vorn"));
+            Assert.IsFalse(AiTeamService.PureMemoryRequest(null));
+            StringAssert.Contains("Sektorvergleiche im Training.", AiTeamService.SaveOnlyAnswer(true, new List<string> { "Sektorvergleiche im Training" }, null, 0));
+            Assert.AreEqual("Mach ich.", AiTeamService.SaveOnlyAnswer(true, new List<string> { "x" }, " Mach ich. ", 0), "eigener Text des Modells hat Vorrang");
+            Assert.IsNull(AiTeamService.SaveOnlyAnswer(false, new List<string> { "x" }, null, 0), "nicht gespeichert: normale Antwort");
+            Assert.IsNull(AiTeamService.SaveOnlyAnswer(true, new List<string>(), null, 0));
+        }
     }
 }
