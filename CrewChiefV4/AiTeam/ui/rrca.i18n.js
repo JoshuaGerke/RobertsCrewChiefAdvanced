@@ -55,7 +55,7 @@
     'Keine gespeicherten Bestzeiten gefunden.': ['No saved personal bests found.','No se encontraron mejores tiempos guardados.'],
     'Alle Bestzeiten gelöscht.': ['All personal bests deleted.','Todos los mejores tiempos borrados.'],
     'Telemetrie-Messung': ['Telemetry measurement','Medición de telemetría'],
-    'Telemetrie-Messung einschalten (RaceRoom, AMS2)': ['Enable telemetry measurement (RaceRoom, AMS2)','Activar medición de telemetría (RaceRoom, AMS2)'],
+    'Telemetrie-Messung einschalten (RaceRoom, AMS2, LMU)': ['Enable telemetry measurement (RaceRoom, AMS2, LMU)','Activar medición de telemetría (RaceRoom, AMS2, LMU)'],
     'wartet auf RaceRoom, AMS2 oder LMU': ['waiting for RaceRoom, AMS2 or LMU','esperando a RaceRoom, AMS2 o LMU'],
     'keine neuen Daten – suche Spiel': ['no new data – looking for the game','sin datos nuevos – buscando el simulador'],
     'beendet · keine Fahrdaten erhalten': ['finished · no driving data received','terminada · no se recibieron datos de conducción'],
