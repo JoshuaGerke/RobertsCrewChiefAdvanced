@@ -154,14 +154,17 @@ namespace CrewChiefV4.AiTeam
                 string key=car.Id+"|"+topic;DateTime previous;
                 if(last.TryGetValue(key,out previous) && (now<previous || now-previous<TimeSpan.FromSeconds(90))) continue;
                 string[] phrases=topic=="traffic-approaching"?ApproachingPhrases:car.SpeedMps<=1?StoppedPhrases:CatchingPhrases;
-                string text=ordinaryClosing ? RadioVariants.Pick("closing-ahead",ClosingAheadPhrases) : phrases[variant++%phrases.Length];
+                // LMU 18.11. (Training): LMP2 überholte Rob, angesagt wurde nur „schneller Wagen“. Andere Klasse jetzt mit Klasse.
+                bool otherClass=MulticlassTraffic.OtherClass(car) && (topic=="traffic-approaching" || topic=="traffic-closing-ahead");
+                string text=otherClass ? (topic=="traffic-approaching" ? MulticlassTraffic.Rear(car.ClassLabel,variant++) : MulticlassTraffic.Ahead(car.ClassLabel,variant++)) :
+                    ordinaryClosing ? RadioVariants.Pick("closing-ahead",ClosingAheadPhrases) : phrases[variant++%phrases.Length];
                 int id=car.Id;string opponentKey=car.Key;bool stopped=topic=="traffic-catching" && car.SpeedMps<=1;int callEpoch=epoch;
                 pending=new ObservedRaceCall {
                     Topic=topic,Text=text,Evidence="practice_quali;continuous_route_positions_1.5s;speed_vs_route_consistent;intercept_within_" +
                         (topic=="traffic-approaching" ? rearAlertSeconds : AlertSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture) + "s;"+
                         (ordinaryClosing ? "ahead_closing_at_least_12mps_in_practice" : topic=="traffic-catching"?"slow_ahead_closing_at_least_8mps":"faster_rear_closing_at_least_3mps"),
                     Member=TeamMember.Ben,Priority=4,Position=-1,SessionId=s.SessionId,SessionType=s.SessionType,
-                    OpponentNameClip=string.IsNullOrWhiteSpace(car.Name)?null:RaceTrafficWatch.NameClipText(car.Name),
+                    OpponentNameClip=otherClass || string.IsNullOrWhiteSpace(car.Name)?null:RaceTrafficWatch.NameClipText(car.Name),
                     DetectedUtc=now,ExpiresUtc=now.AddSeconds(3),
                     TimedValidity=(gs,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && StillRelevant(observer,gs,opponentKey,id,topic,utc,CoveredAhead,rearAlertSeconds) &&
                         (!stopped || gs.OpponentData.ContainsKey(opponentKey) && gs.OpponentData[opponentKey].Speed<=1)
