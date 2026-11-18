@@ -2881,6 +2881,8 @@ namespace CrewChiefV4.AiTeam
                 Tracks = Tracks,
                 Reader = raceReader,
                 PitForecast = pitCycle.ReadForecast(gs, DateTime.UtcNow),
+                PitLossSeconds = pitLoss.Seconds,
+                PitLossSamples = pitLoss.Samples,
                 LastPitStop = pitStopTimer.Last,
             };
         }

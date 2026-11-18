@@ -27,6 +27,9 @@ namespace CrewChiefV4.AiTeam
         public RaceReader Reader;
         internal PitCycleWatch.MergeForecast PitForecast;
         internal PitStopTimer.Measurement LastPitStop;
+        /// <summary>Gemessener eigener Boxenverlust dieser Session (Median) und Anzahl Messungen; -1 ohne Messung.</summary>
+        internal float PitLossSeconds = -1;
+        internal int PitLossSamples;
 
         public double TelemetryAgeSeconds
         {
@@ -46,6 +49,7 @@ namespace CrewChiefV4.AiTeam
         {
             "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis", "get_race_pace_review",
+            "get_strategy_odds",
         };
 
         public static JArray BuildToolDefinitions()
@@ -70,6 +74,7 @@ namespace CrewChiefV4.AiTeam
                 }, ["additionalProperties"] = false }));
             tools.Add(Tool("get_stint_analysis", "Runde-für-Runde-Verlauf dieses Stints: Rundenzeit, Spritverbrauch, Reifenverschleiß, Reifentemperaturspitzen, Abstände. Für Trends und Prognosen."));
             tools.Add(Tool("get_corner_analysis", "Kurve für Kurve: letzte gültige Runde gegen die eigene Bestrunde – Zeitverlust, Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt. Für Fahrercoaching (\"wo verliere ich Zeit\", \"wie fahre ich Kurve X\")."));
+            tools.Add(Tool("get_strategy_odds", "Rennen: Wahrscheinlichkeiten für Durchfahren, Stopp jetzt, in einer oder in zwei Runden – reicht der Sprit, kommst du vor dem Hintermann raus (nur mit gemessenem Boxenverlust). Monte Carlo nur aus Messwerten, mit Empfehlung."));
             tools.Add(Tool("get_recent_events", "Was in den letzten Minuten passiert ist (Positionswechsel, Gegner an der Box, Flaggen, Kontakte) und was das Team zuletzt gefunkt hat."));
             tools.Add(new JObject
             {
@@ -162,6 +167,7 @@ namespace CrewChiefV4.AiTeam
                     case "get_fuel_status": data = Fuel(ctx, missing); break;
                     case "get_lap_times": data = LapTimes(ctx, missing); break;
                     case "get_race_pace_review": data = RacePaceReview(ctx); break;
+                    case "get_strategy_odds": data = StrategyOddsTool(ctx, missing); break;
                     case "get_opponents_nearby": data = Opponents(ctx, missing); break;
                     case "get_pit_info": data = Pit(ctx, missing); break;
                     case "get_damage_and_engine": data = Damage(ctx, missing); break;
@@ -343,6 +349,58 @@ namespace CrewChiefV4.AiTeam
             o["dreht_durch_jetzt"] = new JArray(t.LeftFrontIsSpinning, t.RightFrontIsSpinning, t.LeftRearIsSpinning, t.RightRearIsSpinning);
             o["reihenfolge"] = "VL, VR, HL, HR";
             missing.Add("setupwerte (Federn, Dämpfer, Stabis, Aero, Differential) – liefert keine unterstützte Simulation live");
+            return o;
+        }
+
+        /// <summary>C6: Messwerte für den Monte-Carlo-Kern sammeln. Was nicht gemessen ist, bleibt draußen und steht in „fehlt“.</summary>
+        internal static StrategyInputs StrategyInputsFrom(RaceDataContext ctx, List<string> missing)
+        {
+            var gs = ctx.GameState;
+            if (gs.SessionData.SessionType != SessionType.Race) { missing.Add("nur_im_rennen"); return null; }
+            var estimate = FuelEstimate.From(ctx);
+            if (estimate == null || estimate.PerLap <= 0) { missing.Add("verbrauch_oder_restdistanz (mindestens zwei saubere Runden nötig)"); return null; }
+            var laps = ctx.Memory.GetLaps();
+            var fuelSamples = laps.Where(l => !l.InPitLap && l.FuelUsed > 0 && l.FuelUsed < 1000).Reverse().Take(5).Select(l => (double)l.FuelUsed).ToList();
+            double perLap = estimate.PerLap, left = gs.FuelData.FuelLeft;
+            var i = new StrategyInputs
+            {
+                FuelLaps = left / perLap,
+                // Streuung der Reichweite aus der Streuung des Verbrauchs (Fehlerfortpflanzung), mindestens eine Zehntelrunde.
+                FuelLapsSpread = Math.Max(0.1, left * StrategyOdds.Spread(fuelSamples) / (perLap * perLap)),
+                LapsToGo = estimate.LapsRemaining,
+                LapsToGoEstimated = estimate.EstimatedFromTime,
+                LapsToGoSpread = estimate.EstimatedFromTime ? 0.5 : 0,
+            };
+            float length = gs.SessionData.TrackDefinition?.trackLength ?? 0, distance = gs.PositionAndMotionData.DistanceRoundTrack;
+            if (Finite(length) && length > 0 && Finite(distance) && distance >= 0 && distance < length)
+                i.LapFractionToPitEntry = Math.Max(0.05, 1 - distance / length);
+            if (ctx.PitLossSeconds > 0)
+            {
+                i.PitLoss = ctx.PitLossSeconds;
+                i.PitLossSpread = Math.Max(1.0, ctx.PitLossSeconds * (ctx.PitLossSamples >= 2 ? 0.05 : 0.1));
+            }
+            else missing.Add("boxenverlust (erst nach dem ersten eigenen Stopp gemessen)");
+            // Hintermann: derselbe Gegner über mindestens drei Runden ohne Boxenrunde.
+            var recent = Enumerable.Reverse(laps).Take(6).ToList();
+            string rear = recent.FirstOrDefault()?.BehindIdentity;
+            var same = recent.TakeWhile(l => rear != null && l.BehindIdentity == rear && !l.InPitLap && l.GapBehind > 0 && l.GapBehind < 60).Reverse().ToList();
+            if (same.Count >= 3)
+            {
+                var gains = same.Zip(same.Skip(1), (a, b) => (double)(a.GapBehind - b.GapBehind)).ToList();
+                i.GapBehind = same.Last().GapBehind;
+                i.RearGainPerLap = gains.Average();
+                i.RearGainSpread = Math.Max(0.1, StrategyOdds.Spread(gains));
+            }
+            else missing.Add("hintermann (derselbe Gegner über mindestens drei Runden)");
+            return i;
+        }
+
+        private static JObject StrategyOddsTool(RaceDataContext ctx, List<string> missing)
+        {
+            var inputs = StrategyInputsFrom(ctx, missing);
+            if (inputs == null) return new JObject { ["berechnet"] = false };
+            var o = StrategyOdds.Describe(StrategyOdds.Evaluate(inputs), inputs);
+            o["berechnet"] = true;
             return o;
         }
 
