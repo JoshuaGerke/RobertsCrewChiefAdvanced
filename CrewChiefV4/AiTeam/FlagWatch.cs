@@ -46,6 +46,9 @@ namespace CrewChiefV4.AiTeam
             lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = DateTime.MinValue;
         }
 
+        internal static bool BlueCoveredByClassCall(DateTime now) =>
+            now >= MulticlassTraffic.LastRearClassCallUtc && now - MulticlassTraffic.LastRearClassCallUtc <= MulticlassTraffic.BlueCoveredFor;
+
         internal static bool FreshClear(string phrase, DateTime detected, DateTime now)
         {
             int i = IndexOf(phrase);
@@ -136,7 +139,9 @@ namespace CrewChiefV4.AiTeam
                         result.Add(Phrases[3]);
                         break;
                     case FlagEnum.BLUE:
-                        if (nowUtc - lastBlueUtc > TimeSpan.FromSeconds(15))
+                        // Multiclass (LMU 18.11.): Hat die Crew den schnelleren Wagen der anderen Klasse gerade mit Klasse angekündigt,
+                        // bringt „Blaue Flagge“ nichts Neues.
+                        if (nowUtc - lastBlueUtc > TimeSpan.FromSeconds(15) && !BlueCoveredByClassCall(nowUtc))
                         {
                             lastBlueUtc = nowUtc;
                             result.Add(Phrases[4]);

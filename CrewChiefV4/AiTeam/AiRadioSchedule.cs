@@ -574,8 +574,9 @@ namespace CrewChiefV4.AiTeam
             if (topic == "vehicle") return VehicleCheck(gs, variant) ?? VehicleReport(gs, brief: true);
             if (topic == "progress") {
                 var s=gs.SessionData;
-                if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,1,200000)) {
-                    double minutes=Math.Ceiling(s.SessionTimeRemaining/60);
+                if(s.SessionHasFixedTime && Good(s.SessionTimeRemaining,60,200000)) {
+                    // LMU 18.11.: „noch 29 Minuten“ bei 28:10 auf der Anzeige. Abrunden wie die Uhr im Spiel.
+                    double minutes=Math.Floor(s.SessionTimeRemaining/60);
                     string m=minutes+(minutes==1?" Minute":" Minuten"), me=minutes+(minutes==1?" minute":" minutes"), ms=minutes+(minutes==1?" minuto":" minutos");
                     switch(((variant%5)+5)%5) {
                         case 1: return RadioLanguage.T("Uhr läuft: noch "+m+".", "Clock check: "+me+" to go.", "Reloj: quedan "+ms+".");

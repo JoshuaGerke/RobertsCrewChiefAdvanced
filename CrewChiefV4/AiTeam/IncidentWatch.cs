@@ -80,6 +80,32 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Ein Telemetrie-Tick. Liefert die fälligen Funksprüche (meist keinen).</summary>
+        /// <summary>Strafart mit Grund, so wie das Spiel sie meldet.</summary>
+        internal static string DetailedPenalty(PenatiesData.DetailedPenaltyType type, PenatiesData.DetailedPenaltyCause cause)
+        {
+            string what;
+            switch (type)
+            {
+                case PenatiesData.DetailedPenaltyType.STOP_AND_GO: what = RadioLanguage.T("eine Stop-and-Go-Strafe", "a stop-and-go penalty", "un stop and go"); break;
+                case PenatiesData.DetailedPenaltyType.DRIVE_THROUGH: what = RadioLanguage.T("eine Durchfahrtsstrafe", "a drive-through penalty", "un drive-through"); break;
+                case PenatiesData.DetailedPenaltyType.TEN_SECONDS: what = RadioLanguage.T("eine Zehn-Sekunden-Strafe", "a ten-second penalty", "una penalización de diez segundos"); break;
+                default: what = RadioLanguage.T("eine Strafe", "a penalty", "una penalización"); break;
+            }
+            string why;
+            switch (cause)
+            {
+                case PenatiesData.DetailedPenaltyCause.SPEEDING_IN_PITLANE: why = RadioLanguage.T(" wegen zu schnell in der Boxengasse", " for speeding in the pit lane", " por exceso de velocidad en el pit lane"); break;
+                case PenatiesData.DetailedPenaltyCause.FALSE_START: why = RadioLanguage.T(" wegen Frühstart", " for a false start", " por salida en falso"); break;
+                case PenatiesData.DetailedPenaltyCause.CUT_TRACK: why = RadioLanguage.T(" wegen Abkürzen", " for cutting the track", " por recortar la pista"); break;
+                case PenatiesData.DetailedPenaltyCause.EXITING_PITS_UNDER_RED: why = RadioLanguage.T(" wegen Boxenausfahrt bei Rot", " for leaving the pits on red", " por salir de boxes en rojo"); break;
+                case PenatiesData.DetailedPenaltyCause.ILLEGAL_PASS_ROLLING_BEFORE_GREEN:
+                case PenatiesData.DetailedPenaltyCause.ILLEGAL_PASS_FCY_BEFORE_GREEN: why = RadioLanguage.T(" wegen Überholen vor Grün", " for passing before green", " por adelantar antes de la verde"); break;
+                case PenatiesData.DetailedPenaltyCause.IGNORED_BLUE_FLAG: why = RadioLanguage.T(" wegen ignorierter blauer Flagge", " for ignoring blue flags", " por ignorar la bandera azul"); break;
+                default: why = ""; break;
+            }
+            return what + why;
+        }
+
         public List<KeyValuePair<TeamMember, string>> Evaluate(GameStateData previous, GameStateData current, DateTime nowUtc, bool minimalMode)
         {
             var result = new List<KeyValuePair<TeamMember, string>>();
@@ -217,11 +243,16 @@ namespace CrewChiefV4.AiTeam
             else if (p.HasTimeDeduction && !pp.HasTimeDeduction) penalty = RadioLanguage.T("eine Zeitstrafe", "a time penalty", "una penalización de tiempo");
             else if (p.HasSlowDown && !pp.HasSlowDown) penalty = RadioLanguage.T("eine Slow-down-Strafe; reduziere das Tempo entsprechend der Spielanzeige",
                 "a slow-down penalty; reduce your speed as the game display shows", "una penalización de slow-down; reduce la velocidad según indique el juego");
+            // LMU 18.11. (Quali): Stop-and-go wurde nicht erkannt. LMU meldet Strafen als Spielmeldung, die Crew Chief in
+            // Strafart und Grund übersetzt; die Anzahl offener Strafen bleibt dabei teils unverändert.
+            else if (p.PenaltyType != pp.PenaltyType && p.PenaltyType != PenatiesData.DetailedPenaltyType.NONE) penalty = DetailedPenalty(p.PenaltyType, p.PenaltyCause);
             else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties) penalty = RadioLanguage.T("eine Strafe", "a penalty", "una penalización");
             if (penalty != null)
             {
                 Penalties++;
-                bool serve = p.HasDriveThrough || p.HasStopAndGo;
+                LiveDiagnostics.Decision("incident-penalty", "detected", "type=" + p.PenaltyType + ";cause=" + p.PenaltyCause + ";open=" + p.NumOutstandingPenalties, penalty);
+                bool serve = p.HasDriveThrough || p.HasStopAndGo || p.PenaltyType == PenatiesData.DetailedPenaltyType.STOP_AND_GO ||
+                    p.PenaltyType == PenatiesData.DetailedPenaltyType.DRIVE_THROUGH;
                 string got = RadioVariants.Pick("incident-penalty",
                     RadioLanguage.T("Wir haben " + penalty + " bekommen.", "We've got " + penalty + ".", "Nos han puesto " + penalty + "."),
                     RadioLanguage.T("Die Rennleitung gibt uns " + penalty + ".", "Race control has given us " + penalty + ".", "Dirección de carrera nos pone " + penalty + "."),
@@ -325,16 +356,22 @@ namespace CrewChiefV4.AiTeam
                         ? RadioLanguage.T("Das Spiel meldet keinen Schaden, soweit es Werte liefert. Fühlt sich das Auto komisch an, sag Bescheid.",
                             "The game reports no damage as far as it gives data. If the car feels odd, tell me.",
                             "El juego no indica daños hasta donde da datos. Si notas algo raro, dímelo.")
-                        : RadioLanguage.T("Schadenswerte liefert das Spiel hier nicht. Fühlt sich das Auto komisch an, sag Bescheid.",
-                            "The game doesn't give damage values here. If the car feels odd, tell me.",
-                            "El juego no da valores de daño aquí. Si notas algo raro, dímelo.");
+                        // LMU 18.11.: „liefert das Spiel hier nicht“ war falsch – die Werte kamen kurz danach. Nur sagen, was gerade fehlt.
+                        : RadioLanguage.T("Gerade noch keine Schadenswerte vom Spiel. Fühlt sich das Auto komisch an, sag Bescheid.",
+                            "No damage values from the game just yet. If the car feels odd, tell me.",
+                            "Todavía no hay valores de daño del juego. Si notas algo raro, dímelo.");
                 return brief ? RadioLanguage.T("Aero, Motor und Getriebe laut Meldung unauffällig.", "Aero, engine and gearbox reported clear.", "Aerodinámica, motor y caja de cambios sin incidencias según los datos.") :
                     RadioLanguage.T("Keine nennenswerten Schäden an Aero, Motor und Getriebe gemeldet. Bremsen und Aufhängung sind nur soweit vom Spiel gemeldet beurteilbar.",
                         "No significant damage reported to aero, engine or gearbox. Brakes and suspension can only be judged as far as the game reports them.",
                         "Sin daños relevantes en aerodinámica, motor y caja de cambios. Frenos y suspensión solo se pueden valorar hasta donde informa el juego.");
             }
             string text = string.Join(", ", parts) + ".";
-            return serious && includeAdvice ? text + RadioLanguage.T(" Wenn sich das Auto komisch anfühlt, komm an die Box.", " If the car feels strange, box.", " Si notas el coche raro, entra a boxes.") : text;
+            // LMU 18.11.: Rob verlor ein Rad und hörte „wenn sich das Auto komisch anfühlt“. Schwerer Schaden heißt Box, nicht vielleicht.
+            if (!serious || !includeAdvice) return text;
+            bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED;
+            return text + (destroyed
+                ? RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya.")
+                : RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."));
         }
 
         internal static string PitAdviceAfterDamage(GameStateData state)

@@ -260,6 +260,9 @@ namespace CrewChiefV4.AiTeam
             {
                 // Negative values can also be the adapter's unknown sentinel, not proof that time expired.
                 o["restzeit_s"] = Num(s.SessionTimeRemaining, 0, 0, 200000, "restzeit_s", missing);
+                // LMU 18.11.: Das Modell rechnete 377 s in „fünf Minuten achtzehn“ um. Fertig formatiert wie die Uhr im Spiel.
+                if (Finite(s.SessionTimeRemaining) && s.SessionTimeRemaining >= 0 && s.SessionTimeRemaining <= 200000)
+                    o["restzeit_uhr"] = ((int)s.SessionTimeRemaining / 60).ToString(CultureInfo.InvariantCulture) + ":" + ((int)s.SessionTimeRemaining % 60).ToString("00", CultureInfo.InvariantCulture);
                 o["uhr_abgelaufen"] = s.SessionTimeRemaining == 0 && Finite(s.SessionTotalRunTime) &&
                     s.SessionTotalRunTime > 0 && Finite(s.SessionRunningTime) && s.SessionRunningTime >= s.SessionTotalRunTime;
                 if (lapsLeft > 0)

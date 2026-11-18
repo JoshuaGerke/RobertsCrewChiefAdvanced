@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
@@ -202,8 +203,32 @@ namespace CrewChiefV4.AiTeam
 
         private static string[] Keys(string contract) => contract.Split(new[] { ' ', '|' }, StringSplitOptions.RemoveEmptyEntries);
 
-        internal static string SafeRivalName(string text) => new string((text ?? "").Where(c =>
-            char.IsLetterOrDigit(c) || c == ' ' || c == '-' || c == '\'').Take(60).ToArray()).Trim();
+        internal static string SafeRivalName(string text)
+        {
+            string clean = new string((RepairEncoding(text) ?? "").Where(c =>
+                char.IsLetterOrDigit(c) || c == ' ' || c == '-' || c == '\'').Take(60).ToArray()).Trim();
+            // LMU 18.11.: „Antonino Sammito4797“ – Online-Kennungen hinter dem Namen spricht kein Ingenieur mit.
+            string withoutTag = Regex.Replace(clean, @"(?<=\p{L}{2})\d{3,}$", "");
+            return withoutTag.Length >= 2 ? withoutTag.Trim() : clean;
+        }
+
+        /// <summary>
+        /// LMU 18.11.: „AutÃ³dromo JosÃ© Carlos Pace“ – UTF-8 aus dem Spiel als Windows-1252 gelesen. Typische Folgen (Ã, Â, Å
+        /// vor einem zweiten Byte) werden zurückübersetzt; alles andere bleibt unverändert.
+        /// </summary>
+        internal static string RepairEncoding(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.IndexOf('\u00C3') < 0 && text.IndexOf('\u00C2') < 0 && text.IndexOf('\u00C5') < 0) return text;
+            try
+            {
+                Encoding single;
+                try { single = Encoding.GetEncoding(1252); } catch (Exception) { single = Encoding.GetEncoding(28591); }
+                var strict = new UTF8Encoding(false, true);
+                string repaired = strict.GetString(single.GetBytes(text));
+                return repaired.IndexOf('\uFFFD') < 0 ? repaired : text;
+            }
+            catch (Exception) { return text; }
+        }
 
         public int Count(string group) => groups[group].Length;
         public string ReferenceFor(string group, int variant)

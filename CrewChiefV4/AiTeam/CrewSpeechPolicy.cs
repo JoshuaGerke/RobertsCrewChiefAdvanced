@@ -482,7 +482,7 @@ namespace CrewChiefV4.AiTeam
                 member == TeamMember.Ben && (TrackSituationWatch.ClosingAheadPhrases.Contains(text) || text == IncidentWatch.DamagePitAdvicePhrase ||
                     TrackSituationWatch.CatchingPhrases.Contains(text) || TrackSituationWatch.StoppedPhrases.Contains(text) ||
                     TrackSituationWatch.ApproachingPhrases.Contains(text) || RaceSituationWatch.IsPreparedPhrase(text) ||
-                    RaceTrafficWatch.PreparedPhrases.Contains(text) || NativeIncidentWatch.Phrases.Contains(text));
+                    RaceTrafficWatch.PreparedPhrases.Contains(text) || NativeIncidentWatch.Phrases.Contains(text) || MulticlassTraffic.PreparedPhrases.Contains(text));
         }
 
         public static bool CacheOnly(bool automatic, int priority, TeamMember member)

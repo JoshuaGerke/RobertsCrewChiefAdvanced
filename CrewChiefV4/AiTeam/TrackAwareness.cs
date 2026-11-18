@@ -21,6 +21,8 @@ namespace CrewChiefV4.AiTeam
             return n.Contains("safety car") || n.Contains("safetycar") || n.Contains("pace car") || n.Contains("medical car");
         }
         internal readonly string NativeName, NativeNumber;
+        /// <summary>Sprechbarer Klassenname des Autos (LMP2, GT3, Hypercar …) oder null.</summary>
+        internal readonly string ClassLabel;
         internal readonly string NativeIdentity;
         internal readonly int NativeCarId;
         public readonly bool InPits, SameClass, ClassComparisonKnown, SpatiallyConsistent, OnInLap, OnOutLap, LapContextKnown;
@@ -40,6 +42,7 @@ namespace CrewChiefV4.AiTeam
                 own.carClass.carClassEnum!=CarData.CarClassEnum.USER_CREATED && car.CarClass.carClassEnum!=CarData.CarClassEnum.UNKNOWN_RACE &&
                 car.CarClass.carClassEnum!=CarData.CarClassEnum.USER_CREATED;
             SameClass=ClassComparisonKnown && CarData.IsCarClassEqual(own.carClass,car.CarClass,false);
+            ClassLabel=MulticlassTraffic.Label(car.CarClass);
             X=x; Z=z; LapDistanceM=distance; RouteGapM=gap; WorldDistanceM=worldDistance;
             SpeedMps=TrackAwareness.InRange(car.Speed,0,180); ClosingMps=closing; LapOffset=lapOffset;
             SpatiallyConsistent=consistent;

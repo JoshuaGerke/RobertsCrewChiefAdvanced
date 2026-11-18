@@ -65,7 +65,8 @@ namespace CrewChiefV4.AiTeam
             "overlap_left overlap_right telemetry_age_s api_calls budget radio_mode deadline_s correlation_parent utterance_sequence " +
             "prompt_tokens completion_tokens finish_reason reasoning_tokens content_chars completion_limit sample_count input_ticks duplicate late silence_s source trigger result " +
             "position_matrix matrix_columns row_offset total_cars track_length_m source_utc due_utc late_s interval_s " +
-            "damage_aero_pct damage_engine_pct damage_brake_pct damage_suspension_pct damage_source_utc tyre_temp_lap_peak_c engine_oil_temp_c engine_water_temp_c").Split(' '));
+            "damage_aero_pct damage_engine_pct damage_brake_pct damage_suspension_pct damage_source_utc tyre_temp_lap_peak_c engine_oil_temp_c engine_water_temp_c " +
+            "penalties_open penalty_type penalty_cause penalty_warning damage_aero_level damage_engine_level wheels_attached pit_requested pit_crew_ready").Split(' '));
         private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk[-_][a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
 
         public DiagnosticRecorder(string folder, DiagnosticLimits options = null, string[] secrets = null)
@@ -367,6 +368,12 @@ namespace CrewChiefV4.AiTeam
                 "damage_aero_pct",FiniteReading(current.CarDamageData.AeroDamagePercent,0,100),"damage_engine_pct",FiniteReading(current.CarDamageData.EngineDamagePercent,0,100),
                 "damage_brake_pct",current.CarDamageData.BrakeDamagePercent.Select(v=>FiniteReading(v,0,100)).ToArray(),
                 "damage_suspension_pct",current.CarDamageData.SuspensionDamagePercent.Select(v=>FiniteReading(v,0,100)).ToArray(),
+                // LMU 18.11.: Strafen, Schadensstufen, Räder und Crew-Meldung mitschreiben, damit der nächste Test sie belegt.
+                "penalties_open",current.PenaltiesData.NumOutstandingPenalties,"penalty_type",current.PenaltiesData.PenaltyType.ToString(),
+                "penalty_cause",current.PenaltiesData.PenaltyCause.ToString(),"penalty_warning",current.PenaltiesData.Warning.ToString(),
+                "damage_aero_level",current.CarDamageData.OverallAeroDamage.ToString(),"damage_engine_level",current.CarDamageData.OverallEngineDamage.ToString(),
+                "wheels_attached",new[]{t.LeftFrontAttached,t.RightFrontAttached,t.LeftRearAttached,t.RightRearAttached},
+                "pit_requested",current.PitData.HasRequestedPitStop,"pit_crew_ready",current.PitData.IsPitCrewReady,
                 "damage_source_utc",current.SourceTelemetryUtc==DateTime.MinValue?null:current.SourceTelemetryUtc.ToString("o")));
         }
         private static double? FiniteReading(float value,float min,float max)

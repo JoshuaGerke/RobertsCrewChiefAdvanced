@@ -234,7 +234,7 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Interne Streckennamen wie "Monza:Monza_2020" so, wie man sie spricht ("Monza").</summary>
         internal static string SpokenTrack(string track)
         {
-            string name = (track ?? "").Split(':')[0].Replace('_', ' ').Trim();
+            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Replace('_', ' ').Trim();
             return name.Length > 0 ? name : track;
         }
     }

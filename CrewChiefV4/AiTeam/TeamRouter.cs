@@ -81,6 +81,29 @@ namespace CrewChiefV4.AiTeam
             return new RoutedRequest { Member = member, Question = text, AddressedByName = false };
         }
 
+        /// <summary>
+        /// LMU-Test 18.11.: „Seid ihr alle da?“ ging an den ausgeschalteten Mik und blieb unbeantwortet. Ist der gewählte
+        /// Sprecher aus, antwortet ein eingeschaltetes Crewmitglied: zuerst der letzte Gesprächspartner, dann Ben, Mik, Sara.
+        /// null, wenn niemand eingeschaltet ist.
+        /// </summary>
+        internal static TeamMember? Available(TeamMember wanted, Func<TeamMember, bool> enabled, TeamMember? last)
+        {
+            if (enabled(wanted)) return wanted;
+            if (last.HasValue && enabled(last.Value)) return last.Value;
+            foreach (var m in new[] { TeamMember.Ben, TeamMember.Mik, TeamMember.Sara }) if (enabled(m)) return m;
+            return null;
+        }
+
+        // LMU-Test 18.11.: „Le Mans Ultimate“ kam als „Lemon Ultimate“ an, und die Crew sprach es so nach.
+        private static readonly Regex lmuMisheard = new Regex(@"\b(lemons?|lemans|le\s?man|lehmanns?|lehmans?)\s+ultimate?\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>Korrigiert bekannte Hörfehler bei Sim-Namen in der Spracherkennung.</summary>
+        internal static string FixSimNames(string transcript)
+        {
+            return string.IsNullOrEmpty(transcript) ? transcript : lmuMisheard.Replace(transcript, "Le Mans Ultimate");
+        }
+
         internal static bool HasWord(string text, string word)
         {
             return Regex.IsMatch(text ?? "", @"\b" + Regex.Escape(word) + @"\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);

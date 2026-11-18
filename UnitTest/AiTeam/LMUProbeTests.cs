@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using CrewChiefV4.AiTeam;
 using CrewChiefV4.AiTeam.Probe;
 using NUnit.Framework;
 using rF2SharedMemory;
@@ -123,6 +124,75 @@ namespace UnitTest.AiTeamTests
             Put(src, count, 1);
             Assert.IsTrue(LMUProbeAnalyzer.CopyVersioned(busy, new byte[src.Length], 0, count, array, stride, out torn));
             Assert.AreEqual(1, torn, "während des Kopierens überschrieben: verworfen, nächster Versuch gilt");
+        }
+
+        [Test]
+        public void Native_layout_matches_the_game_interface()
+        {
+            Assert.IsNull(LMUNativeLayout.LayoutProblem());
+            Assert.AreEqual(1632, LMUNativeLayout.ScoringOffset);
+            Assert.AreEqual(2192, LMUNativeLayout.ScoringVehiclesOffset);
+            Assert.AreEqual(128464, LMUNativeLayout.TelemetryOffset);
+            Assert.AreEqual(128468, LMUNativeLayout.TelemetryVehiclesOffset);
+            Assert.AreEqual(324824, LMUNativeLayout.TotalSize);
+            var a = new LMUProbeAnalyzer(1000, true);
+            Assert.IsNull(a.LayoutError);
+            Assert.AreEqual("LMU_nativ", a.FilePrefix);
+            Assert.AreEqual("LMU_Data", a.SharedMemoryName);
+            Assert.IsTrue(a.Channels.All(c => c.Offset >= 0 && c.Offset + 8 <= a.StructSize));
+        }
+
+        [Test]
+        public void Native_frame_uses_the_player_index_from_the_game()
+        {
+            byte[] b = NativeFrame(player: 2, et: 12.5);
+            var a = new LMUProbeAnalyzer(1000, true);
+            a.Observe(b, 1, 0);
+            Assert.AreEqual(2, a.OwnIndex);
+            Func<string, int, double> read = (id, i) => a.Channels.Single(c => c.Id == id).Read(b, i);
+            Assert.AreEqual(-55.5, read("bewegung.v_laengs", 0), 1e-9);
+            Assert.AreEqual(4.0, read("runde.platz", 0), 1e-9);
+            Assert.AreEqual(2.0, read("gegner.platz", 0), 1e-9);
+            Assert.AreEqual(1, a.ActivePolls);
+            for (int ms = 2; ms <= 1000; ms++)
+            {
+                if (ms % 10 == 0) Put(b, LMUNativeLayout.TelemetryVehiclesOffset + 2 * LMUNativeLayout.VehicleTelemetrySize + Marshal.OffsetOf(typeof(rF2VehicleTelemetry), "mElapsedTime").ToInt32(), 12.5 + ms / 1000.0);
+                a.Observe(b, ms, 0);
+            }
+            Assert.AreEqual(100, a.SourceFramesPerSecond, 3, "100 Hz über die Fahrzeit des eigenen Autos");
+            var f = new DynamicsFrame(); double last = double.NaN;
+            Assert.IsTrue(LMUNativeDynamicsSource.Fill(b, f, ref last));
+            Assert.AreEqual(55.5, f.Speed, 1e-3);
+            Assert.IsTrue(f.AbsActive, "nativ meldet ABS-Eingriff");
+            Assert.IsFalse(f.AbsUnknown);
+            Assert.IsFalse(LMUNativeDynamicsSource.Fill(b, f, ref last), "gleiche Fahrzeit: kein neues Bild");
+            b[LMUNativeLayout.PlayerHasVehicleOffset] = 0;
+            Assert.IsFalse(LMUNativeLayout.Plausible(b) && LMUNativeDynamicsSource.Fill(b, f, ref last), "ohne eigenes Auto kein Bild");
+        }
+
+        private static void Put(byte[] b, int at, double v) { Buffer.BlockCopy(BitConverter.GetBytes(v), 0, b, at, 8); }
+
+        /// <summary>Natives Abbild: drei Autos, Telemetrie 7, 3, 9; Wertung 3, 9, 7; eigenes Auto Index 2 (ID 9).</summary>
+        private static byte[] NativeFrame(int player, double et)
+        {
+            var b = new byte[new LMUProbeAnalyzer(1000, true).StructSize];
+            b[LMUNativeLayout.ActiveVehiclesOffset] = 3; b[LMUNativeLayout.PlayerIndexOffset] = (byte)player; b[LMUNativeLayout.PlayerHasVehicleOffset] = 1;
+            int[] ids = { 7, 3, 9 };
+            for (int i = 0; i < 3; i++)
+            {
+                var v = Filled<rF2VehicleTelemetry>(); v.mID = ids[i]; v.mElapsedTime = et;
+                if (i == player) { v.mLocalVel.z = -55.5; v.mABSActive = 1; }
+                Bytes(v).CopyTo(b, LMUNativeLayout.TelemetryVehiclesOffset + i * LMUNativeLayout.VehicleTelemetrySize);
+            }
+            var info = Filled<rF2ScoringInfo>(); info.mNumVehicles = 3; info.mInRealtime = 1; info.mGamePhase = 5;
+            Bytes(info).CopyTo(b, LMUNativeLayout.ScoringOffset);
+            int[] sids = { 3, 9, 7 }; byte[] places = { 3, 4, 2 };
+            for (int i = 0; i < 3; i++)
+            {
+                var s = Filled<rF2VehicleScoring>(); s.mID = sids[i]; s.mPlace = places[i]; s.mIsPlayer = (byte)(sids[i] == ids[player] ? 1 : 0);
+                Bytes(s).CopyTo(b, LMUNativeLayout.ScoringVehiclesOffset + i * LMUNativeLayout.VehicleScoringSize);
+            }
+            return b;
         }
 
         // ---- Hilfen ----

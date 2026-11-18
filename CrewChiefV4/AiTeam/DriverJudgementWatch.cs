@@ -564,6 +564,9 @@ namespace CrewChiefV4.AiTeam
             if (pos != before - 1 || !green || s.CompletedLaps < 1) return;
             var passed = RaceDataTools.Neighbour(gs, false);
             if (passed == null || passed.InPits || passed.isEnteringPits()) return; // Platz durch Boxenstopp des Gegners ist kein Überholmanöver
+            // LMU 18.11.: „du bist trotzdem vorbei“ – Rob hatte niemanden überholt, der Gegner stand weit weg (Garage/Unfall).
+            // Lob nur, wenn der Überholte jetzt wirklich auf der Strecke dicht hinter uns fährt.
+            if (!PassedOnTrack(gs, passed)) return;
             var key = gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, passed)).Key;
             float mine = s.PlayerLapTimeSessionBest;
             overtake = new Pending
@@ -575,6 +578,19 @@ namespace CrewChiefV4.AiTeam
             };
             if (overtake.PassedIdentity != null && passedBy.TryGetValue(overtake.PassedIdentity, out var lostAt) && now >= lostAt && now - lostAt < RetakeWindow)
                 overtake.Retake = true;
+        }
+
+        internal const float PassEvidenceMetres = 300;
+
+        /// <summary>Der Überholte liegt in der Renndistanz knapp hinter uns und fährt (kein Platzgewinn durch Ausfall oder Garage).</summary>
+        internal static bool PassedOnTrack(GameStateData gs, OpponentData passed)
+        {
+            float length = gs?.SessionData.TrackDefinition?.trackLength ?? 0;
+            if (passed == null || length <= 100 || passed.Speed < 5 || passed.DistanceRoundTrack < 0) return false;
+            double own = (double)gs.SessionData.CompletedLaps * length + gs.PositionAndMotionData.DistanceRoundTrack;
+            double rival = (double)passed.CompletedLaps * length + passed.DistanceRoundTrack;
+            double behind = own - rival;
+            return behind > 0 && behind <= PassEvidenceMetres;
         }
 
         private void Offer(GameStateData gs, DateTime now, string topic, string text, string evidence, int priority, TimeSpan life)
