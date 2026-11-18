@@ -55,6 +55,7 @@
     'Keine gespeicherten Bestzeiten gefunden.': ['No saved personal bests found.','No se encontraron mejores tiempos guardados.'],
     'Alle Bestzeiten gelöscht.': ['All personal bests deleted.','Todos los mejores tiempos borrados.'],
     'Telemetrie-Messung': ['Telemetry measurement','Medición de telemetría'],
+    'Diagnose-Speicherlimit erreicht (512 MiB). Ältere .jsonl-Dateien im Diagnoseordner in einen Unterordner (z. B. Archiv) verschieben und neu einschalten.': ['Diagnostics storage limit reached (512 MiB). Move older .jsonl files in the diagnostics folder into a subfolder (e.g. Archive) and switch on again.','Límite de almacenamiento de diagnóstico alcanzado (512 MiB). Mueve los archivos .jsonl antiguos de la carpeta de diagnóstico a una subcarpeta (p. ej. Archivo) y vuelve a activarlo.'],
     'Telemetrie-Messung einschalten (RaceRoom, AMS2, LMU)': ['Enable telemetry measurement (RaceRoom, AMS2, LMU)','Activar medición de telemetría (RaceRoom, AMS2, LMU)'],
     'wartet auf RaceRoom, AMS2 oder LMU': ['waiting for RaceRoom, AMS2 or LMU','esperando a RaceRoom, AMS2 o LMU'],
     'keine neuen Daten – suche Spiel': ['no new data – looking for the game','sin datos nuevos – buscando el simulador'],
@@ -101,6 +102,8 @@
     [/^Fehler · (.*)$/, why=>pick('Fehler · '+why,'Error · '+why,'Error · '+why)],
     [/^Telemetrie-Messung aktiv\. Bericht: (.*)$/, path=>pick('Telemetrie-Messung aktiv. Bericht: ','Telemetry measurement active. Report: ','Medición de telemetría activa. Informe: ')+path],
     [/^Telemetrie-Messung konnte nicht starten: (.*)$/, why=>pick('Telemetrie-Messung konnte nicht starten: ','Telemetry measurement could not start: ','No se pudo iniciar la medición de telemetría: ')+why],
+    [/^Ältere Aufnahmen ins Archiv verschoben: (\d+) Dateien\. Lokale Diagnose aktiv: (.*)$/, (n,path)=>pick('Ältere Aufnahmen ins Archiv verschoben: '+n+' Dateien. Lokale Diagnose aktiv: ','Older recordings moved to the archive: '+n+' files. Local diagnostics active: ','Grabaciones antiguas movidas al archivo: '+n+' archivos. Diagnóstico local activo: ')+path],
+    [/^Lokale Diagnose aktiv: (.*)$/, path=>pick('Lokale Diagnose aktiv: ','Local diagnostics active: ','Diagnóstico local activo: ')+path],
     [/^Frage an die Crew: (.*)$/, value=>pick('Frage an die Crew: ','Question for the crew: ','Pregunta al equipo: ')+value]
   ];
   function t(text) {
