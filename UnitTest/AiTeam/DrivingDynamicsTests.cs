@@ -242,6 +242,26 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void AC_feeds_the_100_Hz_analysis_from_the_kunos_buffers()
+        {
+            foreach (var game in new[] { CrewChiefV4.GameEnum.ASSETTO_64BIT, CrewChiefV4.GameEnum.ASSETTO_32BIT, CrewChiefV4.GameEnum.ASSETTO_128CARS })
+                Assert.IsTrue(DynamicsSampler.Supports(game), game.ToString());
+            // Feste Lage der Kunos-Physik (packetId, gas, brake, fuel, gear, rpms, steerAngle, speedKmh): bricht eine Strukturänderung
+            // diese Werte, läse die Quelle Unsinn.
+            Assert.AreEqual(0, ACSDynamicsSource.pPacket);
+            Assert.AreEqual(4, ACSDynamicsSource.pGas);
+            Assert.AreEqual(8, ACSDynamicsSource.pBrake);
+            Assert.AreEqual(16, ACSDynamicsSource.pGear);
+            Assert.AreEqual(24, ACSDynamicsSource.pSteer);
+            Assert.AreEqual(28, ACSDynamicsSource.pSpeed);
+            using (var source = new ACSDynamicsSource())
+            {
+                Assert.AreEqual("AC", source.Name);
+                Assert.IsFalse(source.Read(new DynamicsFrame(), 0), "ohne laufendes Spiel kein Bild");
+            }
+        }
+
+        [Test]
         public void Engineer_radio_for_dynamics_varies_and_exists_in_three_languages()
         {
             foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
