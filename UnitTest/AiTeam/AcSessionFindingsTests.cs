@@ -226,6 +226,43 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Give_back_after_passing_under_yellow_reaches_the_crew_through_the_voice_filter()
+        {
+            var gs = Race(); gs.FlagData.numCarsPassedIllegally = 1;
+            var w = new LiveWarningDispatcher();
+            Assert.IsTrue(w.Capture(NativeMessage("flags/give_one_position_back_first_warning"), gs, T));
+            w.Observe(gs, T);
+            var call = w.Take(gs, T, false, m => true);
+            Assert.IsNotNull(call);
+            Assert.AreEqual(TeamMember.Sara, call.Member);
+            Assert.AreEqual(9, call.Priority);
+            StringAssert.Contains("den Platz zurück", call.Text);
+            gs.FlagData.numCarsPassedIllegally = 0;
+            Assert.IsFalse(call.IsValid(gs, T.AddSeconds(1)), "schon zurückgegeben: Meldung entfällt");
+
+            var two = Race(); two.FlagData.numCarsPassedIllegally = 2;
+            var w2 = new LiveWarningDispatcher();
+            Assert.IsTrue(w2.Capture(NativeMessage("flags/give_positions_back_first_warning_intro"), two, T));
+            w2.Observe(two, T);
+            StringAssert.Contains("2 Plätze", w2.Take(two, T, false, m => true).Text);
+
+            var done = Race();
+            var w3 = new LiveWarningDispatcher();
+            Assert.IsTrue(w3.Capture(NativeMessage("flags/give_positions_back_completed"), done, T));
+            w3.Observe(done, T);
+            var ok = w3.Take(done, T, false, m => true);
+            Assert.AreEqual(TeamMember.Ben, ok.Member);
+            CollectionAssert.Contains(NativeRaceControl.Options("giveback-done"), ok.Text);
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(5, NativeRaceControl.Options("giveback:1").Distinct().Count(), lang);
+                Assert.AreEqual(4, NativeRaceControl.Options("giveback-done").Distinct().Count(), lang);
+                Assert.IsTrue(NativeRaceControl.Options("giveback:3").All(t => char.IsUpper(t[0])), lang);
+            }
+        }
+
+        [Test]
         public void Name_budget_is_per_session_and_covers_a_full_field()
         {
             Assert.GreaterOrEqual(AiTeamService.OpponentWarmBudget, 40, "ein volles Feld, nicht 24 Namen für die ganze Programmlaufzeit");

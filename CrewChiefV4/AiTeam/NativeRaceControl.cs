@@ -35,6 +35,10 @@ namespace CrewChiefV4.AiTeam
                 if (f.StartsWith("penalties/stop_go_", StringComparison.Ordinal) || f == "penalties/new_penalty_stopgo") return "pen-type:sg:" + Cause(f);
                 if (f == "penalties/time_penalty") return "pen-type:time:";
                 if (f == "penalties/blue_move_now_or_be_penalized") return "pen-blue";
+                // Platz zurückgeben nach Überholen unter Gelb (RaceRoom meldet es; Crew Chiefs eigene Meldung ging im Filter verloren).
+                if (f == "flags/give_one_position_back_first_warning" || f == "flags/give_one_position_back_next_warning") return "giveback:1";
+                if (f == "flags/give_positions_back_first_warning_intro" || f == "flags/give_positions_back_next_warning_intro") return "giveback:n";
+                if (f == "flags/give_positions_back_completed") return "giveback-done";
             }
             return null;
         }
@@ -51,12 +55,21 @@ namespace CrewChiefV4.AiTeam
             return "";
         }
 
-        internal static TeamMember Member(string kind) => kind.StartsWith("pen", StringComparison.Ordinal) || kind == "investigation" ? TeamMember.Ben : TeamMember.Sara;
+        internal static TeamMember Member(string kind) => kind.StartsWith("pen", StringComparison.Ordinal) || kind == "investigation" || kind == "giveback-done" ? TeamMember.Ben : TeamMember.Sara;
+
+        /// <summary>„giveback:n“ bekommt die gemeldete Zahl der Plätze aus dem Spielstand.</summary>
+        internal static string Resolve(string kind, GameStateData gs)
+        {
+            if (kind != "giveback:n" || gs == null) return kind;
+            int n = gs.FlagData.numCarsPassedIllegally;
+            return n == 1 ? "giveback:1" : n >= 2 && n <= 9 ? "giveback:" + n : kind;
+        }
 
         /// <summary>Zuletzt gemeldete abgesessene Strafe (gegen doppelte Meldung aus Zählung und Rennleitung).</summary>
         internal static DateTime LastServedUtc = DateTime.MinValue;
 
-        internal static int Priority(string kind) => kind.StartsWith("dyellow", StringComparison.Ordinal) || kind.StartsWith("yellow", StringComparison.Ordinal) ? 8 :
+        internal static int Priority(string kind) => kind.StartsWith("giveback:", StringComparison.Ordinal) ? 9 :
+            kind.StartsWith("dyellow", StringComparison.Ordinal) || kind.StartsWith("yellow", StringComparison.Ordinal) ? 8 :
             kind == "pen-pitnow" || kind == "pen-laps:1" ? 8 : kind.StartsWith("pen-type", StringComparison.Ordinal) ? 7 : 5;
 
         internal static string Topic(string kind)
@@ -145,6 +158,23 @@ namespace CrewChiefV4.AiTeam
                         RadioLanguage.T("Sauber, die Strafe ist durch. Jetzt wieder Tempo.", "Good, the penalty's done. Back up to speed now.", "Bien, la penalización está cumplida. Ahora a recuperar ritmo."),
                         RadioLanguage.T("Die Rennleitung führt die Strafe als erledigt.", "Race control shows the penalty as served.", "Dirección de carrera da la penalización por cumplida."),
                         RadioLanguage.T("Strafe ist weg. Konzentrier dich wieder aufs Fahren.", "Penalty cleared. Focus back on driving.", "Penalización borrada. Vuelve a centrarte en conducir."));
+                case "giveback":
+                    string places = n == "1" ? RadioLanguage.T("den Platz", "the place", "la posición") :
+                        n == "n" ? RadioLanguage.T("die Plätze", "the places", "las posiciones") :
+                        RadioLanguage.T(n + " Plätze", n + " places", n + " posiciones");
+                    string him = n == "1" ? RadioLanguage.T("ihn", "him", "") : RadioLanguage.T("sie", "them", "s");
+                    return V("rc-giveback",
+                        RadioLanguage.T("Unter Gelb überholt, gib " + places + " zurück!", "You passed under yellow, give " + places + " back!", "Adelantaste con amarilla, ¡devuelve " + places + "!"),
+                        RadioLanguage.T("Das war unter Gelb: " + places + " zurückgeben.", "That was under yellow: give " + places + " back.", "Fue con amarilla: devuelve " + places + "."),
+                        RadioLanguage.T("Achtung, Überholen unter Gelb. Lass " + him + " wieder vorbei.", "Careful, that pass was under yellow. Let " + him + " back past.", "Ojo, adelantamiento con amarilla. Déjale" + him + " pasar otra vez."),
+                        RadioLanguage.T("Zurückgeben musst du " + places + ", sonst gibt es eine Strafe.", "You have to give " + places + " back or it's a penalty.", "Tienes que devolver " + places + " o habrá sanción."),
+                        RadioLanguage.T("Gelbverstoß: " + places + " zurück, dann ist es erledigt.", "Yellow flag breach: give " + places + " back and it's sorted.", "Infracción con amarilla: devuelve " + places + " y queda resuelto."));
+                case "giveback-done":
+                    return V("rc-giveback-done",
+                        RadioLanguage.T("Platz zurückgegeben, das ist sauber.", "Place given back, that's clean.", "Puesto devuelto, todo limpio."),
+                        RadioLanguage.T("Erledigt, die Rennleitung ist zufrieden.", "Done, race control is happy.", "Hecho, dirección de carrera conforme."),
+                        RadioLanguage.T("Gut gemacht, der Gelbverstoß ist vom Tisch.", "Well done, the yellow flag issue is closed.", "Bien hecho, asunto de la amarilla cerrado."),
+                        RadioLanguage.T("Sauber zurückgegeben, jetzt wieder angreifen.", "Cleanly handed back, now attack again.", "Devuelto limpio, ahora a atacar de nuevo."));
                 case "pen-blue":
                     return V("rc-pen-blue",
                         RadioLanguage.T("Blaue Flagge, lass ihn jetzt vorbei, sonst gibt es eine Strafe.", "Blue flag, let him by now or we get a penalty.", "Bandera azul, déjale pasar ya o nos penalizan."),
@@ -174,6 +204,7 @@ namespace CrewChiefV4.AiTeam
                 case "dyellow": return sector == 0 ? !gs.FlagData.isLocalYellow : flag == FlagEnum.UNKNOWN || flag == FlagEnum.DOUBLE_YELLOW || flag == FlagEnum.YELLOW;
                 case "green": return flag == FlagEnum.UNKNOWN || flag == FlagEnum.GREEN;
                 case "pen-laps": case "pen-pitnow": return !gs.PitData.InPitlane && gs.PenaltiesData.NumOutstandingPenalties != 0;
+                case "giveback": return gs.FlagData.numCarsPassedIllegally > 0;
                 default: return true;
             }
         }

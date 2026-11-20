@@ -163,7 +163,7 @@ namespace CrewChiefV4.AiTeam
         public bool Capture(QueuedMessage message,GameStateData gs,DateTime now)
         {
             if(message==null || gs==null)return false;
-            string kind=Classify(message.messageFolders) ?? NativeRaceControl.Classify(message.messageFolders);
+            string kind=Classify(message.messageFolders) ?? NativeRaceControl.Resolve(NativeRaceControl.Classify(message.messageFolders),gs);
             if(kind==null)return false;
             native.Enqueue(new Native {Kind=kind,Source=message.messageName,Session=gs.SessionData.SessionId,
                 Type=gs.SessionData.SessionType,Lap=gs.SessionData.CompletedLaps,Utc=now,
@@ -236,7 +236,8 @@ namespace CrewChiefV4.AiTeam
                 if(n.Session!=gs.SessionData.SessionId || n.Type!=gs.SessionData.SessionType || now<n.Utc || now-n.Utc>TimeSpan.FromSeconds(2))continue;
                 var captured=n;
                 if(n.Kind.StartsWith("yellow",StringComparison.Ordinal) || n.Kind.StartsWith("dyellow",StringComparison.Ordinal) ||
-                    n.Kind.StartsWith("green",StringComparison.Ordinal) || n.Kind.StartsWith("pen",StringComparison.Ordinal))
+                    n.Kind.StartsWith("green",StringComparison.Ordinal) || n.Kind.StartsWith("pen",StringComparison.Ordinal) ||
+                    n.Kind.StartsWith("giveback",StringComparison.Ordinal))
                 {
                     string kind=n.Kind, text=NativeRaceControl.Text(kind);
                     // Ein neuer Gelb-/Grün-Stand löst den alten ab.
@@ -332,7 +333,7 @@ namespace CrewChiefV4.AiTeam
                 RaceChronicle.Current.Add(gs,now,ChronicleKind.Yellow,detail:kind.Replace(':','_'),source:source,subjectName:who,dedupe:TimeSpan.FromSeconds(20));
             else if(kind=="pen-served")
                 RaceChronicle.Current.Add(gs,now,ChronicleKind.PenaltyServed,source:source,dedupe:TimeSpan.FromSeconds(30));
-            else if(kind.StartsWith("pen",StringComparison.Ordinal) || kind=="investigation")
+            else if(kind.StartsWith("pen",StringComparison.Ordinal) || kind=="investigation" || kind.StartsWith("giveback:",StringComparison.Ordinal))
                 RaceChronicle.Current.Add(gs,now,ChronicleKind.Penalty,detail:kind,source:source,dedupe:TimeSpan.FromSeconds(30));
         }
 
