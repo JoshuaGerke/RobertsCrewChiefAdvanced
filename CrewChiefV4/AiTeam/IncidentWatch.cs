@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using CrewChiefV4.Events;
 using CrewChiefV4.GameState;
 
@@ -81,6 +82,26 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Ein Telemetrie-Tick. Liefert die fälligen Funksprüche (meist keinen).</summary>
         /// <summary>Strafart mit Grund, so wie das Spiel sie meldet.</summary>
+        /// <summary>Offene Strafen in derselben Sitzung weniger geworden (abgesessen bzw. von der Rennleitung erledigt).</summary>
+        internal static bool PenaltyServed(PenatiesData before, PenatiesData now, GameStateData current, GameStateData previous) =>
+            before != null && now != null && current != null && previous != null &&
+            current.SessionData.SessionId == previous.SessionData.SessionId && current.SessionData.SessionType == previous.SessionData.SessionType &&
+            before.NumOutstandingPenalties > 0 && now.NumOutstandingPenalties >= 0 && now.NumOutstandingPenalties < before.NumOutstandingPenalties &&
+            (current.SessionData.SessionPhase == SessionPhase.Green || current.SessionData.SessionPhase == SessionPhase.FullCourseYellow);
+
+        internal static string ServedText(int stillOpen)
+        {
+            string text = RadioVariants.Pick("incident-penalty-served",
+                RadioLanguage.T("Strafe abgesessen, das ist erledigt.", "Penalty served, that's done.", "Penalización cumplida, asunto cerrado."),
+                RadioLanguage.T("Sauber, die Strafe ist durch. Jetzt wieder Tempo.", "Good, the penalty's done. Back up to speed now.", "Bien, la penalización está cumplida. Ahora a recuperar ritmo."),
+                RadioLanguage.T("Die Rennleitung führt die Strafe als erledigt.", "Race control shows the penalty as served.", "Dirección de carrera da la penalización por cumplida."),
+                RadioLanguage.T("Strafe ist weg. Konzentrier dich wieder aufs Fahren.", "Penalty cleared. Focus back on driving.", "Penalización borrada. Vuelve a centrarte en conducir."));
+            if (stillOpen > 0)
+                text += " " + (stillOpen == 1 ? RadioLanguage.T("Eine ist noch offen.", "One is still open.", "Queda una pendiente.")
+                    : RadioLanguage.T("Noch " + stillOpen + " offen.", stillOpen + " still open.", "Quedan " + stillOpen + " pendientes."));
+            return text;
+        }
+
         internal static string DetailedPenalty(PenatiesData.DetailedPenaltyType type, PenatiesData.DetailedPenaltyCause cause)
         {
             string what;
@@ -104,6 +125,18 @@ namespace CrewChiefV4.AiTeam
                 default: why = ""; break;
             }
             return what + why;
+        }
+
+        private bool lastNativeInvalid;
+        private static int adviceVariant;
+        /// <summary>Letzter Kontakt/Schadensanstieg mit eigenem Schadensbericht (die Zahlenmeldung schweigt dann).</summary>
+        internal static DateTime LastDamageEventUtc = DateTime.MinValue;
+
+        /// <summary>Ist die laufende Runde gestrichen? In LMU nach dem nativen Wert, sonst nach Crew Chiefs Rundengültigkeit.</summary>
+        internal static bool CurrentLapInvalid(GameStateData gs, DateTime nowUtc)
+        {
+            var native = LMUNativeSnapshot.Fresh(nowUtc);
+            return native != null ? native.LapInvalidated : gs != null && !gs.SessionData.CurrentLapIsValid;
         }
 
         public List<KeyValuePair<TeamMember, string>> Evaluate(GameStateData previous, GameStateData current, DateTime nowUtc, bool minimalMode)
@@ -139,6 +172,8 @@ namespace CrewChiefV4.AiTeam
                     positionBeforeIncident = StablePosition(previous.SessionData.ClassPosition);
                 }
                 lastContactUtc = nowUtc;
+                LastDamageEventUtc = nowUtc;
+                Interlocked.Increment(ref adviceVariant);
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
                 // Preserve Joshua's driver check before the damage report after a proven heavy impact.
                 // A serious damage change without an impact signal is reported immediately, without inventing a collision.
@@ -263,13 +298,29 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T(" Die holen wir in der Box ab, ich rechne mit dem Abstand nach hinten.", " We'll serve it in the pits, I'm working with the gap behind.", " La cumplimos en boxes, calculo con la distancia por detrás."),
                     RadioLanguage.T(" Muss durch die Box, ich sag dir, wann es am wenigsten kostet.", " It means a trip through the pits, I'll tell you when it costs least.", " Toca pasar por boxes, te digo cuándo cuesta menos."),
                     RadioLanguage.T(" Wir müssen dafür in die Box, ich beobachte den Verkehr hinter dir.", " We have to take it in the pits, I'm watching the traffic behind.", " Hay que entrar a boxes para cumplirla, vigilo el tráfico detrás."));
-                result.Add(Say(TeamMember.Ben, got + serveText));
+                // LMU 20.11.: Die Art kam nicht an („eine Strafe für uns“). Ehrlich sagen, wo Rob sie sieht.
+                string unknownType = p.NumOutstandingPenalties > pp.NumOutstandingPenalties && !serve && !p.HasTimeDeduction && !p.HasSlowDown &&
+                    p.PenaltyType == PenatiesData.DetailedPenaltyType.NONE
+                    ? RadioLanguage.T(" Die Art meldet das Spiel nicht, schau kurz aufs Display.", " The game doesn't say which kind, check your display.", " El juego no dice de qué tipo, mira la pantalla.") : "";
+                result.Add(Say(TeamMember.Ben, got + serveText + unknownType));
+            }
+            else if (PenaltyServed(pp, p, current, previous) && !(nowUtc >= NativeRaceControl.LastServedUtc && nowUtc - NativeRaceControl.LastServedUtc < TimeSpan.FromSeconds(30)))
+            {
+                NativeRaceControl.LastServedUtc = nowUtc;
+                // Rob 20.11.: „Ihr müsst auch erkennen, wenn ich sie abgesessen habe.“
+                LiveDiagnostics.Decision("incident-penalty-served", "detected", "open=" + pp.NumOutstandingPenalties + "->" + p.NumOutstandingPenalties, null);
+                result.Add(Say(TeamMember.Ben, ServedText(p.NumOutstandingPenalties)));
             }
 
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
             // increase supports a track-limit comment; a warning need not invalidate the lap.
             int lap = current.SessionData.CompletedLaps;
-            bool invalidated = previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit &&
+            // LMU 20.11.: „Diese Runde ist nicht ungültig“ – LMU sagt nativ, ob die laufende Runde wirklich gestrichen ist.
+            var native = LMUNativeSnapshot.Fresh(nowUtc);
+            bool nowInvalid = native != null ? native.LapInvalidated : !current.SessionData.CurrentLapIsValid;
+            bool wasInvalid = native != null ? lastNativeInvalid && !current.SessionData.IsNewLap : !previous.SessionData.CurrentLapIsValid;
+            if (native != null) lastNativeInvalid = native.LapInvalidated;
+            bool invalidated = !wasInvalid && nowInvalid && !inPit &&
                 !current.PitData.OnOutLap && !previous.PitData.OnOutLap && !current.SessionData.IsNewLap && lap != lastInvalidLap;
             if (invalidated)
             {
@@ -284,6 +335,8 @@ namespace CrewChiefV4.AiTeam
                 lastReportedCutWarnings = p.CutTrackWarnings;
                 TrackLimitWarnings++;
             }
+            // LMU liefert die Tracklimit-Punkte nativ; dann meldet Mik den Punktestand (LMUTrackLimitPoints) statt der Zählung.
+            if (limitWarning && native != null && native.StepsPerPoint > 0) limitWarning = false;
             if (!minimalMode && (limitWarning || invalidated))
             {
                 string text = limitWarning ? language.TrackLimit(TrackLimitWarnings > 1, invalidated)
@@ -327,16 +380,19 @@ namespace CrewChiefV4.AiTeam
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
+            bool wheelGone = AddWheels(parts, d, ref serious);
             Add(parts, RadioLanguage.T("Aero", "Aero", "la aerodinámica"), d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
+            AddBody(parts, d);
             Add(parts, RadioLanguage.T("Motor", "Engine", "el motor"), d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
             Add(parts, RadioLanguage.T("Getriebe", "Gearbox", "la caja de cambios"), d.OverallTransmissionDamage, d.TransmissionDamagePercent, ref serious);
-            string where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MAJOR);
+            // rF2/LMU leiten die Aufhängung nur aus verlorenen Rädern ab – dann ist das Rad schon genannt.
+            string where = wheelGone ? null : SpokenCorner(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MAJOR);
             if (where != null)
             {
                 parts.Add(RadioLanguage.T("Aufhängung " + where + " stark beschädigt", "Suspension heavily damaged " + where, "Daño grave en la suspensión " + where));
                 serious = true;
             }
-            else if ((where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
+            else if (!wheelGone && (where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
             {
                 parts.Add(RadioLanguage.T("Aufhängung " + where + " leicht beschädigt", "Suspension lightly damaged " + where, "Daño leve en la suspensión " + where));
             }
@@ -366,12 +422,24 @@ namespace CrewChiefV4.AiTeam
                         "Sin daños relevantes en aerodinámica, motor y caja de cambios. Frenos y suspensión solo se pueden valorar hasta donde informa el juego.");
             }
             string text = string.Join(", ", parts) + ".";
+            text = char.ToUpper(text[0], RadioLanguage.Culture) + text.Substring(1);
             // LMU 18.11.: Rob verlor ein Rad und hörte „wenn sich das Auto komisch anfühlt“. Schwerer Schaden heißt Box, nicht vielleicht.
             if (!serious || !includeAdvice) return text;
-            bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED;
-            return text + (destroyed
-                ? RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya.")
-                : RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."));
+            bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED || wheelGone;
+            // Rob 20.11.: nicht jedes Mal wortgleich. Die Formulierung wechselt mit jedem neuen Schadensereignis, bleibt aber für
+            // dasselbe Ereignis gleich (die Gültigkeitsprüfung vergleicht den Text).
+            int v = (int)((uint)Volatile.Read(ref adviceVariant) % 4);
+            string[] urgent = {
+                RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya."),
+                RadioLanguage.T(" Komm sofort an die Box, wir richten das.", " Box now, we'll fix it.", " Entra a boxes ya, lo arreglamos."),
+                RadioLanguage.T(" Komm sofort an die Box, so geht es nicht weiter.", " Box now, we can't carry on like this.", " Entra a boxes ya, así no podemos seguir."),
+                RadioLanguage.T(" Komm sofort an die Box, die Crew steht bereit.", " Box now, the crew is ready.", " Entra a boxes ya, el equipo está listo.") };
+            string[] soon = {
+                RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."),
+                RadioLanguage.T(" Sobald es sicher geht, komm an die Box, das kostet sonst zu viel.", " Box when it's safe, otherwise it costs too much.", " Entra a boxes cuando sea seguro, si no cuesta demasiado."),
+                RadioLanguage.T(" Wenn es passt, komm an die Box, wir reparieren das.", " Box when it suits, we'll repair it.", " Entra a boxes cuando encaje, lo reparamos."),
+                RadioLanguage.T(" Bei nächster Gelegenheit komm an die Box, so ist das Auto zu langsam.", " Box at the next chance, the car is too slow like this.", " A la próxima entra a boxes, así el coche va demasiado lento.") };
+            return text + (destroyed ? urgent[v] : soon[v]);
         }
 
         internal static string PitAdviceAfterDamage(GameStateData state)
@@ -393,7 +461,7 @@ namespace CrewChiefV4.AiTeam
             return Increased(before.OverallAeroDamage, now.OverallAeroDamage) || Increased(before.OverallEngineDamage, now.OverallEngineDamage) ||
                 Increased(before.OverallTransmissionDamage, now.OverallTransmissionDamage) ||
                 CornerDamageIncreased(before.SuspensionDamageStatus, now.SuspensionDamageStatus) ||
-                CornerDamageIncreased(before.BrakeDamageStatus, now.BrakeDamageStatus);
+                CornerDamageIncreased(before.BrakeDamageStatus, now.BrakeDamageStatus) || BodyDamageIncreased(before, now);
         }
 
         private static bool CornerDamageIncreased(CornerData before, CornerData now)
@@ -476,6 +544,69 @@ namespace CrewChiefV4.AiTeam
         }
 
         // CornerText bleibt deutsch (Daten für das Sprachmodell); gesprochen wird diese Fassung.
+        private static string WheelName(int corner)
+        {
+            switch (corner)
+            {
+                case 0: return RadioLanguage.T("vorne links", "front left", "delantera izquierda");
+                case 1: return RadioLanguage.T("vorne rechts", "front right", "delantera derecha");
+                case 2: return RadioLanguage.T("hinten links", "rear left", "trasera izquierda");
+                default: return RadioLanguage.T("hinten rechts", "rear right", "trasera derecha");
+            }
+        }
+
+        /// <summary>Verlorene und platte Räder (rF2/LMU). true, wenn ein Rad fehlt.</summary>
+        internal static bool AddWheels(List<string> parts, CarDamageData d, ref bool serious)
+        {
+            bool gone = false;
+            for (int i = 0; i < 4; i++)
+            {
+                if (d.WheelDetached != null && d.WheelDetached.Length == 4 && d.WheelDetached[i])
+                {
+                    parts.Add(RadioLanguage.T("Rad " + WheelName(i) + " ist ab", "the " + WheelName(i) + " wheel is gone", "has perdido la rueda " + WheelName(i)));
+                    gone = serious = true;
+                }
+                else if (d.WheelFlat != null && d.WheelFlat.Length == 4 && d.WheelFlat[i])
+                {
+                    parts.Add(RadioLanguage.T("Reifen " + WheelName(i) + " platt", "flat tyre " + WheelName(i), "pinchazo en la rueda " + WheelName(i)));
+                    serious = true;
+                }
+            }
+            return gone;
+        }
+
+        /// <summary>Dellen und abgerissene Teile in Worten (Stellen nur gezählt; ihre Lage am Auto ist nicht bestätigt).</summary>
+        internal static void AddBody(List<string> parts, CarDamageData d)
+        {
+            if (d.PartsDetached == true)
+                parts.Add(RadioLanguage.T("Teile sind abgerissen", "parts have come off", "se han soltado piezas"));
+            if (d.DentSeverity == null || d.DentSeverity.Length != 8) return;
+            int dented = d.DentSeverity.Count(v => v > 0), heavy = d.DentSeverity.Count(v => v >= 2);
+            if (dented == 0) return;
+            string where = dented == 1 ? RadioLanguage.T("eine von 8 Stellen verbeult", "one of 8 spots dented", "una de 8 zonas abollada")
+                : dented + RadioLanguage.T(" von 8 Stellen verbeult", " of 8 spots dented", " de 8 zonas abolladas");
+            if (heavy == dented) where += dented == 1 ? RadioLanguage.T(", und zwar stark", ", badly", ", y mucho") : RadioLanguage.T(", alle stark", ", all badly", ", todas mucho");
+            else if (heavy > 0) where += heavy == 1 ? RadioLanguage.T(", eine davon stark", ", one badly", ", una de ellas mucho") : ", " + heavy + RadioLanguage.T(" davon stark", " badly", " de ellas mucho");
+            parts.Add(where);
+        }
+
+        /// <summary>Mehr Dellen, neu abgerissene Teile oder ein neues Radproblem seit dem letzten Bild.</summary>
+        internal static bool BodyDamageIncreased(CarDamageData before, CarDamageData now)
+        {
+            if (before == null || now == null) return false;
+            if (before.PartsDetached == false && now.PartsDetached == true) return true;
+            if (before.DentSeverity != null && now.DentSeverity != null && before.DentSeverity.Length == 8 && now.DentSeverity.Length == 8 &&
+                now.DentSeverity.Sum() >= before.DentSeverity.Sum() + 2) return true;
+            for (int i = 0; i < 4; i++)
+            {
+                if (before.WheelDetached != null && now.WheelDetached != null && before.WheelDetached.Length == 4 && now.WheelDetached.Length == 4 &&
+                    !before.WheelDetached[i] && now.WheelDetached[i]) return true;
+                if (before.WheelFlat != null && now.WheelFlat != null && before.WheelFlat.Length == 4 && now.WheelFlat.Length == 4 &&
+                    !before.WheelFlat[i] && now.WheelFlat[i]) return true;
+            }
+            return false;
+        }
+
         private static string SpokenCorner(CornerData corners, DamageLevel level)
         {
             if (corners == null || RadioLanguage.IsGerman)

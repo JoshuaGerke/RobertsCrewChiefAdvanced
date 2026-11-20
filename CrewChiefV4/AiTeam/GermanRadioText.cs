@@ -18,7 +18,26 @@ namespace CrewChiefV4.AiTeam
         private static readonly Regex tenths = new Regex(@"(?<![\p{L}\p{N}.,-])0,(?<n>[1-9]) Sekunden\b", RegexOptions.CultureInvariant);
         private static readonly Regex longTenths = new Regex(@"(?<![\p{L}\p{N}.,-])(?<n>[1-9]\d{0,2}(?:[,.]\d{1,2})?|[a-zäöüß]+) Zehntel\b",
             RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        // Quali 20.11. („Zeitansagen undeutlich“): Abstände wie „0,505 langsamer“ oder „plus 1,700“ ohne Einheit las die Stimme als
+        // Tausenderzahl. Am Kommandostand werden Tausendstel-Abstände in Zehntel bzw. eine Nachkommastelle gesprochen.
+        private static readonly Regex bareThousandths = new Regex(@"(?<![\p{L}\p{N}:.,])(?<n>\d{1,2}),(?<f>\d{3})(?![\p{N},])", RegexOptions.CultureInvariant);
         private static readonly CultureInfo German = CultureInfo.GetCultureInfo("de-DE");
+
+        /// <summary>Gesprochener Abstand: unter einer Sekunde in Zehnteln (sonst Hundertsteln), darüber mit einer Nachkommastelle.</summary>
+        internal static string SpokenGap(int whole, string thousandths)
+        {
+            int milli = whole * 1000 + int.Parse(thousandths.PadRight(3, '0').Substring(0, 3), CultureInfo.InvariantCulture);
+            if (milli < 950)
+            {
+                int tenth = (milli + 50) / 100;
+                if (tenth >= 1) return (tenth == 1 ? "ein" : Integer(tenth)) + " Zehntel";
+                int hundredth = (milli + 5) / 10;
+                return hundredth == 0 ? "null" : (hundredth == 1 ? "ein" : Integer(hundredth)) + " Hundertstel";
+            }
+            int rounded = (milli + 50) / 100;
+            if (rounded == 10) return "eins Komma null";
+            return Integer(rounded / 10) + (rounded % 10 == 0 ? "" : " Komma " + digits[rounded % 10]);
+        }
 
         private static string Integer(int n)
         {
@@ -74,15 +93,21 @@ namespace CrewChiefV4.AiTeam
                 return (minutes==0?"":minutes==1?"eine Minute ":Integer(minutes)+" Minuten ")+
                     Integer(seconds)+Fraction(m.Groups["f"].Value)+" Sekunden";
             });
-            return measured.Replace(result,m=> {
+            result = measured.Replace(result,m=> {
                 int n=int.Parse(m.Groups["n"].Value,CultureInfo.InvariantCulture);
                 string value=Integer(n);
                 if(m.Groups["n"].Value.StartsWith("-",StringComparison.Ordinal) && n==0)value="minus null";
-                if(m.Groups["f"].Success)value+=Fraction(m.Groups["f"].Value);
                 string unit=m.Groups["u"].Value;
+                bool secondsUnit=unit.StartsWith("Sekunde",StringComparison.OrdinalIgnoreCase);
+                if(pitWall && secondsUnit && n==0 && !m.Groups["n"].Value.StartsWith("-",StringComparison.Ordinal) && m.Groups["f"].Success && m.Groups["f"].Value.Length==3)
+                    return SpokenGap(0,m.Groups["f"].Value);
+                if(m.Groups["f"].Success)value+=Fraction(m.Groups["f"].Value);
                 if(unit.Equals("km/h",StringComparison.OrdinalIgnoreCase))unit="Kilometer pro Stunde";
                 return value+" "+(unit.Equals("Sekunden", StringComparison.OrdinalIgnoreCase) && n == 1 && !m.Groups["f"].Success ? "Sekunde" : unit);
             });
+            if (pitWall)
+                result = bareThousandths.Replace(result, m => SpokenGap(int.Parse(m.Groups["n"].Value, CultureInfo.InvariantCulture), m.Groups["f"].Value));
+            return result;
         }
     }
 }

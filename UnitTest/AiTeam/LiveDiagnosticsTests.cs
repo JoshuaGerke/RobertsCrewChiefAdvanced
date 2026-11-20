@@ -102,6 +102,17 @@ namespace UnitTest.AiTeamTests
             LiveDiagnostics.Shutdown();
         }
         [Test]
+        public void Ja_Nein_Listen_wie_angebrachte_Raeder_werden_geschrieben()
+        {
+            // LMU 20.11.: wheels_attached kam als null im Protokoll an.
+            string folder=Folder();
+            using(var recorder=new DiagnosticRecorder(folder))
+                Assert.IsTrue(recorder.TryRecord("telemetry",LiveDiagnostics.Data("wheels_attached",new[]{true,true,false,true}),"t",1,1));
+            var item=Read(folder).Single(x=>(string)x["kind"]=="telemetry");
+            Assert.AreEqual(JTokenType.Array,item["data"]["wheels_attached"].Type);
+            Assert.IsFalse((bool)item["data"]["wheels_attached"][2]);
+        }
+        [Test]
         public void JSONL_enthaelt_UTC_monotone_Zeit_Session_und_Abschluss()
         {
             string folder=Folder();

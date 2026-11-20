@@ -294,6 +294,16 @@ namespace CrewChiefV4.GameState
         }
 
         public float LastImpactTime = -1.0f;
+
+        // RCCA (LMU 20.11.: „Es ist alles ablesbar“): Karosserie, wie rF2/LMU sie melden. null bzw. -1 = vom Spiel nicht geliefert.
+        /// <summary>Dellen an 8 Stellen rund ums Auto (0 keine, 1 leicht, 2 stark), Reihenfolge wie vom Spiel.</summary>
+        public int[] DentSeverity = null;
+        /// <summary>Teile (außer Rädern) abgerissen.</summary>
+        public bool? PartsDetached = null;
+        /// <summary>Stärke des letzten Einschlags (Spieleinheit; Crew Chief wertet ab 1500 leicht, ab 4000 schwer).</summary>
+        public float LastImpactMagnitude = -1;
+        /// <summary>Räder VL, VR, HL, HR: abgerissen bzw. platt.</summary>
+        public bool[] WheelDetached = null, WheelFlat = null;
     }
 
     public enum FrozenOrderPhase

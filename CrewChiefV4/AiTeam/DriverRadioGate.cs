@@ -50,5 +50,22 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Darf diese Meldung jetzt starten? Seitenwarnungen des Spotters immer, alles andere nicht während der Funkstille.</summary>
         internal static bool MayStart(bool spotter, DateTime nowUtc) => spotter || !Holding(nowUtc);
+
+        /// <summary>
+        /// Wartet vor dem Abspielen, solange Funkstille gilt. Fängt den Fall ab, dass eine Ansage schon ausgewählt, aber noch
+        /// nicht gestartet ist, wenn der Fahrer drückt (Quali 20.11.: Mik sprach 0,4 s nach dem Drücken los und redete über Rob).
+        /// Gibt die gewartete Zeit in Millisekunden zurück.
+        /// </summary>
+        internal static int WaitForSilence(bool exempt, Func<DateTime> utcNow, Action<int> sleep, int stepMs = 50)
+        {
+            if (exempt || utcNow == null || sleep == null) return 0;
+            int waited = 0, limit = (int)(MaxHold + AfterRelease).TotalMilliseconds;
+            while (waited < limit && Holding(utcNow()))
+            {
+                sleep(stepMs);
+                waited += stepMs;
+            }
+            return waited;
+        }
     }
 }

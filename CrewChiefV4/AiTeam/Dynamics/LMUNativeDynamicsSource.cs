@@ -40,7 +40,11 @@ namespace CrewChiefV4.AiTeam
             if (!reader.IsOpen) return false;
             try
             {
-                if (!reader.Copy(buffer) || !Fill(buffer, f, ref lastEt)) return false;
+                if (!reader.Copy(buffer)) return false;
+                // Rennleitung (Strafen, Tracklimits, Vorfälle) aus demselben Abbild, einmal je Wertungsbild.
+                LMURaceControlStream.Observe(buffer, DateTime.UtcNow);
+                LMUNativeSnapshot.Observe(buffer, DateTime.UtcNow);
+                if (!Fill(buffer, f, ref lastEt)) return false;
                 f.TimeS = timeS;
                 return true;
             }

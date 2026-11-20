@@ -130,7 +130,23 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,Pending> pending=new Dictionary<string,Pending>();
         private readonly Dictionary<string,DateTime> delivered=new Dictionary<string,DateTime>();
         private int variant;
-        public void Reset(){Native n;while(native.TryDequeue(out n)){}pending.Clear();delivered.Clear();}
+        public void Reset(){Native n;while(native.TryDequeue(out n)){}pending.Clear();delivered.Clear();lastEngineUtc=DateTime.MinValue;lastEngineOil=lastEngineWater=float.NaN;lastEngineBoth=false;}
+
+        // RaceRoom Norisring 20.11.: Öl/Wasser-Warnung 15-mal in 13 Minuten (je Thema nur 30 s Pause, drei Themen). Eine Motorwarnung
+        // gemeinsam höchstens alle drei Minuten; früher nur, wenn es deutlich heißer wird (+3 Grad) oder jetzt beides zu heiß ist.
+        internal static readonly TimeSpan EngineWarningGap = TimeSpan.FromMinutes(3);
+        private DateTime lastEngineUtc = DateTime.MinValue;
+        private float lastEngineOil = float.NaN, lastEngineWater = float.NaN;
+        private bool lastEngineBoth;
+        internal bool EngineWarningDue(string kind,float oil,float water,DateTime now)
+        {
+            bool both=kind=="both";
+            bool hotter=!float.IsNaN(lastEngineOil) && oil>=lastEngineOil+3 || !float.IsNaN(lastEngineWater) && water>=lastEngineWater+3;
+            bool due=lastEngineUtc==DateTime.MinValue || now<lastEngineUtc || now-lastEngineUtc>=EngineWarningGap || hotter || both && !lastEngineBoth;
+            if(!due)return false;
+            lastEngineUtc=now;lastEngineOil=oil;lastEngineWater=water;lastEngineBoth=both;
+            return true;
+        }
 
         public static string Classify(IEnumerable<string> folders)
         {
@@ -147,7 +163,7 @@ namespace CrewChiefV4.AiTeam
         public bool Capture(QueuedMessage message,GameStateData gs,DateTime now)
         {
             if(message==null || gs==null)return false;
-            string kind=Classify(message.messageFolders);
+            string kind=Classify(message.messageFolders) ?? NativeRaceControl.Classify(message.messageFolders);
             if(kind==null)return false;
             native.Enqueue(new Native {Kind=kind,Source=message.messageName,Session=gs.SessionData.SessionId,
                 Type=gs.SessionData.SessionType,Lap=gs.SessionData.CompletedLaps,Utc=now,
@@ -199,7 +215,18 @@ namespace CrewChiefV4.AiTeam
             {
                 if(n.Session!=gs.SessionData.SessionId || n.Type!=gs.SessionData.SessionType || now<n.Utc || now-n.Utc>TimeSpan.FromSeconds(2))continue;
                 var captured=n;
-                if(n.Kind=="limits")
+                if(n.Kind.StartsWith("yellow",StringComparison.Ordinal) || n.Kind.StartsWith("dyellow",StringComparison.Ordinal) ||
+                    n.Kind.StartsWith("green",StringComparison.Ordinal) || n.Kind.StartsWith("pen",StringComparison.Ordinal))
+                {
+                    string kind=n.Kind, text=NativeRaceControl.Text(kind);
+                    // Ein neuer Gelb-/Grün-Stand löst den alten ab.
+                    string sector=kind.Contains(":")?kind.Substring(kind.IndexOf(':')+1):"";
+                    if(kind.StartsWith("green",StringComparison.Ordinal)){pending.Remove("warning-rc-yellow-"+sector);pending.Remove("warning-rc-dyellow-"+sector);}
+                    if(kind.StartsWith("yellow",StringComparison.Ordinal) || kind.StartsWith("dyellow",StringComparison.Ordinal))pending.Remove("warning-rc-green-"+sector);
+                    Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
+                        live=>NativeRaceControl.StillCurrent(kind,live),"native:"+n.Source+";captured="+n.Utc.ToString("o"));
+                }
+                else if(n.Kind=="limits")
                 {
                     int lap=n.Lap;
                     Offer("warning-tracklimit",LimitPhrases[variant++%LimitPhrases.Length],TeamMember.Mik,7,gs,now,
@@ -210,6 +237,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     bool oil=n.Kind=="oil" || n.Kind=="both",water=n.Kind=="water" || n.Kind=="both";
                     var phrases=n.Kind=="both"?BothPhrases:oil?OilPhrases:WaterPhrases;
+                    if(!EngineWarningDue(n.Kind,n.Oil,n.Water,now)){LiveDiagnostics.Decision("warning-engine-"+n.Kind,"suppressed","engine_warning_recently_given",n.Source);continue;}
                     Offer("warning-engine-"+n.Kind,phrases[variant++%phrases.Length],TeamMember.Mik,9,gs,now,
                         live=>!live.PitData.InPitlane && (!oil || Hot(live,true,captured.Oil)) && (!water || Hot(live,false,captured.Water)),
                         "native:"+n.Source+";captured="+n.Utc.ToString("o"));
@@ -248,6 +276,28 @@ namespace CrewChiefV4.AiTeam
             }
             return null;
         }
+        /// <summary>Einordnung aus LMUs nativem Rennleitungs-Datenstrom (Strafe mit Art, abgesessen, Untersuchung, Tracklimits).</summary>
+        public void OfferRaceControl(string kind,GameStateData gs,DateTime now,string evidence)
+        {
+            if(kind==null || gs==null)return;
+            if(kind=="limits")
+            {
+                int lap=gs.SessionData.CompletedLaps;
+                Offer("warning-tracklimit",LimitPhrases[variant++%LimitPhrases.Length],TeamMember.Mik,7,gs,now,
+                    live=>!live.PitData.InPitlane && live.SessionData.CompletedLaps==lap,"lmu_race_control:"+evidence,lap);
+                return;
+            }
+            if(kind=="pen-served")
+            {
+                if(now>=NativeRaceControl.LastServedUtc && now-NativeRaceControl.LastServedUtc<TimeSpan.FromSeconds(30))return;
+                NativeRaceControl.LastServedUtc=now;
+            }
+            string text=NativeRaceControl.Text(kind);
+            if(text==null)return;
+            Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
+                live=>true,"lmu_race_control:"+evidence);
+        }
+
         public DateTime LastDelivered(string topic)
         {DateTime utc;return delivered.TryGetValue(topic,out utc)?utc:DateTime.MinValue;}
     }

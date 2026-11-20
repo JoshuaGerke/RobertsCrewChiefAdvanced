@@ -132,7 +132,7 @@
     "own-sector-best-push": [
       "Stay focused, this could be your best lap.",
       "Keep it clean now, the lap is alive.",
-      "Just like that, this smells like a best lap.",
+      "Just like that, this smells like a personal best lap.",
       "Stay sharp, there's something in it today.",
       "Don't let up, this lap can be really good.",
       "Stay calm and bring it home, this looks strong.",
@@ -487,7 +487,7 @@
       "It's getting closer behind, {opponent} gains {delta} seconds a lap. No mistakes."
     ],
     "lap-best": [
-      "Nice, new best lap. {time}.",
+      "Nice, new personal best lap. {time}.",
       "{time}. That was your fastest lap.",
       "Strong, improved again. {time}.",
       "Yes, that one was quicker. {time}.",
@@ -495,11 +495,11 @@
       "Your new benchmark: {time}. Strong.",
       "{time}, personal best. Good job.",
       "Get in, improved to {time}.",
-      "There's your new best lap. {time}.",
+      "There's your new personal best lap. {time}.",
       "{time}. Your best lap of the session so far.",
       "New personal best, {time}. Keep it up.",
       "That's quicker: {time}. Very good.",
-      "You've found some time. New best lap, {time}.",
+      "You've found some time. New personal best lap, {time}.",
       "{time}, that's under your previous best.",
       "Strong driving. Your new benchmark is {time}.",
       "Found a bit more. Personal best: {time}."

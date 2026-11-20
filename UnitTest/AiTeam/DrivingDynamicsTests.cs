@@ -289,6 +289,32 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(new DrivingDynamicsWatch(d.A, 1).Take(gs, T, false), "ohne Muster nichts");
         }
 
+        [Test]
+        public void Same_tip_at_the_same_place_is_not_repeated_within_six_laps()
+        {
+            // LMU 20.11.: „Hast du nur diesen Tipp für mich? Die Ansage kenne ich mittlerweile.“
+            var d = new Drive(); d.Calibrate(3);
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 4; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            var watch = new DrivingDynamicsWatch(d.A, 1);
+            ObservedRaceCall Lockups(int from)
+            {
+                for (int lap = from; lap < from + 2; lap++)
+                {
+                    d.Run(.15, 35, 0, .8f, new[] { 1f, 1f, .6f, 1f }, distance: 1000, laps: lap);
+                    d.Run(.2, 30, 0, .2f, distance: 1010, laps: lap);
+                }
+                gs.SessionData.CompletedLaps = from + 2;
+                watch.Observe(gs, T, true, "Rob");
+                var c = watch.Take(gs, T, false);
+                if (c != null) { c.MarkPlaybackStarted(T); watch.Observe(gs, T, false, "Rob"); }
+                return c;
+            }
+            Assert.IsNotNull(Lockups(3), "erstes Mal");
+            Assert.IsNull(Lockups(6), "gleiche Stelle, gleicher Befund drei Runden später: nicht wiederholen");
+            Assert.IsNotNull(Lockups(12), "nach sechs Runden darf es wieder kommen");
+        }
+
         // ---------- Quali: Anschieben und Zwischenstand ----------
 
         [Test]

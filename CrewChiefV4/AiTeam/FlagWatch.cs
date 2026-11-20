@@ -56,6 +56,22 @@ namespace CrewChiefV4.AiTeam
                 (now >= detected && now - detected <= TimeSpan.FromSeconds(3));
         }
 
+        /// <summary>Wer steht am Unfall voraus? Nächstes langsames Auto bis 300 m vor uns, nur mit erlaubtem Namen.</summary>
+        internal static string IncidentDriver(GameStateData gs)
+        {
+            if (gs == null || gs.OpponentData == null || gs.SessionData.TrackDefinition == null) return null;
+            float length = gs.SessionData.TrackDefinition.trackLength, own = gs.PositionAndMotionData.DistanceRoundTrack;
+            if (!(length > 100) || float.IsNaN(own)) return null;
+            OpponentData best = null; float bestGap = 301;
+            foreach (var o in gs.OpponentData.Values)
+            {
+                if (o == null || !o.IsActive || o.InPits || !o.CanUseName || !(o.Speed >= 0) || o.Speed > 20) continue;
+                float gap = ((o.DistanceRoundTrack - own) % length + length) % length;
+                if (gap >= 5 && gap < bestGap) { bestGap = gap; best = o; }
+            }
+            return best == null ? null : RadioPhraseCatalog.SafeRivalName(best.DriverRawName);
+        }
+
         public static bool StillRelevant(string phrase, GameStateData gs)
         {
             if (gs == null || gs.PitData.InPitlane || (gs.SessionData.SessionPhase != SessionPhase.Green && gs.SessionData.SessionPhase != SessionPhase.FullCourseYellow)) return false;
