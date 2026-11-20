@@ -230,7 +230,16 @@ namespace CrewChiefV4.AiTeam
             if (!gs.FuelData.FuelUseActive || float.IsNaN(gs.FuelData.FuelLeft) || float.IsInfinity(gs.FuelData.FuelLeft) || gs.FuelData.FuelLeft < 0)
                 return RadioLanguage.T("Gerade kein verlässlicher Tankstand, also auch kein Verbrauch.", "No reliable fuel reading right now, so no consumption either.",
                     "Ahora no hay nivel de combustible fiable, así que tampoco consumo.");
-            float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out _);
+            float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out int measuredLaps);
+            float carried = FuelCarry.For(gs);
+            if (perLap > 0 && provisional && measuredLaps == 0 && carried > 0 && perLap == carried && (memory == null || !(memory.ProvisionalFuelPerLap(gs) > 0)))
+            {
+                string c = RadioLanguage.Num(carried, "0.0"), have = RadioLanguage.Num(gs.FuelData.FuelLeft, "0");
+                int range = (int)Math.Floor(gs.FuelData.FuelLeft / carried);
+                return RadioLanguage.T("Aus Training und Quali: etwa " + c + " Liter pro Runde. Mit " + have + " Litern reicht das für rund " + range + " Runden. Im Rennen messe ich ab der ersten Runde nach.",
+                    "From practice and qualifying: about " + c + " litres per lap. With " + have + " litres that's roughly " + range + " laps. I'll re-measure from the first race lap.",
+                    "De libres y clasificación: unos " + c + " litros por vuelta. Con " + have + " litros son unas " + range + " vueltas. En carrera vuelvo a medir desde la primera vuelta.");
+            }
             if (!(perLap > 0))
                 return RadioLanguage.T("Für eine Schätzung brauche ich noch ein paar hundert Meter Fahrt ab der Box.",
                     "I need a few hundred metres of driving from the pits for an estimate.", "Necesito unos cientos de metros desde boxes para estimarlo.");

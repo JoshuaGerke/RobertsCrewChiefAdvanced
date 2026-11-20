@@ -5,6 +5,44 @@ using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
 {
+    /// <summary>
+    /// Verbrauch aus Training und Quali derselben Strecke mit demselben Auto (Rob 20.11.2026: „Ihr müsst die durchschnittlichen
+    /// Verbräuche aus Practice und Quali mit rübernehmen bis in die Rennen“). Gilt nur in dieser Programmsitzung; sobald im Rennen
+    /// gemessen ist, zählt die Messung.
+    /// </summary>
+    internal static class FuelCarry
+    {
+        private static readonly object gate = new object();
+        private static string key;
+        private static float perLap = -1;
+        private static int laps;
+
+        internal static string Key(GameStateData gs)
+        {
+            string track = gs?.SessionData?.TrackDefinition?.name, car = gs?.carClass?.getClassIdentifier() ?? gs?.carName;
+            return string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(car) ? null : track + "|" + car;
+        }
+
+        /// <summary>Nach jeder Runde außerhalb des Rennens: Mittel aus mindestens zwei gemessenen Runden merken.</summary>
+        internal static void Remember(GameStateData gs, float average, int count)
+        {
+            if (gs == null || gs.SessionData.SessionType == SessionType.Race || count < 2 || !(average > .05f && average < 100)) return;
+            string k = Key(gs);
+            if (k == null) return;
+            lock (gate) { key = k; perLap = average; laps = count; }
+        }
+
+        internal static float For(GameStateData gs)
+        {
+            string k = Key(gs);
+            lock (gate) return k != null && k == key ? perLap : -1;
+        }
+
+        internal static int Laps(GameStateData gs) { string k = Key(gs); lock (gate) return k != null && k == key ? laps : 0; }
+
+        internal static void Reset() { lock (gate) { key = null; perLap = -1; laps = 0; } }
+    }
+
     /// <summary>The same balance, reserve and evidence are supplied to automatic radio and the language model.</summary>
     public sealed class FuelEstimate
     {
@@ -22,7 +60,11 @@ namespace CrewChiefV4.AiTeam
             if (fullLaps > 0) return average;
             float estimate = memory.ProvisionalFuelPerLap(state);
             provisional = estimate > 0 && Finite(estimate);
-            return provisional ? estimate : -1;
+            if (provisional) return estimate;
+            // Rob 20.11.: Verbrauch aus Training und Quali ins Rennen mitnehmen, bis im Rennen selbst gemessen ist.
+            float carried = FuelCarry.For(state);
+            provisional = carried > 0;
+            return provisional ? carried : -1;
         }
 
         public static FuelEstimate From(RaceDataContext ctx, int minimumMeasuredLaps = 2)
@@ -62,7 +104,8 @@ namespace CrewChiefV4.AiTeam
                 ProvisionalConsumption=provisional,
                 AdditionalWithoutReserve=crew?ctx.CrewChiefAdditionalFuelNeeded:remaining*perLap-gs.FuelData.FuelLeft,
                 ReserveLitres=perLap*FuelWatch.SafetyMarginLaps,
-                Source=provisional ? "Vorläufige Schätzung aus Tankdifferenz und gefahrener Strecke" :
+                Source=provisional && !(ctx.Memory.ProvisionalFuelPerLap(gs) > 0) && FuelCarry.For(gs) == perLap ? "Verbrauch aus Training und Quali dieser Strecke, im Rennen noch nicht gemessen" :
+                    provisional ? "Vorläufige Schätzung aus Tankdifferenz und gefahrener Strecke" :
                     crew ? "Crew-Chief-Bedarfsrechnung ohne Reserve" : "Gemessener Verbrauch; Restdistanz bei Zeitrennen geschätzt" };
         }
         private static bool Finite(float v) { return !float.IsNaN(v) && !float.IsInfinity(v); }

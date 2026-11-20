@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.Events;
@@ -174,6 +175,119 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 4, null, "own-lap"), "Antwort auf Robs Frage läuft zu Ende");
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, false, false, 4, "quali-sector", "position"));
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForResult(true, true, false, 4, "quali-sector", "own-lap"), "Spotter nie");
+        }
+
+        [Test]
+        public void Sector_best_names_the_gain_on_the_previous_best()
+        {
+            // Rennen 20.11.: „Rob, in Sektor 1 hast du dich verbessert. 23,451 Sekunden.“ – um wie viel, fehlte.
+            StringAssert.Contains("0,234 Sekunden schneller", SessionLapObserver.SectorGainText(.234f));
+            Assert.AreEqual("zwei Zehntel schneller als dein bisher bester Sektor.",
+                GermanRadioText.Prepare(SessionLapObserver.SectorGainText(.234f), pitWall: true), "gesprochen in Zehnteln");
+            Assert.IsNull(SessionLapObserver.SectorGainText(0), "ohne belegten Gewinn kein Satz");
+            Assert.IsNull(SessionLapObserver.SectorGainText(float.NaN));
+            RadioVariants.Deterministic = false;
+            try
+            {
+                foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+                {
+                    RadioLanguage.Current = lang;
+                    var lines = new System.Collections.Generic.HashSet<string>();
+                    for (int i = 0; i < 60; i++) lines.Add(SessionLapObserver.SectorGainText(.5f));
+                    Assert.That(lines.Count, Is.GreaterThanOrEqualTo(4), lang + ": mindestens vier Formulierungen");
+                }
+            }
+            finally { RadioVariants.Deterministic = true; RadioLanguage.Current = RadioLanguage.German; }
+        }
+
+        [Test]
+        public void Own_best_is_called_personal_best()
+        {
+            // Rob 20.11.: „Bestzeit habe ich nur, wenn ich die Bestzeit des ganzen Feldes gefahren bin.“
+            var catalog = RadioPhraseCatalog.Current;
+            foreach (var group in new[] { "lap-best", "lap-near-best", "own-best-pace", "own-sector-best", "own-sector-best-push" })
+                for (int i = 0; i < catalog.Count(group); i++)
+                {
+                    string line = catalog.Template(group, i);
+                    if (System.Text.RegularExpressions.Regex.IsMatch(line, "Bestzeit|Bestmarke"))
+                        StringAssert.Contains("persönlich", line, group + " " + i);
+                }
+            StringAssert.Contains("persönliche Bestzeit", SessionLapObserver.FlyingLapText("Rob", false, true, -1, 0));
+            StringAssert.Contains("lila", SessionLapObserver.FlyingLapText("Rob", true, true, -1, 0));
+        }
+
+        [Test]
+        public void Spin_ahead_is_recognised_from_the_sudden_slowdown()
+        {
+            // Rennen 20.11., Wagen 24 vor Rob (Sebring, Kurve bei 530 m; Rob fuhr dort 42–46 m/s).
+            var t0 = T;
+            var history = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<DateTime, float>>();
+            foreach (var p in new[] { (0.0, 66.6f), (1.4, 53.2f), (2.0, 47.0f), (3.4, 37.5f), (4.0, 31.5f) })
+                history.Add(new System.Collections.Generic.KeyValuePair<DateTime, float>(t0.AddSeconds(p.Item1), p.Item2));
+            Assert.IsTrue(RaceTrafficWatch.SuddenSlowdown(history, 26.2f, t0.AddSeconds(4.6), 44f, 46.3f), "66 → 26 m/s, wo Rob 44 fährt: Dreher");
+            Assert.IsFalse(RaceTrafficWatch.SuddenSlowdown(history, 31.5f, t0.AddSeconds(4.0), 44f, 47.6f), "noch im Rahmen einer Bremsung");
+
+            var hairpin = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<DateTime, float>> {
+                new System.Collections.Generic.KeyValuePair<DateTime, float>(t0, 60f), new System.Collections.Generic.KeyValuePair<DateTime, float>(t0.AddSeconds(2), 35f) };
+            Assert.IsFalse(RaceTrafficWatch.SuddenSlowdown(hairpin, 24f, t0.AddSeconds(2.8), 26f, 55f), "normale Haarnadel: Rob ist dort genauso langsam");
+            Assert.IsFalse(RaceTrafficWatch.SuddenSlowdown(null, 5f, t0, null, 50f));
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(5, RaceTrafficWatch.SpinPhrases.Distinct().Count(), lang);
+                CollectionAssert.IsSubsetOf(RaceTrafficWatch.SpinPhrases, RaceTrafficWatch.PreparedPhrases.ToArray(), lang + ": vorbereitet, sofort abspielbar");
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
+        public void Served_penalty_is_announced_and_unknown_type_is_said_honestly()
+        {
+            // Rennen 20.11.: 20:45:09 eine offene Strafe ohne Art, 20:46:27 in der Box auf 0 – Rob: „erkennt, wenn ich sie abgesessen habe“.
+            var watch = new IncidentWatch();
+            var before = Quali(SessionPhase.Green, 1, 18); before.SessionData.SessionType = SessionType.Race;
+            var got = Quali(SessionPhase.Green, 1, 18); got.SessionData.SessionType = SessionType.Race; got.PenaltiesData.NumOutstandingPenalties = 1;
+            var said = watch.Evaluate(before, got, T, false);
+            Assert.IsTrue(said.Any(m => m.Key == TeamMember.Ben && m.Value.Contains("Strafe") && m.Value.Contains("Display")), string.Join(" | ", said.Select(m => m.Value)));
+
+            var served = Quali(SessionPhase.Green, 2, 19); served.SessionData.SessionType = SessionType.Race; served.PitData.InPitlane = true;
+            var inLane = Quali(SessionPhase.Green, 2, 19); inLane.SessionData.SessionType = SessionType.Race; inLane.PitData.InPitlane = true; inLane.PenaltiesData.NumOutstandingPenalties = 1;
+            var done = watch.Evaluate(inLane, served, T.AddSeconds(78), false);
+            Assert.IsTrue(done.Any(m => m.Key == TeamMember.Ben && m.Value.Contains("Strafe abgesessen")), string.Join(" | ", done.Select(m => m.Value)));
+            StringAssert.Contains("Eine ist noch offen", IncidentWatch.ServedText(1));
+            foreach (var lang in new[] { RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.IsFalse(IncidentWatch.ServedText(2).Contains("Strafe"), lang + ": übersetzt");
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
+        public void Fuel_use_from_practice_and_quali_is_carried_into_the_race()
+        {
+            // Rennen 20.11.: „Für eine Schätzung brauche ich noch ein paar hundert Meter“ – obwohl Quali 1,8 l pro Runde gemessen hatte.
+            try
+            {
+                FuelCarry.Reset();
+                var quali = Quali(SessionPhase.Green, 5, 8);
+                quali.carName = "Porsche 911 GT3 R";
+                FuelCarry.Remember(quali, 1.8f, 1);
+                Assert.AreEqual(-1, FuelCarry.For(quali), "eine Runde reicht nicht");
+                FuelCarry.Remember(quali, 1.8f, 3);
+                var race = Quali(SessionPhase.Green, 0, 10); race.SessionData.SessionType = SessionType.Race; race.carName = quali.carName;
+                race.FuelData.FuelUseActive = true; race.FuelData.FuelLeft = 42f;
+                Assert.AreEqual(1.8f, FuelCarry.For(race), 1e-6);
+                FuelCarry.Remember(race, 2.5f, 3);
+                Assert.AreEqual(1.8f, FuelCarry.For(race), 1e-6, "Rennen überschreibt die Trainingswerte nicht");
+                string answer = LocalAnswers.FuelConsumption("Wie viel Sprit verbrauche ich pro Runde?", race, new AiRaceMemory());
+                StringAssert.Contains("Aus Training und Quali", answer);
+                StringAssert.Contains("1,8 Liter pro Runde", answer);
+                StringAssert.Contains("23 Runden", answer);
+                var other = Quali(SessionPhase.Green, 0, 10); other.SessionData.TrackDefinition = new TrackDefinition("Monza", 5793); other.carName = quali.carName;
+                Assert.AreEqual(-1, FuelCarry.For(other), "andere Strecke: nichts übernehmen");
+            }
+            finally { FuelCarry.Reset(); }
         }
 
         [Test]

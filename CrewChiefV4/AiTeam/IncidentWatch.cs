@@ -81,6 +81,26 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Ein Telemetrie-Tick. Liefert die fälligen Funksprüche (meist keinen).</summary>
         /// <summary>Strafart mit Grund, so wie das Spiel sie meldet.</summary>
+        /// <summary>Offene Strafen in derselben Sitzung weniger geworden (abgesessen bzw. von der Rennleitung erledigt).</summary>
+        internal static bool PenaltyServed(PenatiesData before, PenatiesData now, GameStateData current, GameStateData previous) =>
+            before != null && now != null && current != null && previous != null &&
+            current.SessionData.SessionId == previous.SessionData.SessionId && current.SessionData.SessionType == previous.SessionData.SessionType &&
+            before.NumOutstandingPenalties > 0 && now.NumOutstandingPenalties >= 0 && now.NumOutstandingPenalties < before.NumOutstandingPenalties &&
+            (current.SessionData.SessionPhase == SessionPhase.Green || current.SessionData.SessionPhase == SessionPhase.FullCourseYellow);
+
+        internal static string ServedText(int stillOpen)
+        {
+            string text = RadioVariants.Pick("incident-penalty-served",
+                RadioLanguage.T("Strafe abgesessen, das ist erledigt.", "Penalty served, that's done.", "Penalización cumplida, asunto cerrado."),
+                RadioLanguage.T("Sauber, die Strafe ist durch. Jetzt wieder Tempo.", "Good, the penalty's done. Back up to speed now.", "Bien, la penalización está cumplida. Ahora a recuperar ritmo."),
+                RadioLanguage.T("Die Rennleitung führt die Strafe als erledigt.", "Race control shows the penalty as served.", "Dirección de carrera da la penalización por cumplida."),
+                RadioLanguage.T("Strafe ist weg. Konzentrier dich wieder aufs Fahren.", "Penalty cleared. Focus back on driving.", "Penalización borrada. Vuelve a centrarte en conducir."));
+            if (stillOpen > 0)
+                text += " " + (stillOpen == 1 ? RadioLanguage.T("Eine ist noch offen.", "One is still open.", "Queda una pendiente.")
+                    : RadioLanguage.T("Noch " + stillOpen + " offen.", stillOpen + " still open.", "Quedan " + stillOpen + " pendientes."));
+            return text;
+        }
+
         internal static string DetailedPenalty(PenatiesData.DetailedPenaltyType type, PenatiesData.DetailedPenaltyCause cause)
         {
             string what;
@@ -263,7 +283,17 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T(" Die holen wir in der Box ab, ich rechne mit dem Abstand nach hinten.", " We'll serve it in the pits, I'm working with the gap behind.", " La cumplimos en boxes, calculo con la distancia por detrás."),
                     RadioLanguage.T(" Muss durch die Box, ich sag dir, wann es am wenigsten kostet.", " It means a trip through the pits, I'll tell you when it costs least.", " Toca pasar por boxes, te digo cuándo cuesta menos."),
                     RadioLanguage.T(" Wir müssen dafür in die Box, ich beobachte den Verkehr hinter dir.", " We have to take it in the pits, I'm watching the traffic behind.", " Hay que entrar a boxes para cumplirla, vigilo el tráfico detrás."));
-                result.Add(Say(TeamMember.Ben, got + serveText));
+                // LMU 20.11.: Die Art kam nicht an („eine Strafe für uns“). Ehrlich sagen, wo Rob sie sieht.
+                string unknownType = p.NumOutstandingPenalties > pp.NumOutstandingPenalties && !serve && !p.HasTimeDeduction && !p.HasSlowDown &&
+                    p.PenaltyType == PenatiesData.DetailedPenaltyType.NONE
+                    ? RadioLanguage.T(" Die Art meldet das Spiel nicht, schau kurz aufs Display.", " The game doesn't say which kind, check your display.", " El juego no dice de qué tipo, mira la pantalla.") : "";
+                result.Add(Say(TeamMember.Ben, got + serveText + unknownType));
+            }
+            else if (PenaltyServed(pp, p, current, previous))
+            {
+                // Rob 20.11.: „Ihr müsst auch erkennen, wenn ich sie abgesessen habe.“
+                LiveDiagnostics.Decision("incident-penalty-served", "detected", "open=" + pp.NumOutstandingPenalties + "->" + p.NumOutstandingPenalties, null);
+                result.Add(Say(TeamMember.Ben, ServedText(p.NumOutstandingPenalties)));
             }
 
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning

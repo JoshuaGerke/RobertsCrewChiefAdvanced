@@ -118,7 +118,7 @@
       "Drei Runden ohne Fehler unter Druck{driver}. {opponent} liegt {interval} zurück, genau so weiter."
     ],
     "own-sector-best": [
-      "Deine Bestzeit in Sektor {sector}. {time} Sekunden.",
+      "Deine persönliche Bestzeit in Sektor {sector}. {time} Sekunden.",
       "Starker Sektor {sector}. Persönliche Bestzeit mit {time} Sekunden.",
       "{time} Sekunden. Das war dein bester Sektor {sector}.",
       "In Sektor {sector} hast du dich verbessert. {time} Sekunden.",
@@ -126,13 +126,13 @@
       "Sauberer Sektor {sector}. Deine beste Zwischenzeit hier: {time} Sekunden.",
       "Grün in Sektor {sector}! {time} Sekunden.",
       "Schneller warst du in Sektor {sector} noch nie: {time} Sekunden.",
-      "Sektor {sector}, {time} Sekunden. Neue Bestmarke, sehr gut.",
+      "Sektor {sector}, {time} Sekunden. Neue persönliche Bestmarke, sehr gut.",
       "Da geht was! Sektor {sector} in {time} Sekunden, persönliche Bestzeit."
     ],
     "own-sector-best-push": [
       "Bleib fokussiert, daraus kann deine Topzeit werden.",
       "Jetzt sauber weiter, die Runde lebt.",
-      "Genau so weiter, das riecht nach Bestzeit.",
+      "Genau so weiter, das riecht nach persönlicher Bestzeit.",
       "Konzentriert bleiben, da geht heute was.",
       "Nicht nachlassen, die Runde kann richtig gut werden.",
       "Ruhig bleiben und durchziehen, das wird stark.",
@@ -142,16 +142,16 @@
       "Atmen, fließen lassen, das passt."
     ],
     "own-best-pace": [
-      "Nach zwei Sektoren {delta} unter deiner Bestzeit. Bleib dran.",
-      "Du bist {delta} schneller als auf deiner Bestzeit. Jetzt den letzten Sektor sauber fahren.",
-      "{delta} Vorsprung auf deine Bestzeit. Ruhig zu Ende fahren.",
-      "Guter Zwischensplit. {delta} unter deiner Bestzeit.",
-      "Du hast {delta} auf deine Bestzeitrunde gutgemacht. Jetzt sauber ins Ziel.",
-      "Zweiter Split ist durch. {delta} Vorsprung auf deine eigene Bestzeit.",
-      "Die Runde läuft! {delta} unter deiner Bestzeit nach zwei Sektoren.",
-      "{delta} schneller als deine Bestzeit. Letzter Sektor, keine Fehler.",
-      "Du bist auf Kurs, {delta} Vorsprung auf deine Bestzeit. Bring sie heim.",
-      "Grüne Splits, {delta} unter deiner Bestmarke. Ruhig bleiben."
+      "Nach zwei Sektoren {delta} unter deiner persönlichen Bestzeit. Bleib dran.",
+      "Du bist {delta} schneller als auf deiner persönlichen Bestzeit. Jetzt den letzten Sektor sauber fahren.",
+      "{delta} Vorsprung auf deine persönliche Bestzeit. Ruhig zu Ende fahren.",
+      "Guter Zwischensplit. {delta} unter deiner persönlichen Bestzeit.",
+      "Du hast {delta} auf deine persönliche Bestzeitrunde gutgemacht. Jetzt sauber ins Ziel.",
+      "Zweiter Split ist durch. {delta} Vorsprung auf deine persönliche Bestzeit.",
+      "Die Runde läuft! {delta} unter deiner persönlichen Bestzeit nach zwei Sektoren.",
+      "{delta} schneller als deine persönliche Bestzeit. Letzter Sektor, keine Fehler.",
+      "Du bist auf Kurs, {delta} Vorsprung auf deine persönliche Bestzeit. Bring sie heim.",
+      "Grüne Splits, {delta} unter deiner persönlichen Bestmarke. Ruhig bleiben."
     ],
     "race-overall-best": [
       "Neue Gesamtbestzeit. {opponent} fährt {time}.",
@@ -213,15 +213,15 @@
       "{time}, gültig. Gute Basis, jetzt Schritt für Schritt schneller."
     ],
     "lap-near-best": [
-      "Knapp dran: {delta} Sekunden über deiner Bestzeit. Bleib bei deinem Rhythmus.",
-      "Deine Bestzeit hält. Nur {delta} Sekunden haben gefehlt.",
+      "Knapp dran: {delta} Sekunden über deiner persönlichen Bestzeit. Bleib bei deinem Rhythmus.",
+      "Deine persönliche Bestzeit hält. Nur {delta} Sekunden haben gefehlt.",
       "Das war nah dran. {delta} Sekunden über deiner besten Runde.",
-      "Fast deine Bestzeit. Es fehlen {delta} Sekunden.",
-      "{delta} Sekunden fehlen zur Bestmarke. Dranbleiben.",
-      "Deine Bestzeit war nur {delta} Sekunden schneller. Du bist nah dran.",
+      "Fast deine persönliche Bestzeit. Es fehlen {delta} Sekunden.",
+      "{delta} Sekunden fehlen zur persönlichen Bestmarke. Dranbleiben.",
+      "Deine persönliche Bestzeit war nur {delta} Sekunden schneller. Du bist nah dran.",
       "Nur {delta} Sekunden daneben. Das Tempo ist da.",
-      "So knapp! {delta} Sekunden zur Bestzeit. Die nächste kann es sein.",
-      "{delta} Sekunden über deiner Bestmarke. Genau so weitermachen, es kommt.",
+      "So knapp! {delta} Sekunden zur persönlichen Bestzeit. Die nächste kann es sein.",
+      "{delta} Sekunden über deiner persönlichen Bestmarke. Genau so weitermachen, es kommt.",
       "Fast! Nur {delta} Sekunden fehlen. Bleib locker."
     ],
     "quali-sector-comparison": [
@@ -487,21 +487,21 @@
       "Hinten wird es enger, {opponent} holt {delta} Sekunden pro Runde. Mach keine Fehler."
     ],
     "lap-best": [
-      "Sauber, neue Bestzeit. {time}.",
+      "Sauber, neue persönliche Bestzeit. {time}.",
       "{time}. Das war deine schnellste Runde.",
       "Stark, nochmal verbessert. {time}.",
       "Ja, die war schneller. {time}.",
       "Gut getroffen. Persönliche Bestzeit mit {time}.",
-      "Deine neue Bestmarke: {time}. Stark.",
+      "Deine neue persönliche Bestmarke: {time}. Stark.",
       "{time}, persönliche Bestzeit. Gut gemacht.",
       "Jawohl, verbessert auf {time}.",
-      "Da ist deine neue Bestzeit. {time}.",
+      "Da ist deine neue persönliche Bestzeit. {time}.",
       "{time}. Deine bisher beste Runde in dieser Session.",
       "Neue persönliche Bestzeit, {time}. Weiter so.",
       "Das ist schneller: {time}. Sehr gut.",
-      "Du hast dich gesteigert. Neue Bestzeit {time}.",
-      "{time}, damit unter deiner bisherigen Bestzeit.",
-      "Stark gefahren. Deine neue Bestmarke ist {time}.",
+      "Du hast dich gesteigert. Neue persönliche Bestzeit {time}.",
+      "{time}, damit unter deiner bisherigen persönlichen Bestzeit.",
+      "Stark gefahren. Deine neue persönliche Bestmarke ist {time}.",
       "Wieder etwas gefunden. Persönliche Bestzeit: {time}."
     ],
     "finish-podium": [

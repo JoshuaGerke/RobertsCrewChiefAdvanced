@@ -233,6 +233,8 @@ namespace CrewChiefV4.AiTeam
         }
 
         public int Count(string group) => groups[group].Length;
+        /// <summary>Rohe Vorlage (für Prüfungen des Wortlauts).</summary>
+        internal string Template(string group, int variant) => groups[group][(int)((uint)variant % groups[group].Length)];
         public string ReferenceFor(string group, int variant)
         {
             var options=groups[group];int index=(int)((uint)variant%options.Length);

@@ -367,6 +367,7 @@ namespace CrewChiefV4.AiTeam
             if (lapCompleted)
             {
                 LiveDiagnostics.Lap(Memory);
+                FuelCarry.Remember(current, Memory.AverageFuelPerLap(out int carryLaps), carryLaps);
                 DriverMemory.RememberLap(CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName,
                     current.SessionData.TrackDefinition == null ? null : current.SessionData.TrackDefinition.name,
                     current.carName,Memory.GetLaps(1).LastOrDefault(),current.SessionData.SessionId);

@@ -126,13 +126,13 @@
       "Sector {sector} limpio. Tu mejor parcial aquí: {time} segundos.",
       "¡Verde en el sector {sector}! {time} segundos.",
       "Nunca fuiste más rápido en el sector {sector}: {time} segundos.",
-      "Sector {sector}, {time} segundos. Nueva mejor marca, muy bien.",
+      "Sector {sector}, {time} segundos. Nueva mejor marca personal, muy bien.",
       "¡Aquí hay algo! Sector {sector} en {time} segundos, mejor marca personal."
     ],
     "own-sector-best-push": [
       "Mantén la concentración, puede ser tu mejor vuelta.",
       "Ahora sigue limpio, la vuelta está viva.",
-      "Así mismo, esto huele a mejor vuelta.",
+      "Así mismo, esto huele a mejor vuelta personal.",
       "Concentrado, hoy hay algo ahí.",
       "No aflojes, esta vuelta puede ser muy buena.",
       "Tranquilo y remata, esto pinta muy bien.",
@@ -487,7 +487,7 @@
       "Se estrecha detrás, {opponent} gana {delta} segundos por vuelta. Sin errores."
     ],
     "lap-best": [
-      "Muy bien, nueva mejor vuelta. {time}.",
+      "Muy bien, nueva mejor vuelta personal. {time}.",
       "{time}. Esa ha sido tu vuelta más rápida.",
       "Muy fuerte, has vuelto a mejorar. {time}.",
       "Sí, esa ha sido más rápida. {time}.",
@@ -495,11 +495,11 @@
       "Tu nueva referencia: {time}. Muy fuerte.",
       "{time}, mejor vuelta personal. Buen trabajo.",
       "¡Eso es, mejoras a {time}!",
-      "Ahí está tu nueva mejor vuelta. {time}.",
+      "Ahí está tu nueva mejor vuelta personal. {time}.",
       "{time}. Tu mejor vuelta de la sesión hasta ahora.",
       "Nueva mejor vuelta personal, {time}. Sigue así.",
       "Eso es más rápido: {time}. Muy bien.",
-      "Has mejorado. Nueva mejor vuelta, {time}.",
+      "Has mejorado. Nueva mejor vuelta personal, {time}.",
       "{time}, por debajo de tu mejor vuelta anterior.",
       "Muy bien pilotado. Tu nueva referencia es {time}.",
       "Has encontrado algo más. Mejor vuelta personal: {time}."
