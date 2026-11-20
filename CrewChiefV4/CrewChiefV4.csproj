@@ -326,6 +326,9 @@
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />
     <Compile Include="AiTeam\NativeIncidentWatch.cs" />
+    <Compile Include="AiTeam\NativeRaceControl.cs" />
+    <Compile Include="AiTeam\LMURaceControlStream.cs" />
+    <Compile Include="AiTeam\LMUNativeSnapshot.cs" />
     <Compile Include="AiTeam\NativeTimingEvents.cs" />
     <Compile Include="AiTeam\RaceFactStore.cs" />
     <Compile Include="AiTeam\GermanRadioText.cs" />

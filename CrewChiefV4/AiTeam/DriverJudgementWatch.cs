@@ -282,7 +282,7 @@ namespace CrewChiefV4.AiTeam
             defendedAttacker = null; overtake = null; passedBy.Clear(); impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
             lastImpactTime = -1; impactBaseline = false; impactCandidateUtc = DateTime.MinValue; speeds.Clear();
             lastPraise = lastAny = lastImpact = lastImpactCall = DateTime.MinValue; lastVariant.Clear(); call = null;
-            positions.Clear(); incidentHistory.Clear(); frustratedLap = -100;
+            positions.Clear(); incidentHistory.Clear(); frustratedLap = -100; lastGrade = null; lastGradeLap = -100;
             lastPositionChange = lastDropCall = spinUtc = lastSpinCall = lastIncidentCall = DateTime.MinValue;
         }
 
@@ -448,9 +448,24 @@ namespace CrewChiefV4.AiTeam
                     Offer(gs, now, "judge-consistency", DriverJudgement.Consistency(name, DriverJudgement.ConsistencyLaps, spread, Variant("consistency", 5)),
                         "five_clean_consecutive_laps_within_half_a_second", 3, TimeSpan.FromSeconds(30));
                     lastPraise = now;
+                    return;
+                }
+            }
+            // Rob 20.11.: Bewertung der eigenen Runde – höchstens alle zwei Runden, gleiche Note erst nach fünf Runden wieder.
+            if (race && s.CompletedLaps >= 3)
+            {
+                var grade = LapGrade.Of(laps, out float behindBest);
+                if (grade.HasValue && (grade != lastGrade && lap - lastGradeLap >= 2 || lap - lastGradeLap >= 5))
+                {
+                    lastGrade = grade; lastGradeLap = lap;
+                    Offer(gs, now, "judge-lap", LapGrade.Text(grade.Value, behindBest, name), "clean_lap_vs_own_best_" + grade.Value + "_" + behindBest.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture), 2, TimeSpan.FromSeconds(25));
+                    if (grade.Value <= LapGrade.Grade.Good) lastPraise = now;
                 }
             }
         }
+
+        private LapGrade.Grade? lastGrade;
+        private int lastGradeLap = -100;
 
         private static bool AttackerFaster(GameStateData gs, string identity, out string name)
         {
@@ -611,6 +626,89 @@ namespace CrewChiefV4.AiTeam
             if (call != null && (!call.IsValid(gs, now) || call.DeliveryStartedUtc != DateTime.MinValue)) return null;
             if (busy || !benEnabled || call == null) return null;
             return call.TryReserve(now) ? call : null;
+        }
+    }
+}
+
+namespace CrewChiefV4.AiTeam
+{
+    /// <summary>
+    /// Bewertung der eigenen Runde im Rennen (Rob 20.11.2026: „Kommentare für sehr gute, gute, mittelmäßige, mäßige und schlechte
+    /// Aktionen haben gefehlt“). Maßstab ist Robs eigene persönliche Bestzeit dieses Rennens aus sauberen Runden; Box-, Out- und
+    /// ungültige Runden zählen nicht. Neue persönliche Bestzeit meldet bereits die Rundenzeit-Ansage.
+    /// </summary>
+    internal static class LapGrade
+    {
+        internal enum Grade { VeryGood, Good, Medium, Weak, Bad }
+
+        private static bool Clean(LapRecord l) => l != null && l.Valid && !l.InPitLap && l.LapTime > 10 && l.LapTime < 3600;
+
+        /// <summary>Note der letzten Runde gegen die bisher beste saubere Runde; null ohne Vergleich oder bei neuer Bestzeit / Ausreißer.</summary>
+        internal static Grade? Of(IList<LapRecord> laps, out float delta)
+        {
+            delta = 0;
+            if (laps == null || laps.Count < 3) return null;
+            var last = laps[laps.Count - 1];
+            if (!Clean(last)) return null;
+            var earlier = laps.Take(laps.Count - 1).Where(Clean).ToList();
+            if (earlier.Count < 2) return null;
+            float best = earlier.Min(l => l.LapTime);
+            delta = last.LapTime - best;
+            if (delta < 0) return null;            // neue persönliche Bestzeit: eigene Ansage
+            if (delta > 15) return null;           // Zwischenfall oder Verkehr: sagen die anderen Meldungen
+            return delta <= .15f ? Grade.VeryGood : delta <= .5f ? Grade.Good : delta <= 1.2f ? Grade.Medium : delta <= 3f ? Grade.Weak : Grade.Bad;
+        }
+
+        internal static string Text(Grade grade, float delta, string name)
+        {
+            string n = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            string d = GermanRadioText.Interval(delta);
+            string[] o;
+            switch (grade)
+            {
+                case Grade.VeryGood:
+                    o = new[] {
+                        RadioLanguage.T("Sehr starke Runde, nur " + d + " über deiner persönlichen Bestzeit.", "Very strong lap, only " + d + " off your personal best.", "Vuelta muy fuerte, solo " + d + " por encima de tu mejor personal."),
+                        RadioLanguage.T("Klasse, das war fast deine persönliche Bestzeit.", "Great, that was almost your personal best.", "Genial, casi tu mejor vuelta personal."),
+                        RadioLanguage.T("Top Runde! Genau so, " + d + " an der Bestmarke.", "Top lap! Just like that, " + d + " from your mark.", "¡Vuelta top! Así, a " + d + " de tu marca."),
+                        RadioLanguage.T("Das sitzt. Sauber und schnell, so wollen wir das.", "That's spot on. Clean and quick, that's what we want.", "Eso es. Limpio y rápido, así lo queremos."),
+                        RadioLanguage.T("Hervorragend gefahren, die Pace ist voll da.", "Superbly driven, the pace is fully there.", "Excelente, el ritmo está ahí.") };
+                    break;
+                case Grade.Good:
+                    o = new[] {
+                        RadioLanguage.T("Gute Runde, " + d + " über deiner persönlichen Bestzeit.", "Good lap, " + d + " off your personal best.", "Buena vuelta, " + d + " por encima de tu mejor personal."),
+                        RadioLanguage.T("Ordentlich, der Rhythmus stimmt.", "Solid, the rhythm is right.", "Bien, el ritmo es bueno."),
+                        RadioLanguage.T("Gute Pace, nur " + d + " zur Bestmarke.", "Good pace, just " + d + " to your mark.", "Buen ritmo, solo " + d + " a tu marca."),
+                        RadioLanguage.T("Saubere Runde. Weiter so.", "Clean lap. Keep it up.", "Vuelta limpia. Sigue así."),
+                        RadioLanguage.T("Passt, gleichmäßig und schnell.", "Good, consistent and quick.", "Bien, constante y rápido.") };
+                    break;
+                case Grade.Medium:
+                    o = new[] {
+                        RadioLanguage.T("Ganz okay, aber " + d + " liegen noch drin.", "Okay, but there's " + d + " still in it.", "Correcto, pero aún quedan " + d + "."),
+                        RadioLanguage.T("Mittelmäßige Runde, " + d + " langsamer als deine persönliche Bestzeit.", "Average lap, " + d + " slower than your personal best.", "Vuelta normal, " + d + " más lenta que tu mejor personal."),
+                        RadioLanguage.T("Solide, aber nicht ganz am Limit. " + d + " fehlen.", "Solid, but not quite on the limit. " + d + " missing.", "Sólida, pero no al límite. Faltan " + d + "."),
+                        RadioLanguage.T(d + " verschenkt. Konzentrier dich auf die Bremspunkte.", d + " given away. Focus on your braking points.", d + " regalados. Céntrate en las frenadas."),
+                        RadioLanguage.T("Geht noch besser, da sind " + d + " drin.", "There's more to come, " + d + " in it.", "Se puede mejorar, hay " + d + ".") };
+                    break;
+                case Grade.Weak:
+                    o = new[] {
+                        RadioLanguage.T("Die war schwächer, " + d + " langsamer. Ruhig bleiben, Rhythmus finden.", "That one was weaker, " + d + " slower. Stay calm, find the rhythm.", "Esa fue más floja, " + d + " más lenta. Tranquilo, busca el ritmo."),
+                        RadioLanguage.T(d + " verloren. Nicht hetzen, saubere Linien.", d + " lost. Don't rush, clean lines.", d + " perdidos. Sin prisa, trazadas limpias."),
+                        RadioLanguage.T("Mäßige Runde. Hak sie ab, die nächste zählt.", "So-so lap. Let it go, the next one counts.", "Vuelta regular. Olvídala, la siguiente cuenta."),
+                        RadioLanguage.T("Da ging Zeit liegen, " + d + ". Zurück zur Basis.", "Time went missing there, " + d + ". Back to basics.", "Ahí se fue tiempo, " + d + ". Vuelve a lo básico."),
+                        RadioLanguage.T("Etwas zäh, " + d + " über der Bestmarke. Kopf frei, weiter.", "A bit sticky, " + d + " off your mark. Clear head, carry on.", "Algo lenta, " + d + " sobre tu marca. Cabeza fría, sigue.") };
+                    break;
+                default:
+                    o = new[] {
+                        RadioLanguage.T("Das war keine gute Runde, " + d + " verloren. Durchatmen und neu sortieren.", "That wasn't a good lap, " + d + " lost. Breathe and reset.", "No fue una buena vuelta, " + d + " perdidos. Respira y reordena."),
+                        RadioLanguage.T(d + " langsamer als deine persönliche Bestzeit. Ruhig, Schritt für Schritt zurück.", d + " slower than your personal best. Easy, step by step back.", d + " más lenta que tu mejor personal. Calma, paso a paso."),
+                        RadioLanguage.T("Schlechte Runde. Abhaken, die nächste wird besser.", "Bad lap. Forget it, the next will be better.", "Mala vuelta. Olvídala, la próxima será mejor."),
+                        RadioLanguage.T("Viel Zeit liegen gelassen, " + d + ". Erst sauber, dann schnell.", "A lot of time dropped, " + d + ". Clean first, then quick.", "Mucho tiempo perdido, " + d + ". Primero limpio, luego rápido."),
+                        RadioLanguage.T("Die ging daneben. Konzentration, saubere Runde jetzt.", "That one went wrong. Focus, clean lap now.", "Esa salió mal. Concentración, vuelta limpia ahora.") };
+                    break;
+            }
+            string text = RadioVariants.Pick("lap-grade-" + grade, o);
+            return n != null && grade <= Grade.Good ? RadioPhraseCatalog.Address(text, n) : text;
         }
     }
 }

@@ -13,7 +13,9 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class RaceSummaryWatch
     {
-        internal const float CalmSeconds = 5f;
+        // LMU 20.11.: In 20 Minuten Multiclass kam kein einziger Zwischenstand – mit 5 s freier Bahn auch zu Überrundeten und
+        // anderen Klassen gab es nie einen „ruhigen“ Moment. Jetzt 3 s, und nur Autos derselben Klasse in derselben Runde zählen.
+        internal const float CalmSeconds = 3f;
         private readonly Random random;
         private int session = int.MinValue, startPosition, delivered;
         private readonly List<double> windows = new List<double>();
@@ -37,6 +39,19 @@ namespace CrewChiefV4.AiTeam
             return s.SessionNumberOfLaps > 0 ? Math.Min(1, (double)s.CompletedLaps / s.SessionNumberOfLaps) : -1;
         }
 
+        /// <summary>
+        /// Rob 20.11.: „Nach 2–3 Minuten eine aktive Zusammenfassung und das Ganze 2–3-mal im Rennen.“ Ein früher Zwischenstand nach
+        /// etwa drei Minuten (bzw. nach zwei Runden) plus ein bis zwei weitere über das Rennen verteilt.
+        /// </summary>
+        internal static int TotalCount(SessionData s) => 1 + Math.Min(2, PlannedCount(s));
+
+        /// <summary>Zeitpunkt des frühen Zwischenstands als Rennanteil.</summary>
+        internal double EarlyWindow(SessionData s)
+        {
+            if (s.SessionHasFixedTime && s.SessionTotalRunTime > 0) return Math.Min(.3, (150 + random.NextDouble() * 60) / s.SessionTotalRunTime);
+            return s.SessionNumberOfLaps > 0 ? Math.Min(.3, 2.0 / s.SessionNumberOfLaps) : .1;
+        }
+
         /// <summary>Wie viele Zusammenfassungen passen zu dieser Renndauer (1–3).</summary>
         internal static int PlannedCount(SessionData s)
         {
@@ -50,27 +65,37 @@ namespace CrewChiefV4.AiTeam
         private void Plan(SessionData s)
         {
             windows.Clear();
-            int n = PlannedCount(s);
+            double early = EarlyWindow(s);
+            windows.Add(early);
+            int n = TotalCount(s) - 1;
             for (int i = 1; i <= n; i++)
             {
-                double centre = (double)i / (n + 1);
-                double jitter = (random.NextDouble() - .5) * (.5 / (n + 1));
-                windows.Add(Math.Max(.15, Math.Min(.85, centre + jitter)));
+                double centre = early + (.85 - early) * i / (n + 1) + .1;
+                double jitter = (random.NextDouble() - .5) * (.3 / (n + 1));
+                windows.Add(Math.Max(early + .15, Math.Min(.85, centre + jitter)));
             }
         }
 
+        internal IReadOnlyList<double> Windows => windows;
+
         /// <summary>Ruhige Minute: kein Auto innerhalb von 5 s (gemessen oder über Streckenmeter geschätzt), keine Gelbphase, nicht in der Box.</summary>
-        internal static bool Calm(GameStateData gs, float gapAhead, float gapBehind)
+        internal static bool Calm(GameStateData gs, float gapAhead, float gapBehind) => Calm(gs, gapAhead, gapBehind, CalmSeconds);
+
+        internal static bool Calm(GameStateData gs, float gapAhead, float gapBehind, float calmSeconds)
         {
             var s = gs.SessionData;
             if (s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane || gs.FlagData.isLocalYellow) return false;
-            if (gapAhead >= 0 && gapAhead < CalmSeconds || gapBehind >= 0 && gapBehind < CalmSeconds) return false;
+            if (gapAhead >= 0 && gapAhead < calmSeconds || gapBehind >= 0 && gapBehind < calmSeconds) return false;
             float speed = gs.PositionAndMotionData.CarSpeed, length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             if (!(speed > 10) || !(length > 100)) return false;
-            float own = gs.PositionAndMotionData.DistanceRoundTrack, reach = speed * CalmSeconds;
+            float own = gs.PositionAndMotionData.DistanceRoundTrack, reach = speed * calmSeconds;
+            double ownTotal = s.CompletedLaps + own / length;
             foreach (var o in gs.OpponentData.Values)
             {
                 if (o == null || !o.IsActive || o.InPits) continue;
+                // Andere Klasse oder überrundet/überrundend: Verkehr, aber kein Zweikampf, der einen Zwischenstand verbietet.
+                if (gs.carClass != null && o.CarClass != null && !CarData.IsCarClassEqual(gs.carClass, o.CarClass, false)) continue;
+                if (Math.Abs(o.CompletedLaps + o.DistanceRoundTrack / length - ownTotal) > .5) continue;
                 float d = Math.Abs(o.DistanceRoundTrack - own);
                 d = Math.Min(d, length - d);
                 if (d < reach) return false; // auch Überrundete oder andere Klassen zählen als Verkehr
@@ -87,8 +112,8 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
             if (startPosition <= 0) startPosition = RaceStartLatch.Position(s);
             if (windows.Count == 0 && (s.SessionNumberOfLaps > 0 || s.SessionTotalRunTime > 0)) Plan(s);
-            // Robs Vorgabe: frühestens nach etwa drei Runden.
-            if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 3) return;
+            // Früher Zwischenstand nach der ersten vollen Runde, die weiteren frühestens nach drei Runden.
+            if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < (delivered == 0 ? 1 : 3)) return;
 
             if (call != null || delivered >= windows.Count) return;
             double progress = Progress(s);
@@ -168,6 +193,31 @@ namespace CrewChiefV4.AiTeam
                     intro + head + ": " + rank + ", " + (-gained) + (gained == -1 ? " puesto" : " puestos") + " por detrás de la salida."));
             else
                 parts.Add(intro + head + ": " + rank + ".");
+
+            // Rob 20.11.: „wie ich mich die ersten Runden geschlagen habe“ – eigene Pace gegen die Klassenbestzeit.
+            float pb = s.PlayerLapTimeSessionBest, cb = s.PlayerClassSessionBestLapTime;
+            if (pb > 10 && cb > 10 && pb < 3600 && cb < 3600)
+            {
+                string own = LocalAnswers.LapTime(pb);
+                if (pb - cb < .05f)
+                    parts.Add(RadioVariants.Pick("summary-pace-best",
+                        RadioLanguage.T("Deine " + own + " ist die schnellste Runde deiner Klasse.", "Your " + own + " is the fastest lap in your class.", "Tu " + own + " es la vuelta más rápida de tu clase."),
+                        RadioLanguage.T("Mit " + own + " hast du die Klassenbestzeit.", "With " + own + " you hold the class best.", "Con " + own + " tienes el mejor tiempo de la clase."),
+                        RadioLanguage.T("Niemand in deiner Klasse war schneller als deine " + own + ".", "Nobody in your class has gone quicker than your " + own + ".", "Nadie de tu clase ha ido más rápido que tu " + own + "."),
+                        RadioLanguage.T("Klassenbestzeit gehört dir, " + own + ".", "The class best is yours, " + own + ".", "El mejor tiempo de la clase es tuyo, " + own + ".")));
+                else
+                {
+                    string gap = GermanRadioText.Interval(pb - cb);
+                    parts.Add(RadioVariants.Pick("summary-pace",
+                        RadioLanguage.T("Deine persönliche Bestzeit " + own + ", die Klassenbestzeit ist " + gap + " schneller.", "Your personal best is " + own + ", the class best is " + gap + " quicker.", "Tu mejor vuelta personal es " + own + ", la mejor de la clase es " + gap + " más rápida."),
+                        RadioLanguage.T("Bei der Pace fehlen dir " + gap + " auf die Schnellsten deiner Klasse.", "On pace you're " + gap + " off the quickest in your class.", "De ritmo te faltan " + gap + " respecto a los más rápidos de tu clase."),
+                        RadioLanguage.T("Persönliche Bestzeit " + own + ", " + gap + " hinter der Klassenbestzeit.", "Personal best " + own + ", " + gap + " behind the class best.", "Mejor personal " + own + ", " + gap + " detrás del mejor de la clase."),
+                        RadioLanguage.T("Zur Klassenbestzeit fehlen " + gap + ", deine beste ist " + own + ".", "You're " + gap + " off the class best, your best is " + own + ".", "Te faltan " + gap + " para el mejor de la clase, tu mejor es " + own + ".")));
+                }
+            }
+            if (gs.PenaltiesData.NumOutstandingPenalties > 0)
+                parts.Add(gs.PenaltiesData.NumOutstandingPenalties == 1 ? RadioLanguage.T("Eine Strafe ist noch offen.", "One penalty is still open.", "Queda una penalización pendiente.")
+                    : RadioLanguage.T(gs.PenaltiesData.NumOutstandingPenalties + " Strafen sind noch offen.", gs.PenaltiesData.NumOutstandingPenalties + " penalties still open.", "Quedan " + gs.PenaltiesData.NumOutstandingPenalties + " penalizaciones pendientes."));
 
             var front = RaceDataTools.Neighbour(gs, true);
             var rear = RaceDataTools.Neighbour(gs, false);

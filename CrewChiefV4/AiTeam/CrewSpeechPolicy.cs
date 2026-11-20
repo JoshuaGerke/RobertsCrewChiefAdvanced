@@ -452,8 +452,9 @@ namespace CrewChiefV4.AiTeam
             int currentPriority, string currentTopic = null, string nextTopic = null)
         {
             return currentIsAi && !currentIsSpotter && !currentIsBleep &&
-                (currentPriority < 4 || nextTopic == "own-lap" && currentPriority == 4 &&
-                    (currentTopic == "field-fastest" || currentTopic == "field-fastest-overall" || currentTopic == "rival-best"));
+                // Quali 20.11.: Die neue Bestzeit kam 9 s nach der Ziellinie, weil eine Routinemeldung lief. Die eigene Rundenzeit
+                // darf jede laufende Routinemeldung bis Stufe 4 ablösen; Antworten auf Robs Fragen (ohne Thema) laufen zu Ende.
+                (currentPriority < 4 || nextTopic == "own-lap" && currentPriority == 4 && !string.IsNullOrEmpty(currentTopic));
         }
 
         internal static DateTime EngineerPlaybackDeadline(DateTime deadline, DateTime queued, bool safetyRadio, bool engineerCritical)

@@ -91,7 +91,38 @@ namespace CrewChiefV4.AiTeam
         }
         public void Capture(NativeFieldFact fact)
         {if(fact==null)return;incoming.Enqueue(fact);NativeFieldFact unused;while(incoming.Count>32)incoming.TryDequeue(out unused);}
-        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();seen.Clear();ResetLapEvidence();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
+        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();seen.Clear();departing.Clear();ResetLapEvidence();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
+
+        // AC 20.11.: „Server verlassen ohne Namen.“ Crew Chief meldet Abgänge in AC gar nicht (keine Ausfallliste im Adapter);
+        // ein Gegner, der im laufenden Rennen aus den Daten verschwindet oder inaktiv wird, ist nach 3 s bestätigt weg.
+        internal static readonly TimeSpan DepartureConfirm = TimeSpan.FromSeconds(3);
+        private readonly Dictionary<string, KeyValuePair<DateTime, OpponentData>> departing = new Dictionary<string, KeyValuePair<DateTime, OpponentData>>();
+
+        public void CaptureDepartures(GameStateData before, GameStateData gs, DateTime now)
+        {
+            if (before == null || gs == null || gs.OpponentData == null || before.OpponentData == null ||
+                before.SessionData.SessionId != gs.SessionData.SessionId || before.SessionData.SessionType != gs.SessionData.SessionType ||
+                gs.SessionData.IsNewSession || gs.SessionData.SessionType != SessionType.Race ||
+                gs.SessionData.SessionPhase != SessionPhase.Green || gs.SessionData.LeaderHasFinishedRace)
+            { departing.Clear(); return; }
+            foreach (var pair in before.OpponentData)
+            {
+                var prior = pair.Value;
+                if (prior == null || !prior.IsActive || string.IsNullOrWhiteSpace(prior.DriverRawName) || departing.ContainsKey(pair.Key)) continue;
+                if (gs.OpponentData.TryGetValue(pair.Key, out var now_) && now_ != null && now_.IsActive) continue;
+                if (gs.retriedDriverNames.ContainsKey(prior.DriverRawName) || gs.disqualifiedDriverNames.ContainsKey(prior.DriverRawName)) continue;
+                departing[pair.Key] = new KeyValuePair<DateTime, OpponentData>(now, prior);
+            }
+            foreach (var pair in departing.ToArray())
+            {
+                if (gs.OpponentData.TryGetValue(pair.Key, out var back) && back != null && back.IsActive) { departing.Remove(pair.Key); continue; }
+                if (now < pair.Value.Key || now - pair.Value.Key < DepartureConfirm) continue;
+                departing.Remove(pair.Key);
+                var prior = pair.Value.Value;
+                Capture(new NativeFieldFact("left", pair.Key, prior.CanUseName ? prior.DriverRawName : null, null, "mapped_opponent_left", gs, prior, 0));
+            }
+            if (departing.Count > 64) departing.Clear();
+        }
 
         private void ResetLapEvidence()
         {
@@ -265,13 +296,14 @@ namespace CrewChiefV4.AiTeam
                 // Existing SessionLapObserver already owns non-race class records.
                 bool nonRace=SessionLapObserver.Supported(f.Type);
                 bool relevant=f.Type==SessionType.Race || nonRace && f.Kind=="pit";
-                if((f.Kind=="retired" || f.Kind=="dq" || f.Kind=="tyres") && (f.Position<1 || Math.Abs(f.Position-gs.SessionData.ClassPosition)>2 && f.Position!=1))relevant=false;
+                // AC/RaceRoom 20.11.: Ausfälle und Abgänge immer mit Namen melden, nicht nur direkte Gegner.
+                if((f.Kind=="dq" || f.Kind=="tyres") && (f.Position<1 || Math.Abs(f.Position-gs.SessionData.ClassPosition)>2 && f.Position!=1))relevant=false;
                 if(!relevant){LiveDiagnostics.Decision("field-"+f.Kind,"stored","session_or_rival_not_relevant",text);continue;}
                 var fact=f;
                 if (pending.Count >= 16) Remove(pending[0]);
                 var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,SemanticKey="field|"+id,
                     SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=fastest?4:3,
-                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(10),AdditionalValidity=live=>StillCurrent(fact,live)};
+                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : 10),AdditionalValidity=live=>StillCurrent(fact,live)};
                 pending.Add(call);
                 if (f.Kind == "pit")
                 {
@@ -291,6 +323,7 @@ namespace CrewChiefV4.AiTeam
         {
             if(gs==null || gs.SessionData.SessionId!=f.Session || gs.SessionData.SessionType!=f.Type)return false;
             if(f.Kind=="retired")return gs.retriedDriverNames.ContainsKey(f.Name);
+            if(f.Kind=="left")return f.Key!=null && (!gs.OpponentData.TryGetValue(f.Key,out var gone) || gone==null || !gone.IsActive);
             if(f.Kind=="dq")return gs.disqualifiedDriverNames.ContainsKey(f.Name);
             OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op==null || RaceReader.Identity(f.Key,op)!=f.Identity)return false;
             if(f.Kind=="pit")return op.IsActive && (op.InPits || op.isEnteringPits());
@@ -384,6 +417,12 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.T(" ist raus aus dem Rennen."," has retired."," se ha retirado."),
                 RadioLanguage.T(" hat aufgegeben, ein Gegner weniger."," has retired, one rival fewer."," ha abandonado, un rival menos."),
                 RadioLanguage.T(" ist nicht mehr dabei."," is no longer running."," ya no sigue en carrera."));
+            if(f.Kind=="left")return who+RadioVariants.Pick("field-left",
+                RadioLanguage.T(" hat den Server verlassen."," has left the server."," ha abandonado el servidor."),
+                RadioLanguage.T(" ist nicht mehr auf dem Server."," is no longer on the server."," ya no está en el servidor."),
+                RadioLanguage.T(" hat das Rennen verlassen, ein Auto weniger auf der Strecke."," has left the race, one car fewer on track."," ha dejado la carrera, un coche menos en pista."),
+                RadioLanguage.T(" ist vom Server gegangen."," has dropped off the server."," se ha ido del servidor."),
+                RadioLanguage.T(" ist raus, er hat den Server verlassen."," is out, he's left the server."," está fuera, ha dejado el servidor."));
             if(f.Kind=="dq")return who+RadioVariants.Pick("field-dq",
                 RadioLanguage.T(" wurde disqualifiziert."," has been disqualified."," ha sido descalificado."),
                 RadioLanguage.T(" ist disqualifiziert worden."," is disqualified."," queda descalificado."),

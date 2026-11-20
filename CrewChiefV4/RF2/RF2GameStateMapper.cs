@@ -1385,6 +1385,14 @@ namespace CrewChiefV4.rFactor2
                 }
             }
 
+            // RCCA: Karosserie und Räder für die Crew (Dellen, abgerissene Teile, platte oder verlorene Räder, letzter Einschlag)
+            cgs.CarDamageData.PartsDetached = playerTelemetry.mDetached == 1;
+            cgs.CarDamageData.LastImpactMagnitude = (float)playerTelemetry.mLastImpactMagnitude;
+            if (playerTelemetry.mDentSeverity != null && playerTelemetry.mDentSeverity.Length == 8)
+                cgs.CarDamageData.DentSeverity = Array.ConvertAll(playerTelemetry.mDentSeverity, b => (int)b);
+            cgs.CarDamageData.WheelDetached = new[] { wheelFrontLeft.mDetached == 1, wheelFrontRight.mDetached == 1, wheelRearLeft.mDetached == 1, wheelRearRight.mDetached == 1 };
+            cgs.CarDamageData.WheelFlat = new[] { wheelFrontLeft.mFlat == 1, wheelFrontRight.mFlat == 1, wheelRearLeft.mFlat == 1, wheelRearRight.mFlat == 1 };
+
             // use detached wheel status for suspension damage
             cgs.CarDamageData.SuspensionDamageStatus = CornerData.getCornerData(this.suspensionDamageThresholds,
                 !cgs.TyreData.LeftFrontAttached ? 1 : 0,

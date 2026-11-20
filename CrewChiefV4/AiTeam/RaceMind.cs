@@ -123,6 +123,8 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class RaceMind
     {
+        /// <summary>„Ruhig“ im Sinne des Rennkopfs: 5 s frei (der Zwischenstand selbst begnügt sich mit 3 s).</summary>
+        internal const float MindCalmSeconds = 5f;
         private static RaceSituation latest;
         /// <summary>Zuletzt veröffentlichte Lage (für Analysewerkzeug und Zwischenresümee); null außerhalb von Rennen.</summary>
         internal static RaceSituation Latest => Volatile.Read(ref latest);
@@ -189,7 +191,7 @@ namespace CrewChiefV4.AiTeam
                     { near = true; break; }
             if (near) trafficUntil = now.AddSeconds(2);
             if (now < trafficUntil) return RaceAttention.Traffic;
-            return RaceSummaryWatch.Calm(gs, ahead, behind) ? RaceAttention.Calm : RaceAttention.Open;
+            return RaceSummaryWatch.Calm(gs, ahead, behind, MindCalmSeconds) ? RaceAttention.Calm : RaceAttention.Open;
         }
 
         internal static RaceFocus FocusOf(RaceSituation x)
@@ -349,7 +351,9 @@ namespace CrewChiefV4.AiTeam
             if (t == "race-summary")
             {
                 if (lastLaps || x.Phase == RacePhase.Final) { reason = "final_laps_no_summary"; return MindVerdict.Drop; }
-                if (x.Attention != RaceAttention.Calm) { reason = "summary_needs_calm_moment"; return MindVerdict.Hold; }
+                // LMU 20.11.: Mit „nur ganz ruhig“ kam in 20 Minuten Multiclass kein Zwischenstand. Frei (kein Zweikampf, kein
+                // Verkehr, kein Gelb) genügt.
+                if (x.Attention != RaceAttention.Calm && x.Attention != RaceAttention.Open) { reason = "summary_needs_calm_moment"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
             if (t == "focus-brief")

@@ -234,7 +234,21 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Interne Streckennamen wie "Monza:Monza_2020" so, wie man sie spricht ("Monza").</summary>
         internal static string SpokenTrack(string track)
         {
-            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Replace('_', ' ').Trim();
+            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Trim();
+            // AC 20.11.: „ks nurburgring“ – Kunos- und Mod-Kürzel vor dem Namen sind kein Streckenname.
+            name = System.Text.RegularExpressions.Regex.Replace(name, @"^(?:ks|rt|acu|rss|vrc|rj|sx)_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            name = name.Replace('_', ' ').Trim();
+            if (name.Length > 0 && name == name.ToLowerInvariant())
+            {
+                var words = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < words.Length; i++)
+                {
+                    string w = words[i];
+                    words[i] = w == "nurburgring" ? "Nürburgring" : w == "nordschleife" ? "Nordschleife" :
+                        char.ToUpperInvariant(w[0]) + w.Substring(1);
+                }
+                name = string.Join(" ", words);
+            }
             return name.Length > 0 ? name : track;
         }
     }

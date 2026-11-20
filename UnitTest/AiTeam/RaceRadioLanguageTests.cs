@@ -264,6 +264,40 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Lmu_negative_clock_announces_one_more_lap_then_the_last_lap()
+        {
+            // LMU 20.11. (Sebring): Restzeit −3,7 s an der Linie, Spielmeldung „noch eine Runde“ – die Crew sagte nichts.
+            WithFuelEstimate(0, 15, () => {
+                LapWatch.ForgetTimedFinish();
+                try
+                {
+                    var before = State(15); var s = State(15);
+                    foreach (var x in new[] { before, s })
+                    {
+                        x.SessionData.SessionHasFixedTime = true; x.SessionData.SessionTotalRunTime = 1200;
+                        x.SessionData.TrackDefinition = new CrewChiefV4.TrackDefinition("Sebring School Circuit", 3083);
+                        x.SessionData.OverallPosition = 13; x.SessionData.ClassPosition = 13;
+                        x.PositionAndMotionData.DistanceRoundTrack = 2960;
+                        x.OpponentData["leader"] = new OpponentData { DriverRawName = "Leader", IsActive = true, OverallPosition = 1, DistanceRoundTrack = 1500 };
+                    }
+                    before.SessionData.SessionRunningTime = 1199.5f; before.SessionData.SessionTimeRemaining = .5f;
+                    s.SessionData.SessionRunningTime = 1200.3f; s.SessionData.SessionTimeRemaining = -.3f;
+                    var watch = new LapWatch();
+                    string expired = watch.Evaluate(before, s, -1, -1, false);
+                    Assert.IsNotNull(expired, "abgelaufene Uhr mit negativer Restzeit wird erkannt");
+                    Assert.IsTrue(new[] { "noch diese runde", "noch eine", "zwei runden", "volle runde" }.Any(expired.ToLowerInvariant().Contains), expired);
+                    var crossed = State(16); crossed.SessionData.SessionId = s.SessionData.SessionId; crossed.SessionData.IsNewLap = true;
+                    crossed.SessionData.SessionHasFixedTime = true; crossed.SessionData.SessionTotalRunTime = 1200; crossed.SessionData.SessionRunningTime = 1204;
+                    crossed.SessionData.SessionTimeRemaining = -3.7f; crossed.SessionData.ClassPosition = 13;
+                    Assert.AreEqual(1, LapWatch.LapsLeft(crossed.SessionData));
+                    string last = watch.Evaluate(s, crossed, -1, -1, false) ?? "";
+                    Assert.IsTrue(last.ToLowerInvariant().Contains("letzte runde") || last.ToLowerInvariant().Contains("finale runde"), last);
+                }
+                finally { LapWatch.ForgetTimedFinish(); }
+            });
+        }
+
+        [Test]
         public void Confirmed_expired_clock_is_not_confused_with_extra_laps_or_victory()
         {
             WithFuelEstimate(0, 9, () => {
