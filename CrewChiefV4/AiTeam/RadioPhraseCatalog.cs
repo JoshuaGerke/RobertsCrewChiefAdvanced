@@ -68,6 +68,8 @@ namespace CrewChiefV4.AiTeam
         {
             "Du", "Wir", "Das", "Der", "Die", "Den", "Dem", "Ein", "Eine", "Einen", "Jetzt", "Und", "Noch", "Wieder", "Gut", "Sauber", "Sauberer",
             "Stark", "Starker", "Neue", "Neuer", "Nach", "In", "Ja", "Jawohl", "Sehr", "Deine", "Dein", "Da", "Von", "Mit", "Schnellste", "Persönliche",
+            "Letzte", "Letzter", "Letztes", "Erste", "Erster", "Zwei", "Drei", "Kleiner", "Kleine", "Nur", "Bleib", "Halt",
+            "Last", "Final", "First", "Just", "Stay", "Keep", "Última", "Último", "Primera", "Primer", "Solo", "Sigue", "Mantén",
             "You", "We", "The", "A", "And", "Another", "New", "Nice", "Good", "Great", "Strong", "Back", "Fastest", "Your", "That", "Now", "One", "Clean", "Yes",
             "Has", "Hemos", "Otra", "Otro", "Un", "Una", "El", "La", "Los", "Nueva", "Nuevo", "Bien", "Buen", "Buena", "Muy", "Ya", "Ahora", "Tu"
         };
