@@ -1233,6 +1233,26 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(2, server.Requests.Count);
         }
 
+        [Test]
+        public async Task Last_model_round_must_answer_without_tools()
+        {
+            // Quali 20.11.: get_race_state, get_damage_and_engine, get_lap_times, save_note – dann nur die Ersatzfloskel.
+            var server = new FakeServer();
+            foreach (var tool in new[] { "get_race_state", "get_damage_and_engine", "get_lap_times" })
+                server.Responses.Enqueue(Json(200, "{\"choices\":[{\"finish_reason\":\"tool_calls\",\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"" + tool +
+                    "\",\"type\":\"function\",\"function\":{\"name\":\"" + tool + "\",\"arguments\":\"{}\"}}]}}]}"));
+            server.Responses.Enqueue(Json(200, "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"Kopf hoch, Rob. Kurve drei schauen wir uns an der Box an.\"}}]}"));
+            var client = new OpenAiCompatibleClient("https://example.invalid/v1", () => null, TimeSpan.FromSeconds(2), null, server);
+            var messages = new JArray { new JObject { ["role"] = "user", ["content"] = "Ich hab's versaut, schon Kurve drei war schlecht. Ich komm rein." } };
+            string answer = await AiTeamService.RunToolLoopAsync(client, "test", "none", messages, 250, 260,
+                () => Ctx(new GameStateData(1)), null, null, CancellationToken.None);
+            Assert.AreEqual("Kopf hoch, Rob. Kurve drei schauen wir uns an der Box an.", answer);
+            Assert.AreEqual(AiTeamService.MaxToolRounds, server.Requests.Count);
+            for (int i = 0; i < AiTeamService.MaxToolRounds - 1; i++)
+                Assert.AreEqual("auto", (string)JObject.Parse(server.Requests[i])["tool_choice"], "Runde " + (i + 1) + " darf Daten holen");
+            Assert.AreEqual("none", (string)JObject.Parse(server.Requests[AiTeamService.MaxToolRounds - 1])["tool_choice"], "letzte Runde muss sprechen");
+        }
+
         [TestCase("none", 250)] [TestCase("low", 1536)] [TestCase("high", 4096)]
         public async Task Request_budget_reserves_room_for_reasoning(string effort, int budget)
         {

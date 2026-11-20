@@ -1432,13 +1432,16 @@ namespace CrewChiefV4.AiTeam
         /// <summary>
         /// Tool-Calling-Schleife: Modell fragt Werkzeuge an, wir liefern frische Telemetrie, bis eine Textantwort kommt (max. 4 Runden).
         /// </summary>
+        /// <summary>Höchstzahl Modellrunden je Frage; die letzte läuft ohne Werkzeuge.</summary>
+        internal const int MaxToolRounds = 4;
+
         public static async Task<string> RunToolLoopAsync(OpenAiCompatibleClient client, string model, string reasoningEffort, JArray messages,
             int maxTokens, int maxChars, Func<RaceDataContext> contextProvider, Action countCall, Action<string> log, CancellationToken ct,
             Func<TimeSpan> remaining = null, bool singleShot = false)
         {
             JArray tools = RaceDataTools.BuildToolDefinitions();
             bool recoveredLength = false;
-            for (int round = 0; round < 4; round++)
+            for (int round = 0; round < MaxToolRounds; round++)
             {
                 if (countCall != null)
                 {
@@ -1447,8 +1450,10 @@ namespace CrewChiefV4.AiTeam
                 var sw = Stopwatch.StartNew();
                 // P4 (Rob 16.11.): Wird die Zeit knapp, keine weitere Datenabfrage – das Modell muss mit dem Vorhandenen antworten.
                 // Einfache Fragen während der Fahrt: Die Lage steckt schon in der Anfrage, also genau eine Anfrage ohne Werkzeugrunde.
-                bool hurry = singleShot || round > 0 && remaining != null && remaining() < TimeSpan.FromSeconds(ToolBudgetSeconds);
-                if (hurry && log != null) log(singleShot ? "Einfache Frage: eine Anfrage ohne Werkzeuge." : "Zeit knapp: Antwort ohne weitere Werkzeuge erzwungen.");
+                // Quali 20.11.: vier Runden mit je einem Werkzeug, danach nur die Ersatzfloskel. Die letzte Runde muss sprechen.
+                bool lastRound = round == MaxToolRounds - 1;
+                bool hurry = singleShot || lastRound || round > 0 && remaining != null && remaining() < TimeSpan.FromSeconds(ToolBudgetSeconds);
+                if (hurry && log != null) log(singleShot ? "Einfache Frage: eine Anfrage ohne Werkzeuge." : lastRound ? "Letzte Runde: Antwort ohne weitere Werkzeuge erzwungen." : "Zeit knapp: Antwort ohne weitere Werkzeuge erzwungen.");
                 JObject response = await client.ChatAsync(model, messages, tools, reasoningEffort, maxTokens, false, ct, hurry ? "none" : "auto").ConfigureAwait(false);
                 var message = response.SelectToken("choices[0].message") as JObject;
                 if (message == null)
@@ -1459,7 +1464,7 @@ namespace CrewChiefV4.AiTeam
                 if (finish == "length")
                 {
                     // Do not execute truncated tool calls or speak a cut-off technical recommendation.
-                    if (recoveredLength || round == 3) throw new AiApiException("KI-Antwort am Ausgabelimit abgebrochen.");
+                    if (recoveredLength || round == MaxToolRounds - 1) throw new AiApiException("KI-Antwort am Ausgabelimit abgebrochen.");
                     recoveredLength = true;
                     reasoningEffort = OpenAiCompatibleClient.RadioReasoningEffort(reasoningEffort, false);
                     maxTokens = Math.Max(maxTokens, 2048);
