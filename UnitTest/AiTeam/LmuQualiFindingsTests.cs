@@ -456,6 +456,20 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Incident_ahead_names_the_slow_car_in_front()
+        {
+            // RaceRoom 20.11.: „Unfall voraus!“ – „Warum habt ihr mir nicht gesagt, wer da steht?“
+            var gs = Quali(SessionPhase.Green, 3, 10); gs.SessionData.SessionType = SessionType.Race;
+            gs.PositionAndMotionData.DistanceRoundTrack = 1000;
+            gs.OpponentData["stopped"] = new OpponentData { DriverRawName = "AC Correa", IsActive = true, Speed = 0.5f, DistanceRoundTrack = 1180, CanUseName = true };
+            gs.OpponentData["behind"] = new OpponentData { DriverRawName = "Andre Antunes", IsActive = true, Speed = 0f, DistanceRoundTrack = 900, CanUseName = true };
+            gs.OpponentData["fast"] = new OpponentData { DriverRawName = "Morgan Henderson", IsActive = true, Speed = 50f, DistanceRoundTrack = 1100, CanUseName = true };
+            StringAssert.Contains("Correa", FlagWatch.IncidentDriver(gs));
+            gs.OpponentData["stopped"].DistanceRoundTrack = 1500;
+            Assert.IsNull(FlagWatch.IncidentDriver(gs), "weiter als 300 m: nicht raten");
+        }
+
+        [Test]
         public void Address_keeps_the_sentence_after_the_name_lower_case()
         {
             // Quali 20.11.: „Rob, Letzte Chance. Sauber durchziehen.“

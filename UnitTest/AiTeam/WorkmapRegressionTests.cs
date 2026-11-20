@@ -113,6 +113,34 @@ namespace UnitTest.AiTeamTests
             gs.EngineData.EngineOilTemp=110;w.Observe(gs,T.AddSeconds(.1));Assert.IsFalse(call.IsValid(gs,T.AddSeconds(.1)));
         }
         [Test]
+        public void Engine_temperature_warnings_share_one_three_minute_gap_unless_it_gets_hotter()
+        {
+            // RaceRoom Norisring 20.11.: 15 Öl/Wasser-Warnungen in 13 Minuten.
+            var gs=Frame(1,false,false,true);gs.carClass=new CrewChiefV4.CarData.CarClass {maxSafeOilTemp=110,maxSafeWaterTemp=100};
+            gs.EngineData.EngineOilTemp=114;gs.EngineData.EngineWaterTemp=104;
+            var w=new LiveWarningDispatcher();
+            Assert.IsTrue(w.EngineWarningDue("both",114,104,T));
+            Assert.IsFalse(w.EngineWarningDue("both",114.5f,104,T.AddSeconds(30)),"nicht alle 30 s");
+            Assert.IsFalse(w.EngineWarningDue("oil",115,104,T.AddSeconds(60)),"Öl allein nach „beides“: nichts Neues");
+            Assert.IsTrue(w.EngineWarningDue("both",117.2f,104,T.AddSeconds(90)),"drei Grad heißer: wieder melden");
+            Assert.IsFalse(w.EngineWarningDue("both",117.5f,104,T.AddSeconds(120)));
+            Assert.IsTrue(w.EngineWarningDue("both",117.5f,104,T.AddSeconds(90+181)),"nach drei Minuten erinnern");
+        }
+        [Test]
+        public void Native_sector_yellow_and_penalty_laps_reach_the_crew_through_the_voice_filter()
+        {
+            // Rennen 20.11.: „sectorFlagChange“ und „penalty_two_laps_left“ gingen im Stimmfilter verloren.
+            var gs=Frame(1,false,false,true);gs.FlagData.sectorFlags[1]=FlagEnum.YELLOW;gs.PenaltiesData.NumOutstandingPenalties=1;
+            var w=new LiveWarningDispatcher();
+            Assert.IsTrue(w.Capture(NativeMessage("flags/yellow_flag_sector_2"),gs,T));
+            w.Observe(gs,T);var yellow=w.Take(gs,T,false,m=>true);Assert.IsNotNull(yellow);
+            Assert.AreEqual(TeamMember.Sara,yellow.Member);StringAssert.Contains("Sektor 2",yellow.Text);
+            yellow.MarkPlaybackStarted(T);w.Observe(gs,T.AddSeconds(1));
+            Assert.IsTrue(w.Capture(NativeMessage("penalties/penalty_two_laps_left"),gs,T.AddSeconds(2)));
+            w.Observe(gs,T.AddSeconds(2));var laps=w.Take(gs,T.AddSeconds(2),false,m=>true);Assert.IsNotNull(laps);
+            Assert.AreEqual(TeamMember.Ben,laps.Member);StringAssert.Contains("zwei Runden",laps.Text);
+        }
+        [Test]
         public void T06_Native_tracklimit_pre_warning_does_not_fabricate_invalid_lap()
         {
             var gs=Frame(2,false,false,true);var w=new LiveWarningDispatcher();

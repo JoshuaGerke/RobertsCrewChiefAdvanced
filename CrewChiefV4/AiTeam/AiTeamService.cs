@@ -425,9 +425,12 @@ namespace CrewChiefV4.AiTeam
                 {
                     string call = flagCall;
                     Log("Flagge Sara: " + call);
+                    // RaceRoom 20.11.: „Unfall voraus!“ ohne Namen – vereinbart war, wer dort steht.
+                    string incidentDriver = settings.SendDriverNames && call == FlagWatch.Phrases[8] ? FlagWatch.IncidentDriver(current) : null;
                     liveWarnings.Offer("warning-flag-"+Array.IndexOf(FlagWatch.Phrases,call),call,TeamMember.Sara,10,current,now,
                         live=>FlagWatch.StillRelevant(call,live),"mapped_flag_transition",
-                        timed: (live, when) => FlagWatch.FreshClear(call, now, when));
+                        timed: (live, when) => FlagWatch.FreshClear(call, now, when),
+                        opponentNameClip: incidentDriver == null ? null : RaceTrafficWatch.NameClipText(incidentDriver));
                 }
             }
             foreach (var incident in incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL))
@@ -1877,8 +1880,10 @@ namespace CrewChiefV4.AiTeam
 
         private ObservedRaceCall TakeSessionBriefing(GameStateData current, DateTime now)
         {
+            // RaceRoom 20.11.: Auf dem Startplatz stehen Autos neben uns – Saras Überlappung verhinderte jede Rennbegrüßung.
+            bool standing = current.PositionAndMotionData.CarSpeed < 1f;
             if (settings.RadioMode == AiRadioMode.MINIMAL || proactiveRunning || currentRequest != null ||
-                radioRenderGate.Busy || Spotter().HasOverlap || radioDirector.TrafficQuiet(now)) return null;
+                radioRenderGate.Busy || Spotter().HasOverlap && !standing || radioDirector.TrafficQuiet(now) && !standing) return null;
             TeamMember speaker = settings.IsMemberEnabled(TeamMember.Ben) ? TeamMember.Ben : TeamMember.Mik;
             if (!settings.IsMemberEnabled(speaker)) return null;
             if (now > sessionSeenUtc.AddSeconds(45)) return TakeTrackWelcome(current, now, speaker);

@@ -130,7 +130,23 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,Pending> pending=new Dictionary<string,Pending>();
         private readonly Dictionary<string,DateTime> delivered=new Dictionary<string,DateTime>();
         private int variant;
-        public void Reset(){Native n;while(native.TryDequeue(out n)){}pending.Clear();delivered.Clear();}
+        public void Reset(){Native n;while(native.TryDequeue(out n)){}pending.Clear();delivered.Clear();lastEngineUtc=DateTime.MinValue;lastEngineOil=lastEngineWater=float.NaN;lastEngineBoth=false;}
+
+        // RaceRoom Norisring 20.11.: Öl/Wasser-Warnung 15-mal in 13 Minuten (je Thema nur 30 s Pause, drei Themen). Eine Motorwarnung
+        // gemeinsam höchstens alle drei Minuten; früher nur, wenn es deutlich heißer wird (+3 Grad) oder jetzt beides zu heiß ist.
+        internal static readonly TimeSpan EngineWarningGap = TimeSpan.FromMinutes(3);
+        private DateTime lastEngineUtc = DateTime.MinValue;
+        private float lastEngineOil = float.NaN, lastEngineWater = float.NaN;
+        private bool lastEngineBoth;
+        internal bool EngineWarningDue(string kind,float oil,float water,DateTime now)
+        {
+            bool both=kind=="both";
+            bool hotter=!float.IsNaN(lastEngineOil) && oil>=lastEngineOil+3 || !float.IsNaN(lastEngineWater) && water>=lastEngineWater+3;
+            bool due=lastEngineUtc==DateTime.MinValue || now<lastEngineUtc || now-lastEngineUtc>=EngineWarningGap || hotter || both && !lastEngineBoth;
+            if(!due)return false;
+            lastEngineUtc=now;lastEngineOil=oil;lastEngineWater=water;lastEngineBoth=both;
+            return true;
+        }
 
         public static string Classify(IEnumerable<string> folders)
         {
@@ -221,6 +237,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     bool oil=n.Kind=="oil" || n.Kind=="both",water=n.Kind=="water" || n.Kind=="both";
                     var phrases=n.Kind=="both"?BothPhrases:oil?OilPhrases:WaterPhrases;
+                    if(!EngineWarningDue(n.Kind,n.Oil,n.Water,now)){LiveDiagnostics.Decision("warning-engine-"+n.Kind,"suppressed","engine_warning_recently_given",n.Source);continue;}
                     Offer("warning-engine-"+n.Kind,phrases[variant++%phrases.Length],TeamMember.Mik,9,gs,now,
                         live=>!live.PitData.InPitlane && (!oil || Hot(live,true,captured.Oil)) && (!water || Hot(live,false,captured.Water)),
                         "native:"+n.Source+";captured="+n.Utc.ToString("o"));

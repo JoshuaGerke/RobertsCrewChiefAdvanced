@@ -129,6 +129,8 @@ namespace CrewChiefV4.AiTeam
 
         private bool lastNativeInvalid;
         private static int adviceVariant;
+        /// <summary>Letzter Kontakt/Schadensanstieg mit eigenem Schadensbericht (die Zahlenmeldung schweigt dann).</summary>
+        internal static DateTime LastDamageEventUtc = DateTime.MinValue;
 
         /// <summary>Ist die laufende Runde gestrichen? In LMU nach dem nativen Wert, sonst nach Crew Chiefs Rundengültigkeit.</summary>
         internal static bool CurrentLapInvalid(GameStateData gs, DateTime nowUtc)
@@ -170,6 +172,7 @@ namespace CrewChiefV4.AiTeam
                     positionBeforeIncident = StablePosition(previous.SessionData.ClassPosition);
                 }
                 lastContactUtc = nowUtc;
+                LastDamageEventUtc = nowUtc;
                 Interlocked.Increment(ref adviceVariant);
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
                 // Preserve Joshua's driver check before the damage report after a proven heavy impact.
