@@ -1270,7 +1270,9 @@ namespace CrewChiefV4.AiTeam
                 await requestLock.WaitAsync(driverCancel.Token).ConfigureAwait(false);
                 lockAcquired = true;
                 linked = CancellationTokenSource.CreateLinkedTokenSource(driverCancel.Token);
-                linked.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+                // Phase 5 (LMU 18.11.: zweimal „abgebrochen“): Das Zeitlimit gilt für Datenabfragen; die erzwungene letzte
+                // Antwortrunde bekommt eine kurze Nachfrist, statt mitten in der Antwort abzubrechen.
+                linked.CancelAfter(TimeSpan.FromSeconds(settings.TimeoutSeconds + FinalRoundGraceSeconds));
                 DateTime deadline = DateTime.UtcNow.AddSeconds(settings.TimeoutSeconds);
                 string answer = await AskModelAsync(routed, gs, linked.Token, () => deadline - DateTime.UtcNow).ConfigureAwait(false);
                 var knownNames = (settings.SendDriverNames && gs != null ? gs.OpponentData.Values.Where(o => o != null).Select(o => o.DriverRawName) : Enumerable.Empty<string>())
@@ -1506,9 +1508,10 @@ namespace CrewChiefV4.AiTeam
                     });
                 }
                 // RRCA 2.0 (7): Nur ein Fahrerwunsch gespeichert – dafür keine zweite Modellrunde (Mosport 16.11.: ein Drittel
-                // aller Fragen, je rund 2 s). Die Bestätigung kommt lokal, mit dem gespeicherten Wunsch.
+                // aller Fragen, je rund 2 s). Phase 5 (LMU 18.11.: zehnmal save_note + zweite Runde, je 2–3 s): Hat das Modell
+                // seine Funkantwort gleich mitgeschickt, wird sie gesprochen; bei reinem Merkauftrag bestätigen wir lokal.
                 string question = (string)messages.LastOrDefault(m => (string)m["role"] == "user")?["content"];
-                string quick = PureMemoryRequest(question) ? SaveOnlyAnswer(allSaved, savedNotes, (string)message["content"], round) : null;
+                string quick = SaveRoundAnswer(allSaved, savedNotes, ContentText(message["content"]), question, round, maxChars);
                 if (quick != null)
                 {
                     if (log != null) log("Fahrerwunsch gespeichert, Bestätigung ohne zweite Modellrunde.");
@@ -1541,6 +1544,21 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.T("Geht klar, steht im Gedächtnis:", "Will do, it's in memory:", "Hecho, queda en memoria:"));
             return note.Length > 1 ? head + " " + note : RadioLanguage.T("Ist gespeichert.", "Saved.", "Guardado.");
         }
+
+        /// <summary>
+        /// Antwort nach einer Runde, in der nur Fahrerwünsche gespeichert wurden: der mitgeschickte Funktext des Modells, bei
+        /// reinem Merkauftrag sonst eine lokale Bestätigung; null, wenn eine weitere Modellrunde nötig ist.
+        /// </summary>
+        internal static string SaveRoundAnswer(bool allSaved, IList<string> notes, string modelContent, string question, int variant, int maxChars)
+        {
+            if (!allSaved || notes == null || notes.Count == 0) return null;
+            string spoken = AiPersonas.CleanForRadio(modelContent ?? "", maxChars > 0 ? maxChars : 400, true);
+            if (!string.IsNullOrWhiteSpace(spoken) && spoken.Trim().Length >= 8) return spoken.Trim();
+            return PureMemoryRequest(question) ? SaveOnlyAnswer(true, notes, null, variant) : null;
+        }
+
+        /// <summary>Nachfrist für die erzwungene letzte Antwortrunde über das KI-Zeitlimit hinaus.</summary>
+        internal const double FinalRoundGraceSeconds = 4;
 
         /// <summary>Unter dieser Restzeit wird keine weitere Werkzeugrunde mehr erlaubt.</summary>
         internal const double ToolBudgetSeconds = 4.5;
