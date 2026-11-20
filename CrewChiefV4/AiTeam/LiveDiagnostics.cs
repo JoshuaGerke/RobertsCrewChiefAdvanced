@@ -135,6 +135,9 @@ namespace CrewChiefV4.AiTeam
             }
             var floats = value as float[];
             if (floats != null) return new JArray(floats.Take(12).Select(x => Value(x)));
+            // LMU 20.11.: „wheels_attached“ kam als null an – Ja/Nein-Listen ebenfalls schreiben.
+            var flags = value as bool[];
+            if (flags != null) return new JArray(flags.Take(12).Select(x => (JToken)new JValue(x)));
             return JValue.CreateNull(); // arbitrary objects, headers, nested payloads and audio are never serialized
         }
         private string Subtitle(string path)
