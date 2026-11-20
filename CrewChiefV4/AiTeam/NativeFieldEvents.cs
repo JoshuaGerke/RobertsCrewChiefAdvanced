@@ -283,6 +283,7 @@ namespace CrewChiefV4.AiTeam
                     f.Lap+"|"+f.Detail+"|"+f.Seconds);
                 if(seen.ContainsKey(id))continue;
                 if(seen.Count>=128)seen.Remove(seen.OrderBy(p=>p.Value).First().Key);
+                if(f.Type==SessionType.Race)Chronicle(f,gs,now);
                 seen[id]=now;
                 string group = f.Kind == "fastest-overall" ? "race-overall-best" : "race-class-best";
                 int variant = fastest ? fastestVariants.Select(group, RadioPhraseCatalog.Current.Count(group)) : 0;
@@ -319,6 +320,28 @@ namespace CrewChiefV4.AiTeam
                 LiveDiagnostics.Decision("field-"+f.Kind,"detected","native_semantic_handoff",text,call.EventId);
             }
         }
+        /// <summary>Feldereignisse für die Rennchronik (Masterplan Schritt 1): Boxenstopp, Ausfall, Serverabgang, neue Führung, Bestzeit.</summary>
+        private static void Chronicle(NativeFieldFact f,GameStateData gs,DateTime now)
+        {
+            ChronicleKind kind;
+            switch(f.Kind)
+            {
+                case "pit": kind=ChronicleKind.RivalPit; break;
+                case "retired": kind=ChronicleKind.Retired; break;
+                case "dq": kind=ChronicleKind.Retired; break;
+                case "left": kind=ChronicleKind.Left; break;
+                case "leader": kind=ChronicleKind.LeaderChange; break;
+                case "fastest": case "fastest-overall": kind=ChronicleKind.FieldBest; break;
+                default: return;
+            }
+            OpponentData car=null;
+            if(f.Key!=null && gs.OpponentData!=null)gs.OpponentData.TryGetValue(f.Key,out car);
+            string name=car!=null?(car.CanUseName?RadioPhraseCatalog.SafeRivalName(car.DriverRawName):null):
+                string.IsNullOrWhiteSpace(f.Name)?null:RadioPhraseCatalog.SafeRivalName(f.Name);
+            RaceChronicle.Current.Add(gs,now,kind,car,f.Key,f.Kind=="dq"?"disqualifiziert":f.Kind=="fastest-overall"?"gesamt":f.Kind=="fastest"?"klasse":null,
+                f.Source,DataOrigin.SimulatorReportedEvent,f.Seconds>0?f.Seconds:double.NaN,subjectName:name,dedupe:TimeSpan.FromSeconds(30));
+        }
+
         public static bool StillCurrent(NativeFieldFact f,GameStateData gs)
         {
             if(gs==null || gs.SessionData.SessionId!=f.Session || gs.SessionData.SessionType!=f.Type)return false;

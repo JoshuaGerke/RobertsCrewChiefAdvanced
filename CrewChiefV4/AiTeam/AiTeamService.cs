@@ -35,6 +35,7 @@ namespace CrewChiefV4.AiTeam
         private readonly RaceTrafficWatch raceTraffic = new RaceTrafficWatch();
         private readonly QualifyingResultWatch qualifyingResults = new QualifyingResultWatch();
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
+        private readonly ChronicleRecorder chronicleRecorder = new ChronicleRecorder();
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
         private readonly NativeTimingEvents timingEvents = new NativeTimingEvents();
 
@@ -65,6 +66,7 @@ namespace CrewChiefV4.AiTeam
         private readonly PersonalBestWatch personalBest = new PersonalBestWatch();
         /// <summary>Der Renningenieur erklärt dauerhafte Lagewechsel (Angriff, Verteidigung, sicher, Schlussphase, Ruhe).</summary>
         private readonly FocusBriefWatch focusBrief = new FocusBriefWatch();
+        private readonly EndgameBriefWatch endgameBrief = new EndgameBriefWatch();
         private readonly TyreWearWatch tyreWear = new TyreWearWatch();
         private readonly BackmarkerWatch backmarkers = new BackmarkerWatch();
         private readonly DriverJudgementWatch judgement = new DriverJudgementWatch();
@@ -308,6 +310,7 @@ namespace CrewChiefV4.AiTeam
                 qualiFuel.Reset();
                 personalBest.Reset();
                 focusBrief.Reset();
+                endgameBrief.Reset();
                 tyreWear.Reset();
                 backmarkers.Reset();
                 judgement.Reset();
@@ -428,6 +431,9 @@ namespace CrewChiefV4.AiTeam
                     // RaceRoom 20.11.: „Unfall voraus!“ ohne Namen – vereinbart war, wer dort steht.
                     // AC 20.11.: auch „Gelb im Sektor“ und „Gelb! Langsam“ nennen den Betroffenen, nicht nur „Unfall voraus“.
                     string incidentDriver = settings.SendDriverNames && FlagWatch.NamesIncident(call) ? FlagWatch.IncidentName(current, now) : null;
+                    if (FlagWatch.NamesIncident(call) && current.SessionData.SessionType == SessionType.Race)
+                        RaceChronicle.Current.Add(current, now, ChronicleKind.Yellow, detail: FlagWatch.Kind(call), source: "flaggen",
+                            subjectName: FlagWatch.IncidentName(current, now), dedupe: TimeSpan.FromSeconds(20));
                     liveWarnings.Offer("warning-flag-"+Array.IndexOf(FlagWatch.Phrases,call),call,TeamMember.Sara,10,current,now,
                         live=>FlagWatch.StillRelevant(call,live),"mapped_flag_transition",
                         timed: (live, when) => FlagWatch.FreshClear(call, now, when),
@@ -617,6 +623,7 @@ namespace CrewChiefV4.AiTeam
                 string frontName = settings.SendDriverNames && frontCar != null && frontCar.CanUseName ? RadioPhraseCatalog.SafeRivalName(frontCar.DriverRawName) : null;
                 string rearName = settings.SendDriverNames && rearCar != null && rearCar.CanUseName ? RadioPhraseCatalog.SafeRivalName(rearCar.DriverRawName) : null;
                 focusBrief.Observe(current, RaceMind.Latest, frontName, rearName, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), now);
+                endgameBrief.Observe(current, RaceMind.Latest, frontName, rearName, now);
                 backmarkers.Observe(current, Tracks.Snapshot, RaceMind.Latest, settings.SendDriverNames, frontName, rearName, now);
             }
             DataTruth.Current.Observe(current, now);
@@ -659,6 +666,7 @@ namespace CrewChiefV4.AiTeam
             nativeIncidents.Observe(current,now,liveWarnings,Memory,settings.SendDriverNames);
             fieldEvents.CaptureMappedPits(previous,current);
             fieldEvents.CaptureDepartures(previous,current,now);
+            chronicleRecorder.Observe(current, now);
             fieldEvents.CaptureMappedFastestLap(previous, current);
             fieldEvents.RadioName = settings.RadioName;
             fieldEvents.Observe(current,now,Memory,settings.SendDriverNames);
@@ -728,6 +736,9 @@ namespace CrewChiefV4.AiTeam
                     sessionLaps.HotLap(current) || !AllowsRadioNow(false) || !settings.IsMemberEnabled(dynamics.PendingMember));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = focusBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
+                    settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = endgameBrief.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,

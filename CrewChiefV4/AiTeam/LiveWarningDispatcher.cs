@@ -246,6 +246,7 @@ namespace CrewChiefV4.AiTeam
                     string who=null;
                     if(kind.StartsWith("yellow",StringComparison.Ordinal) || kind.StartsWith("dyellow",StringComparison.Ordinal))
                     {try{who=IncidentName?.Invoke(gs,now);}catch(Exception){who=null;}}
+                    ChronicleRaceControl(kind,gs,now,"native:"+n.Source,who);
                     Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
                         live=>NativeRaceControl.StillCurrent(kind,live),"native:"+n.Source+";captured="+n.Utc.ToString("o"),
                         opponentNameClip:who==null?null:RaceTrafficWatch.NameClipText(who));
@@ -318,8 +319,21 @@ namespace CrewChiefV4.AiTeam
             }
             string text=NativeRaceControl.Text(kind);
             if(text==null)return;
+            ChronicleRaceControl(kind,gs,now,"lmu_race_control",null);
             Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
                 live=>true,"lmu_race_control:"+evidence);
+        }
+
+        /// <summary>Rennleitung in die Rennchronik: Gelb je Sektor, Strafen mit Art, abgesessene Strafe, Untersuchung.</summary>
+        internal static void ChronicleRaceControl(string kind,GameStateData gs,DateTime now,string source,string who)
+        {
+            if(kind==null || gs==null || gs.SessionData.SessionType!=SessionType.Race)return;
+            if(kind.StartsWith("yellow",StringComparison.Ordinal) || kind.StartsWith("dyellow",StringComparison.Ordinal))
+                RaceChronicle.Current.Add(gs,now,ChronicleKind.Yellow,detail:kind.Replace(':','_'),source:source,subjectName:who,dedupe:TimeSpan.FromSeconds(20));
+            else if(kind=="pen-served")
+                RaceChronicle.Current.Add(gs,now,ChronicleKind.PenaltyServed,source:source,dedupe:TimeSpan.FromSeconds(30));
+            else if(kind.StartsWith("pen",StringComparison.Ordinal) || kind=="investigation")
+                RaceChronicle.Current.Add(gs,now,ChronicleKind.Penalty,detail:kind,source:source,dedupe:TimeSpan.FromSeconds(30));
         }
 
         public DateTime LastDelivered(string topic)

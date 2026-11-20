@@ -34,6 +34,9 @@ namespace CrewChiefV4.AiTeam
             if (call != null || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane) return;
 
             var heavy = analyzer.TakeHeavy();
+            if (heavy != null && s.SessionType == SessionType.Race)
+                RaceChronicle.Current.Add(gs, now, ChronicleKind.OwnMistake, detail: "verbremser", source: "fahrdynamik", origin: DataOrigin.Measured,
+                    value: heavy.Duration, dedupe: TimeSpan.FromSeconds(10));
             if (heavy != null && s.CompletedLaps - lastHeavyLap >= 3)
             {
                 lastHeavyLap = s.CompletedLaps;
@@ -42,6 +45,9 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             var off = analyzer.TakeBigOff();
+            if (off != null && s.SessionType == SessionType.Race)
+                RaceChronicle.Current.Add(gs, now, ChronicleKind.OwnMistake, detail: "ausritt", source: "fahrdynamik", origin: DataOrigin.Measured,
+                    value: off.Duration, dedupe: TimeSpan.FromSeconds(10));
             // RaceRoom meldet Dreck selbst (TyreGripWatch „tyre-dirt“) – dann nicht zusätzlich.
             if (off != null && (gs.TyreData.DirtPickupEmulationActive || now - TyreGripWatch.LastDirtCallUtc < TimeSpan.FromSeconds(90))) off = null;
             if (off != null && s.CompletedLaps - lastBigOffLap >= 2)

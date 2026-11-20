@@ -56,6 +56,19 @@ namespace CrewChiefV4.AiTeam
                 (now >= detected && now - detected <= TimeSpan.FromSeconds(3));
         }
 
+        /// <summary>Sprachunabhängige Art einer Flaggenansage für die Rennchronik.</summary>
+        internal static string Kind(string phrase)
+        {
+            switch (IndexOf(phrase))
+            {
+                case 0: return "gelb_lokal";
+                case 2: return "gelb_sektor";
+                case 3: return "doppelt_gelb";
+                case 8: return "unfall_voraus";
+                default: return "flagge";
+            }
+        }
+
         /// <summary>Gelb, Doppelt Gelb und Unfall voraus nennen den Betroffenen, wenn er belegt ist (AC/RaceRoom 20.11.).</summary>
         internal static bool NamesIncident(string phrase)
         {

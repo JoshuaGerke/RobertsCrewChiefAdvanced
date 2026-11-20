@@ -51,7 +51,7 @@ namespace CrewChiefV4.AiTeam
         {
             "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis", "get_race_pace_review",
-            "get_strategy_odds", "get_lmu_native",
+            "get_strategy_odds", "get_lmu_native", "get_race_chronicle",
         };
 
         public static JArray BuildToolDefinitions()
@@ -69,6 +69,7 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_opponents_nearby", "Gegner direkt vor und hinter uns: Abstand, letzte/beste Runde, Pace-Trend, Boxenstopps, Reifen. Dazu der Führende."));
             tools.Add(Tool("get_pit_info", "Boxenfenster, Pflichtstopp, eigene Stopps, Boxengasse, Gegner die gerade stoppen."));
             tools.Add(Tool("get_lmu_native", "Nur LMU: Werte direkt aus LMUs nativer Schnittstelle – ob die laufende Runde gestrichen ist, Tracklimit-Punkte und Schwelle zur Strafe, Abstände des Spiels, virtuelle Energie, Fahrhilfen, das ganze Feld mit offenen Strafen, Stopps, Boxenstatus, Runden zurück, sowie die letzten Meldungen der Rennleitung (Strafen, Tracklimits, Vorfälle). Für Fragen zu Strafen, Tracklimits, Rundengültigkeit, Überrundung und Rennlage."));
+            tools.Add(Tool("get_race_chronicle", "Rennchronik: alle belegten Ereignisse dieses Rennens in zeitlicher Folge – Startplatz, Platzwechsel mit Gegnernamen (auf der Strecke oder durch Boxenstopp), eigene Runden und Bestzeiten, Fehler, Kontakte, Gelb mit Betroffenem, Dreher, Strafen, Boxenstopps, Ausfälle, Serverabgänge, letzte Runde. Für Rückblicke, Rivalen, Zusammenfassungen und 'was ist passiert'."));
             tools.Add(Tool("get_damage_and_engine", "Schäden (Aero, Motor, Getriebe, Aufhängung, Bremsen), Motortemperaturen und Warnungen."));
             tools.Add(Tool("get_track_conditions", "Aktuelle Luft-/Streckentemperatur, Regen, Wind, gemeldete Nässe und bestätigte Spiel-/Servervorhersagen mit Quelle, Alter und Wahrscheinlichkeit. Fehlende Prognose bleibt unbekannt."));
             tools.Add(Tool("get_race_reader", "Verdichtetes Live-Lagebild mit Fahrerbelastung, geprüften Drei-Runden- und Sektorvergleichen, Spritbilanz, Verschleißregression und Wetterverlauf. Ursachen nicht aus Messreihen erfinden.",
@@ -183,6 +184,9 @@ namespace CrewChiefV4.AiTeam
                     case "get_track_conditions": data = Conditions(ctx, missing); break;
                     case "get_stint_analysis": data = Stint(ctx, missing); break;
                     case "get_recent_events": data = Events(ctx, missing); break;
+                    case "get_race_chronicle":
+                        data = RaceChronicle.Current.ToJson(ctx.NowUtc == DateTime.MinValue ? DateTime.UtcNow : ctx.NowUtc, 60, ctx.SendDriverNames);
+                        break;
                     case "get_corner_analysis": data = ctx.Corners != null ? ctx.Corners.Analyse() : new JObject { ["verfuegbar"] = false, ["grund"] = "Kurvenanalyse nicht aktiv." }; break;
                     default:
                         return new JObject { ["fehler"] = "Unbekanntes Werkzeug: " + toolName };

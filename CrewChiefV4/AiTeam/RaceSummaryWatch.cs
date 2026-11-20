@@ -17,7 +17,7 @@ namespace CrewChiefV4.AiTeam
         // anderen Klassen gab es nie einen „ruhigen“ Moment. Jetzt 3 s, und nur Autos derselben Klasse in derselben Runde zählen.
         internal const float CalmSeconds = 3f;
         private readonly Random random;
-        private int session = int.MinValue, startPosition, delivered;
+        private int session = int.MinValue, startPosition, delivered, tallyVariant;
         private readonly List<double> windows = new List<double>();
         private ObservedRaceCall call;
         private readonly int[] closingVariant = new int[5];
@@ -215,6 +215,11 @@ namespace CrewChiefV4.AiTeam
                         RadioLanguage.T("Zur Klassenbestzeit fehlen " + gap + ", deine beste ist " + own + ".", "You're " + gap + " off the class best, your best is " + own + ".", "Te faltan " + gap + " para el mejor de la clase, tu mejor es " + own + ".")));
                 }
             }
+            // Rennverständnis (Rob 21.11.): Was ist auf der Strecke passiert? Überholbilanz und Hauptrivale aus der Rennchronik.
+            var chronicle = RaceChronicle.Current;
+            string tally = chronicle.Session == s.SessionId && chronicle.Type == SessionType.Race ?
+                RaceStory.TallyText(chronicle, ctx.SendDriverNames, tallyVariant++) : "";
+            if (tally.Length > 0) parts.Add(tally);
             if (gs.PenaltiesData.NumOutstandingPenalties > 0)
                 parts.Add(gs.PenaltiesData.NumOutstandingPenalties == 1 ? RadioLanguage.T("Eine Strafe ist noch offen.", "One penalty is still open.", "Queda una penalización pendiente.")
                     : RadioLanguage.T(gs.PenaltiesData.NumOutstandingPenalties + " Strafen sind noch offen.", gs.PenaltiesData.NumOutstandingPenalties + " penalties still open.", "Quedan " + gs.PenaltiesData.NumOutstandingPenalties + " penalizaciones pendientes."));

@@ -334,7 +334,15 @@ namespace CrewChiefV4.AiTeam
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
             var hazard=candidates.FirstOrDefault(c=>c.RouteGapM>0 && !string.IsNullOrWhiteSpace(c.Name) &&
                 (c.SpeedMps<=5 || spinning.Contains(c.Key) || SlowAgainstReference(c,gs,s,now)));
-            if (hazard!=null) NoteHazard(hazard.Name,s.SessionId,now);
+            if (hazard!=null)
+            {
+                NoteHazard(hazard.Name,s.SessionId,now);
+                OpponentData hazardCar=null;
+                if (hazard.Key!=null) gs.OpponentData.TryGetValue(hazard.Key,out hazardCar);
+                RaceChronicle.Current.Add(gs,now,ChronicleKind.Hazard,hazardCar,hazard.Key,
+                    hazard.SpeedMps<=1?"steht":spinning.Contains(hazard.Key)?"dreher":"langsam","streckenpositionen",DataOrigin.Measured,
+                    subjectName:hazard.Name,dedupe:TimeSpan.FromSeconds(45));
+            }
             if (pending!=null || now-lastRadio<TimeSpan.FromSeconds(3)) return;
             foreach (var car in candidates)
             {

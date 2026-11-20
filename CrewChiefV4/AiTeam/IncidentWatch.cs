@@ -173,6 +173,9 @@ namespace CrewChiefV4.AiTeam
                 }
                 lastContactUtc = nowUtc;
                 LastDamageEventUtc = nowUtc;
+                if (current.SessionData.SessionType == SessionType.Race)
+                    RaceChronicle.Current.Add(current, nowUtc, ChronicleKind.Contact, detail: impactChanged ? (heavyContact ? "einschlag_schwer" : "einschlag") : "schaden_gestiegen",
+                        source: "schadensdaten", origin: DataOrigin.SimulatorReportedEvent, dedupe: TimeSpan.FromSeconds(15));
                 Interlocked.Increment(ref adviceVariant);
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
                 // Preserve Joshua's driver check before the damage report after a proven heavy impact.
@@ -286,6 +289,9 @@ namespace CrewChiefV4.AiTeam
             {
                 Penalties++;
                 LiveDiagnostics.Decision("incident-penalty", "detected", "type=" + p.PenaltyType + ";cause=" + p.PenaltyCause + ";open=" + p.NumOutstandingPenalties, penalty);
+                if (current.SessionData.SessionType == SessionType.Race)
+                    RaceChronicle.Current.Add(current, nowUtc, ChronicleKind.Penalty, detail: "typ=" + p.PenaltyType + ";grund=" + p.PenaltyCause,
+                        source: "strafdaten", dedupe: TimeSpan.FromSeconds(30));
                 bool serve = p.HasDriveThrough || p.HasStopAndGo || p.PenaltyType == PenatiesData.DetailedPenaltyType.STOP_AND_GO ||
                     p.PenaltyType == PenatiesData.DetailedPenaltyType.DRIVE_THROUGH;
                 string got = RadioVariants.Pick("incident-penalty",
@@ -309,6 +315,8 @@ namespace CrewChiefV4.AiTeam
                 NativeRaceControl.LastServedUtc = nowUtc;
                 // Rob 20.11.: „Ihr müsst auch erkennen, wenn ich sie abgesessen habe.“
                 LiveDiagnostics.Decision("incident-penalty-served", "detected", "open=" + pp.NumOutstandingPenalties + "->" + p.NumOutstandingPenalties, null);
+                if (current.SessionData.SessionType == SessionType.Race)
+                    RaceChronicle.Current.Add(current, nowUtc, ChronicleKind.PenaltyServed, source: "strafdaten", dedupe: TimeSpan.FromSeconds(30));
                 result.Add(Say(TeamMember.Ben, ServedText(p.NumOutstandingPenalties)));
             }
 
