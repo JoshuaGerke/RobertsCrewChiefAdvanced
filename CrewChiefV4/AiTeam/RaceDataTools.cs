@@ -906,6 +906,33 @@ namespace CrewChiefV4.AiTeam
             return o;
         }
 
+        /// <summary>Karosserie und Räder, wie rF2/LMU sie melden (LMU 20.11.: „Es ist alles ablesbar“). null ohne solche Werte.</summary>
+        internal static JObject Body(CarDamageData d)
+        {
+            if (d == null || d.DentSeverity == null && d.PartsDetached == null && d.WheelDetached == null && d.WheelFlat == null && d.LastImpactMagnitude < 0) return null;
+            var o = new JObject();
+            if (d.DentSeverity != null && d.DentSeverity.Length == 8)
+            {
+                o["dellen"] = new JArray(d.DentSeverity.Select(v => (JToken)v));
+                o["dellen_stellen_verbeult"] = d.DentSeverity.Count(v => v > 0);
+                o["dellen_stellen_stark"] = d.DentSeverity.Count(v => v >= 2);
+                o["dellen_skala"] = "8 Stellen rund ums Auto, 0 keine, 1 leicht, 2 stark. Die Lage der einzelnen Stellen ist nicht bestätigt: nur Anzahl und Stärke nennen.";
+            }
+            if (d.PartsDetached != null) o["teile_abgerissen"] = d.PartsDetached.Value;
+            var corners = new[] { "VL", "VR", "HL", "HR" };
+            if (d.WheelDetached != null && d.WheelDetached.Length == 4)
+                o["rad_ab"] = new JArray(Enumerable.Range(0, 4).Where(i => d.WheelDetached[i]).Select(i => (JToken)corners[i]));
+            if (d.WheelFlat != null && d.WheelFlat.Length == 4)
+                o["reifen_platt"] = new JArray(Enumerable.Range(0, 4).Where(i => d.WheelFlat[i]).Select(i => (JToken)corners[i]));
+            if (d.LastImpactMagnitude >= 0)
+            {
+                o["letzter_einschlag_staerke"] = Math.Round(d.LastImpactMagnitude);
+                o["letzter_einschlag"] = d.LastImpactMagnitude <= 0 ? "keiner" : d.LastImpactMagnitude < 1500 ? "leicht" : d.LastImpactMagnitude < 4000 ? "mittel" : "schwer";
+            }
+            o["hinweis"] = "Motor und Getriebe meldet das Spiel hier nicht als Schadenswert; beurteile sie über Temperaturen und Warnungen, nenne sie nicht pauschal unbekannt.";
+            return o;
+        }
+
         private static JObject Damage(RaceDataContext ctx, List<string> missing)
         {
             var d = ctx.GameState.CarDamageData;
@@ -941,6 +968,8 @@ namespace CrewChiefV4.AiTeam
                 ["bremsen"]=brakePercent,["aufhaengung"]=suspensionPercent,["reihenfolge"]="VL, VR, HL, HR"
             };
             o["messwerte"]=TelemetryMeasurementTools.Read(ctx);
+            var body = Body(d);
+            if (body != null) o["karosserie"] = body;
             if(!d.DamageEnabled && !ctx.GameState.Measurements.Keys.Any(k=>k.StartsWith("damage.",StringComparison.Ordinal)))missing.Add("schaden_prozent");
             if (e.EngineWaterTemp > 1)
             {

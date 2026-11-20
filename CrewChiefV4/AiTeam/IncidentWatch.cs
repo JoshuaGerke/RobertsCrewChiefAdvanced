@@ -327,16 +327,19 @@ namespace CrewChiefV4.AiTeam
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
+            bool wheelGone = AddWheels(parts, d, ref serious);
             Add(parts, RadioLanguage.T("Aero", "Aero", "la aerodinámica"), d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
+            AddBody(parts, d);
             Add(parts, RadioLanguage.T("Motor", "Engine", "el motor"), d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
             Add(parts, RadioLanguage.T("Getriebe", "Gearbox", "la caja de cambios"), d.OverallTransmissionDamage, d.TransmissionDamagePercent, ref serious);
-            string where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MAJOR);
+            // rF2/LMU leiten die Aufhängung nur aus verlorenen Rädern ab – dann ist das Rad schon genannt.
+            string where = wheelGone ? null : SpokenCorner(d.SuspensionDamageStatus, DamageLevel.DESTROYED) ?? SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MAJOR);
             if (where != null)
             {
                 parts.Add(RadioLanguage.T("Aufhängung " + where + " stark beschädigt", "Suspension heavily damaged " + where, "Daño grave en la suspensión " + where));
                 serious = true;
             }
-            else if ((where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
+            else if (!wheelGone && (where = SpokenCorner(d.SuspensionDamageStatus, DamageLevel.MINOR)) != null)
             {
                 parts.Add(RadioLanguage.T("Aufhängung " + where + " leicht beschädigt", "Suspension lightly damaged " + where, "Daño leve en la suspensión " + where));
             }
@@ -366,9 +369,10 @@ namespace CrewChiefV4.AiTeam
                         "Sin daños relevantes en aerodinámica, motor y caja de cambios. Frenos y suspensión solo se pueden valorar hasta donde informa el juego.");
             }
             string text = string.Join(", ", parts) + ".";
+            text = char.ToUpper(text[0], RadioLanguage.Culture) + text.Substring(1);
             // LMU 18.11.: Rob verlor ein Rad und hörte „wenn sich das Auto komisch anfühlt“. Schwerer Schaden heißt Box, nicht vielleicht.
             if (!serious || !includeAdvice) return text;
-            bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED;
+            bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED || wheelGone;
             return text + (destroyed
                 ? RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya.")
                 : RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."));
@@ -393,7 +397,7 @@ namespace CrewChiefV4.AiTeam
             return Increased(before.OverallAeroDamage, now.OverallAeroDamage) || Increased(before.OverallEngineDamage, now.OverallEngineDamage) ||
                 Increased(before.OverallTransmissionDamage, now.OverallTransmissionDamage) ||
                 CornerDamageIncreased(before.SuspensionDamageStatus, now.SuspensionDamageStatus) ||
-                CornerDamageIncreased(before.BrakeDamageStatus, now.BrakeDamageStatus);
+                CornerDamageIncreased(before.BrakeDamageStatus, now.BrakeDamageStatus) || BodyDamageIncreased(before, now);
         }
 
         private static bool CornerDamageIncreased(CornerData before, CornerData now)
@@ -476,6 +480,69 @@ namespace CrewChiefV4.AiTeam
         }
 
         // CornerText bleibt deutsch (Daten für das Sprachmodell); gesprochen wird diese Fassung.
+        private static string WheelName(int corner)
+        {
+            switch (corner)
+            {
+                case 0: return RadioLanguage.T("vorne links", "front left", "delantera izquierda");
+                case 1: return RadioLanguage.T("vorne rechts", "front right", "delantera derecha");
+                case 2: return RadioLanguage.T("hinten links", "rear left", "trasera izquierda");
+                default: return RadioLanguage.T("hinten rechts", "rear right", "trasera derecha");
+            }
+        }
+
+        /// <summary>Verlorene und platte Räder (rF2/LMU). true, wenn ein Rad fehlt.</summary>
+        internal static bool AddWheels(List<string> parts, CarDamageData d, ref bool serious)
+        {
+            bool gone = false;
+            for (int i = 0; i < 4; i++)
+            {
+                if (d.WheelDetached != null && d.WheelDetached.Length == 4 && d.WheelDetached[i])
+                {
+                    parts.Add(RadioLanguage.T("Rad " + WheelName(i) + " ist ab", "the " + WheelName(i) + " wheel is gone", "has perdido la rueda " + WheelName(i)));
+                    gone = serious = true;
+                }
+                else if (d.WheelFlat != null && d.WheelFlat.Length == 4 && d.WheelFlat[i])
+                {
+                    parts.Add(RadioLanguage.T("Reifen " + WheelName(i) + " platt", "flat tyre " + WheelName(i), "pinchazo en la rueda " + WheelName(i)));
+                    serious = true;
+                }
+            }
+            return gone;
+        }
+
+        /// <summary>Dellen und abgerissene Teile in Worten (Stellen nur gezählt; ihre Lage am Auto ist nicht bestätigt).</summary>
+        internal static void AddBody(List<string> parts, CarDamageData d)
+        {
+            if (d.PartsDetached == true)
+                parts.Add(RadioLanguage.T("Teile sind abgerissen", "parts have come off", "se han soltado piezas"));
+            if (d.DentSeverity == null || d.DentSeverity.Length != 8) return;
+            int dented = d.DentSeverity.Count(v => v > 0), heavy = d.DentSeverity.Count(v => v >= 2);
+            if (dented == 0) return;
+            string where = dented == 1 ? RadioLanguage.T("eine von 8 Stellen verbeult", "one of 8 spots dented", "una de 8 zonas abollada")
+                : dented + RadioLanguage.T(" von 8 Stellen verbeult", " of 8 spots dented", " de 8 zonas abolladas");
+            if (heavy == dented) where += dented == 1 ? RadioLanguage.T(", und zwar stark", ", badly", ", y mucho") : RadioLanguage.T(", alle stark", ", all badly", ", todas mucho");
+            else if (heavy > 0) where += heavy == 1 ? RadioLanguage.T(", eine davon stark", ", one badly", ", una de ellas mucho") : ", " + heavy + RadioLanguage.T(" davon stark", " badly", " de ellas mucho");
+            parts.Add(where);
+        }
+
+        /// <summary>Mehr Dellen, neu abgerissene Teile oder ein neues Radproblem seit dem letzten Bild.</summary>
+        internal static bool BodyDamageIncreased(CarDamageData before, CarDamageData now)
+        {
+            if (before == null || now == null) return false;
+            if (before.PartsDetached == false && now.PartsDetached == true) return true;
+            if (before.DentSeverity != null && now.DentSeverity != null && before.DentSeverity.Length == 8 && now.DentSeverity.Length == 8 &&
+                now.DentSeverity.Sum() >= before.DentSeverity.Sum() + 2) return true;
+            for (int i = 0; i < 4; i++)
+            {
+                if (before.WheelDetached != null && now.WheelDetached != null && before.WheelDetached.Length == 4 && now.WheelDetached.Length == 4 &&
+                    !before.WheelDetached[i] && now.WheelDetached[i]) return true;
+                if (before.WheelFlat != null && now.WheelFlat != null && before.WheelFlat.Length == 4 && now.WheelFlat.Length == 4 &&
+                    !before.WheelFlat[i] && now.WheelFlat[i]) return true;
+            }
+            return false;
+        }
+
         private static string SpokenCorner(CornerData corners, DamageLevel level)
         {
             if (corners == null || RadioLanguage.IsGerman)
