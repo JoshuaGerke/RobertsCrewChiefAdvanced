@@ -92,7 +92,9 @@ namespace CrewChiefV4.AiTeam
             OpponentData best = null; float bestGap = 301;
             foreach (var o in gs.OpponentData.Values)
             {
-                if (o == null || !o.IsActive || o.InPits || !o.CanUseName || !(o.Speed >= 0) || o.Speed > 20) continue;
+                // iRacing meldet je Auto, ob es neben der Strecke ist (trackSurface 0) – dann zählt es auch bei mehr Tempo.
+                bool offTrack = o != null && o.trackSurface == 0;
+                if (o == null || !o.IsActive || o.InPits || !o.CanUseName || !(o.Speed >= 0) || o.Speed > 20 && !offTrack) continue;
                 float gap = ((o.DistanceRoundTrack - own) % length + length) % length;
                 if (gap >= 5 && gap < bestGap) { bestGap = gap; best = o; }
             }

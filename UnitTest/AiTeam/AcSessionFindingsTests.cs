@@ -280,6 +280,19 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void IRacing_off_track_flag_of_an_opponent_names_the_incident_even_at_speed()
+        {
+            var gs = Race();
+            gs.SessionData.TrackDefinition = new TrackDefinition("Fixture", 4000);
+            gs.PositionAndMotionData.DistanceRoundTrack = 1000;
+            var o = Car("Sam Racer", 3); o.DistanceRoundTrack = 1150; o.Speed = 35;
+            gs.OpponentData["sam"] = o;
+            Assert.IsNull(FlagWatch.IncidentDriver(gs), "schnell und auf der Strecke: kein Unfall");
+            o.trackSurface = 0;
+            Assert.AreEqual("Sam Racer", FlagWatch.IncidentDriver(gs), "iRacing meldet ihn neben der Strecke");
+        }
+
+        [Test]
         public void Name_budget_is_per_session_and_covers_a_full_field()
         {
             Assert.GreaterOrEqual(AiTeamService.OpponentWarmBudget, 40, "ein volles Feld, nicht 24 Namen für die ganze Programmlaufzeit");
