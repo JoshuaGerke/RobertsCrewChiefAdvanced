@@ -286,7 +286,7 @@ namespace CrewChiefV4.AiTeam
             {
                 OnSessionCleared();
                 Corners.SetTrack(null, 0);
-                pendingGreeting = null;
+                pendingGreeting = null; greetingAttempts = 0; greetingRetryAfter = DateTime.MinValue;
                 trackWelcome = null; trackWelcomeDone = false;
                 Interlocked.Exchange(ref callsThisSession, 0);
                 lastProactiveLap = -1;
@@ -1886,15 +1886,28 @@ namespace CrewChiefV4.AiTeam
                 radioRenderGate.Busy || Spotter().HasOverlap && !standing || radioDirector.TrafficQuiet(now) && !standing) return null;
             TeamMember speaker = settings.IsMemberEnabled(TeamMember.Ben) ? TeamMember.Ben : TeamMember.Mik;
             if (!settings.IsMemberEnabled(speaker)) return null;
-            if (now > sessionSeenUtc.AddSeconds(45)) return TakeTrackWelcome(current, now, speaker);
+            // Fährt Rob los, bevor die Begrüßung im Stand lief, gleich die kurze Begrüßung auf der Strecke (nicht erst nach 45 s).
+            bool greetingMissed = pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
+                current.SessionData.SessionType != SessionType.Race && current.PositionAndMotionData.CarSpeed > 5 && !pendingGreeting.IsValid(current, now);
+            if (now > sessionSeenUtc.AddSeconds(45) || greetingMissed) return TakeTrackWelcome(current, now, speaker);
             // Reserve once, acknowledge only at the audio backend, retry at most once within the safe window.
-            if (pendingGreeting == null || pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
+            // RaceRoom 20.11. (Hotlap): Die Begrüßung wurde einmal wegen Fahrerbelastung verworfen und kam danach nie mehr –
+            // Rob: „Es kam keine Begrüßung.“ Ein verworfener Versuch wird im Fenster bis zu dreimal neu angesetzt.
+            bool greetingRetry = pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue && pendingGreeting.DeliveryFailed &&
+                greetingAttempts < 3 && now >= greetingRetryAfter;
+            if (pendingGreeting == null || greetingRetry || pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 !pendingGreeting.IsReserved && !pendingGreeting.DeliveryFailed && !pendingGreeting.IsValid(current, now))
+            {
+                if (greetingRetry) { greetingAttempts++; LiveDiagnostics.Decision("greeting", "retry", "previous_attempt_not_played_" + greetingAttempts); }
                 pendingGreeting = greetingDirector.CreateCall(BuildContext(current), sessionSeenUtc.AddSeconds(45), settings.RadioName, speaker);
+                greetingRetryAfter = now.AddSeconds(3);
+            }
             return pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 pendingGreeting.IsValid(current, now) && pendingGreeting.TryReserve(now) ? pendingGreeting : null;
         }
 
+        private int greetingAttempts;
+        private DateTime greetingRetryAfter = DateTime.MinValue;
         private ObservedRaceCall trackWelcome;
         private bool trackWelcomeDone;
         private int trackWelcomeVariant;
@@ -1924,13 +1937,19 @@ namespace CrewChiefV4.AiTeam
                 string[] lines = RadioLanguage.Pick(
                     new[] { "Funkcheck, " + who + ". " + track + ", " + kind + ". " + field + motivation,
                             who + ", Crew ist am Funk. " + kind + " in " + track + ". " + field + motivation,
-                            "Okay " + who + ", " + track + ", " + kind + ". " + field + motivation },
+                            "Okay " + who + ", " + track + ", " + kind + ". " + field + motivation,
+                            "Hallo " + who + ", " + TeamRouter.DisplayName(speaker) + " hier. Wir sind in " + track + ", " + kind + ". " + field + motivation,
+                            who + ", wir sind bei dir. " + track + ", " + kind + ". " + field + motivation },
                     new[] { "Radio check, " + who + ". " + track + ", " + kind + ". " + field + motivation,
                             who + ", crew's on the radio. " + kind + " at " + track + ". " + field + motivation,
-                            "Okay " + who + ", " + track + ", " + kind + ". " + field + motivation },
+                            "Okay " + who + ", " + track + ", " + kind + ". " + field + motivation,
+                            "Hello " + who + ", " + TeamRouter.DisplayName(speaker) + " here. We're at " + track + ", " + kind + ". " + field + motivation,
+                            who + ", we're with you. " + track + ", " + kind + ". " + field + motivation },
                     new[] { "Prueba de radio, " + who + ". " + track + ", " + kind + ". " + field + motivation,
                             who + ", el equipo está en la radio. " + kind + " en " + track + ". " + field + motivation,
-                            "Vale " + who + ", " + track + ", " + kind + ". " + field + motivation });
+                            "Vale " + who + ", " + track + ", " + kind + ". " + field + motivation,
+                            "Hola " + who + ", aquí " + TeamRouter.DisplayName(speaker) + ". Estamos en " + track + ", " + kind + ". " + field + motivation,
+                            who + ", estamos contigo. " + track + ", " + kind + ". " + field + motivation });
                 int session = s.SessionId; var type = s.SessionType;
                 trackWelcome = new ObservedRaceCall { Topic = "track-welcome", Text = lines[(trackWelcomeVariant++) % lines.Length], Member = speaker,
                     Evidence = "no_greeting_in_stationary_window_non_race_session", Priority = 2, Position = -1, SessionId = session, SessionType = type,
