@@ -13,11 +13,18 @@ namespace UnitTest.AiTeamTests
     {
         private static readonly DateTime T = new DateTime(2026, 11, 20, 22, 33, 0, DateTimeKind.Utc);
 
+        private bool wasDeterministic;
+        private string wasLanguage;
+
         [SetUp]
-        public void Setup() { RadioVariants.Deterministic = true; RaceTrafficWatch.ClearHazard(); }
+        public void Setup()
+        {
+            wasDeterministic = RadioVariants.Deterministic; wasLanguage = RadioLanguage.Current;
+            RadioVariants.Deterministic = true; RadioLanguage.Current = RadioLanguage.German; RaceTrafficWatch.ClearHazard();
+        }
 
         [TearDown]
-        public void TearDown() { RadioVariants.Deterministic = false; RaceTrafficWatch.ClearHazard(); }
+        public void TearDown() { RadioVariants.Deterministic = wasDeterministic; RadioLanguage.Current = wasLanguage; RaceTrafficWatch.ClearHazard(); }
 
         private static GameStateData Race(int session = 9)
         {
