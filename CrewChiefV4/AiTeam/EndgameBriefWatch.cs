@@ -65,7 +65,7 @@ namespace CrewChiefV4.AiTeam
             if (front == null && rear == null) return null;
             string intro = Pick(variant,
                 RadioLanguage.T("Endspurt, noch " + lapsLeft + " Runden.", "Final push, " + lapsLeft + " laps to go.", "Recta final, quedan " + lapsLeft + " vueltas."),
-                RadioLanguage.T("Noch " + lapsLeft + " Runden, so sieht es aus.", lapsLeft + " laps left, here's the picture.", "Quedan " + lapsLeft + " vueltas, así está la cosa."),
+                RadioLanguage.T("Noch " + lapsLeft + " Runden, so sieht es aus.", "Still " + lapsLeft + " laps to go, here's the picture.", "Quedan " + lapsLeft + " vueltas, así está la cosa."),
                 RadioLanguage.T("Schlussphase, " + lapsLeft + " Runden.", "Closing stages, " + lapsLeft + " laps.", "Fase final, " + lapsLeft + " vueltas."),
                 RadioLanguage.T("Bis zur Flagge noch " + lapsLeft + " Runden.", "Flag in " + lapsLeft + " laps.", "Bandera en " + lapsLeft + " vueltas."),
                 RadioLanguage.T("Die letzten " + lapsLeft + " Runden.", "The last " + lapsLeft + " laps.", "Las últimas " + lapsLeft + " vueltas."));
@@ -131,7 +131,7 @@ namespace CrewChiefV4.AiTeam
             if (x.GapAhead <= 1.2f)
                 return Pick(variant,
                     RadioLanguage.T(Cap(who) + " ist in Reichweite, " + gap + ". Deine Chance kommt.", Cap(who) + " is in range, " + gap + ". Your chance is coming.", Cap(who) + " está a tiro, " + gap + ". Tu ocasión llegará."),
-                    RadioLanguage.T("Vorn " + who + ", nur " + gap + ". Druck machen, er muss fehlerfrei bleiben.", "Ahead " + who + ", just " + gap + ". Keep the pressure on, he has to stay perfect.", "Delante " + who + ", solo " + gap + ". Presiona, tiene que no fallar."),
+                    RadioLanguage.T("Vorn " + who + ", nur " + gap + ". Druck machen, er muss fehlerfrei bleiben.", "Ahead " + who + ", just " + gap + ". Keep the pressure on, he has to stay perfect.", "Delante " + who + ", solo " + gap + ". Presiona, no puede fallar."),
                     RadioLanguage.T(gap + " auf " + who + ". Ein Fehler von ihm reicht.", gap + " to " + who + ". One mistake from him is enough.", gap + " hasta " + who + ". Le basta un error."),
                     RadioLanguage.T(Cap(who) + " direkt vor dir, " + gap + ". Bleib dran.", Cap(who) + " right in front, " + gap + ". Stay with him.", Cap(who) + " justo delante, " + gap + ". No lo sueltes."));
             return Pick(variant,
