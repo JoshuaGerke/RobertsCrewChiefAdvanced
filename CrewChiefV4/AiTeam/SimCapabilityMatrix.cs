@@ -22,7 +22,8 @@ namespace CrewChiefV4.AiTeam
     /// Crew-Chief-Adapter (Datei:Zeile im Feld <see cref="SimCapability.Evidence"/>): „gemappt“ heißt, der Adapter schreibt das
     /// Feld in den Spielzustand. Das ist KEIN Nachweis über das vollständige native SDK und keine gemessene Frequenz; die
     /// Raten bleiben leer, bis sie in einer Fahrt gemessen sind. LMU läuft über den rF2-Mapper mit LMU-Puffern.
-    /// Fahrdynamik mit 100 Hz (eigener Abtaster) gibt es für AMS2, R3E, LMU, AC und AC EVO.
+    /// Fahrdynamik mit 100 Hz (eigener Abtaster) gibt es für AMS2, R3E, LMU, AC und AC EVO; iRacing liefert 60 Hz und keine
+    /// Raddrehzahlen (Blockieren/Durchdrehen dort nicht messbar).
     /// </summary>
     internal static class SimCapabilityMatrix
     {
@@ -167,7 +168,7 @@ namespace CrewChiefV4.AiTeam
             new SimCapability { Sim = "LMU", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "AC", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "ACE", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
-            new SimCapability { Sim = "IRACING", Field = "fahrdynamik_100hz", Mapped = false, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
+            new SimCapability { Sim = "IRACING", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "ACC", Field = "fahrdynamik_100hz", Mapped = false, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
         };
 

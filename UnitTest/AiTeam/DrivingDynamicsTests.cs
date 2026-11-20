@@ -261,6 +261,85 @@ namespace UnitTest.AiTeamTests
             }
         }
 
+        private static byte[] IRacingHeaders(params (string name, int type, int offset)[] vars)
+        {
+            var block = new byte[vars.Length * IRacingDynamicsSource.VarHeaderSize];
+            for (int i = 0; i < vars.Length; i++)
+            {
+                int at = i * IRacingDynamicsSource.VarHeaderSize;
+                BitConverter.GetBytes(vars[i].type).CopyTo(block, at);
+                BitConverter.GetBytes(vars[i].offset).CopyTo(block, at + 4);
+                BitConverter.GetBytes(1).CopyTo(block, at + 8);
+                System.Text.Encoding.ASCII.GetBytes(vars[i].name).CopyTo(block, at + IRacingDynamicsSource.VarNameOffset);
+            }
+            return block;
+        }
+
+        [Test]
+        public void IRacing_feeds_the_dynamics_analysis_by_variable_name()
+        {
+            Assert.IsTrue(DynamicsSampler.Supports(CrewChiefV4.GameEnum.IRACING));
+            var block = IRacingHeaders(("Speed", 4, 0), ("Throttle", 4, 4), ("Brake", 4, 8), ("SteeringWheelAngle", 4, 12), ("Gear", 2, 16),
+                ("LatAccel", 4, 20), ("LongAccel", 4, 24), ("YawRate", 4, 28), ("LapDist", 4, 32), ("LapCompleted", 2, 36),
+                ("OnPitRoad", 1, 40), ("IsOnTrack", 1, 41), ("IsReplayPlaying", 1, 42), ("PlayerTrackSurface", 2, 44),
+                ("PlayerTrackSurfaceMaterial", 2, 48), ("SessionTime", 5, 56));
+            var map = IRacingDynamicsSource.ParseVarHeaders(block, 16);
+            Assert.AreEqual(16, map.Count);
+            Assert.AreEqual(44, map["PlayerTrackSurface"].Offset);
+            var b = new byte[64];
+            void Put(int at, float v) => BitConverter.GetBytes(v).CopyTo(b, at);
+            void PutI(int at, int v) => BitConverter.GetBytes(v).CopyTo(b, at);
+            Put(0, 40f); Put(4, .6f); Put(8, 0f); Put(12, -1.2f); PutI(16, 4); Put(20, -14.7f); Put(24, 2f); Put(28, .35f); Put(32, 1234.5f);
+            PutI(36, 7); b[40] = 0; b[41] = 1; b[42] = 0; PutI(44, 3); PutI(48, 12);
+            BitConverter.GetBytes(812.25).CopyTo(b, 56);
+            var f = new DynamicsFrame();
+            Assert.IsTrue(IRacingDynamicsSource.Fill(map, b, f));
+            Assert.AreEqual(40f, f.Speed, 1e-4); Assert.AreEqual(.6f, f.Throttle, 1e-4); Assert.AreEqual(-1.2f, f.Steering, 1e-4);
+            Assert.AreEqual(4, f.Gear); Assert.AreEqual(-14.7f, f.LatAccel, 1e-4); Assert.AreEqual(.35f, f.YawRate, 1e-4);
+            Assert.AreEqual(1234.5f, f.LapDistance, 1e-3); Assert.AreEqual(7, f.CompletedLaps);
+            Assert.IsTrue(f.Driving); Assert.IsFalse(f.InPit);
+            Assert.IsTrue(f.AbsUnknown, "ohne BrakeABSactive ist der ABS-Eingriff unbekannt, nicht „aus“");
+            Assert.IsTrue(f.WheelRotation.All(w => w == 0), "keine Raddrehzahlen: Blockieren/Durchdrehen bleiben ungeeicht");
+            Assert.IsTrue(f.Surfaces.All(s => s == WheelSurface.Kerb), "Material 12 = Randstein");
+            Assert.AreEqual(812.25, IRacingDynamicsSource.Value(map, b, "SessionTime"), 1e-9);
+            Assert.IsTrue(double.IsNaN(IRacingDynamicsSource.Value(map, b, "Fehlt")));
+
+            PutI(44, 0); b[40] = 1;
+            Assert.IsTrue(IRacingDynamicsSource.Fill(map, b, f));
+            Assert.IsTrue(f.Surfaces.All(s => s == WheelSurface.Off), "iRacing „neben der Strecke“ = alle vier Räder");
+            Assert.IsTrue(f.InPit);
+            b[42] = 1;
+            IRacingDynamicsSource.Fill(map, b, f);
+            Assert.IsFalse(f.Driving, "Wiederholung ist keine Fahrt");
+            PutI(44, -1); b[42] = 0;
+            IRacingDynamicsSource.Fill(map, b, f);
+            Assert.IsFalse(f.Driving, "nicht in der Welt");
+            Assert.IsTrue(f.Surfaces.All(s => s == WheelSurface.Unknown));
+
+            var withAbs = IRacingDynamicsSource.ParseVarHeaders(IRacingHeaders(("Speed", 4, 0), ("BrakeABSactive", 1, 4)), 2);
+            var a = new byte[8]; BitConverter.GetBytes(30f).CopyTo(a, 0); a[4] = 1;
+            Assert.IsTrue(IRacingDynamicsSource.Fill(withAbs, a, f));
+            Assert.IsFalse(f.AbsUnknown); Assert.IsTrue(f.AbsActive);
+            Assert.IsFalse(IRacingDynamicsSource.Fill(IRacingDynamicsSource.ParseVarHeaders(IRacingHeaders(("Gear", 2, 0)), 1), a, f), "ohne Tempo kein Bild");
+            using (var source = new IRacingDynamicsSource())
+            {
+                Assert.AreEqual("iRacing", source.Name);
+                Assert.IsFalse(source.Read(new DynamicsFrame(), 0), "ohne laufendes Spiel kein Bild");
+            }
+        }
+
+        [Test]
+        public void IRacing_without_wheel_speeds_still_reads_balance_but_never_invents_lockups()
+        {
+            var a = new DrivingDynamicsAnalyzer();
+            var f = new DynamicsFrame { Driving = true, Speed = 40, Throttle = .3f, Steering = .5f, LatAccel = 2, YawRate = .1f, LapDistance = 100 };
+            for (int i = 0; i < 4; i++) f.Surfaces[i] = WheelSurface.Road;
+            for (int i = 0; i < 400; i++) { f.TimeS = i * .016; f.Brake = i > 300 ? 1 : 0; f.LongAccel = i > 300 ? -15 : 0; a.Observe(f); }
+            for (int w = 0; w < 4; w++) Assert.IsFalse(a.Calibrated(w), "Rad " + w + " ohne Drehzahl bleibt ungeeicht");
+            Assert.AreEqual(0, (int)a.Snapshot(0)["blockierer_letzte_5_runden"], "kein erfundenes Blockieren");
+            Assert.AreEqual(0, (int)a.Snapshot(0)["raeder_geeicht"]);
+        }
+
         [Test]
         public void Engineer_radio_for_dynamics_varies_and_exists_in_three_languages()
         {

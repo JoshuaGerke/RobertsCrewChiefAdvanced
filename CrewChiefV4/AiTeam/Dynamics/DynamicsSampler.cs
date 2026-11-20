@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
@@ -509,6 +510,157 @@ namespace CrewChiefV4.AiTeam
     }
 
     /// <summary>
+    /// iRacing (Rob 20.11.2026: gleiche Basis in allen sechs Kernsimulationen) über die SDK-Speicherdatei „IRSDKMemMapFileName“.
+    /// Liest Kopf und Variablenverzeichnis selbst (Namen statt fester Offsets, die sich mit iRacing-Updates verschieben), nimmt
+    /// den jüngsten der rotierenden Puffer und prüft nach dem Kopieren, dass er noch gilt. iRacing liefert 60 Bilder pro
+    /// Sekunde, Gierrate, Quer- und Längsbeschleunigung, Lenkradwinkel und ABS-Eingriff, aber KEINE Raddrehzahlen: Blockieren
+    /// und Durchdrehen bleiben ungeeicht und werden übersprungen, Unter-/Übersteuern und Ausritte funktionieren.
+    /// </summary>
+    internal sealed class IRacingDynamicsSource : DynamicsSource
+    {
+        internal const int StatusOffset = 4, NumVarsOffset = 24, VarHeaderOffsetOffset = 28, NumBufOffset = 32, BufLenOffset = 36,
+            VarBufOffset = 48, VarBufSize = 16, VarHeaderSize = 144, VarNameOffset = 16, VarNameLength = 32, MaxBufs = 4;
+        private const int Connected = 1;
+
+        internal struct Slot { public int Type, Offset, Count; }
+
+        private MemoryMappedFile file;
+        private MemoryMappedViewAccessor view;
+        private Dictionary<string, Slot> vars;
+        private int varsCount = -1, varsOffset = -1, lastTick = int.MinValue;
+        private byte[] buffer;
+
+        internal override string Name => "iRacing";
+        protected override string MapName => "Local\\IRSDKMemMapFileName";
+        protected override int Size => 0;
+        protected override bool Parse(byte[] b, DynamicsFrame f) => false; // liest selbst, siehe Read
+
+        internal override bool IsOpen => view != null;
+
+        internal override bool Open()
+        {
+            Close();
+            try
+            {
+                file = MemoryMappedFile.OpenExisting(MapName, MemoryMappedFileRights.Read);
+                view = file.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+                return true;
+            }
+            catch (Exception) { Close(); return false; }
+        }
+
+        internal override void Close()
+        {
+            try { view?.Dispose(); } catch (Exception) { }
+            try { file?.Dispose(); } catch (Exception) { }
+            view = null; file = null; vars = null; varsCount = varsOffset = -1; lastTick = int.MinValue;
+        }
+
+        /// <summary>Variablenverzeichnis aus einem kopierten Block von <paramref name="count"/> Köpfen zu je 144 Byte.</summary>
+        internal static Dictionary<string, Slot> ParseVarHeaders(byte[] block, int count)
+        {
+            var map = new Dictionary<string, Slot>(StringComparer.Ordinal);
+            for (int i = 0; i < count && (i + 1) * VarHeaderSize <= block.Length; i++)
+            {
+                int at = i * VarHeaderSize, len = 0;
+                while (len < VarNameLength && block[at + VarNameOffset + len] != 0) len++;
+                if (len == 0) continue;
+                string name = System.Text.Encoding.ASCII.GetString(block, at + VarNameOffset, len);
+                map[name] = new Slot { Type = I(block, at), Offset = I(block, at + 4), Count = I(block, at + 8) };
+            }
+            return map;
+        }
+
+        /// <summary>Zahlenwert einer Variablen (erstes Element); NaN, wenn sie fehlt oder nicht in den Puffer passt.</summary>
+        internal static double Value(Dictionary<string, Slot> map, byte[] b, string name)
+        {
+            if (map == null || !map.TryGetValue(name, out Slot s) || s.Offset < 0) return double.NaN;
+            switch (s.Type)
+            {
+                case 0: case 1: return s.Offset < b.Length ? b[s.Offset] : double.NaN;   // char, bool
+                case 2: case 3: return s.Offset + 4 <= b.Length ? I(b, s.Offset) : double.NaN; // int, Bitfeld
+                case 4: return s.Offset + 4 <= b.Length ? F(b, s.Offset) : double.NaN;
+                case 5: return s.Offset + 8 <= b.Length ? BitConverter.ToDouble(b, s.Offset) : double.NaN;
+                default: return double.NaN;
+            }
+        }
+
+        /// <summary>
+        /// Untergrund aus iRacings Streckenort (−1 nicht in der Welt, 0 neben der Strecke, 1 Boxenplatz, 2 Boxeneinfahrt,
+        /// 3 Strecke) und Material (11–14 Randsteine). „Neben der Strecke“ meint bei iRacing alle vier Räder.
+        /// </summary>
+        internal static void Surfaces(int trackLocation, int material, WheelSurface[] target)
+        {
+            WheelSurface s = trackLocation < 0 ? WheelSurface.Unknown : trackLocation == 0 ? WheelSurface.Off
+                : material >= 11 && material <= 14 ? WheelSurface.Kerb : WheelSurface.Road;
+            for (int i = 0; i < 4; i++) target[i] = s;
+        }
+
+        /// <summary>Füllt ein Bild aus einem vollständig kopierten Telemetriepuffer.</summary>
+        internal static bool Fill(Dictionary<string, Slot> map, byte[] b, DynamicsFrame f)
+        {
+            double speed = Value(map, b, "Speed");
+            if (double.IsNaN(speed)) return false;
+            float V(string n, float fallback = 0) { double v = Value(map, b, n); return double.IsNaN(v) ? fallback : (float)v; }
+            f.Speed = Math.Max(0, (float)speed);
+            f.Throttle = Math.Max(0, V("Throttle")); f.Brake = Math.Max(0, V("Brake"));
+            f.Steering = V("SteeringWheelAngle", float.NaN);
+            f.Gear = (int)V("Gear");
+            f.LatAccel = V("LatAccel"); f.LongAccel = V("LongAccel");
+            f.YawRate = V("YawRate", float.NaN);
+            double abs = Value(map, b, "BrakeABSactive");
+            f.AbsUnknown = double.IsNaN(abs); f.AbsActive = !f.AbsUnknown && abs != 0;
+            for (int w = 0; w < 4; w++) f.WheelRotation[w] = 0; // iRacing meldet keine Raddrehzahlen
+            int location = (int)V("PlayerTrackSurface", -1);
+            Surfaces(location, (int)V("PlayerTrackSurfaceMaterial", 0), f.Surfaces);
+            f.InPit = V("OnPitRoad") != 0 || V("PlayerCarInPitStall") != 0 || location == 1;
+            double laps = Value(map, b, "LapCompleted");
+            f.CompletedLaps = double.IsNaN(laps) ? 0 : (int)laps;
+            float dist = V("LapDist", -1);
+            f.LapDistance = dist >= 0 ? dist : -1;
+            f.Driving = V("IsOnTrack") != 0 && V("IsReplayPlaying") == 0 && location >= 0;
+            return true;
+        }
+
+        internal override bool Read(DynamicsFrame f, double timeS)
+        {
+            if (view == null) return false;
+            try
+            {
+                if ((view.ReadInt32(StatusOffset) & Connected) == 0) { lastTick = int.MinValue; return false; }
+                int count = view.ReadInt32(NumVarsOffset), headers = view.ReadInt32(VarHeaderOffsetOffset);
+                int bufs = view.ReadInt32(NumBufOffset), len = view.ReadInt32(BufLenOffset);
+                long capacity = view.Capacity;
+                if (count <= 0 || count > 4096 || headers <= 0 || headers + (long)count * VarHeaderSize > capacity ||
+                    bufs < 1 || bufs > MaxBufs || len <= 0 || len > 1 << 20) return false;
+                if (vars == null || count != varsCount || headers != varsOffset)
+                {
+                    var block = new byte[count * VarHeaderSize];
+                    view.ReadArray(headers, block, 0, block.Length);
+                    vars = ParseVarHeaders(block, count); varsCount = count; varsOffset = headers;
+                }
+                int best = -1, tick = 0;
+                for (int i = 0; i < bufs; i++)
+                {
+                    int t = view.ReadInt32(VarBufOffset + i * VarBufSize);
+                    if (best < 0 || unchecked(t - tick) > 0) { best = i; tick = t; }
+                }
+                if (tick == lastTick) return false;
+                int at = VarBufOffset + best * VarBufSize, offset = view.ReadInt32(at + 4);
+                if (offset <= 0 || offset + (long)len > capacity) return false;
+                if (buffer == null || buffer.Length != len) buffer = new byte[len];
+                view.ReadArray(offset, buffer, 0, len);
+                if (view.ReadInt32(at) != tick || view.ReadInt32(at + 4) != offset) return false; // während des Lesens neu belegt
+                if (!Fill(vars, buffer, f)) return false;
+                lastTick = tick;
+                f.TimeS = timeS;
+                return true;
+            }
+            catch (Exception) { Close(); return false; }
+        }
+    }
+
+    /// <summary>
     /// Schnelle Abtastung (Rob 17.11.2026: 100 Hz) in einem eigenen Hintergrundfaden, unabhängig von Crew Chiefs
     /// Hauptschleife. Liest alle 4 ms und wertet jedes neue Bild der Sim aus – bei AMS2 also gut hundert Bilder pro Sekunde.
     /// Läuft nur, solange der Dienst ihn anfordert (<see cref="Ensure"/>), und beendet sich 15 s nach der letzten Anforderung.
@@ -535,7 +687,7 @@ namespace CrewChiefV4.AiTeam
             DateTime.UtcNow - Analyzer.LastFrameUtc < TimeSpan.FromSeconds(3) ? Analyzer.Snapshot(completedLaps) : null;
 
         internal static bool Supports(GameEnum game) => game == GameEnum.AMS2 || game == GameEnum.RACE_ROOM || game == GameEnum.LMU || game == GameEnum.ASSETTO_EVO ||
-            game == GameEnum.ASSETTO_64BIT || game == GameEnum.ASSETTO_32BIT || game == GameEnum.ASSETTO_128CARS;
+            game == GameEnum.ASSETTO_64BIT || game == GameEnum.ASSETTO_32BIT || game == GameEnum.ASSETTO_128CARS || game == GameEnum.IRACING;
 
         /// <summary>Vom Dienst je Takt aufgerufen: startet bzw. hält den Faden für das laufende Spiel.</summary>
         internal static void Ensure(GameEnum game)
@@ -562,6 +714,7 @@ namespace CrewChiefV4.AiTeam
                 case GameEnum.ASSETTO_32BIT:
                 case GameEnum.ASSETTO_64BIT:
                 case GameEnum.ASSETTO_128CARS: return new ACSDynamicsSource();
+                case GameEnum.IRACING: return new IRacingDynamicsSource();
                 default: return null;
             }
         }

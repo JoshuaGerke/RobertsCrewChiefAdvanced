@@ -33,7 +33,7 @@ namespace UnitTest.AiTeamTests
         public void Known_limits_are_stated_honestly()
         {
             Assert.IsFalse(SimCapabilityMatrix.Get("IRACING", "weltposition_xyz").Mapped, "iRacing liefert keine 3D-Gegnerpositionen");
-            Assert.IsFalse(SimCapabilityMatrix.Get("IRACING", "fahrdynamik_100hz").Mapped);
+            Assert.IsTrue(SimCapabilityMatrix.Get("IRACING", "fahrdynamik_100hz").Mapped, "iRacing über das SDK, 60 Hz ohne Raddrehzahlen");
             Assert.IsTrue(SimCapabilityMatrix.Get("AC", "fahrdynamik_100hz").Mapped, "AC über die Kunos-Puffer");
             Assert.AreEqual("AC", SimCapabilityMatrix.SimOf(CrewChiefV4.GameEnum.ASSETTO_64BIT));
             Assert.IsFalse(SimCapabilityMatrix.Get("AC", "bremstemperatur").Mapped, "AC liefert brakeTemp, der Crew-Chief-Adapter mappt es nicht");
