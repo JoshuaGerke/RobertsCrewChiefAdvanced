@@ -474,7 +474,15 @@ namespace CrewChiefV4.AiTeam
                 trackLength > 500 && lapDistance >= trackLength / 2 && lapDistance < trackLength * .85f)
             {
                 startVerdictDone = true;
-                Add("start-verdict", StartVerdict(s, startPosition, driverName, Environment.TickCount & 0xFF), gs, now, 8, 5, "class_position_at_half_of_lap_one");
+                string startText = StartVerdict(s, startPosition, driverName, Environment.TickCount & 0xFF);
+                // Rennverständnis (Rob 21.11.): an wem vorbei, wer vorbei – aus der Rennchronik, nur mit erlaubten Namen.
+                var chronicle = RaceChronicle.Current;
+                if (names && chronicle.Session == s.SessionId && chronicle.Type == SessionType.Race)
+                {
+                    string who = RaceStory.StartNames(chronicle, storyVariant);
+                    if (who.Length > 0) { startText += " " + who; storyVariant++; }
+                }
+                Add("start-verdict", startText, gs, now, 8, 5, "class_position_at_half_of_lap_one");
             }
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {

@@ -134,6 +134,45 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        /// <summary>
+        /// Namen zum Startfazit: an wem Rob in der ersten Runde auf der Strecke vorbeigegangen ist (bzw. wer an ihm), nach dem
+        /// letzten Stand je Gegner – wer den Platz in derselben Runde zurückgeholt hat, zählt nicht. Leer ohne belegte Namen.
+        /// </summary>
+        internal static string StartNames(RaceChronicle chronicle, int variant)
+        {
+            var lapOne = (chronicle ?? RaceChronicle.Current).All().Where(e => e.Lap == 0 && e.SubjectKey != null &&
+                (e.Kind == ChronicleKind.PositionGained || e.Kind == ChronicleKind.PositionLost) && e.Detail == ChronicleRecorder.OnTrack).ToList();
+            var net = lapOne.GroupBy(e => e.SubjectKey).Select(g => g.Last()).Where(e => e.Subject != null).ToList();
+            var passed = net.Where(e => e.Kind == ChronicleKind.PositionGained).Select(e => e.Subject).Take(3).ToList();
+            var lostTo = net.Where(e => e.Kind == ChronicleKind.PositionLost).Select(e => e.Subject).Take(3).ToList();
+            if (passed.Count > 0)
+            {
+                string who = Join(passed);
+                return Pick(variant,
+                    RadioLanguage.T("An " + who + " vorbei.", "Past " + who + ".", "Has pasado a " + who + "."),
+                    RadioLanguage.T(Cap(who) + (passed.Count == 1 ? " liegt" : " liegen") + " jetzt hinter dir.", Cap(who) + (passed.Count == 1 ? " is" : " are") + " behind you now.", Cap(who) + (passed.Count == 1 ? " va" : " van") + " ahora detrás."),
+                    RadioLanguage.T("Geschnappt: " + who + ".", "Picked off: " + who + ".", "Cazados: " + who + "."),
+                    RadioLanguage.T("Du hast " + who + " eingesammelt.", "You've picked up " + who + ".", "Te has llevado a " + who + "."));
+            }
+            if (lostTo.Count > 0)
+            {
+                string who = Join(lostTo);
+                return Pick(variant,
+                    RadioLanguage.T(Cap(who) + (lostTo.Count == 1 ? " ist" : " sind") + " vorbeigekommen.", Cap(who) + (lostTo.Count == 1 ? " got" : " got") + " through.", Cap(who) + (lostTo.Count == 1 ? " ha pasado." : " han pasado.")),
+                    RadioLanguage.T("Vorbei " + (lostTo.Count == 1 ? "ist " : "sind ") + who + ".", who + (lostTo.Count == 1 ? " made it past." : " made it past."), "Te " + (lostTo.Count == 1 ? "ha" : "han") + " pasado " + who + "."),
+                    RadioLanguage.T("Verloren an " + who + ".", "Lost out to " + who + ".", "Perdido frente a " + who + "."),
+                    RadioLanguage.T(Cap(who) + (lostTo.Count == 1 ? " hat" : " haben") + " dich erwischt.", Cap(who) + " caught you.", Cap(who) + (lostTo.Count == 1 ? " te ha pillado." : " te han pillado.")));
+            }
+            return "";
+        }
+
+        private static string Join(List<string> names)
+        {
+            if (names.Count == 1) return names[0];
+            string and = RadioLanguage.T(" und ", " and ", " y ");
+            return string.Join(", ", names.Take(names.Count - 1)) + and + names[names.Count - 1];
+        }
+
         private static string Ordinal(int n) => n == 2 ? "second" : n == 3 ? "third" : n + "th";
 
         /// <summary>

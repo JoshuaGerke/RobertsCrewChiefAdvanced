@@ -174,6 +174,24 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Start_verdict_names_who_was_passed_in_lap_one_net_of_places_given_back()
+        {
+            var gs = Race();
+            Assert.AreEqual("", RaceStory.StartNames(RaceChronicle.Current, 0));
+            Duel(gs, T.AddSeconds(10), ChronicleKind.PositionGained, key: "k4", name: "Bananekk", lap: 0);
+            Duel(gs, T.AddSeconds(20), ChronicleKind.PositionGained, key: "k6", name: "Michiman", lap: 0);
+            Duel(gs, T.AddSeconds(30), ChronicleKind.PositionGained, key: "k8", name: "Zurueck", lap: 0);
+            Duel(gs, T.AddSeconds(40), ChronicleKind.PositionLost, key: "k8", name: "Zurueck", lap: 0);
+            Duel(gs, T.AddSeconds(200), ChronicleKind.PositionGained, key: "k9", name: "Spaeter", lap: 2);
+            Assert.AreEqual("An Bananekk und Michiman vorbei.", RaceStory.StartNames(RaceChronicle.Current, 0));
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                Assert.AreEqual(4, Enumerable.Range(0, 4).Select(v => RaceStory.StartNames(RaceChronicle.Current, v)).Distinct().Count(), lang);
+            }
+        }
+
+        [Test]
         public void Tally_counts_on_track_duels_and_names_the_main_rival()
         {
             var gs = Race();
