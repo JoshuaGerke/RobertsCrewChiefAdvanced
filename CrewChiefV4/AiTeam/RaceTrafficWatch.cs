@@ -74,8 +74,8 @@ namespace CrewChiefV4.AiTeam
         public static string[] SpinPhrases => RadioLanguage.Pick(SpinPhrasesDe, SpinPhrasesEn, SpinPhrasesEs);
 
         /// <summary>
-        /// Plötzlicher Einbruch: in den letzten 3 s um mindestens 20 m/s auf höchstens 60 % gefallen und deutlich langsamer als
-        /// Robs eigene Fahrt an dieser Stelle (ohne Vergleich: halb so schnell wie Rob). Normales Anbremsen fällt so nicht auf,
+        /// Plötzlicher Einbruch: in den letzten 3 s um mindestens 20 m/s auf höchstens 60 % gefallen und weniger als halb so schnell
+        /// wie Rob selbst an dieser Stelle (ohne Vergleich: unter 45 % von Robs Tempo). Normales Anbremsen fällt so nicht auf,
         /// weil Rob an derselben Stelle ähnlich langsam ist.
         /// </summary>
         internal static bool SuddenSlowdown(IList<KeyValuePair<DateTime, float>> history, float speed, DateTime now, float? normalHere, float playerSpeed)
@@ -85,7 +85,7 @@ namespace CrewChiefV4.AiTeam
             foreach (var h in history)
                 if (now - h.Key <= TimeSpan.FromSeconds(3) && now - h.Key >= TimeSpan.FromMilliseconds(300) && h.Value > peak) peak = h.Value;
             if (peak - speed < 20 || speed > peak * .6f) return false;
-            return normalHere.HasValue && normalHere.Value >= 15 ? speed < normalHere.Value * .7f : speed < playerSpeed * .5f;
+            return normalHere.HasValue && normalHere.Value >= 15 ? speed < normalHere.Value * .5f : speed < playerSpeed * .45f;
         }
 
         private readonly Dictionary<string, List<KeyValuePair<DateTime, float>>> motion = new Dictionary<string, List<KeyValuePair<DateTime, float>>>();

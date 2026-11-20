@@ -48,7 +48,7 @@ namespace CrewChiefV4.AiTeam
         private static readonly int tLapInvalidated = T("mLapInvalidated"), tLimiter = T("mSpeedLimiterActive"), tAbsActive = T("mABSActive"), tTcActive = T("mTCActive"),
             tTc = T("mTC"), tTcMax = T("mTCMax"), tAbs = T("mABS"), tAbsMax = T("mABSMax"), tMap = T("mMotorMap"), tMapMax = T("mMotorMapMax"),
             tSteps = T("mTrackLimitsSteps"), tEnergy = T("mVirtualEnergy"), tAhead = T("mTimeGapCarAhead"), tBehind = T("mTimeGapCarBehind"),
-            tPlaceAhead = T("mTimeGapPlaceAhead"), tSoC = T("mSoC"), tBoost = T("mElectricBoostMotorState"), tId = T("mID");
+            tPlaceAhead = T("mTimeGapPlaceAhead"), tSoC = T("mStateOfCharge"), tBoost = T("mElectricBoostMotorState"), tId = T("mID");
         private static readonly int iPerPenalty = I("mTrackLimitsStepsPerPenalty"), iPerPoint = I("mTrackLimitsStepsPerPoint");
         private static readonly int sId = S("mID"), sName = S("mDriverName"), sLaps = S("mTotalLaps"), sFinish = S("mFinishStatus"), sBest = S("mBestLapTime"),
             sLast = S("mLastLapTime"), sStops = S("mNumPitstops"), sPen = S("mNumPenalties"), sPlayer = S("mIsPlayer"), sInPits = S("mInPits"),

@@ -19,7 +19,8 @@ namespace CrewChiefV4.AiTeam
 
         internal static string Key(GameStateData gs)
         {
-            string track = gs?.SessionData?.TrackDefinition?.name, car = gs?.carClass?.getClassIdentifier() ?? gs?.carName;
+            // Fahrzeugname zuerst: eine unbekannte Klasse bekommt je Sitzung eine neue Platzhalter-Kennung.
+            string track = gs?.SessionData?.TrackDefinition?.name, car = !string.IsNullOrWhiteSpace(gs?.carName) ? gs.carName : gs?.carClass?.getClassIdentifier();
             return string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(car) ? null : track + "|" + car;
         }
 

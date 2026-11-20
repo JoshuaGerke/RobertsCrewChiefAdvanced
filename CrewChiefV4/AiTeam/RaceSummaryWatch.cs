@@ -79,14 +79,16 @@ namespace CrewChiefV4.AiTeam
         internal IReadOnlyList<double> Windows => windows;
 
         /// <summary>Ruhige Minute: kein Auto innerhalb von 5 s (gemessen oder über Streckenmeter geschätzt), keine Gelbphase, nicht in der Box.</summary>
-        internal static bool Calm(GameStateData gs, float gapAhead, float gapBehind)
+        internal static bool Calm(GameStateData gs, float gapAhead, float gapBehind) => Calm(gs, gapAhead, gapBehind, CalmSeconds);
+
+        internal static bool Calm(GameStateData gs, float gapAhead, float gapBehind, float calmSeconds)
         {
             var s = gs.SessionData;
             if (s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane || gs.FlagData.isLocalYellow) return false;
-            if (gapAhead >= 0 && gapAhead < CalmSeconds || gapBehind >= 0 && gapBehind < CalmSeconds) return false;
+            if (gapAhead >= 0 && gapAhead < calmSeconds || gapBehind >= 0 && gapBehind < calmSeconds) return false;
             float speed = gs.PositionAndMotionData.CarSpeed, length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             if (!(speed > 10) || !(length > 100)) return false;
-            float own = gs.PositionAndMotionData.DistanceRoundTrack, reach = speed * CalmSeconds;
+            float own = gs.PositionAndMotionData.DistanceRoundTrack, reach = speed * calmSeconds;
             double ownTotal = s.CompletedLaps + own / length;
             foreach (var o in gs.OpponentData.Values)
             {

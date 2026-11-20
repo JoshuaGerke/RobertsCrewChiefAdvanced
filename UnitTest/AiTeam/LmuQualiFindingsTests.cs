@@ -210,7 +210,7 @@ namespace UnitTest.AiTeamTests
                 {
                     string line = catalog.Template(group, i);
                     if (System.Text.RegularExpressions.Regex.IsMatch(line, "Bestzeit|Bestmarke"))
-                        StringAssert.Contains("persönlich", line, group + " " + i);
+                        Assert.IsTrue(line.IndexOf("persönlich", StringComparison.OrdinalIgnoreCase) >= 0, group + " " + i + ": " + line);
                 }
             StringAssert.Contains("persönliche Bestzeit", SessionLapObserver.FlyingLapText("Rob", false, true, -1, 0));
             StringAssert.Contains("lila", SessionLapObserver.FlyingLapText("Rob", true, true, -1, 0));
@@ -222,10 +222,10 @@ namespace UnitTest.AiTeamTests
             // Rennen 20.11., Wagen 24 vor Rob (Sebring, Kurve bei 530 m; Rob fuhr dort 42–46 m/s).
             var t0 = T;
             var history = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<DateTime, float>>();
-            foreach (var p in new[] { (0.0, 66.6f), (1.4, 53.2f), (2.0, 47.0f), (3.4, 37.5f), (4.0, 31.5f) })
+            foreach (var p in new[] { (0.0, 66.6f), (1.0, 60f), (2.0, 53.2f), (2.6, 47.0f), (3.4, 37.5f), (4.0, 31.5f), (4.6, 26.2f) })
                 history.Add(new System.Collections.Generic.KeyValuePair<DateTime, float>(t0.AddSeconds(p.Item1), p.Item2));
-            Assert.IsTrue(RaceTrafficWatch.SuddenSlowdown(history, 26.2f, t0.AddSeconds(4.6), 44f, 46.3f), "66 → 26 m/s, wo Rob 44 fährt: Dreher");
-            Assert.IsFalse(RaceTrafficWatch.SuddenSlowdown(history, 31.5f, t0.AddSeconds(4.0), 44f, 47.6f), "noch im Rahmen einer Bremsung");
+            Assert.IsTrue(RaceTrafficWatch.SuddenSlowdown(history, 19.5f, t0.AddSeconds(5.6), 44f, 44f), "66 → 19,5 m/s, wo Rob 44 fährt: Dreher");
+            Assert.IsFalse(RaceTrafficWatch.SuddenSlowdown(history, 26.2f, t0.AddSeconds(4.6), 44f, 46.3f), "noch im Rahmen einer harten Bremsung");
 
             var hairpin = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<DateTime, float>> {
                 new System.Collections.Generic.KeyValuePair<DateTime, float>(t0, 60f), new System.Collections.Generic.KeyValuePair<DateTime, float>(t0.AddSeconds(2), 35f) };
