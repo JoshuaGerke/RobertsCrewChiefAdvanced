@@ -628,7 +628,8 @@ namespace CrewChiefV4.AiTeam
                 }
                 DynamicsSampler.Ensure(Game.game);
                 dynamics.Observe(current, now, lapCompleted, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false));
-                if (lapCompleted && current.SessionData.CompletedLaps % 3 == 0)
+                // Auch nach der ersten Runde, damit eine kurze Testfahrt die Quelle (z. B. „LMU nativ · 100 Hz“) belegt.
+                if (lapCompleted && (current.SessionData.CompletedLaps % 3 == 0 || current.SessionData.CompletedLaps == 1))
                     LiveDiagnostics.Emit("dynamics", new Dictionary<string, object> { ["status"] = DynamicsSampler.Status });
             }
             if (lapCompleted && current.SessionData.SessionType == SessionType.Race) pitLoss.Observe(current.SessionData.SessionId, Memory.GetLaps());
