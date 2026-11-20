@@ -209,6 +209,15 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(spoken, SessionGreetingDirector.SpokenTrack(id));
         }
 
+        [TestCase("Was hat so viel Temperatur gehabt?")]
+        [TestCase("Welcher Reifen ist so heiß?")]
+        [TestCase("Which tyre is so hot?")]
+        [TestCase("¿Qué temperatura tienen los neumáticos?")]
+        public void Temperature_questions_get_the_live_data_tools(string question)
+        {
+            Assert.IsTrue(AiTeamService.NeedsTools(question, Race()), question);
+        }
+
         [Test]
         public void Name_budget_is_per_session_and_covers_a_full_field()
         {

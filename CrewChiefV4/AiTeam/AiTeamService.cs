@@ -1724,6 +1724,8 @@ namespace CrewChiefV4.AiTeam
             string q = (question ?? "").ToLowerInvariant();
             string[] markers = { "wetter", "regen", "schaden", "motor", "öltemp", "oeltemp", "wassertemp", "verlauf", "letzten runden", "rundenzeiten", "runden davor",
                 "kurve", "bremspunkt", "feld", "führende", "fuehrende", "wer ist", "wer fährt", "wer liegt", "box", "notiz", "merk",
+                // AC 20.11.: „Was hat so viel Temperatur gehabt?“ ohne Werkzeug → „aktuellere Reifendaten liegen mir nicht vor“.
+                "temperatur", "heiß", "heiss", "temperature", "hot", "caliente",
                 "weather", "rain", "damage", "engine", "history", "corner", "who is", "leader", "pit",
                 "clima", "lluvia", "daño", "curva", "quién", "boxes" };
             return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;
