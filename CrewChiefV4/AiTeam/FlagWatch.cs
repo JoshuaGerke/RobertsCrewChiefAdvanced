@@ -56,6 +56,20 @@ namespace CrewChiefV4.AiTeam
                 (now >= detected && now - detected <= TimeSpan.FromSeconds(3));
         }
 
+        /// <summary>Gelb, Doppelt Gelb und Unfall voraus nennen den Betroffenen, wenn er belegt ist (AC/RaceRoom 20.11.).</summary>
+        internal static bool NamesIncident(string phrase)
+        {
+            int i = IndexOf(phrase);
+            return i == 0 || i == 2 || i == 3 || i == 8;
+        }
+
+        /// <summary>
+        /// Wer ist betroffen? Zuerst die gemessene Gefahr voraus der letzten 20 s (Dreher, steht, bricht ein), sonst das nächste
+        /// langsame Auto bis 300 m vor uns. Nur mit erlaubtem Namen; ohne Beleg null.
+        /// </summary>
+        internal static string IncidentName(GameStateData gs, DateTime now) =>
+            gs == null ? null : RaceTrafficWatch.RecentHazard(gs.SessionData.SessionId, now, TimeSpan.FromSeconds(20)) ?? IncidentDriver(gs);
+
         /// <summary>Wer steht am Unfall voraus? Nächstes langsames Auto bis 300 m vor uns, nur mit erlaubtem Namen.</summary>
         internal static string IncidentDriver(GameStateData gs)
         {

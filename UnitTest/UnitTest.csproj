@@ -90,6 +90,7 @@
     <Compile Include="AiTeam\TelemetryProbeTests.cs" />
     <Compile Include="AiTeam\LMUProbeTests.cs" />
     <Compile Include="AiTeam\LmuQualiFindingsTests.cs" />
+    <Compile Include="AiTeam\AcSessionFindingsTests.cs" />
     <Compile Include="AiTeam\LmuRaceFindingsTests.cs" />
     <Compile Include="AiTeam\FuelProjectionTests.cs" />
     <Compile Include="AiTeam\PitAndFieldFindingsTests.cs" />

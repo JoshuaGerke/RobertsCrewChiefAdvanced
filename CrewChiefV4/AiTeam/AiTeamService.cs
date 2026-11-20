@@ -426,7 +426,8 @@ namespace CrewChiefV4.AiTeam
                     string call = flagCall;
                     Log("Flagge Sara: " + call);
                     // RaceRoom 20.11.: „Unfall voraus!“ ohne Namen – vereinbart war, wer dort steht.
-                    string incidentDriver = settings.SendDriverNames && call == FlagWatch.Phrases[8] ? FlagWatch.IncidentDriver(current) : null;
+                    // AC 20.11.: auch „Gelb im Sektor“ und „Gelb! Langsam“ nennen den Betroffenen, nicht nur „Unfall voraus“.
+                    string incidentDriver = settings.SendDriverNames && FlagWatch.NamesIncident(call) ? FlagWatch.IncidentName(current, now) : null;
                     liveWarnings.Offer("warning-flag-"+Array.IndexOf(FlagWatch.Phrases,call),call,TeamMember.Sara,10,current,now,
                         live=>FlagWatch.StillRelevant(call,live),"mapped_flag_transition",
                         timed: (live, when) => FlagWatch.FreshClear(call, now, when),
@@ -657,6 +658,7 @@ namespace CrewChiefV4.AiTeam
             }
             nativeIncidents.Observe(current,now,liveWarnings,Memory,settings.SendDriverNames);
             fieldEvents.CaptureMappedPits(previous,current);
+            fieldEvents.CaptureDepartures(previous,current,now);
             fieldEvents.CaptureMappedFastestLap(previous, current);
             fieldEvents.RadioName = settings.RadioName;
             fieldEvents.Observe(current,now,Memory,settings.SendDriverNames);
@@ -666,6 +668,7 @@ namespace CrewChiefV4.AiTeam
                 pendingTimingDelivery=null;
             }
             else if(pendingTimingDelivery!=null && !pendingTimingDelivery.IsValid(current,now))pendingTimingDelivery=null;
+            liveWarnings.IncidentName = settings.SendDriverNames ? (Func<GameStateData, DateTime, string>)FlagWatch.IncidentName : null;
             liveWarnings.Observe(current,now);
             // LMU: Rennleitung aus dem nativen Datenstrom – alles mitschreiben, eigene Strafen/Tracklimits sofort an die Crew.
             LMURaceControlStream.Line raceControl;
@@ -2330,8 +2333,11 @@ namespace CrewChiefV4.AiTeam
                         },out detailIsCurrent);
                     string baseText = text;
                     byte[] namePcm = null;
+                    // AC 20.11.: „Dreher vor dir“, Gelb und langsame Autos ohne Namen – der Name war nur dabei, wenn er zufällig
+                    // schon vorbereitet war. Fehlt er, wird er jetzt sofort in derselben Stimme erzeugt (kurze Frist).
                     if (call.OpponentNameClip != null && settings.SendDriverNames &&
-                        (namePcm = CachedOpponentName(call.Member, call.OpponentNameClip)) != null)
+                        (namePcm = CachedOpponentName(call.Member, call.OpponentNameClip) ??
+                            await RenderOpponentNameNow(call.Member, call.OpponentNameClip, generation, call.EventId).ConfigureAwait(false)) != null)
                     {
                         text += " " + call.OpponentNameClip;
                         detailUsesNames = true;
@@ -2876,7 +2882,39 @@ namespace CrewChiefV4.AiTeam
             lock (preparedOpponentNames)
                 return preparedOpponentNames.TryGetValue(key, out var pcm) ? pcm : null;
         }
-        private int opponentVoiceWarmRunning, opponentVoiceWarmCount;
+        private int opponentVoiceWarmRunning, opponentVoiceWarmCount, opponentVoiceWarmGeneration = -1;
+        /// <summary>Namen je Sitzung vorbereiten (vorher 24 für die ganze Programmlaufzeit – danach fehlten alle Namen).</summary>
+        internal const int OpponentWarmBudget = 60, OpponentWarmBudgetParked = 16;
+
+        private bool AttemptedOpponentName(TeamMember member, string phrase)
+        {
+            string key = CrewSpeechPolicy.CacheKey(settings, member, phrase);
+            lock (attemptedOpponentVoiceClips) return attemptedOpponentVoiceClips.Contains(key);
+        }
+
+        private int OpponentWarmCount()
+        {
+            int generation = Volatile.Read(ref sessionGeneration);
+            if (Interlocked.Exchange(ref opponentVoiceWarmGeneration, generation) != generation) Interlocked.Exchange(ref opponentVoiceWarmCount, 0);
+            return Volatile.Read(ref opponentVoiceWarmCount);
+        }
+
+        /// <summary>Name für einen anstehenden Funkspruch sofort erzeugen, wenn er nicht vorbereitet ist; null nach 1,5 s.</summary>
+        private async Task<byte[]> RenderOpponentNameNow(TeamMember member, string phrase, int generation, string eventId)
+        {
+            try
+            {
+                string key = CrewSpeechPolicy.CacheKey(settings, member, phrase);
+                byte[] pcm;
+                using (var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500)))
+                    pcm = await RenderAsync(member, phrase, deadline.Token, eventId).ConfigureAwait(false);
+                if (!settings.SendDriverNames || generation != Volatile.Read(ref sessionGeneration) || !AiAudio.HasSpeechSignal(pcm)) return null;
+                lock (preparedOpponentNames) preparedOpponentNames[key] = pcm;
+                LiveDiagnostics.Decision("race-traffic-name", "prepared", "rendered_for_call", eventId: eventId);
+                return pcm;
+            }
+            catch (Exception) { LiveDiagnostics.Decision("race-traffic-name", "deferred", "render_for_call_failed", eventId: eventId); return null; }
+        }
         private DateTime nextOpponentVoiceWarmUtc;
         private readonly HashSet<string> attemptedOpponentVoiceClips = new HashSet<string>(StringComparer.Ordinal);
         private void MaybePrepareOpponentName(GameStateData gs, DateTime now)
@@ -2884,16 +2922,16 @@ namespace CrewChiefV4.AiTeam
             if (!settings.SendDriverNames || !settings.IsMemberEnabled(TeamMember.Ben) ||
                 !(SessionLapObserver.Supported(gs.SessionData.SessionType) || gs.SessionData.SessionType == SessionType.Race) ||
                 radioRenderGate.Busy || currentRequest != null || now < nextOpponentVoiceWarmUtc ||
-                Volatile.Read(ref opponentVoiceWarmCount) >= 24 || Volatile.Read(ref opponentVoiceWarmRunning) != 0) return;
+                OpponentWarmCount() >= OpponentWarmBudget || Volatile.Read(ref opponentVoiceWarmRunning) != 0) return;
             bool parked = (gs.PitData.InPitlane || gs.SessionData.SessionPhase == SessionPhase.Garage ||
                 gs.SessionData.SessionPhase == SessionPhase.Gridwalk) &&
                 TrackAwareness.InRange(gs.PositionAndMotionData.CarSpeed, 0, 1).HasValue;
             // Keep most of the bounded synthesis budget for nearby traffic on track.
-            if (parked && Volatile.Read(ref opponentVoiceWarmCount) >= 8) return;
+            if (parked && OpponentWarmCount() >= OpponentWarmBudgetParked) return;
             var positions = Tracks.Snapshot;
             if (!parked && (positions == null || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 Spotter().HasOverlap || now < positions.SourceUtc || now - positions.SourceUtc > TimeSpan.FromSeconds(1))) return;
-            nextOpponentVoiceWarmUtc = now.AddSeconds(parked ? 2 : 5);
+            nextOpponentVoiceWarmUtc = now.AddSeconds(parked ? 1 : 2);
             var names = parked
                 ? gs.OpponentData.Values.Where(o => o != null && o.IsActive && o.CanUseName)
                     .OrderBy(o => o.ClassPosition <= 0 ? int.MaxValue : Math.Abs(o.ClassPosition - gs.SessionData.ClassPosition))
@@ -2901,8 +2939,11 @@ namespace CrewChiefV4.AiTeam
                 : positions.Cars.Where(c => !c.InPits && c.SpatiallyConsistent && c.RouteGapM.HasValue &&
                         Math.Abs(c.RouteGapM.Value) <= 750 && !string.IsNullOrWhiteSpace(c.Name))
                     .OrderBy(c => Math.Abs(c.RouteGapM.Value)).Select(c => c.Name).Take(8);
-            WarmOpponentName(names.Distinct(StringComparer.Ordinal).Select(RaceTrafficWatch.NameClipText).ToArray(),
-                Volatile.Read(ref sessionGeneration));
+            // Ben (Verkehr, Gefahren) und Sara (Gelb, Unfall) sprechen Namen – beide Stimmen vorbereiten.
+            var phrases = names.Distinct(StringComparer.Ordinal).Select(RaceTrafficWatch.NameClipText).ToArray();
+            bool sara = settings.IsMemberEnabled(TeamMember.Sara) && settings.ReplaceCrewChiefVoice &&
+                phrases.Length > 0 && phrases.All(p => CachedOpponentName(TeamMember.Ben, p) != null || AttemptedOpponentName(TeamMember.Ben, p));
+            WarmOpponentName(phrases, Volatile.Read(ref sessionGeneration), sara ? TeamMember.Sara : TeamMember.Ben);
         }
 
         /// <summary>Sara spottet gerade: KI-Sara aktiv und der Spotter auf dieser Strecke eingeschaltet (Realistisch: nur Ovale).</summary>
@@ -2910,7 +2951,7 @@ namespace CrewChiefV4.AiTeam
 
         private void WarmOpponentName(string[] phrases, int generation, TeamMember member = TeamMember.Ben)
         {
-            if (phrases.Length == 0 || Volatile.Read(ref opponentVoiceWarmCount) >= 24 ||
+            if (phrases.Length == 0 || OpponentWarmCount() >= OpponentWarmBudget ||
                 Interlocked.CompareExchange(ref opponentVoiceWarmRunning, 1, 0) != 0) return;
             Task.Run(async () =>
             {
@@ -2920,11 +2961,10 @@ namespace CrewChiefV4.AiTeam
                         !settings.IsMemberEnabled(member) || currentRequest != null ||
                         settings.TtsProvider == AiTtsProvider.WINDOWS && radioRenderGate.Busy) return;
                     var phrase = phrases.FirstOrDefault(candidate =>
-                        !attemptedOpponentVoiceClips.Contains(CrewSpeechPolicy.CacheKey(settings, member, candidate)) &&
-                        CachedOpponentName(member, candidate) == null);
+                        !AttemptedOpponentName(member, candidate) && CachedOpponentName(member, candidate) == null);
                     if (phrase == null) return;
                     string key = CrewSpeechPolicy.CacheKey(settings, member, phrase);
-                    attemptedOpponentVoiceClips.Add(key);
+                    lock (attemptedOpponentVoiceClips) attemptedOpponentVoiceClips.Add(key);
                     Interlocked.Increment(ref opponentVoiceWarmCount);
                     byte[] pcm;
                     using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4)))

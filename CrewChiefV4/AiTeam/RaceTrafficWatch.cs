@@ -91,6 +91,28 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, List<KeyValuePair<DateTime, float>>> motion = new Dictionary<string, List<KeyValuePair<DateTime, float>>>();
         private readonly HashSet<string> spinning = new HashSet<string>();
 
+        // AC 20.11.: Sara rief „Gelb im Sektor“, während Ben den Dreher von minmos sah – ohne Namen. Die zuletzt gemessene
+        // Gefahr voraus (steht, dreht sich, bricht ein) wird hier für die Gelb-/Unfallansage bereitgehalten.
+        private static readonly object hazardGate = new object();
+        private static string hazardName;
+        private static DateTime hazardUtc = DateTime.MinValue;
+        private static int hazardSession = int.MinValue;
+
+        internal static void NoteHazard(string name, int session, DateTime now)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            lock (hazardGate) { hazardName = name; hazardUtc = now; hazardSession = session; }
+        }
+
+        /// <summary>Name der zuletzt gemessenen Gefahr voraus, höchstens <paramref name="maxAge"/> alt; sonst null.</summary>
+        internal static string RecentHazard(int session, DateTime now, TimeSpan maxAge)
+        {
+            lock (hazardGate)
+                return hazardName != null && hazardSession == session && now >= hazardUtc && now - hazardUtc <= maxAge ? hazardName : null;
+        }
+
+        internal static void ClearHazard() { lock (hazardGate) { hazardName = null; hazardUtc = DateTime.MinValue; hazardSession = int.MinValue; } }
+
         private void RecordMotion(TrackPositionSnapshot s, DateTime now)
         {
             foreach (var c in s.Cars)
@@ -310,6 +332,9 @@ namespace CrewChiefV4.AiTeam
             var candidates=s.Cars.Where(c=>!c.IsSafetyCar && Relevant(c,gs,s,now)).OrderBy(c=>c.RouteGapM>0?0:1)
                 .ThenBy(c=>Math.Abs(c.RouteGapM.Value)/Math.Max(1,c.ClosingMps??1)).ToArray();
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
+            var hazard=candidates.FirstOrDefault(c=>c.RouteGapM>0 && !string.IsNullOrWhiteSpace(c.Name) &&
+                (c.SpeedMps<=5 || spinning.Contains(c.Key) || SlowAgainstReference(c,gs,s,now)));
+            if (hazard!=null) NoteHazard(hazard.Name,s.SessionId,now);
             if (pending!=null || now-lastRadio<TimeSpan.FromSeconds(3)) return;
             foreach (var car in candidates)
             {
@@ -356,8 +381,9 @@ namespace CrewChiefV4.AiTeam
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
-                // Bei klassenfremdem Verkehr zählt die Klasse, nicht der Name (Rob 18.11.: „lass ihn durch, andere Klasse“).
-                if (!group && !reminder && !otherClass && !string.IsNullOrWhiteSpace(car.Name))
+                // Bei klassenfremdem Verkehr zuerst die Klasse (Rob 18.11.: „lass ihn durch, andere Klasse“), danach der Name
+                // (AC 20.11.: „Der Name fehlte, welches Fahrzeug meinte die GT3-Meldung?“).
+                if (!group && !reminder && !string.IsNullOrWhiteSpace(car.Name))
                     pending.OpponentNameClip = NameClipText(car.Name);
                 // Dreher: sofort der kurze, vorbereitete Satz – keine Abstandsangabe, die erst gerechnet werden muss. Ein sich
                 // drehendes Auto passt oft kurz nicht zur Strecke (Lage/Distanz uneinig); die Warnung gilt deshalb 2 s ab Erkennung.

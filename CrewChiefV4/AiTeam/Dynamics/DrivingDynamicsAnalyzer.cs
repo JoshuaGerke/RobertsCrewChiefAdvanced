@@ -61,6 +61,9 @@ namespace CrewChiefV4.AiTeam
         private readonly double[] lockSince = { double.NaN, double.NaN, double.NaN, double.NaN };
         private readonly double[] spinSince = { double.NaN, double.NaN, double.NaN, double.NaN };
         private readonly float[] lockExtreme = new float[4], spinExtreme = new float[4], lockDistance = new float[4], spinDistance = new float[4], lockSpeed = new float[4];
+        // AC 20.11.: Beim Dreher an 2930 m meldete die Auswertung zehn „Blockierer“ in 2 s – ein querstehendes Auto bremst
+        // keine Räder fest, die Räder drehen nur nicht zur Fahrtrichtung. Während Übersteuern oder Ausritt zählt kein Blockieren.
+        private readonly bool[] lockSlid = new bool[4];
         private double offSince = double.NaN, offClear = double.NaN;
         // Balance (Unter-/Übersteuern): Lenkverstärkung des Autos = Bahnkrümmung je Lenkeinschlag, gelernt bei wenig Querlast.
         private float steerGain; private int steerSamples;
@@ -176,14 +179,16 @@ namespace CrewChiefV4.AiTeam
             bool locking = f.Brake >= .15f && f.Speed >= 12 && r < LockRatio && !f.AbsActive;
             if (locking)
             {
-                if (double.IsNaN(lockSince[i])) { lockSince[i] = f.TimeS; lockExtreme[i] = r; lockDistance[i] = f.LapDistance; lockSpeed[i] = f.Speed; }
+                if (double.IsNaN(lockSince[i])) { lockSince[i] = f.TimeS; lockExtreme[i] = r; lockDistance[i] = f.LapDistance; lockSpeed[i] = f.Speed; lockSlid[i] = false; }
                 else if (r < lockExtreme[i]) lockExtreme[i] = r;
+                if (Sliding(f)) lockSlid[i] = true;
             }
             else if (!double.IsNaN(lockSince[i]))
             {
                 double d = f.TimeS - lockSince[i];
                 lockSince[i] = double.NaN;
-                if (d >= (f.AbsUnknown ? LockMinWithoutAbsFlag : LockMin) && (!f.AbsUnknown || lockExtreme[i] < .65f))
+                if (lockSlid[i] || Sliding(f)) LiveDiagnostics.Decision("dynamics-lockup", "suppressed", "car_sliding_or_off_track");
+                else if (d >= (f.AbsUnknown ? LockMinWithoutAbsFlag : LockMin) && (!f.AbsUnknown || lockExtreme[i] < .65f))
                 {
                     bool hard = lockExtreme[i] < HeavyRatio && d >= HeavyMin;
                     var e = Add(hard ? Kind.HeavyLockup : Kind.Lockup, i, 0, lockDistance[i], (float)d, lockExtreme[i], lockSpeed[i]);
@@ -203,6 +208,11 @@ namespace CrewChiefV4.AiTeam
                 if (d >= SpinMin) Add(Kind.Wheelspin, i, 0, spinDistance[i], (float)d, spinExtreme[i], f.Speed);
             }
         }
+
+        /// <summary>Auto rutscht quer (Übersteuern läuft, Gierrate über 1,5 rad/s) oder ist mit zwei Rädern draußen.</summary>
+        private bool Sliding(DynamicsFrame f) =>
+            !double.IsNaN(overSince) || !double.IsNaN(offSince) || !float.IsNaN(f.YawRate) && Math.Abs(f.YawRate) > 1.5f ||
+            f.Surfaces.Count(s => s == WheelSurface.Off || s == WheelSurface.Wall) >= 2;
 
         private void TrackOff(DynamicsFrame f)
         {

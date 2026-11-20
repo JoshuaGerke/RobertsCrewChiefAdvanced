@@ -70,6 +70,24 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Spinning_or_off_track_car_does_not_report_lockups()
+        {
+            // AC 20.11.: zehn „Blockierer“ in 2 s an derselben Stelle – das war ein Dreher, kein Bremsfehler.
+            var d = new Drive(); d.Calibrate();
+            d.F.YawRate = 2.2f;
+            d.Run(.5, 30, 0, .8f, new[] { .3f, .2f, .4f, .3f }, distance: 2930);
+            d.F.YawRate = 0;
+            d.Run(.3, 25, 0, 0, distance: 2950);
+            d.Run(.5, 25, 0, .8f, new[] { .3f, .2f, .4f, .3f }, new[] { WheelSurface.Off, WheelSurface.Off, WheelSurface.Off, WheelSurface.Off }, distance: 2960);
+            d.Run(.8, 25, 0, 0, distance: 2970);
+            Assert.AreEqual(0, (int)d.A.Snapshot(3)["blockierer_letzte_5_runden"], "querstehend oder im Kies ist kein Blockieren");
+
+            d.Run(.5, 30, 0, .8f, new[] { 1f, .2f, 1f, 1f }, distance: 1000);
+            d.Run(.3, 30, .3f, 0, distance: 1050);
+            Assert.AreEqual(1, (int)d.A.Snapshot(3)["blockierer_letzte_5_runden"], "gerades Anbremsen zählt weiter");
+        }
+
+        [Test]
         public void Short_flicker_or_abs_is_not_a_lockup()
         {
             var d = new Drive(); d.Calibrate();

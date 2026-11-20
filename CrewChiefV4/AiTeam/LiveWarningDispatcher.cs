@@ -183,6 +183,10 @@ namespace CrewChiefV4.AiTeam
             string twin=topic=="warning-invalid-lap"?"warning-tracklimit":topic=="warning-tracklimit"?"warning-invalid-lap":null;
             if(twin!=null && delivered.TryGetValue(twin,out last) && now>=last && now-last<TimeSpan.FromSeconds(20))
             {LiveDiagnostics.Decision(topic,"suppressed","same_event_as_"+twin);return;}
+            // AC 20.11.: „Gelb im Sektor.“ und 0,1 s später „Gelb, Gelb! Tempo anpassen.“ – Spielflagge und Crew-Chief-Meldung
+            // sind dieselbe Gelbphase. Nur Doppelt Gelb ist eine neue Lage.
+            string sameYellow=SameYellow(topic,now);
+            if(sameYellow!=null){LiveDiagnostics.Decision(topic,"suppressed","same_yellow_as_"+sameYellow);return;}
             Pending old;
             if(pending.TryGetValue(topic,out old))
             {
@@ -200,6 +204,22 @@ namespace CrewChiefV4.AiTeam
                 Delivered=onDelivered,OpponentNameClip=opponentNameClip,HazardIdentity=hazardIdentity,PreparedDetail=preparedDetail};
             LiveDiagnostics.Decision(topic,"detected",evidence,text);
         }
+        internal static bool YellowTopic(string topic)=>topic=="warning-flag-0" || topic=="warning-flag-2" ||
+            (topic??"").StartsWith("warning-rc-yellow-",StringComparison.Ordinal);
+        internal static bool DoubleYellowTopic(string topic)=>topic=="warning-flag-3" ||
+            (topic??"").StartsWith("warning-rc-dyellow-",StringComparison.Ordinal);
+        /// <summary>Ein anderes Gelb derselben Lage, angesagt oder wartend in den letzten 10 s; Doppelt Gelb zählt nur gegen Doppelt Gelb.</summary>
+        private string SameYellow(string topic,DateTime now)
+        {
+            bool dbl=DoubleYellowTopic(topic);
+            if(!dbl && !YellowTopic(topic))return null;
+            Func<string,bool> family=t=>t!=topic && (dbl?DoubleYellowTopic(t):YellowTopic(t) || DoubleYellowTopic(t));
+            foreach(var d in delivered)if(family(d.Key) && now>=d.Value && now-d.Value<TimeSpan.FromSeconds(10))return d.Key;
+            foreach(var p in pending.Values)if(family(p.Topic) && now>=p.CapturedUtc && now-p.CapturedUtc<TimeSpan.FromSeconds(10))return p.Topic;
+            return null;
+        }
+        /// <summary>Betroffener einer Gelbphase (Name oder null), vom Dienst gesetzt, wenn Namen erlaubt sind.</summary>
+        public Func<GameStateData,DateTime,string> IncidentName;
         private static bool Hot(GameStateData gs,bool oil,float captured)
         {
             float value=oil?gs.EngineData.EngineOilTemp:gs.EngineData.EngineWaterTemp;
@@ -223,8 +243,12 @@ namespace CrewChiefV4.AiTeam
                     string sector=kind.Contains(":")?kind.Substring(kind.IndexOf(':')+1):"";
                     if(kind.StartsWith("green",StringComparison.Ordinal)){pending.Remove("warning-rc-yellow-"+sector);pending.Remove("warning-rc-dyellow-"+sector);}
                     if(kind.StartsWith("yellow",StringComparison.Ordinal) || kind.StartsWith("dyellow",StringComparison.Ordinal))pending.Remove("warning-rc-green-"+sector);
+                    string who=null;
+                    if(kind.StartsWith("yellow",StringComparison.Ordinal) || kind.StartsWith("dyellow",StringComparison.Ordinal))
+                    {try{who=IncidentName?.Invoke(gs,now);}catch(Exception){who=null;}}
                     Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
-                        live=>NativeRaceControl.StillCurrent(kind,live),"native:"+n.Source+";captured="+n.Utc.ToString("o"));
+                        live=>NativeRaceControl.StillCurrent(kind,live),"native:"+n.Source+";captured="+n.Utc.ToString("o"),
+                        opponentNameClip:who==null?null:RaceTrafficWatch.NameClipText(who));
                 }
                 else if(n.Kind=="limits")
                 {
