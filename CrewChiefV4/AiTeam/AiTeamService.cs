@@ -43,6 +43,7 @@ namespace CrewChiefV4.AiTeam
         private ObservedRaceCall pendingTimingDelivery;
         private ObservedRaceCall pendingDamageAdvice;
         private readonly NativeIncidentWatch nativeIncidents = new NativeIncidentWatch();
+        private readonly LMUTrackLimitPoints lmuTrackLimits = new LMUTrackLimitPoints();
         private readonly ThermalWatch thermalWatch = new ThermalWatch();
         private readonly NumericDamageWatch numericDamageWatch = new NumericDamageWatch();
         private readonly FuelWatch fuelWatch = new FuelWatch();
@@ -435,11 +436,11 @@ namespace CrewChiefV4.AiTeam
                 if(CrewSpeechPolicy.TrackLimitPhrases.Contains(radio.Value))
                 {
                     int warningLap=current.SessionData.CompletedLaps;
-                    bool invalid=!current.SessionData.CurrentLapIsValid;
+                    bool invalid=IncidentWatch.CurrentLapInvalid(current,now);
                     int cuts=current.PenaltiesData.CutTrackWarnings;
                     liveWarnings.Offer(invalid?"warning-invalid-lap":"warning-tracklimit",radio.Value,radio.Key,7,current,now,
                         live=>!live.PitData.InPitlane && live.SessionData.CompletedLaps==warningLap &&
-                            (invalid?!live.SessionData.CurrentLapIsValid:live.PenaltiesData.CutTrackWarnings>=cuts),
+                            (invalid?IncidentWatch.CurrentLapInvalid(live,DateTime.UtcNow):live.PenaltiesData.CutTrackWarnings>=cuts),
                         invalid?"mapped_current_lap_invalid":"mapped_cut_warning",warningLap);
                     continue;
                 }
@@ -663,6 +664,25 @@ namespace CrewChiefV4.AiTeam
             }
             else if(pendingTimingDelivery!=null && !pendingTimingDelivery.IsValid(current,now))pendingTimingDelivery=null;
             liveWarnings.Observe(current,now);
+            // LMU: Rennleitung aus dem nativen Datenstrom – alles mitschreiben, eigene Strafen/Tracklimits sofort an die Crew.
+            LMURaceControlStream.Line raceControl;
+            while (LMURaceControlStream.TryTake(out raceControl))
+            {
+                string kind = LMURaceControlStream.Classify(raceControl);
+                LiveDiagnostics.Decision("lmu-race-control", kind == null ? "logged" : "classified", (raceControl.Tag ?? "line") + (kind == null ? "" : ";" + kind),
+                    LMURaceControlStream.Plain(raceControl.Text));
+                Memory.AddObservation(RadioLanguage.T("Rennleitung: ", "Race control: ", "Dirección de carrera: ") + LMURaceControlStream.Plain(raceControl.Text), now, "race-control");
+                if (kind != null && now >= raceControl.Utc && now - raceControl.Utc < TimeSpan.FromSeconds(5) && current.SessionData.SessionPhase == SessionPhase.Green)
+                    liveWarnings.OfferRaceControl(kind, current, now, raceControl.Tag ?? "line");
+            }
+            var lmuNative = LMUNativeSnapshot.Fresh(now);
+            string limitPoints = lmuNative == null ? null : lmuTrackLimits.Observe(lmuNative, current);
+            if (limitPoints != null)
+            {
+                int limitLap = current.SessionData.CompletedLaps;
+                liveWarnings.Offer("warning-tracklimit", limitPoints, TeamMember.Mik, 7, current, now,
+                    live => !live.PitData.InPitlane && live.SessionData.CompletedLaps == limitLap, "lmu_native_track_limit_steps=" + lmuNative.TrackLimitsSteps, limitLap);
+            }
             var raceCall = liveWarnings.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled);
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,pitBusy,7);
             if (raceCall == null) raceCall = pitDamage.Take(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy, settings.IsMemberEnabled);
@@ -1229,7 +1249,7 @@ namespace CrewChiefV4.AiTeam
             string fuelPlan = RaceFuelPlan.AsksFuelForDistance(routed.Question) ? RaceFuelPlan.Answer(routed.Question, gs, Memory) : null;
             string quick = fuelPlan ?? comparison ?? recentPass ?? LocalAnswers.FuelToFinish(routed.Question, quickContext) ??
                 LocalAnswers.PreviousStintFuel(routed.Question, quickContext) ??
-                LocalAnswers.FuelConsumption(routed.Question, gs, Memory) ??
+                LocalAnswers.FuelConsumption(routed.Question, gs, Memory, settings.RadioName) ??
                 LocalAnswers.LapPrediction(routed.Question, gs) ??
                 LocalAnswers.TryAnswer(routed.Question, gs, Memory, comparisonNames);
             if (quick != null)
@@ -2952,7 +2972,7 @@ namespace CrewChiefV4.AiTeam
                     return PreparedVoiceStatus="Zuerst eigene Stimmen für die aktiven Crew-Mitglieder auswählen.";
                 PreparedVoiceStatus = "Originalclips werden geprüft/vorbereitet.";
                 int ready=0, failed=0;
-                var sara = SaraLocal.PreparedPhrases.Concat(FlagWatch.Phrases);
+                var sara = SaraLocal.PreparedPhrases.Concat(FlagWatch.Phrases).Concat(NativeRaceControl.PreparedPhrases);
                 var live = CrewChief.currentGameState;
                 var hazardSections = live == null ? Enumerable.Empty<string>() :
                     RaceTrafficWatch.SectionPhrases(live.SessionData.TrackDefinition, live.PositionAndMotionData.DistanceRoundTrack);

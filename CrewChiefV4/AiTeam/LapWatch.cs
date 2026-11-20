@@ -148,7 +148,9 @@ namespace CrewChiefV4.AiTeam
 
         private static bool TimedClockElapsed(SessionData s)
         {
-            return s.SessionHasFixedTime && s.SessionTimeRemaining == 0 && Finite(s.SessionTotalRunTime) &&
+            // LMU 20.11.: Die Restzeit läuft dort nach Ablauf ins Negative (−3,7 s an der Linie); „== 0“ traf nie, die letzte Runde
+            // wurde nicht angesagt. Abgelaufen ist abgelaufen, egal ob 0 oder darunter.
+            return s.SessionHasFixedTime && Finite(s.SessionTimeRemaining) && s.SessionTimeRemaining <= 0 && Finite(s.SessionTotalRunTime) &&
                 s.SessionTotalRunTime > 0 && Finite(s.SessionRunningTime) && s.SessionRunningTime >= s.SessionTotalRunTime;
         }
 

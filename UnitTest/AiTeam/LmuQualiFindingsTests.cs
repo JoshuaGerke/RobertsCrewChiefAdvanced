@@ -281,13 +281,178 @@ namespace UnitTest.AiTeamTests
                 FuelCarry.Remember(race, 2.5f, 3);
                 Assert.AreEqual(1.8f, FuelCarry.For(race), 1e-6, "Rennen überschreibt die Trainingswerte nicht");
                 string answer = LocalAnswers.FuelConsumption("Wie viel Sprit verbrauche ich pro Runde?", race, new AiRaceMemory());
-                StringAssert.Contains("Aus Training und Quali", answer);
-                StringAssert.Contains("1,8 Liter pro Runde", answer);
+                StringAssert.Contains("Belastbare Rennwerte haben wir noch nicht", answer);
+                StringAssert.Contains("1,80 Liter pro Runde", answer);
+                StringAssert.Contains("Verlass dich aber nicht zu sehr darauf, Rob", answer);
                 StringAssert.Contains("23 Runden", answer);
+                race.FuelData.FuelUseActive = false;
+                StringAssert.Contains("1,80 Liter", LocalAnswers.FuelConsumption("Was sind die ca. Verbräuche aus Practice und Quali?", race, new AiRaceMemory()));
+                StringAssert.Contains("1,80 Liter", LocalAnswers.FuelConsumption("Wie viel Sprit verbrauche ich pro Runde?", race, new AiRaceMemory()), "auch in der Box vor dem Start ohne Tankwert");
+                RadioVariants.Deterministic = false;
+                var lines = new System.Collections.Generic.HashSet<string>();
+                for (int i = 0; i < 60; i++) lines.Add(LocalAnswers.CarriedFuelAnswer(1.8f, 3, null));
+                RadioVariants.Deterministic = true;
+                Assert.That(lines.Count, Is.GreaterThanOrEqualTo(5), "fünf Formulierungen");
                 var other = Quali(SessionPhase.Green, 0, 10); other.SessionData.TrackDefinition = new TrackDefinition("Monza", 5793); other.carName = quali.carName;
                 Assert.AreEqual(-1, FuelCarry.For(other), "andere Strecke: nichts übernehmen");
             }
             finally { FuelCarry.Reset(); }
+        }
+
+        [Test]
+        public void Crew_chief_race_control_detections_become_crew_calls()
+        {
+            // Rennen 20.11.: 16× „sectorFlagChange“, „penalty_two_laps_left“, „you_have_a_penalty“ – alles still verworfen.
+            Assert.AreEqual("yellow:2", NativeRaceControl.Classify(new[] { "flags/yellow_flag_sector_2" }));
+            Assert.AreEqual("dyellow:1", NativeRaceControl.Classify(new[] { "flags\\double_yellow_flag_sector_1" }));
+            Assert.AreEqual("green:3", NativeRaceControl.Classify(new[] { "flags/green_flag_sector_3" }));
+            Assert.AreEqual("pen-laps:2", NativeRaceControl.Classify(new[] { "penalties/penalty_two_laps_left" }));
+            Assert.AreEqual("pen-laps:1", NativeRaceControl.Classify(new[] { "penalties/penalty_one_lap_left_drivethrough" }));
+            Assert.AreEqual("pen-type:dt:cut", NativeRaceControl.Classify(new[] { "penalties/drive_through_cutting_track" }));
+            Assert.AreEqual("pen-type:sg:speeding", NativeRaceControl.Classify(new[] { "penalties/stop_go_penalty_speeding_in_pit_lane" }));
+            Assert.IsNull(NativeRaceControl.Classify(new[] { "lap_times/personal_best" }), "Rundenzeiten bleiben bei der eigenen Logik");
+            Assert.IsNull(NativeRaceControl.Classify(new[] { "penalties/you_have_a_penalty" }), "Anzahl offener Strafen meldet IncidentWatch");
+
+            StringAssert.Contains("Sektor 2", NativeRaceControl.Text("yellow:2"));
+            StringAssert.Contains("Durchfahrtsstrafe wegen Abkürzen", NativeRaceControl.Text("pen-type:dt:cut"));
+            StringAssert.Contains("zwei Runden", NativeRaceControl.Text("pen-laps:2"));
+            StringAssert.Contains("Diese Runde rein", NativeRaceControl.Text("pen-laps:1"));
+            Assert.AreEqual(TeamMember.Sara, NativeRaceControl.Member("yellow:2"));
+            Assert.AreEqual(TeamMember.Ben, NativeRaceControl.Member("pen-laps:2"));
+            Assert.AreNotEqual(NativeRaceControl.Topic("yellow:1"), NativeRaceControl.Topic("yellow:2"), "Gelb in zwei Sektoren sind zwei Meldungen");
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (var kind in new[] { "yellow:0", "yellow:2", "dyellow:2", "green:2", "pen-laps:3", "pen-pitnow", "pen-type:dt:cut", "pen-blue" })
+                    Assert.That(NativeRaceControl.Options(kind).Distinct().Count(), Is.GreaterThanOrEqualTo(4), lang + " " + kind);
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+
+            var gs = Quali(SessionPhase.Green, 3, 12); gs.SessionData.SessionType = SessionType.Race;
+            gs.FlagData.sectorFlags[1] = FlagEnum.YELLOW;
+            Assert.IsTrue(NativeRaceControl.StillCurrent("yellow:2", gs));
+            Assert.IsFalse(NativeRaceControl.StillCurrent("green:2", gs), "Grün-Meldung veraltet, Sektor wieder gelb");
+            gs.FlagData.isLocalYellow = true;
+            Assert.IsFalse(NativeRaceControl.StillCurrent("yellow:0", gs), "lokales Gelb sagt Sara schon");
+            gs.PenaltiesData.NumOutstandingPenalties = 0;
+            Assert.IsFalse(NativeRaceControl.StillCurrent("pen-laps:2", gs), "Strafe erledigt: keine Erinnerung mehr");
+        }
+
+        [Test]
+        public void Lmu_race_control_stream_is_read_and_own_penalties_are_classified()
+        {
+            Assert.AreEqual(2184, LMUNativeLayout.StreamSizeOffset);
+            Assert.AreEqual(62928, LMUNativeLayout.StreamOffset);
+            Assert.AreEqual(LMUNativeLayout.TelemetryOffset, LMUNativeLayout.Align(LMUNativeLayout.StreamOffset + LMUNativeLayout.StreamSize, 8));
+            var b = new byte[LMUNativeLayout.TotalSize];
+            int vs = LMUNativeLayout.ScoringVehiclesOffset;
+            BitConverter.GetBytes(2).CopyTo(b, LMUNativeLayout.ScoringCountOffset);
+            BitConverter.GetBytes(7).CopyTo(b, vs + System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2VehicleScoring), "mID").ToInt32());
+            System.Text.Encoding.UTF8.GetBytes("Rob Gerke").CopyTo(b, vs + System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2VehicleScoring), "mDriverName").ToInt32());
+            b[vs + System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2VehicleScoring), "mIsPlayer").ToInt32()] = 1;
+            string stream = "<Penalty et=\"1205.3\">Rob Gerke received a Drive Thru penalty for Track Limits</Penalty>\n<Incident et=\"1210.0\">Val Bogataj(4) reported contact (0.41) with another vehicle Sammy Caban(9)</Incident>\n";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(stream);
+            bytes.CopyTo(b, LMUNativeLayout.StreamOffset);
+            BitConverter.GetBytes((long)bytes.Length).CopyTo(b, LMUNativeLayout.StreamSizeOffset);
+            BitConverter.GetBytes(1210.2).CopyTo(b, LMUNativeLayout.ScoringOffset + System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2ScoringInfo), "mCurrentET").ToInt32());
+            try
+            {
+                LMURaceControlStream.Reset();
+                Assert.AreEqual(2, LMURaceControlStream.Observe(b, T));
+                Assert.AreEqual(0, LMURaceControlStream.Observe(b, T), "gleiches Wertungsbild: nicht doppelt");
+                Assert.IsTrue(LMURaceControlStream.TryTake(out var penalty));
+                Assert.AreEqual("Penalty", penalty.Tag);
+                Assert.AreEqual("pen-type:dt:cut", LMURaceControlStream.Classify(penalty));
+                StringAssert.Contains("Durchfahrtsstrafe wegen Abkürzen", NativeRaceControl.Text(LMURaceControlStream.Classify(penalty)));
+                Assert.IsTrue(LMURaceControlStream.TryTake(out var other));
+                Assert.IsNull(LMURaceControlStream.Classify(other), "Vorfall zweier anderer Fahrer: nur Protokoll");
+                StringAssert.DoesNotContain("<", LMURaceControlStream.Plain(other.Text));
+                Assert.AreEqual("pen-served", LMURaceControlStream.Classify(new LMURaceControlStream.Line { Text = "Rob Gerke served penalty", Player = "Rob Gerke" }));
+                Assert.AreEqual("investigation", LMURaceControlStream.Classify(new LMURaceControlStream.Line { Text = "Incident under investigation: Rob Gerke", Player = "Rob Gerke" }));
+                Assert.AreEqual("limits", LMURaceControlStream.Classify(new LMURaceControlStream.Line { Text = "<TrackLimits et=\"1.0\" id=\"7\" points=\"1.0\"/>", Tag = "TrackLimits", PlayerId = 7 }));
+            }
+            finally { LMURaceControlStream.Reset(); }
+        }
+
+        private static int TelOff(string f) => System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2VehicleTelemetry), f).ToInt32();
+        private static int InfoOff(string f) => System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2ScoringInfo), f).ToInt32();
+        private static int ScoOff(string f) => System.Runtime.InteropServices.Marshal.OffsetOf(typeof(rF2SharedMemory.LMUData.rF2VehicleScoring), f).ToInt32();
+
+        [Test]
+        public void Lmu_native_snapshot_reads_lap_invalidation_track_limits_and_field()
+        {
+            var b = new byte[LMUNativeLayout.TotalSize];
+            b[LMUNativeLayout.PlayerHasVehicleOffset] = 1; b[LMUNativeLayout.ActiveVehiclesOffset] = 2; b[LMUNativeLayout.PlayerIndexOffset] = 1;
+            int v = LMUNativeLayout.TelemetryVehiclesOffset + LMUNativeLayout.VehicleTelemetrySize;
+            b[v + TelOff("mLapInvalidated")] = 0; b[v + TelOff("mTrackLimitsSteps")] = 6; b[v + TelOff("mTC")] = 3; b[v + TelOff("mTCMax")] = 9;
+            BitConverter.GetBytes(1.5f).CopyTo(b, v + TelOff("mTimeGapCarAhead"));
+            b[LMUNativeLayout.ScoringOffset + InfoOff("mTrackLimitsStepsPerPoint")] = 2; b[LMUNativeLayout.ScoringOffset + InfoOff("mTrackLimitsStepsPerPenalty")] = 8;
+            BitConverter.GetBytes(2).CopyTo(b, LMUNativeLayout.ScoringCountOffset);
+            for (int i = 0; i < 2; i++)
+            {
+                int o = LMUNativeLayout.ScoringVehiclesOffset + i * LMUNativeLayout.VehicleScoringSize;
+                b[o + ScoOff("mPlace")] = (byte)(i == 0 ? 12 : 13);
+                System.Text.Encoding.UTF8.GetBytes(i == 0 ? "Sean Talania" : "Rob Gerke").CopyTo(b, o + ScoOff("mDriverName"));
+                b[o + ScoOff("mIsPlayer")] = (byte)(i == 1 ? 1 : 0);
+                BitConverter.GetBytes((short)(i == 0 ? 14 : 13)).CopyTo(b, o + ScoOff("mTotalLaps"));
+                BitConverter.GetBytes((short)(i == 1 ? 1 : 0)).CopyTo(b, o + ScoOff("mNumPenalties"));
+            }
+            var s = LMUNativeSnapshot.Parse(b, T);
+            Assert.IsFalse(s.LapInvalidated, "Rennen 20.11.: Runde nicht gestrichen, obwohl Crew Chief „ungültig“ meldete");
+            Assert.AreEqual(3, s.LimitPoints, 1e-9);
+            Assert.AreEqual(4, s.PointsPerPenalty, 1e-9);
+            Assert.AreEqual("Rob Gerke", s.PlayerCar.Name);
+            var json = s.ToJson(T, new[] { "Rob Gerke received a Drive Thru penalty" });
+            Assert.AreEqual(1, (int)json["offene_strafen"]);
+            Assert.AreEqual(1.5, (double)json["abstand_auto_vorn_s"], 1e-6);
+            Assert.AreEqual("Sean Talania", (string)json["feld"][0]["fahrer"]);
+            Assert.AreEqual(14, (int)json["feld"][0]["runden"]);
+            Assert.AreEqual(1, json["rennleitung_zuletzt"].Count());
+
+            string text = LMUTrackLimitPoints.Text(s.LimitPoints, s.PointsPerPenalty, s.StepsPerPoint, s.StepsPerPenalty, s.TrackLimitsSteps);
+            StringAssert.Contains("3 von 4", text);
+            StringAssert.Contains("Beim nächsten gibt es die Strafe", text);
+            var watch = new LMUTrackLimitPoints();
+            var gs = Quali(SessionPhase.Green, 3, 13);
+            Assert.IsNull(watch.Observe(s, gs), "erstes Bild: nur merken");
+            b[v + TelOff("mTrackLimitsSteps")] = 6;
+            Assert.IsNull(watch.Observe(LMUNativeSnapshot.Parse(b, T.AddSeconds(1)), gs), "unverändert");
+            b[v + TelOff("mTrackLimitsSteps")] = 7;
+            StringAssert.Contains("3,5 von 4", watch.Observe(LMUNativeSnapshot.Parse(b, T.AddSeconds(2)), gs));
+        }
+
+        [Test]
+        public void Own_laps_are_graded_from_very_good_to_bad_with_varied_words()
+        {
+            System.Collections.Generic.List<LapRecord> Laps(params float[] t) => t.Select((x, k) => new LapRecord { LapNumber = k + 1, LapTime = x, Valid = true }).ToList();
+            float d;
+            Assert.AreEqual(LapGrade.Grade.VeryGood, LapGrade.Of(Laps(66.8f, 65.2f, 65.3f), out d));
+            Assert.AreEqual(LapGrade.Grade.Good, LapGrade.Of(Laps(66.8f, 65.2f, 65.6f), out d));
+            Assert.AreEqual(LapGrade.Grade.Medium, LapGrade.Of(Laps(66.8f, 65.2f, 66.1f), out d));
+            Assert.AreEqual(LapGrade.Grade.Weak, LapGrade.Of(Laps(66.8f, 65.2f, 67.4f), out d));
+            Assert.AreEqual(LapGrade.Grade.Bad, LapGrade.Of(Laps(66.8f, 65.2f, 70.0f), out d));
+            Assert.AreEqual(4.8f, d, .01f);
+            Assert.IsNull(LapGrade.Of(Laps(66.8f, 65.2f, 65.0f), out d), "neue persönliche Bestzeit sagt die Rundenzeit-Ansage");
+            var pit = Laps(66.8f, 65.2f, 90f); pit[2].InPitLap = true;
+            Assert.IsNull(LapGrade.Of(pit, out d), "Boxenrunde wird nicht benotet");
+            var invalid = Laps(66.8f, 65.2f, 66f); invalid[2].Valid = false;
+            Assert.IsNull(LapGrade.Of(invalid, out d));
+            RadioVariants.Deterministic = false;
+            try
+            {
+                foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+                {
+                    RadioLanguage.Current = lang;
+                    foreach (LapGrade.Grade g in Enum.GetValues(typeof(LapGrade.Grade)))
+                    {
+                        var lines = new System.Collections.Generic.HashSet<string>();
+                        for (int i = 0; i < 80; i++) lines.Add(LapGrade.Text(g, .8f, null));
+                        Assert.AreEqual(5, lines.Count, lang + " " + g);
+                    }
+                }
+            }
+            finally { RadioVariants.Deterministic = true; RadioLanguage.Current = RadioLanguage.German; }
+            StringAssert.Contains("acht Zehntel", GermanRadioText.Prepare(LapGrade.Text(LapGrade.Grade.Medium, .8f, null), true));
         }
 
         [Test]

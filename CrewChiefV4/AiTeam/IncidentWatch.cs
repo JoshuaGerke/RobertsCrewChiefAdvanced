@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using CrewChiefV4.Events;
 using CrewChiefV4.GameState;
 
@@ -126,6 +127,16 @@ namespace CrewChiefV4.AiTeam
             return what + why;
         }
 
+        private bool lastNativeInvalid;
+        private static int adviceVariant;
+
+        /// <summary>Ist die laufende Runde gestrichen? In LMU nach dem nativen Wert, sonst nach Crew Chiefs Rundengültigkeit.</summary>
+        internal static bool CurrentLapInvalid(GameStateData gs, DateTime nowUtc)
+        {
+            var native = LMUNativeSnapshot.Fresh(nowUtc);
+            return native != null ? native.LapInvalidated : gs != null && !gs.SessionData.CurrentLapIsValid;
+        }
+
         public List<KeyValuePair<TeamMember, string>> Evaluate(GameStateData previous, GameStateData current, DateTime nowUtc, bool minimalMode)
         {
             var result = new List<KeyValuePair<TeamMember, string>>();
@@ -159,6 +170,7 @@ namespace CrewChiefV4.AiTeam
                     positionBeforeIncident = StablePosition(previous.SessionData.ClassPosition);
                 }
                 lastContactUtc = nowUtc;
+                Interlocked.Increment(ref adviceVariant);
                 pendingDamageCheckUtc = nowUtc + DamageCheckDelay;
                 // Preserve Joshua's driver check before the damage report after a proven heavy impact.
                 // A serious damage change without an impact signal is reported immediately, without inventing a collision.
@@ -289,8 +301,9 @@ namespace CrewChiefV4.AiTeam
                     ? RadioLanguage.T(" Die Art meldet das Spiel nicht, schau kurz aufs Display.", " The game doesn't say which kind, check your display.", " El juego no dice de qué tipo, mira la pantalla.") : "";
                 result.Add(Say(TeamMember.Ben, got + serveText + unknownType));
             }
-            else if (PenaltyServed(pp, p, current, previous))
+            else if (PenaltyServed(pp, p, current, previous) && !(nowUtc >= NativeRaceControl.LastServedUtc && nowUtc - NativeRaceControl.LastServedUtc < TimeSpan.FromSeconds(30)))
             {
+                NativeRaceControl.LastServedUtc = nowUtc;
                 // Rob 20.11.: „Ihr müsst auch erkennen, wenn ich sie abgesessen habe.“
                 LiveDiagnostics.Decision("incident-penalty-served", "detected", "open=" + pp.NumOutstandingPenalties + "->" + p.NumOutstandingPenalties, null);
                 result.Add(Say(TeamMember.Ben, ServedText(p.NumOutstandingPenalties)));
@@ -299,7 +312,12 @@ namespace CrewChiefV4.AiTeam
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
             // increase supports a track-limit comment; a warning need not invalidate the lap.
             int lap = current.SessionData.CompletedLaps;
-            bool invalidated = previous.SessionData.CurrentLapIsValid && !current.SessionData.CurrentLapIsValid && !inPit &&
+            // LMU 20.11.: „Diese Runde ist nicht ungültig“ – LMU sagt nativ, ob die laufende Runde wirklich gestrichen ist.
+            var native = LMUNativeSnapshot.Fresh(nowUtc);
+            bool nowInvalid = native != null ? native.LapInvalidated : !current.SessionData.CurrentLapIsValid;
+            bool wasInvalid = native != null ? lastNativeInvalid && !current.SessionData.IsNewLap : !previous.SessionData.CurrentLapIsValid;
+            if (native != null) lastNativeInvalid = native.LapInvalidated;
+            bool invalidated = !wasInvalid && nowInvalid && !inPit &&
                 !current.PitData.OnOutLap && !previous.PitData.OnOutLap && !current.SessionData.IsNewLap && lap != lastInvalidLap;
             if (invalidated)
             {
@@ -314,6 +332,8 @@ namespace CrewChiefV4.AiTeam
                 lastReportedCutWarnings = p.CutTrackWarnings;
                 TrackLimitWarnings++;
             }
+            // LMU liefert die Tracklimit-Punkte nativ; dann meldet Mik den Punktestand (LMUTrackLimitPoints) statt der Zählung.
+            if (limitWarning && native != null && native.StepsPerPoint > 0) limitWarning = false;
             if (!minimalMode && (limitWarning || invalidated))
             {
                 string text = limitWarning ? language.TrackLimit(TrackLimitWarnings > 1, invalidated)
@@ -403,9 +423,20 @@ namespace CrewChiefV4.AiTeam
             // LMU 18.11.: Rob verlor ein Rad und hörte „wenn sich das Auto komisch anfühlt“. Schwerer Schaden heißt Box, nicht vielleicht.
             if (!serious || !includeAdvice) return text;
             bool destroyed = PitDamageWatch.Destroyed(d) || d.OverallEngineDamage == DamageLevel.DESTROYED || wheelGone;
-            return text + (destroyed
-                ? RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya.")
-                : RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."));
+            // Rob 20.11.: nicht jedes Mal wortgleich. Die Formulierung wechselt mit jedem neuen Schadensereignis, bleibt aber für
+            // dasselbe Ereignis gleich (die Gültigkeitsprüfung vergleicht den Text).
+            int v = (int)((uint)Volatile.Read(ref adviceVariant) % 4);
+            string[] urgent = {
+                RadioLanguage.T(" Komm sofort an die Box.", " Box now.", " Entra a boxes ya."),
+                RadioLanguage.T(" Komm sofort an die Box, wir richten das.", " Box now, we'll fix it.", " Entra a boxes ya, lo arreglamos."),
+                RadioLanguage.T(" Komm sofort an die Box, so geht es nicht weiter.", " Box now, we can't carry on like this.", " Entra a boxes ya, así no podemos seguir."),
+                RadioLanguage.T(" Komm sofort an die Box, die Crew steht bereit.", " Box now, the crew is ready.", " Entra a boxes ya, el equipo está listo.") };
+            string[] soon = {
+                RadioLanguage.T(" Sobald es passt, komm an die Box, so verlierst du viel Zeit.", " Box as soon as you can, you're losing a lot of time like this.", " En cuanto puedas, entra a boxes, así pierdes mucho tiempo."),
+                RadioLanguage.T(" Sobald es sicher geht, komm an die Box, das kostet sonst zu viel.", " Box when it's safe, otherwise it costs too much.", " Entra a boxes cuando sea seguro, si no cuesta demasiado."),
+                RadioLanguage.T(" Wenn es passt, komm an die Box, wir reparieren das.", " Box when it suits, we'll repair it.", " Entra a boxes cuando encaje, lo reparamos."),
+                RadioLanguage.T(" Bei nächster Gelegenheit komm an die Box, so ist das Auto zu langsam.", " Box at the next chance, the car is too slow like this.", " A la próxima entra a boxes, así el coche va demasiado lento.") };
+            return text + (destroyed ? urgent[v] : soon[v]);
         }
 
         internal static string PitAdviceAfterDamage(GameStateData state)

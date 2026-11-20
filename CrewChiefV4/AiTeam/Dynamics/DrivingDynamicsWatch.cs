@@ -15,6 +15,8 @@ namespace CrewChiefV4.AiTeam
         private readonly Random random;
         private ObservedRaceCall call;
         private int session = int.MinValue, variant, lastHeavyLap = -100, lastBigOffLap = -100;
+        internal const int RepeatLaps = 6;
+        private readonly System.Collections.Generic.Dictionary<string, int> spoken = new System.Collections.Generic.Dictionary<string, int>();
 
         internal DrivingDynamicsWatch(DrivingDynamicsAnalyzer analyzer, int? seed = null)
         {
@@ -27,7 +29,7 @@ namespace CrewChiefV4.AiTeam
         {
             if (gs == null || analyzer == null) return;
             var s = gs.SessionData;
-            if (s.SessionId != session) { session = s.SessionId; call = null; lastHeavyLap = lastBigOffLap = -100; }
+            if (s.SessionId != session) { session = s.SessionId; call = null; lastHeavyLap = lastBigOffLap = -100; spoken.Clear(); }
             if (call != null && (call.DeliveryStartedUtc != DateTime.MinValue || !call.IsValid(gs, now))) call = null;
             if (call != null || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane) return;
 
@@ -51,6 +53,15 @@ namespace CrewChiefV4.AiTeam
             if (!lapCompleted) return;
             var p = analyzer.FindPattern(s.CompletedLaps);
             if (p == null) return;
+            // LMU 20.11.: „Hast du nur diesen Tipp? Die Ansage kenne ich mittlerweile.“ Dieselbe Stelle mit demselben Befund erst
+            // nach sechs Runden wieder; dazwischen bleiben andere Stellen frei.
+            string key = p.Kind + "|" + p.Phase + "|" + (string.IsNullOrWhiteSpace(p.Corner) ? ((int)Math.Round(p.Distance / 100f)).ToString() : p.Corner);
+            if (spoken.TryGetValue(key, out int saidLap) && s.CompletedLaps - saidLap < RepeatLaps)
+            {
+                LiveDiagnostics.Decision("insight-" + p.Kind.ToString().ToLowerInvariant(), "suppressed", "same_place_and_finding_within_" + RepeatLaps + "_laps", key);
+                return;
+            }
+            spoken[key] = s.CompletedLaps;
             string n = string.IsNullOrWhiteSpace(driver) ? null : driver;
             switch (p.Kind)
             {
@@ -221,8 +232,10 @@ namespace CrewChiefV4.AiTeam
                     : ph == 2 ? RadioLanguage.T("Sanfter ans Gas – oder Traktionskontrolle eine Stufe höher.", "Smoother on the throttle, or traction control up a step.", "Gas más suave, o sube un punto el control de tracción.")
                     : RadioLanguage.T("Ruhiger einlenken, nicht nachlenken.", "Calmer turn-in, don't add more steering.", "Gira con más calma, sin corregir de más.");
             }
-            switch (((variant % 4) + 4) % 4)
+            switch (((variant % 5) + 5) % 5)
             {
+                case 4: return RadioLanguage.T("Eine Sache noch: ", "One more thing: ", "Una cosa más: ") + Up(place) + " " + obs + ", " + Laps(laps) + ". " +
+                    RadioLanguage.T("Probier's: ", "Try this: ", "Prueba esto: ") + advice;
                 case 3: return RadioLanguage.T("Mik zum Fahrverhalten: ", "Mik on the handling: ", "Mik sobre el comportamiento: ") + Up(place) + " " + obs + ". " + advice;
                 case 0: return Up(place) + " " + obs + ", " + Laps(laps) + ". " + advice;
                 case 1: return RadioLanguage.T("Balance-Check: ", "Balance check: ", "Equilibrio: ") + Up(place) + " " + obs + ". " + advice;

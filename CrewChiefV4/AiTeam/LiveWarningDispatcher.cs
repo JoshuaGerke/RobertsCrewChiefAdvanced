@@ -147,7 +147,7 @@ namespace CrewChiefV4.AiTeam
         public bool Capture(QueuedMessage message,GameStateData gs,DateTime now)
         {
             if(message==null || gs==null)return false;
-            string kind=Classify(message.messageFolders);
+            string kind=Classify(message.messageFolders) ?? NativeRaceControl.Classify(message.messageFolders);
             if(kind==null)return false;
             native.Enqueue(new Native {Kind=kind,Source=message.messageName,Session=gs.SessionData.SessionId,
                 Type=gs.SessionData.SessionType,Lap=gs.SessionData.CompletedLaps,Utc=now,
@@ -199,7 +199,18 @@ namespace CrewChiefV4.AiTeam
             {
                 if(n.Session!=gs.SessionData.SessionId || n.Type!=gs.SessionData.SessionType || now<n.Utc || now-n.Utc>TimeSpan.FromSeconds(2))continue;
                 var captured=n;
-                if(n.Kind=="limits")
+                if(n.Kind.StartsWith("yellow",StringComparison.Ordinal) || n.Kind.StartsWith("dyellow",StringComparison.Ordinal) ||
+                    n.Kind.StartsWith("green",StringComparison.Ordinal) || n.Kind.StartsWith("pen",StringComparison.Ordinal))
+                {
+                    string kind=n.Kind, text=NativeRaceControl.Text(kind);
+                    // Ein neuer Gelb-/Grün-Stand löst den alten ab.
+                    string sector=kind.Contains(":")?kind.Substring(kind.IndexOf(':')+1):"";
+                    if(kind.StartsWith("green",StringComparison.Ordinal)){pending.Remove("warning-rc-yellow-"+sector);pending.Remove("warning-rc-dyellow-"+sector);}
+                    if(kind.StartsWith("yellow",StringComparison.Ordinal) || kind.StartsWith("dyellow",StringComparison.Ordinal))pending.Remove("warning-rc-green-"+sector);
+                    Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
+                        live=>NativeRaceControl.StillCurrent(kind,live),"native:"+n.Source+";captured="+n.Utc.ToString("o"));
+                }
+                else if(n.Kind=="limits")
                 {
                     int lap=n.Lap;
                     Offer("warning-tracklimit",LimitPhrases[variant++%LimitPhrases.Length],TeamMember.Mik,7,gs,now,
@@ -248,6 +259,28 @@ namespace CrewChiefV4.AiTeam
             }
             return null;
         }
+        /// <summary>Einordnung aus LMUs nativem Rennleitungs-Datenstrom (Strafe mit Art, abgesessen, Untersuchung, Tracklimits).</summary>
+        public void OfferRaceControl(string kind,GameStateData gs,DateTime now,string evidence)
+        {
+            if(kind==null || gs==null)return;
+            if(kind=="limits")
+            {
+                int lap=gs.SessionData.CompletedLaps;
+                Offer("warning-tracklimit",LimitPhrases[variant++%LimitPhrases.Length],TeamMember.Mik,7,gs,now,
+                    live=>!live.PitData.InPitlane && live.SessionData.CompletedLaps==lap,"lmu_race_control:"+evidence,lap);
+                return;
+            }
+            if(kind=="pen-served")
+            {
+                if(now>=NativeRaceControl.LastServedUtc && now-NativeRaceControl.LastServedUtc<TimeSpan.FromSeconds(30))return;
+                NativeRaceControl.LastServedUtc=now;
+            }
+            string text=NativeRaceControl.Text(kind);
+            if(text==null)return;
+            Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
+                live=>true,"lmu_race_control:"+evidence);
+        }
+
         public DateTime LastDelivered(string topic)
         {DateTime utc;return delivered.TryGetValue(topic,out utc)?utc:DateTime.MinValue;}
     }

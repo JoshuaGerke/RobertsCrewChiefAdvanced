@@ -51,7 +51,7 @@ namespace CrewChiefV4.AiTeam
         {
             "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis", "get_race_pace_review",
-            "get_strategy_odds",
+            "get_strategy_odds", "get_lmu_native",
         };
 
         public static JArray BuildToolDefinitions()
@@ -68,6 +68,7 @@ namespace CrewChiefV4.AiTeam
             tools.Add(Tool("get_race_pace_review", "Nach dem Rennen: Klassen-Top-Drei mit Name, sauberer Vergleichs-Rundenbasis, Durchschnitt, Streuung und belegten Sektordifferenzen."));
             tools.Add(Tool("get_opponents_nearby", "Gegner direkt vor und hinter uns: Abstand, letzte/beste Runde, Pace-Trend, Boxenstopps, Reifen. Dazu der Führende."));
             tools.Add(Tool("get_pit_info", "Boxenfenster, Pflichtstopp, eigene Stopps, Boxengasse, Gegner die gerade stoppen."));
+            tools.Add(Tool("get_lmu_native", "Nur LMU: Werte direkt aus LMUs nativer Schnittstelle – ob die laufende Runde gestrichen ist, Tracklimit-Punkte und Schwelle zur Strafe, Abstände des Spiels, virtuelle Energie, Fahrhilfen, das ganze Feld mit offenen Strafen, Stopps, Boxenstatus, Runden zurück, sowie die letzten Meldungen der Rennleitung (Strafen, Tracklimits, Vorfälle). Für Fragen zu Strafen, Tracklimits, Rundengültigkeit, Überrundung und Rennlage."));
             tools.Add(Tool("get_damage_and_engine", "Schäden (Aero, Motor, Getriebe, Aufhängung, Bremsen), Motortemperaturen und Warnungen."));
             tools.Add(Tool("get_track_conditions", "Aktuelle Luft-/Streckentemperatur, Regen, Wind, gemeldete Nässe und bestätigte Spiel-/Servervorhersagen mit Quelle, Alter und Wahrscheinlichkeit. Fehlende Prognose bleibt unbekannt."));
             tools.Add(Tool("get_race_reader", "Verdichtetes Live-Lagebild mit Fahrerbelastung, geprüften Drei-Runden- und Sektorvergleichen, Spritbilanz, Verschleißregression und Wetterverlauf. Ursachen nicht aus Messreihen erfinden.",
@@ -173,6 +174,12 @@ namespace CrewChiefV4.AiTeam
                     case "get_opponents_nearby": data = Opponents(ctx, missing); break;
                     case "get_pit_info": data = Pit(ctx, missing); break;
                     case "get_damage_and_engine": data = Damage(ctx, missing); break;
+                    case "get_lmu_native":
+                        var native = LMUNativeSnapshot.Fresh(ctx.NowUtc == DateTime.MinValue ? DateTime.UtcNow : ctx.NowUtc);
+                        data = native != null ? native.ToJson(ctx.NowUtc == DateTime.MinValue ? DateTime.UtcNow : ctx.NowUtc, LMURaceControlStream.Recent)
+                            : new JObject { ["verfuegbar_nativ"] = false, ["grund"] = "Nur in Le Mans Ultimate mit nativem Abbild LMU_Data; gerade kein frisches Bild.",
+                                ["rennleitung_zuletzt"] = new JArray(LMURaceControlStream.Recent.Select(t => (JToken)t)) };
+                        break;
                     case "get_track_conditions": data = Conditions(ctx, missing); break;
                     case "get_stint_analysis": data = Stint(ctx, missing); break;
                     case "get_recent_events": data = Events(ctx, missing); break;
