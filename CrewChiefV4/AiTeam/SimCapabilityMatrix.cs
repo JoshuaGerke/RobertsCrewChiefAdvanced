@@ -22,11 +22,11 @@ namespace CrewChiefV4.AiTeam
     /// Crew-Chief-Adapter (Datei:Zeile im Feld <see cref="SimCapability.Evidence"/>): „gemappt“ heißt, der Adapter schreibt das
     /// Feld in den Spielzustand. Das ist KEIN Nachweis über das vollständige native SDK und keine gemessene Frequenz; die
     /// Raten bleiben leer, bis sie in einer Fahrt gemessen sind. LMU läuft über den rF2-Mapper mit LMU-Puffern.
-    /// Fahrdynamik mit 100 Hz (eigener Abtaster) gibt es für AMS2, R3E, LMU und AC EVO.
+    /// Fahrdynamik mit 100 Hz (eigener Abtaster) gibt es für AMS2, R3E, LMU, AC und AC EVO.
     /// </summary>
     internal static class SimCapabilityMatrix
     {
-        internal static readonly string[] Sims = { "AMS2", "R3E", "LMU", "ACE", "IRACING", "ACC" };
+        internal static readonly string[] Sims = { "AMS2", "R3E", "LMU", "AC", "ACE", "IRACING", "ACC" };
         internal static readonly SimCapability[] All =
         {
             new SimCapability { Sim = "AMS2", Field = "weltposition_xyz", Mapped = true, Evidence = "AMS2/AMS2GameStateMapper.cs:831", Scope = "Spieler+Gegner", Origin = DataOrigin.Measured, Unit = "m", MaxAgeMs = 500 },
@@ -143,9 +143,29 @@ namespace CrewChiefV4.AiTeam
             new SimCapability { Sim = "ACC", Field = "strafen", Mapped = true, Evidence = "ACC/ACCGameStateMapper.cs:670", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Ereignis", MaxAgeMs = 0 },
             new SimCapability { Sim = "ACC", Field = "streckenbegrenzung_rundengueltigkeit", Mapped = true, Evidence = "ACC/ACCGameStateMapper.cs:299", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "bool", MaxAgeMs = 1000 },
             new SimCapability { Sim = "ACC", Field = "vorfallpunkte", Mapped = false, Evidence = "ACC/ACCGameStateMapper.cs", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Punkte", MaxAgeMs = 0 },
+            new SimCapability { Sim = "AC", Field = "weltposition_xyz", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1950", Scope = "Spieler+Gegner", Origin = DataOrigin.Measured, Unit = "m", MaxAgeMs = 500 },
+            new SimCapability { Sim = "AC", Field = "ausrichtung", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1933", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "rad", MaxAgeMs = 200 },
+            new SimCapability { Sim = "AC", Field = "tempo", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1697", Scope = "Spieler+Gegner", Origin = DataOrigin.Measured, Unit = "m/s", MaxAgeMs = 200 },
+            new SimCapability { Sim = "AC", Field = "rundenfortschritt", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1698", Scope = "Spieler+Gegner", Origin = DataOrigin.Measured, Unit = "m", MaxAgeMs = 500 },
+            new SimCapability { Sim = "AC", Field = "fahreridentitaet", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:2149", Scope = "Gegner", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Text", MaxAgeMs = 5000 },
+            new SimCapability { Sim = "AC", Field = "klassenposition", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1017", Scope = "Spieler+Gegner", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Platz", MaxAgeMs = 1000 },
+            new SimCapability { Sim = "AC", Field = "rundenzeiten", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1322", Scope = "Spieler+Gegner", Origin = DataOrigin.SimulatorReportedEvent, Unit = "s", MaxAgeMs = 0 },
+            new SimCapability { Sim = "AC", Field = "sektoren", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1358", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "s", MaxAgeMs = 0 },
+            new SimCapability { Sim = "AC", Field = "boxenstatus", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1036", Scope = "Spieler+Gegner", Origin = DataOrigin.SimulatorReportedEvent, Unit = "bool", MaxAgeMs = 1000 },
+            new SimCapability { Sim = "AC", Field = "kraftstoff", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1678", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "l", MaxAgeMs = 1000 },
+            new SimCapability { Sim = "AC", Field = "reifenverschleiss", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1871", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "%", MaxAgeMs = 2000 },
+            new SimCapability { Sim = "AC", Field = "reifentemperatur", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1811", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "°C", MaxAgeMs = 2000 },
+            new SimCapability { Sim = "AC", Field = "bremstemperatur", Mapped = false, Evidence = "ACS/ACSGameStateMapper.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "°C", MaxAgeMs = 2000 },
+            new SimCapability { Sim = "AC", Field = "schaden", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1772", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "Stufe", MaxAgeMs = 2000 },
+            new SimCapability { Sim = "AC", Field = "kollision", Mapped = false, Evidence = "ACS/ACSGameStateMapper.cs", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Ereignis", MaxAgeMs = 0 },
+            new SimCapability { Sim = "AC", Field = "flaggen", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1429", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Ereignis", MaxAgeMs = 1000 },
+            new SimCapability { Sim = "AC", Field = "strafen", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1693", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Ereignis", MaxAgeMs = 0 },
+            new SimCapability { Sim = "AC", Field = "streckenbegrenzung_rundengueltigkeit", Mapped = true, Evidence = "ACS/ACSGameStateMapper.cs:1381", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "bool", MaxAgeMs = 0 },
+            new SimCapability { Sim = "AC", Field = "vorfallpunkte", Mapped = false, Evidence = "ACS/ACSGameStateMapper.cs", Scope = "Spieler", Origin = DataOrigin.SimulatorReportedEvent, Unit = "Punkte", MaxAgeMs = 0 },
             new SimCapability { Sim = "AMS2", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "R3E", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "LMU", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
+            new SimCapability { Sim = "AC", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "ACE", Field = "fahrdynamik_100hz", Mapped = true, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "IRACING", Field = "fahrdynamik_100hz", Mapped = false, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
             new SimCapability { Sim = "ACC", Field = "fahrdynamik_100hz", Mapped = false, Evidence = "AiTeam/Dynamics/DynamicsSampler.cs", Scope = "Spieler", Origin = DataOrigin.Measured, Unit = "m/s², rad/s", MaxAgeMs = 50 },
@@ -159,6 +179,9 @@ namespace CrewChiefV4.AiTeam
                 case GameEnum.AMS2: return "AMS2";
                 case GameEnum.RACE_ROOM: return "R3E";
                 case GameEnum.LMU: return "LMU";
+                case GameEnum.ASSETTO_32BIT:
+                case GameEnum.ASSETTO_64BIT:
+                case GameEnum.ASSETTO_128CARS: return "AC";
                 case GameEnum.ASSETTO_EVO: return "ACE";
                 case GameEnum.IRACING: return "IRACING";
                 case GameEnum.ACC: return "ACC";
