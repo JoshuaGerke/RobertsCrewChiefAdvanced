@@ -551,11 +551,20 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private static DynamicsSource Create(GameEnum game) =>
-            game == GameEnum.AMS2 ? new AMS2DynamicsSource() : game == GameEnum.RACE_ROOM ? new R3EDynamicsSource()
-                : game == GameEnum.LMU ? (DynamicsSource)new LMUPreferredDynamicsSource()
-                : game == GameEnum.ASSETTO_EVO ? new ACEDynamicsSource()
-                : game == GameEnum.ASSETTO_64BIT || game == GameEnum.ASSETTO_32BIT || game == GameEnum.ASSETTO_128CARS ? new ACSDynamicsSource() : null;
+        private static DynamicsSource Create(GameEnum game)
+        {
+            switch (game)
+            {
+                case GameEnum.AMS2: return new AMS2DynamicsSource();
+                case GameEnum.RACE_ROOM: return new R3EDynamicsSource();
+                case GameEnum.LMU: return new LMUPreferredDynamicsSource();
+                case GameEnum.ASSETTO_EVO: return new ACEDynamicsSource();
+                case GameEnum.ASSETTO_32BIT:
+                case GameEnum.ASSETTO_64BIT:
+                case GameEnum.ASSETTO_128CARS: return new ACSDynamicsSource();
+                default: return null;
+            }
+        }
 
         private static void Run()
         {
