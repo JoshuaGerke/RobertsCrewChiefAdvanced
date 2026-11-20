@@ -85,7 +85,8 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             if (s.SessionType != SessionType.Race) { if (session != int.MinValue) Reset(); return; }
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
-            if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane || track == null || now < track.Utc ||
+            // LMU 18.11.: „Überrundeter vorne …“ kurz vor der Boxeneinfahrt nach angemeldetem Stopp – „die Ansage war unnötig“.
+            if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane || PitDamageWatch.HeadingToPits(gs) || track == null || now < track.Utc ||
                 now - track.Utc > TimeSpan.FromSeconds(1) || now - lastCall < TimeSpan.FromSeconds(25) || call != null && call.IsValid(gs, now)) return;
             var candidate = track.Cars.Where(c => !c.InPits && !c.IsSafetyCar && c.SpatiallyConsistent && c.LapOffset.HasValue && c.LapOffset.Value <= -1 &&
                     c.RouteGapM.HasValue && c.RouteGapM.Value >= 60 && c.RouteGapM.Value <= 450 && c.ClosingMps.HasValue && c.ClosingMps.Value > 3)
@@ -102,7 +103,7 @@ namespace CrewChiefV4.AiTeam
             {
                 Topic = "traffic-backmarker", Text = text, Evidence = "lapped_car_ahead_route_gap_and_closing_speed", Member = TeamMember.Ben, Priority = 5,
                 Position = -1, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(4),
-                AdditionalValidity = live => !live.PitData.InPitlane
+                AdditionalValidity = live => !live.PitData.InPitlane && !PitDamageWatch.HeadingToPits(live)
             };
             LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, text, call.EventId);
         }

@@ -221,6 +221,20 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("Komm sofort an die Box", IncidentWatch.DamageReport(d));
         }
 
+        [Test]
+        public void No_backmarker_call_on_the_way_into_the_pits()
+        {
+            var gs = State();
+            gs.PositionAndMotionData.DistanceRoundTrack = 3900;
+            Assert.IsFalse(PitDamageWatch.HeadingToPits(gs), "kein Stopp angemeldet");
+            gs.PitData.HasRequestedPitStop = true;
+            Assert.IsTrue(PitDamageWatch.HeadingToPits(gs), "LMU 21:17: Stopp angemeldet, kurz vor der Einfahrt");
+            gs.PositionAndMotionData.DistanceRoundTrack = 1200;
+            Assert.IsFalse(PitDamageWatch.HeadingToPits(gs), "noch weit weg von der Box");
+            gs.PitData.InPitlane = true; gs.PositionAndMotionData.DistanceRoundTrack = 3900;
+            Assert.IsFalse(PitDamageWatch.HeadingToPits(gs), "schon in der Gasse – eigene Regeln");
+        }
+
         // ---------- Strafen, Überholen, Namen ----------
 
         [Test]
