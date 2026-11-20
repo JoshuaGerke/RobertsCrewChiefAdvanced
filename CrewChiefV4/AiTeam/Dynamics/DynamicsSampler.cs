@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -439,7 +440,10 @@ namespace CrewChiefV4.AiTeam
             pSteer = POff("steerAngle"), pSpeed = POff("speedKmh"), pAcc = POff("accG"), pWheel = POff("wheelAngularSpeed"),
             pOut = POff("numberOfTyresOut"), pYaw = POff("localAngularVel"), pAi = POff("isAIControlled"),
             gStatus = GOff("status"), gNpos = GOff("normalizedCarPosition"), gLaps = GOff("completedLaps"), gPit = GOff("isInPit"), gPitLane = GOff("isInPitLane"),
-            sLength = SOff("trackSPlineLength");
+            sLength = SOff("trackSPlineLength"),
+            pDirt = POff("tyreDirtyLevel"), pCore = POff("tyreCoreTemperature"), pBrakeTemp = POff("brakeTemp"), pWear = POff("tyreWear"),
+            pPerf = POff("performanceMeter"), gGrip = GOff("surfaceGrip");
+        private double lastExtras = double.NegativeInfinity;
         private const int Live = 2;
         private const float G = 9.81f;
 
@@ -503,9 +507,45 @@ namespace CrewChiefV4.AiTeam
                 f.Driving = gView.ReadInt32(gStatus) == Live && !ai && speed >= 0;
                 lastPacket = packet;
                 f.TimeS = timeS;
+                if (timeS - lastExtras >= 1) { lastExtras = timeS; ReadExtras(); }
                 return true;
             }
             catch (Exception) { Close(); return false; }
+        }
+
+        private float[] Four(int offset) => new[] { pView.ReadSingle(offset), pView.ReadSingle(offset + 4), pView.ReadSingle(offset + 8), pView.ReadSingle(offset + 12) };
+
+        /// <summary>Einmal pro Sekunde: Werte, die Crew Chiefs AC-Adapter nicht weitergibt – zuerst nur messen (Wertebereich je Auto belegen).</summary>
+        private void ReadExtras()
+        {
+            AcNativeExtras.Latest = new AcNativeExtras
+            {
+                Utc = DateTime.UtcNow, TyreDirt = Four(pDirt), TyreCore = Four(pCore), BrakeTemp = Four(pBrakeTemp), TyreWear = Four(pWear),
+                PerformanceMeter = pView.ReadSingle(pPerf), SurfaceGrip = gView.ReadSingle(gGrip)
+            };
+        }
+    }
+
+    /// <summary>
+    /// Zusatzwerte aus Assetto Corsas eigenen Puffern (Rob 21.11.2026: mehr native Daten). Werden protokolliert, bis ihr
+    /// Wertebereich in echten Fahrten belegt ist; erst dann spricht die Crew darüber.
+    /// </summary>
+    internal sealed class AcNativeExtras
+    {
+        internal static volatile AcNativeExtras Latest;
+        public DateTime Utc;
+        public float[] TyreDirt, TyreCore, BrakeTemp, TyreWear;
+        public float PerformanceMeter, SurfaceGrip;
+
+        internal static Dictionary<string, object> Fresh(DateTime now)
+        {
+            var x = Latest;
+            if (x == null || now < x.Utc || now - x.Utc > TimeSpan.FromSeconds(3)) return null;
+            return new Dictionary<string, object>
+            {
+                ["reifen_schmutz"] = x.TyreDirt, ["reifen_kern_c"] = x.TyreCore, ["bremsen_c"] = x.BrakeTemp, ["reifen_verschleiss"] = x.TyreWear,
+                ["delta_zur_bestzeit_s"] = Math.Round(x.PerformanceMeter, 3), ["streckengrip"] = Math.Round(x.SurfaceGrip, 4)
+            };
         }
     }
 

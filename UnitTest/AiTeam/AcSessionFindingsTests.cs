@@ -263,6 +263,23 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Ac_native_extras_are_only_reported_while_fresh()
+        {
+            var saved = AcNativeExtras.Latest;
+            try
+            {
+                AcNativeExtras.Latest = new AcNativeExtras { Utc = T, TyreDirt = new[] { 0f, 0f, 1.5f, 2f }, TyreCore = new float[4], BrakeTemp = new float[4],
+                    TyreWear = new float[4], PerformanceMeter = -.25f, SurfaceGrip = .98f };
+                var fresh = AcNativeExtras.Fresh(T.AddSeconds(1));
+                Assert.IsNotNull(fresh);
+                Assert.AreEqual(2f, ((float[])fresh["reifen_schmutz"])[3]);
+                Assert.IsNull(AcNativeExtras.Fresh(T.AddSeconds(5)), "älter als 3 s: nichts melden");
+                Assert.Greater(ACSDynamicsSource.pPacket + 1, 0, "Offsets der Zusatzfelder lassen sich bilden (Feldnamen stimmen)");
+            }
+            finally { AcNativeExtras.Latest = saved; }
+        }
+
+        [Test]
         public void Name_budget_is_per_session_and_covers_a_full_field()
         {
             Assert.GreaterOrEqual(AiTeamService.OpponentWarmBudget, 40, "ein volles Feld, nicht 24 Namen für die ganze Programmlaufzeit");

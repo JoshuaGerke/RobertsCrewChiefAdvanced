@@ -36,6 +36,7 @@ namespace CrewChiefV4.AiTeam
         private readonly QualifyingResultWatch qualifyingResults = new QualifyingResultWatch();
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
         private readonly ChronicleRecorder chronicleRecorder = new ChronicleRecorder();
+        private DateTime lastAcNativeEmit = DateTime.MinValue;
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
         private readonly NativeTimingEvents timingEvents = new NativeTimingEvents();
 
@@ -644,6 +645,12 @@ namespace CrewChiefV4.AiTeam
                 // Auch nach der ersten Runde, damit eine kurze Testfahrt die Quelle (z. B. „LMU nativ · 100 Hz“) belegt.
                 if (lapCompleted && (current.SessionData.CompletedLaps % 3 == 0 || current.SessionData.CompletedLaps == 1))
                     LiveDiagnostics.Emit("dynamics", new Dictionary<string, object> { ["status"] = DynamicsSampler.Status });
+                // Rob 21.11.: mehr native AC-Daten – erst messen (alle 10 s), dann nutzen.
+                if (LiveDiagnostics.Enabled && now - lastAcNativeEmit >= TimeSpan.FromSeconds(10))
+                {
+                    var ac = AcNativeExtras.Fresh(now);
+                    if (ac != null) { lastAcNativeEmit = now; LiveDiagnostics.Emit("ac-native", ac); }
+                }
             }
             if (lapCompleted && current.SessionData.SessionType == SessionType.Race) pitLoss.Observe(current.SessionData.SessionId, Memory.GetLaps());
             insights.Observe(current, RaceMind.Latest, AiPersonas.CleanForRadio(settings.RadioName ?? "", 30, false), settings.SendDriverNames, now, lapCompleted,
