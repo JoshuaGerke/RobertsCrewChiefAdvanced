@@ -41,7 +41,7 @@ namespace CrewChiefV4.AiTeam.Field
 
         internal static JObject ToJson(FieldView v, DateTime now, bool names)
         {
-            if (v == null) return new JObject { ["verfuegbar"] = false, ["grund"] = "Kein Lagebild direkt aus der Sim (bisher nur RaceRoom) oder Sim nicht aktiv." };
+            if (v == null) return new JObject { ["verfuegbar"] = false, ["grund"] = "Kein Lagebild direkt aus der Sim (RaceRoom, AMS2, LMU, AC mit Crew-Chief-Plugin, iRacing) oder Sim nicht aktiv." };
             var p = v.Player;
             var o = new JObject
             {

@@ -31,13 +31,18 @@ namespace CrewChiefV4.AiTeam.Field
             return v != null && v.Fresh(DateTime.UtcNow, maxAgeSeconds) ? v : null;
         }
 
-        internal static bool Supports(GameEnum game) => game == GameEnum.RACE_ROOM;
+        internal static bool Supports(GameEnum game) => game == GameEnum.RACE_ROOM || game == GameEnum.AMS2 || game == GameEnum.LMU ||
+            game == GameEnum.ASSETTO_32BIT || game == GameEnum.ASSETTO_64BIT || game == GameEnum.ASSETTO_128CARS || game == GameEnum.IRACING;
 
         internal static IFieldSource Create(GameEnum game)
         {
             switch (game)
             {
                 case GameEnum.RACE_ROOM: return new R3EFieldSource();
+                case GameEnum.AMS2: return new AMS2FieldSource();
+                case GameEnum.LMU: return new LMUFieldSource();
+                case GameEnum.ASSETTO_32BIT: case GameEnum.ASSETTO_64BIT: case GameEnum.ASSETTO_128CARS: return new ACFieldSource();
+                case GameEnum.IRACING: return new IRacingFieldSource();
                 default: return null;
             }
         }

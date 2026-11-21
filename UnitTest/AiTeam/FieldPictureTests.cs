@@ -227,6 +227,29 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void WithoutWorldPosition_FieldPaceAndBackwardsSpinStillWork()
+        {
+            // iRacing meldet keine Weltposition: Lernen über die Streckenposition, Dreher über Rückwärtsfahrt.
+            var p = new FieldPicture(); var t = T0;
+            var cars = Field(d => 60f);
+            FieldView v = null;
+            for (int i = 0; i < 600; i++)
+            {
+                t = t.AddMilliseconds(50);
+                foreach (var c in cars) { float d = c.Dist + (c.Backwards ? -1 : 1) * (c.Override ?? 60f) * .05f; if (d >= L) { d -= L; c.Laps++; } else if (d < 0) d += L; c.Dist = d; }
+                var f = Frame(t, cars);
+                foreach (var c in f.Cars) { c.X = c.Y = c.Z = float.NaN; }
+                v = p.Observe(f);
+                if (i == 500) { cars[2].Override = 15f; }
+                if (i == 560) { cars[2].Override = null; cars[4].Backwards = true; cars[4].Override = 8f; }
+                if (i == 530) Assert.AreEqual(CarMotion.Slow, v.Cars.Single(c => c.Name == "Fahrer 2").Motion, "langsam gegen das Feldtempo");
+            }
+            Assert.That(v.ProfileCoverage, Is.GreaterThan(.9));
+            Assert.AreEqual(CarMotion.Spun, v.Cars.Single(c => c.Name == "Fahrer 4").Motion);
+            Assert.AreEqual(CarMotion.Normal, v.Cars.Single(c => c.Name == "Fahrer 1").Motion);
+        }
+
+        [Test]
         public void RaceRoomParse_RejectsUnwrittenMemory()
         {
             var b = new byte[R3EFieldSource.Size];

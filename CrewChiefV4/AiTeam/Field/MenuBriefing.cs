@@ -78,6 +78,8 @@ namespace CrewChiefV4.AiTeam.Field
                 new[] { name + ", hoy estamos en " + track + ".", "Hola " + name + ", aquí " + speakerName + ". Estamos en " + track + ".",
                         name + ", bienvenido a " + track + ".", "Vale " + name + ", hoy toca " + track + ".", name + ", la radio funciona. Hoy, " + track + "." });
             var parts = new List<string> { intro[vv] };
+            string temps = Temperatures(v);
+            if (temps != null) parts.Add(temps);
             int field = FieldSize(v);
             if (field > 1) parts.Add(RadioLanguage.T(field + " Fahrer im Feld.", field + " drivers in the field.", field + " pilotos inscritos."));
             string len = Length(v);
@@ -88,7 +90,9 @@ namespace CrewChiefV4.AiTeam.Field
                 now = RadioLanguage.T("Das Rennen geht über " + len + ".", "The race runs for " + len + ".", "La carrera dura " + len + ".");
             parts.Add(now);
             var races = Races(v);
-            if (v.Session != FieldSession.Race && races.Count == 1)
+            string next = Next(v);
+            if (next != null) parts.Add(next);
+            else if (v.Session != FieldSession.Race && races.Count == 1)
                 parts.Add(RadioLanguage.T("Danach das Rennen über " + races[0] + ".", "Then the race, " + races[0] + ".", "Después, la carrera de " + races[0] + "."));
             else if (v.Session != FieldSession.Race && races.Count > 1)
                 parts.Add(RadioLanguage.T(races.Count + " Rennen danach: " + Join(races, "und") + ".", races.Count + " races after that: " + Join(races, "and") + ".",
@@ -102,6 +106,35 @@ namespace CrewChiefV4.AiTeam.Field
                         "Estamos listos cuando tú lo estés. ¡Adelante!", "Entra con calma y luego ataca. Estamos contigo.", "Todo listo. Suerte, estamos en la radio." });
             parts.Add(close[(vv + 2) % close.Length]);
             return string.Join(" ", parts);
+        }
+
+        /// <summary>„Luft 24 Grad, Strecke 36 Grad.“ – nur, was die Sim meldet (RaceRoom meldet keine Temperatur).</summary>
+        internal static string Temperatures(FieldView v)
+        {
+            bool air = !float.IsNaN(v.AirTempC), track = !float.IsNaN(v.TrackTempC);
+            if (!air && !track) return null;
+            string a = air ? RadioLanguage.Num(Math.Round(v.AirTempC), "0") : null, t = track ? RadioLanguage.Num(Math.Round(v.TrackTempC), "0") : null;
+            if (air && track) return RadioLanguage.T("Luft " + a + " Grad, Strecke " + t + " Grad.", "Air " + a + " degrees, track " + t + ".", "Aire a " + a + " grados, pista a " + t + ".");
+            return air ? RadioLanguage.T("Luft " + a + " Grad.", "Air " + a + " degrees.", "Aire a " + a + " grados.")
+                : RadioLanguage.T("Strecke " + t + " Grad.", "Track " + t + " degrees.", "Pista a " + t + " grados.");
+        }
+
+        /// <summary>Der weitere Ablauf, wenn die Sim alle Sessions meldet (iRacing): „Danach Qualifying über 10 Minuten und das Rennen über 20 Minuten.“</summary>
+        internal static string Next(FieldView v)
+        {
+            if (v.Upcoming == null || v.Upcoming.Length == 0) return null;
+            var items = new List<string>();
+            foreach (var u in v.Upcoming.Take(4))
+            {
+                string name = SessionName(u.Session);
+                if (name == null) continue;
+                string len = u.Minutes > 0 ? Minutes(u.Minutes) : u.Laps > 0 ? Laps(u.Laps) : null;
+                string article = u.Session == FieldSession.Race ? RadioLanguage.T("das ", "the ", "la ") : "";
+                items.Add(len == null ? article + name : RadioLanguage.T(article + name + " über " + len, article + name + " over " + len, article + name + " de " + len));
+            }
+            if (items.Count == 0) return null;
+            string joined = Join(items, RadioLanguage.T("und", "and", "y"));
+            return RadioLanguage.T("Danach " + joined + ".", "Then " + joined + ".", "Después, " + joined + ".");
         }
 
         private static string Join(List<string> items, string and) =>

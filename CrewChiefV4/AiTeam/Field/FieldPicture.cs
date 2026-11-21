@@ -42,10 +42,12 @@ namespace CrewChiefV4.AiTeam.Field
         public FieldPhase Phase;
         public bool TimedSession, LapsSession, InMenus, Paused, InReplay, PlayerInGarage, LayoutVerified;
         public float TimeRemaining, TimeDuration;
+        public float AirTempC = float.NaN, TrackTempC = float.NaN;
         public int SessionLaps, NumCars, MaxPlace, PositionsToGiveBack;
         /// <summary>Offene Slow-down-Zeit des Spielers in Sekunden (RaceRoom: Zeit zum Zurückgeben), -1 = keine.</summary>
         public float PlayerSlowDown = -1;
         public int[] RaceMinutes, RaceLaps;
+        public FieldUpcoming[] Upcoming = new FieldUpcoming[0];
         public IReadOnlyList<FieldCarView> Cars;
         public FieldCarView Player;
         /// <summary>Runden, die Rob noch fährt, inklusive der laufenden; -1 = unbekannt, 0 = fertig.</summary>
@@ -88,7 +90,7 @@ namespace CrewChiefV4.AiTeam.Field
         private sealed class CarState
         {
             public string Name;
-            public float LastX = float.NaN, LastZ = float.NaN, DirX, DirZ;
+            public float LastX = float.NaN, LastZ = float.NaN, DirX, DirZ, LastDist = float.NaN;
             public bool HasDir;
             public DateTime SlowSince, StopSince, SpinSince, NormalSince;
             public CarMotion Motion = CarMotion.Unknown;
@@ -151,7 +153,8 @@ namespace CrewChiefV4.AiTeam.Field
                     MaxPlace = result.Count == 0 ? 0 : result.Max(x => x.Place), PositionsToGiveBack = f.PositionsToGiveBack,
                     RaceMinutes = (int[])f.RaceMinutes.Clone(), RaceLaps = (int[])f.RaceLaps.Clone(),
                     Cars = result.AsReadOnly(), Player = player, ProfileCoverage = Coverage(),
-                    PlayerSlowDown = f.Player != null && f.Player.SlowDown > 0 ? f.Player.SlowDown : -1
+                    PlayerSlowDown = f.Player != null && f.Player.SlowDown > 0 ? f.Player.SlowDown : -1,
+                    AirTempC = f.AirTempC, TrackTempC = f.TrackTempC, Upcoming = f.Upcoming ?? new FieldUpcoming[0]
                 };
                 built.PlayerLapsLeft = LapsLeft(built);
                 Volatile.Write(ref view, built);
@@ -192,6 +195,11 @@ namespace CrewChiefV4.AiTeam.Field
                 else if (len >= 80f) { s.HasDir = false; } // Sprung (Box, Neustart): keine Richtung
             }
             if (!float.IsNaN(c.X) && (moved || float.IsNaN(s.LastX))) { s.LastX = c.X; s.LastZ = c.Z; }
+            // Sims ohne Weltposition (iRacing): Richtung aus der Streckenposition – rückwärts = Dreher, vorwärts = Lernprobe.
+            bool noWorld = float.IsNaN(c.X);
+            float step = float.IsNaN(c.LapDistance) || float.IsNaN(s.LastDist) ? 0 : c.LapDistance - s.LastDist;
+            bool progressed = noWorld && step >= .3f && step < 80, backwards = noWorld && step <= -.3f && step > -50;
+            if (!float.IsNaN(c.LapDistance) && (!noWorld || Math.Abs(step) >= .3f || float.IsNaN(s.LastDist))) s.LastDist = c.LapDistance;
             if (moved) { s.DirX = hx; s.DirZ = hz; s.HasDir = true; }
 
             CarMotion m;
@@ -204,7 +212,7 @@ namespace CrewChiefV4.AiTeam.Field
             {
                 bool stopCond = v < 2.5f;
                 bool slowCond = !float.IsNaN(expected) && expected >= 20 && v < expected * .55f && expected - v > 12;
-                bool spinCond = false;
+                bool spinCond = backwards && v > 2;
                 if (s.HasDir && v > 2 && cell >= 0 && count[cell] >= ProfileMin)
                 {
                     float rx = dirX[cell], rz = dirZ[cell], rl = (float)Math.Sqrt(rx * rx + rz * rz);
@@ -226,6 +234,7 @@ namespace CrewChiefV4.AiTeam.Field
             if (m == CarMotion.Normal && racing && cell >= 0 && v > 5 && (float.IsNaN(expected) || v >= expected * .6f))
             {
                 speed[cell] = count[cell] == 0 ? v : speed[cell] * .8f + v * .2f;
+                if (progressed && count[cell] < int.MaxValue) count[cell]++;
                 if (moved)
                 {
                     float px = count[cell] == 0 ? hx : dirX[cell] * .8f + hx * .2f, pz = count[cell] == 0 ? hz : dirZ[cell] * .8f + hz * .2f;
@@ -258,9 +267,16 @@ namespace CrewChiefV4.AiTeam.Field
                 Motion = m, MotionSinceUtc = s.MotionSince, TopSpeed = s.Top, TopSpeedAtM = s.TopAt, BestLap = c.BestLap,
                 LastLap = s.LastLap, LastLapValid = s.LastLapValid, FastestAnyLap = s.FastestAny, LapsTimed = s.Laps.Count
             };
-            if (!float.IsNaN(c.BestS1) && c.BestS1 > 0) r.BestS1 = c.BestS1;
-            if (!float.IsNaN(c.BestS12) && c.BestS12 > 0 && !float.IsNaN(r.BestS1)) r.BestS2 = c.BestS12 - c.BestS1;
-            if (!float.IsNaN(c.BestLap) && c.BestLap > 0 && !float.IsNaN(c.BestS12) && c.BestS12 > 0) r.BestS3 = c.BestLap - c.BestS12;
+            if (!float.IsNaN(c.SplitBest1) || !float.IsNaN(c.SplitBest2) || !float.IsNaN(c.SplitBest3))
+            {
+                r.BestS1 = c.SplitBest1; r.BestS2 = c.SplitBest2; r.BestS3 = c.SplitBest3;
+            }
+            else
+            {
+                if (!float.IsNaN(c.BestS1) && c.BestS1 > 0) r.BestS1 = c.BestS1;
+                if (!float.IsNaN(c.BestS12) && c.BestS12 > 0 && !float.IsNaN(r.BestS1)) r.BestS2 = c.BestS12 - c.BestS1;
+                if (!float.IsNaN(c.BestLap) && c.BestLap > 0 && !float.IsNaN(c.BestS12) && c.BestS12 > 0) r.BestS3 = c.BestLap - c.BestS12;
+            }
             return r;
         }
 

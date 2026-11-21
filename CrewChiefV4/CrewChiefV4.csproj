@@ -294,7 +294,11 @@
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />
+    <Compile Include="AiTeam\Field\ACFieldSource.cs" />
+    <Compile Include="AiTeam\Field\AMS2FieldSource.cs" />
     <Compile Include="AiTeam\Field\FieldFacts.cs" />
+    <Compile Include="AiTeam\Field\IRacingFieldSource.cs" />
+    <Compile Include="AiTeam\Field\LMUFieldSource.cs" />
     <Compile Include="AiTeam\Field\FieldFrame.cs" />
     <Compile Include="AiTeam\Field\MenuBriefing.cs" />
     <Compile Include="AiTeam\Field\SessionDebrief.cs" />
