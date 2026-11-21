@@ -69,8 +69,10 @@ namespace UnitTest.AiTeamTests
             try
             {
                 DriverRadioGate.Pressed(T);
-                Assert.IsTrue(DriverRadioGate.Holding(T.AddSeconds(29)));
-                Assert.IsFalse(DriverRadioGate.Holding(T.AddSeconds(31)));
+                // Monza 21.11.: Robs Funksprüche dauern bis zu 60 s – die Funkstille gilt so lange wie die längste Aufnahme.
+                Assert.IsTrue(DriverRadioGate.Holding(T.AddSeconds(59)));
+                Assert.IsFalse(DriverRadioGate.Holding(T + DriverRadioGate.MaxHold + TimeSpan.FromSeconds(1)));
+                Assert.That(DriverRadioGate.MaxHold, Is.LessThanOrEqualTo(TimeSpan.FromSeconds(70)), "hängende Taste blockiert nicht ewig");
             }
             finally { DriverRadioGate.Reset(); }
         }
