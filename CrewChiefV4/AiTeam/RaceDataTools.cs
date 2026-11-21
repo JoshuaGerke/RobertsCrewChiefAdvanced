@@ -144,6 +144,13 @@ namespace CrewChiefV4.AiTeam
             return Execute(toolName, ctx);
         }
 
+        /// <summary>Läuft Crew Chief (Start gedrückt)? Setzt der Crew-Dienst; null = unbekannt.</summary>
+        internal static Func<bool> CrewChiefRunning;
+
+        internal static string NoTelemetryReason(bool crewChiefRunning) => crewChiefRunning
+            ? "Crew Chief läuft, aber das Spiel liefert gerade keine Telemetrie (Spiel noch im Ladebildschirm, falsches Spiel gewählt oder Plugin inaktiv)."
+            : "Crew Chief ist nicht gestartet – ohne Start empfängt die Crew keine Telemetrie.";
+
         public static JObject Execute(string toolName, RaceDataContext ctx)
         {
             if (toolName == "get_race_field" || toolName == "get_opponent") return RaceFieldTools.Read(toolName, ctx, "{}");
@@ -151,10 +158,18 @@ namespace CrewChiefV4.AiTeam
             JObject data;
             if (ctx == null || ctx.GameState == null)
             {
+                // AC 21.11.: Nach dem ersten Start lief Crew Chief 2,5 Minuten ohne Daten; die Antwort muss sagen, woran es liegt.
+                bool? started = null;
+                try { var running = CrewChiefRunning; if (running != null) started = running(); }
+                catch (Exception) { started = null; } // ohne Hauptfenster (Tests, Start) bleibt es bei der allgemeinen Antwort
+                if (started == null)
+                    return new JObject { ["verfuegbar"] = false, ["grund"] = "Keine laufende Simulation – Crew Chief empfängt gerade keine Telemetrie." };
+                bool ccRunning = started.Value;
                 return new JObject
                 {
                     ["verfuegbar"] = false,
-                    ["grund"] = "Keine laufende Simulation – Crew Chief empfängt gerade keine Telemetrie.",
+                    ["crew_chief_gestartet"] = ccRunning,
+                    ["grund"] = NoTelemetryReason(ccRunning),
                 };
             }
             try

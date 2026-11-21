@@ -308,9 +308,22 @@ namespace CrewChiefV4.AiTeam
         private string pendingKey, track;
         private int session=int.MinValue, variant, epoch;
         private DateTime lastTick, lastRadio;
+        // AC 21.11. (Monza): Auf dem Startplatz meldete AC schon „Green“, das Lagebild sah 25 stehende Autos, und Sara warnte
+        // sechsmal in 20 s vor „stehenden Fahrzeugen“ – die Startaufstellung. Vor dem eigenen Losfahren in Runde 0 und in den
+        // ersten Sekunden danach (Feld setzt sich gerade in Bewegung) gibt es deshalb keine Gefahr- und Verkehrsmeldung.
+        internal const float LaunchSpeedMps = 8f;
+        internal static readonly TimeSpan LaunchGrace = TimeSpan.FromSeconds(8);
+        private DateTime launchUtc = DateTime.MinValue;
+        private bool gridQuietLogged;
+
+        /// <summary>Runde 0 und Rob ist noch nicht losgefahren (oder erst vor wenigen Sekunden): das Feld steht in der Aufstellung.</summary>
+        internal static bool StartGridQuiet(int completedLaps, DateTime launchUtc, DateTime now) =>
+            completedLaps <= 0 && (launchUtc == DateTime.MinValue || now < launchUtc || now - launchUtc < LaunchGrace);
+
         public void Reset()
         {
             reference.Clear(); reported.Clear(); nativeRear.Clear(); parked.Clear(); motion.Clear(); spinning.Clear(); pending=null; tracks=null;
+            launchUtc=DateTime.MinValue; gridQuietLogged=false;
             session=int.MinValue; track=null; lastTick=lastRadio=lastRear=lastRearGroup=DateTime.MinValue; epoch++;
             Volatile.Write(ref facts,null);
         }
@@ -359,6 +372,13 @@ namespace CrewChiefV4.AiTeam
                 .ThenBy(c=>Math.Abs(c.RouteGapM.Value)/Math.Max(1,c.ClosingMps??1)).ToArray();
             candidates=ConfirmWithFieldPicture(candidates,s,now);
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
+            if (launchUtc==DateTime.MinValue && gs.SessionData.CompletedLaps<=0 && s.PlayerSpeedMps>=LaunchSpeedMps) launchUtc=now;
+            if (StartGridQuiet(gs.SessionData.CompletedLaps,launchUtc,now))
+            {
+                if (!gridQuietLogged) { gridQuietLogged=true; LiveDiagnostics.Decision("race-hazard-ahead","suppressed","start_grid_before_launch"); }
+                pending=null;
+                return;
+            }
             var hazard=candidates.FirstOrDefault(c=>c.RouteGapM>0 && !string.IsNullOrWhiteSpace(c.Name) &&
                 (c.SpeedMps<=5 || spinning.Contains(c.Key) || SlowAgainstReference(c,gs,s,now)));
             if (hazard!=null)

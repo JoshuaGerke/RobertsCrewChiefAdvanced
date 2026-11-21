@@ -22,6 +22,14 @@ namespace CrewChiefV4.AiTeam.Field
         internal static bool Ready(FieldView v) => v != null && !string.IsNullOrWhiteSpace(v.Track) && v.Session != FieldSession.Unknown &&
             v.Player != null && !v.InReplay && (v.InMenus || v.PlayerInGarage || v.Phase == FieldPhase.Garage);
 
+        /// <summary>
+        /// AC Monza 21.11.: Nach der schwarzen Flagge stellte AC Rob in die Garage, das Rennen lief weiter (Phase Green,
+        /// noch 4 Runden) – und Ben begrüßte ihn zum Rennen. Ein Rennen, das schon läuft oder vorbei ist, wird nicht begrüßt.
+        /// </summary>
+        internal static bool RaceUnderway(FieldView v) => v != null && v.Session == FieldSession.Race &&
+            (v.Phase == FieldPhase.Checkered || v.Phase == FieldPhase.Green && v.Player != null &&
+             (v.Player.CompletedLaps > 0 || v.Player.Motion == CarMotion.Finished || v.Player.Motion == CarMotion.Retired));
+
         internal static int FieldSize(FieldView v) => v == null ? 0 : Math.Max(v.NumCars, v.MaxPlace);
 
         private static string SessionName(FieldSession s)

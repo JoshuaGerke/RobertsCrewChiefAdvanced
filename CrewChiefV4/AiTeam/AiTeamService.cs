@@ -155,6 +155,7 @@ namespace CrewChiefV4.AiTeam
         private AiTeamService()
         {
             RadioPhraseCatalog.LoadForApplication();
+            RaceDataTools.CrewChiefRunning = CrewIsRunning;
             pushToTalk = new AiPushToTalk(ControllerHeld, OnPushToTalkPressed, OnPushToTalkReleased);
             ApplySettings(settings);
             AppDomain.CurrentDomain.ProcessExit += (sender, args) => {
@@ -420,6 +421,8 @@ namespace CrewChiefV4.AiTeam
             {
                 lastOverlapUtc = now;
             }
+            RaceExclusion.Observe(current);
+            bool excluded = RaceExclusion.Active(current);
             if (lapCompleted || now - lastFuelCheckUtc >= TimeSpan.FromSeconds(1))
             {
                 lastFuelCheckUtc = now;
@@ -453,6 +456,7 @@ namespace CrewChiefV4.AiTeam
             foreach (var incident in incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL))
             {
                 var radio = incident;
+                if (excluded) { LiveDiagnostics.Decision("incident", "suppressed", "player_out_of_race", radio.Value); continue; }
                 if(CrewSpeechPolicy.TrackLimitPhrases.Contains(radio.Value))
                 {
                     int warningLap=current.SessionData.CompletedLaps;
@@ -736,7 +740,7 @@ namespace CrewChiefV4.AiTeam
             {
                 // Rob 21.11.: Unterbrochenes nachreichen, sobald der Funk frei ist.
                 bool free = !radioRenderGate.Busy && AiAudioStore.Count == 0 && !Spotter().HasOverlap && !radioDirector.TrafficQuiet(now);
-                string resumed = interruptedRadio.TryTake(now, free, out var resumeMember, out var resumeTopic);
+                string resumed = interruptedRadio.TryTake(now, free, SessionPhaseKey(current), out var resumeMember, out var resumeTopic);
                 if (resumed != null)
                 {
                     LiveDiagnostics.Decision("resume", "detected", "interrupted_" + (resumeTopic ?? "reply"), resumed);
@@ -870,6 +874,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 // Absichtlich KEIN API-Aufruf für eine gewöhnliche Runde ohne Erkenntnis.
             }
+            if (trigger != null && excluded) { LiveDiagnostics.Decision(topic, "suppressed", "player_out_of_race", trigger); trigger = null; }
             if (trigger != null) LiveDiagnostics.Decision(topic, "detected", "local_evidence", trigger);
             int minimumProactiveLaps = current.SessionData.SessionType == SessionType.Race ? 2 : 1;
             if (trigger != null && topic != null && settings.RadioMode != AiRadioMode.MINIMAL && HasApiKey && !proactiveRunning &&
@@ -1936,6 +1941,14 @@ namespace CrewChiefV4.AiTeam
                 if (!trackWelcomeDone) { trackWelcomeDone = true; LiveDiagnostics.Decision("greeting", "suppressed", "greeted_in_menu"); }
                 return null;
             }
+            // RaceRoom Mantorp 21.11.: Crew Chief meldete erst „Hotlap“, nach 2½ Minuten „Qualifying“ – dieselbe Session laut Spiel.
+            // Ben begrüßte zweimal. Ist die Session im Lagebild dieselbe, bleibt es bei einer Begrüßung.
+            var spoken = spokenGreeting;
+            if (spoken != null && FieldAlreadyGreeted(spokenGreetingField, spoken.DeliveryStartedUtc, Field.MenuBriefing.Key(Field.FieldPicture.Shared.Current), now))
+            {
+                if (!trackWelcomeDone) { trackWelcomeDone = true; LiveDiagnostics.Decision("greeting", "suppressed", "field_session_already_greeted"); }
+                return null;
+            }
             // Fährt Rob los, bevor die Begrüßung im Stand lief, gleich die kurze Begrüßung auf der Strecke (nicht erst nach 45 s).
             bool greetingMissed = pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 current.SessionData.SessionType != SessionType.Race && current.PositionAndMotionData.CarSpeed > 5 && !pendingGreeting.IsValid(current, now);
@@ -2022,6 +2035,13 @@ namespace CrewChiefV4.AiTeam
                 key = Field.MenuBriefing.Key(v);
                 if (key != menuKey) { menuKey = key; menuSeenUtc = now; menuAttempts = 0; }
                 if (key == menuGreetedKey || menuAttempts >= 2 || now - menuSeenUtc < TimeSpan.FromSeconds(3)) return;
+                string skip = MenuGreetingSkip(v, CrewChief.currentGameState, pendingGreeting, trackWelcomeDone);
+                if (skip != null)
+                {
+                    menuGreetedKey = key;
+                    LiveDiagnostics.Decision("greeting-menu", "suppressed", skip);
+                    return;
+                }
                 var mw = MainWindow.instance;
                 if (audioPlayer == null || mw == null || mw.crewChief == null || !mw.crewChief.running) return;
                 if (proactiveRunning || currentRequest != null || radioRenderGate.Busy || DriverRadioGate.Holding(DateTime.UtcNow)) return;
@@ -2040,24 +2060,55 @@ namespace CrewChiefV4.AiTeam
                 observedTopic: "greeting-menu"));
         }
 
+        /// <summary>
+        /// AC Monza 21.11.: Die normale Begrüßung lief um 14:37:52, 0,4 s später startete die Menübegrüßung – Rob hörte
+        /// zweimal „willkommen in Monza“. Nach der schwarzen Flagge kam die Rennbegrüßung, obwohl das Rennen lief.
+        /// Gründe, die Menübegrüßung auszulassen; null = begrüßen.
+        /// </summary>
+        internal static string MenuGreetingSkip(Field.FieldView v, GameStateData gs, ObservedRaceCall greeting, bool trackWelcomeDone)
+        {
+            if (Field.MenuBriefing.RaceUnderway(v)) return "race_underway_or_over";
+            bool sameSession = gs != null && SameSession(v.Session, gs.SessionData.SessionType);
+            if (sameSession)
+            {
+                if (gs.SessionData.IsDisqualified || gs.SessionData.IsDNF || gs.SessionData.Flag == FlagEnum.BLACK) return "player_out_of_session";
+                if (gs.SessionData.SessionPhase == SessionPhase.Finished || gs.SessionData.SessionPhase == SessionPhase.Checkered) return "session_over";
+                if (trackWelcomeDone) return "track_welcome_already_given";
+                if (greeting != null && (greeting.IsReserved || greeting.DeliveryStartedUtc != DateTime.MinValue)) return "session_greeting_already_given";
+            }
+            return null;
+        }
+
+        internal static bool SameSession(Field.FieldSession field, SessionType type)
+        {
+            switch (field)
+            {
+                case Field.FieldSession.Race: return type == SessionType.Race;
+                case Field.FieldSession.Qualify: return type == SessionType.Qualify || type == SessionType.PrivateQualify;
+                case Field.FieldSession.Practice: case Field.FieldSession.Warmup: return type == SessionType.Practice || type == SessionType.LonePractice;
+                default: return false;
+            }
+        }
+
         /// <summary>Wurde Rob für diese Session schon im Menü begrüßt (letzte 15 Minuten)?</summary>
         internal bool GreetedInMenu(SessionType type, DateTime now)
         {
             lock (menuGate)
             {
                 if (menuGreetedUtc == DateTime.MinValue || now < menuGreetedUtc || now - menuGreetedUtc > TimeSpan.FromMinutes(15)) return false;
-                switch (menuGreetedSession)
-                {
-                    case Field.FieldSession.Race: return type == SessionType.Race;
-                    case Field.FieldSession.Qualify: return type == SessionType.Qualify || type == SessionType.PrivateQualify;
-                    case Field.FieldSession.Practice: case Field.FieldSession.Warmup: return type == SessionType.Practice || type == SessionType.LonePractice;
-                    default: return false;
-                }
+                return SameSession(menuGreetedSession, type);
             }
         }
 
         private int greetingAttempts;
         private DateTime greetingRetryAfter = DateTime.MinValue;
+        private volatile ObservedRaceCall spokenGreeting;
+        private volatile string spokenGreetingField;
+
+        /// <summary>Wurde die laut Spiel gleiche Session in den letzten 15 Minuten schon begrüßt?</summary>
+        internal static bool FieldAlreadyGreeted(string greetedField, DateTime greetedUtc, string currentField, DateTime now) =>
+            greetedField != null && greetedField == currentField && greetedUtc != DateTime.MinValue &&
+            now >= greetedUtc && now - greetedUtc <= TimeSpan.FromMinutes(15);
         private ObservedRaceCall trackWelcome;
         private bool trackWelcomeDone;
         private int trackWelcomeVariant;
@@ -2389,6 +2440,18 @@ namespace CrewChiefV4.AiTeam
         {
             // Rob 21.11.: „Ben und Sara haben bei Unfällen die gleichen Funktionen – es reicht, wenn Sara das macht.“
             call.Member = CrewSpeechPolicy.HazardSpeaker(call.Topic, call.Member, SaraSpotting() || settings.IsMemberEnabled(TeamMember.Sara));
+            if (RaceExclusion.Active(CrewChief.currentGameState) && !RaceExclusion.Allowed(call.Topic))
+            {
+                var at = DateTime.UtcNow;
+                call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "player_out_of_race", call.Text);
+                return;
+            }
+            if (call.Topic == "greeting" || call.Topic == "track-welcome")
+            {
+                spokenGreetingField = Field.MenuBriefing.Key(Field.FieldPicture.Shared.Current);
+                spokenGreeting = call; // zählt erst, wenn die Wiedergabe wirklich begonnen hat
+            }
             eventLog.Note(call, EventStatus.Detected, DateTime.UtcNow);
             int generation = Volatile.Read(ref sessionGeneration);
             bool ownResult = call.Topic == "own-lap" || call.Topic == "qualifying-last" ||
@@ -2584,6 +2647,10 @@ namespace CrewChiefV4.AiTeam
 
         private static bool CrewIsRunning() => MainWindow.instance?.crewChief?.running == true;
 
+        /// <summary>Session und Phase als Schlüssel: Unterbrochenes gilt nur, solange beide gleich bleiben.</summary>
+        internal static string SessionPhaseKey(GameStateData gs) => gs == null ? null :
+            gs.SessionData.SessionId + "|" + gs.SessionData.SessionType + "|" + gs.SessionData.SessionPhase;
+
         public Task SpeakAsync(TeamMember member, string text, bool isReply, CancellationToken ct)
         {
             return SpeakAsync(member, text, isReply, ct, null);
@@ -2598,7 +2665,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var ended = playbackEnded; string spokenText = text, spokenTopic = observedTopic;
                 playbackEnded = interrupted => {
-                    if (interrupted && !DriverRadioGate.Holding(DateTime.UtcNow)) interruptedRadio.Note(member, spokenText, spokenTopic, DateTime.UtcNow); // nicht, wenn Rob selbst dazwischenfunkt
+                    if (interrupted && !DriverRadioGate.Holding(DateTime.UtcNow)) interruptedRadio.Note(member, spokenText, spokenTopic, DateTime.UtcNow, SessionPhaseKey(CrewChief.currentGameState)); // nicht, wenn Rob selbst dazwischenfunkt
                     ended?.Invoke(interrupted);
                 };
             }

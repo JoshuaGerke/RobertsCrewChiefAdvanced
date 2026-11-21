@@ -56,6 +56,8 @@ namespace CrewChiefV4.AiTeam
         public long Dropped { get { return Interlocked.Read(ref dropped); } }
         public long BytesWritten { get { return Interlocked.Read(ref bytes); } }
         private static readonly HashSet<string> allowed = new HashSet<string>((
+            // AC 21.11.: „ac-native“ wurde geschrieben, aber ohne diese Schlüssel blieb jede Zeile leer.
+            "reifen_schmutz reifen_kern_c bremsen_c reifen_verschleiss delta_zur_bestzeit_s streckengrip " +
             "stage status reason topic text transcript speaker routing confidence_available model service error_type http_status duration_ms " +
             "clip_id message_name message_id priority immediate queue_length sound_key audio_backend measurement bytes samples cpu_percent working_set_bytes private_bytes " +
             "dropped queued capture_limit_bytes folder_limit_bytes segment_limit_bytes stopwatch_frequency process_id schema_version event_id rrca_build " +

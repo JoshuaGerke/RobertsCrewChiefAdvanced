@@ -40,10 +40,21 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastBlueUtc = DateTime.MinValue;
         private DateTime localYellowSinceUtc = DateTime.MinValue;
         internal static readonly TimeSpan ShortYellow = TimeSpan.FromSeconds(4);
+        /// <summary>
+        /// AC Monza 21.11.: Die Sektor-Gelbflagge stand in 10 von 15 Fällen unter 1,5 s (0,3–1,3 s) und wurde jedes Mal
+        /// angesagt; das einzige lange Gelb (25 s ab 14:50:36) ging dabei unter. Sektor-Gelb gilt erst, wenn es 1,5 s steht.
+        /// </summary>
+        internal static readonly TimeSpan SectorYellowConfirm = TimeSpan.FromSeconds(1.5);
+        private DateTime sectorYellowSinceUtc = DateTime.MinValue;
+        private bool sectorYellowAnnounced;
+
+        internal static bool SectorYellowConfirmed(DateTime since, DateTime now) =>
+            since != DateTime.MinValue && now >= since && now - since >= SectorYellowConfirm;
 
         public void Reset()
         {
-            lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = DateTime.MinValue;
+            lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = sectorYellowSinceUtc = DateTime.MinValue;
+            sectorYellowAnnounced = false;
         }
 
         internal static bool BlueCoveredByClassCall(DateTime now) =>
@@ -103,6 +114,8 @@ namespace CrewChiefV4.AiTeam
 
         public static bool StillRelevant(string phrase, GameStateData gs)
         {
+            // Die schwarze Flagge ist Pflicht: Versetzt die Sim Rob danach in die Box, bleibt die Ansage trotzdem stehen.
+            if (IndexOf(phrase) == 5 && RaceExclusion.Active(gs)) return true;
             if (gs == null || gs.PitData.InPitlane || (gs.SessionData.SessionPhase != SessionPhase.Green && gs.SessionData.SessionPhase != SessionPhase.FullCourseYellow)) return false;
             var f=gs.FlagData;
             switch (IndexOf(phrase))
@@ -173,12 +186,18 @@ namespace CrewChiefV4.AiTeam
             // Flagge für den eigenen Wagen
             var flag = current.SessionData.Flag;
             var prevFlag = previous.SessionData.Flag;
+            if (flag != FlagEnum.YELLOW) { sectorYellowSinceUtc = DateTime.MinValue; sectorYellowAnnounced = false; }
+            else if (sectorYellowSinceUtc == DateTime.MinValue) sectorYellowSinceUtc = nowUtc;
+            if (flag == FlagEnum.YELLOW && !sectorYellowAnnounced && SectorYellowConfirmed(sectorYellowSinceUtc, nowUtc))
+            {
+                sectorYellowAnnounced = true;
+                if (!f.isLocalYellow) result.Add(Phrases[2]);
+            }
             if (flag != prevFlag)
             {
                 switch (flag)
                 {
                     case FlagEnum.YELLOW:
-                        if (!f.isLocalYellow) result.Add(Phrases[2]);
                         break;
                     case FlagEnum.DOUBLE_YELLOW:
                         result.Add(Phrases[3]);
