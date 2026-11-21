@@ -271,6 +271,7 @@
     <Compile Include="AiTeam\FocusBriefWatch.cs" />
     <Compile Include="AiTeam\RaceExclusion.cs" />
     <Compile Include="AiTeam\RaceRhythm.cs" />
+    <Compile Include="AiTeam\RadioDirectorPolicy.cs" />
     <Compile Include="AiTeam\Board\RaceBoard.cs" />
     <Compile Include="AiTeam\TyreWearAdvisor.cs" />
     <Compile Include="AiTeam\DriverRadioGate.cs" />

@@ -452,7 +452,7 @@ namespace CrewChiefV4.AiTeam
                     if (FlagWatch.NamesIncident(call) && current.SessionData.SessionType == SessionType.Race)
                         RaceChronicle.Current.Add(current, now, ChronicleKind.Yellow, detail: FlagWatch.Kind(call), source: "flaggen",
                             subjectName: FlagWatch.IncidentName(current, now), dedupe: TimeSpan.FromSeconds(20));
-                    liveWarnings.Offer("warning-flag-"+Array.IndexOf(FlagWatch.Phrases,call),call,TeamMember.Sara,10,current,now,
+                    liveWarnings.Offer("warning-flag-"+Array.IndexOf(FlagWatch.Phrases,call),call,TeamMember.Sara,FlagWatch.Priority(call),current,now,
                         live=>FlagWatch.StillRelevant(call,live),"mapped_flag_transition",
                         timed: (live, when) => FlagWatch.FreshClear(call, now, when),
                         opponentNameClip: incidentDriver == null ? null : RaceTrafficWatch.NameClipText(incidentDriver));
@@ -2122,6 +2122,7 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Eine neue Strafe bleibt so lange stehen, bis sie gesagt ist (höchstens 90 s, dann ist sie überholt).</summary>
         internal static readonly TimeSpan MandatoryPenaltyWindow = TimeSpan.FromSeconds(90);
         private readonly StartHazardNames startNames = new StartHazardNames();
+        private DateTime lastSafetyCallUtc = DateTime.MinValue;
         private volatile string spokenGreetingField;
 
         /// <summary>Wurde die laut Spiel gleiche Session in den letzten 15 Minuten schon begrüßt?</summary>
@@ -2459,25 +2460,30 @@ namespace CrewChiefV4.AiTeam
         {
             // Rob 21.11.: „Ben und Sara haben bei Unfällen die gleichen Funktionen – es reicht, wenn Sara das macht.“
             call.Member = CrewSpeechPolicy.HazardSpeaker(call.Topic, call.Member, SaraSpotting() || settings.IsMemberEnabled(TeamMember.Sara));
-            if (RaceExclusion.Active(CrewChief.currentGameState) && !RaceExclusion.Allowed(call.Topic))
+            // Funkregie: eine Stelle entscheidet über jede beobachtete Rennmeldung (senden, später, verwerfen).
             {
-                var at = DateTime.UtcNow;
-                call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
-                LiveDiagnostics.Decision(call.Topic, "suppressed", "player_out_of_race", call.Text);
-                return;
-            }
-            if (raceRhythm.InStart(CrewChief.currentGameState))
-            {
-                var at = DateTime.UtcNow;
-                string why = !RaceRhythm.StartEssential(call.Topic) ? "race_start_phase_essentials_only" :
-                    startNames.NamedRecently(call.OpponentNameClip, at) ? "race_start_same_hazard_named" : null;
-                if (why != null)
+                var at = DateTime.UtcNow; var live = CrewChief.currentGameState;
+                bool start = raceRhythm.InStart(live);
+                var situation = new RadioSituation
+                {
+                    PlayerOut = RaceExclusion.Active(live), StartPhase = start,
+                    SameHazardNamed = start && startNames.NamedRecently(call.OpponentNameClip, at),
+                    LastSafetyUtc = lastSafetyCallUtc, Now = at,
+                };
+                var verdict = RadioDirectorPolicy.Decide(call.Topic, situation, out string why);
+                if (verdict == RadioVerdict.Drop)
                 {
                     call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                     LiveDiagnostics.Decision(call.Topic, "suppressed", why, call.Text);
                     return;
                 }
-                startNames.Note(call.OpponentNameClip, at);
+                if (verdict == RadioVerdict.Hold)
+                {
+                    call.HoldBack(at, TimeSpan.FromSeconds(2), why);
+                    return;
+                }
+                if (start) startNames.Note(call.OpponentNameClip, at);
+                if (RadioDirectorPolicy.Classify(call.Topic) == RadioRank.Safety) lastSafetyCallUtc = at;
             }
             if (call.Topic == "greeting" || call.Topic == "track-welcome")
             {

@@ -48,6 +48,12 @@ namespace CrewChiefV4.AiTeam
         private DateTime sectorYellowSinceUtc = DateTime.MinValue;
         private bool sectorYellowAnnounced;
 
+        /// <summary>
+        /// RaceRoom Mantorp 21.11., 15:33:05: „Gelb vorbei.“ schnitt Miks „Alles klar? Ganz ruhig …“ nach dem Dreher ab.
+        /// Entwarnungen (Gelb vorbei, wieder Grün) sind Auskunft, keine Gefahr: Sie warten, statt zu unterbrechen.
+        /// </summary>
+        internal static int Priority(string phrase) { int i = IndexOf(phrase); return i == 1 || i == 7 ? 6 : 10; }
+
         internal static bool SectorYellowConfirmed(DateTime since, DateTime now) =>
             since != DateTime.MinValue && now >= since && now - since >= SectorYellowConfirm;
 
