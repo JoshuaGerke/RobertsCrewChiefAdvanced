@@ -424,6 +424,9 @@ namespace CrewChiefV4.AiTeam
             }
             RaceExclusion.Observe(current);
             bool excluded = RaceExclusion.Active(current);
+            if (raceRhythm.Observe(current, now)) radioSchedule.StaggerAfterStart(now, settings.RadioPreferences);
+            bool startPhase = raceRhythm.InStart(current);
+            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length;
             if (lapCompleted || now - lastFuelCheckUtc >= TimeSpan.FromSeconds(1))
             {
                 lastFuelCheckUtc = now;
@@ -876,6 +879,7 @@ namespace CrewChiefV4.AiTeam
                 // Absichtlich KEIN API-Aufruf für eine gewöhnliche Runde ohne Erkenntnis.
             }
             if (trigger != null && excluded) { LiveDiagnostics.Decision(topic, "suppressed", "player_out_of_race", trigger); trigger = null; }
+            if (trigger != null && startPhase) { LiveDiagnostics.Decision(topic, "suppressed", "race_start_phase_essentials_only", trigger); trigger = null; }
             if (trigger != null) LiveDiagnostics.Decision(topic, "detected", "local_evidence", trigger);
             int minimumProactiveLaps = current.SessionData.SessionType == SessionType.Race ? 2 : 1;
             if (trigger != null && topic != null && settings.RadioMode != AiRadioMode.MINIMAL && HasApiKey && !proactiveRunning &&
@@ -2104,6 +2108,8 @@ namespace CrewChiefV4.AiTeam
         private int greetingAttempts;
         private DateTime greetingRetryAfter = DateTime.MinValue;
         private volatile ObservedRaceCall spokenGreeting;
+        private readonly RaceRhythm raceRhythm = new RaceRhythm();
+        private readonly StartHazardNames startNames = new StartHazardNames();
         private volatile string spokenGreetingField;
 
         /// <summary>Wurde die laut Spiel gleiche Session in den letzten 15 Minuten schon begrüßt?</summary>
@@ -2447,6 +2453,19 @@ namespace CrewChiefV4.AiTeam
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "player_out_of_race", call.Text);
                 return;
+            }
+            if (raceRhythm.InStart(CrewChief.currentGameState))
+            {
+                var at = DateTime.UtcNow;
+                string why = !RaceRhythm.StartEssential(call.Topic) ? "race_start_phase_essentials_only" :
+                    startNames.NamedRecently(call.OpponentNameClip, at) ? "race_start_same_hazard_named" : null;
+                if (why != null)
+                {
+                    call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                    LiveDiagnostics.Decision(call.Topic, "suppressed", why, call.Text);
+                    return;
+                }
+                startNames.Note(call.OpponentNameClip, at);
             }
             if (call.Topic == "greeting" || call.Topic == "track-welcome")
             {
