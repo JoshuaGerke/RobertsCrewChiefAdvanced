@@ -301,6 +301,7 @@ namespace CrewChiefV4.AiTeam
                         call.AdditionalValidity = live => live.FuelData.FuelUseActive && !live.FlagData.isLocalYellow;
                     }
                 }
+                float bestBefore = personalBest;
                 if (completed.Valid && !completed.InPitLap && Good(completed.LapTime))
                 {
                     float time = completed.LapTime;
@@ -336,6 +337,17 @@ namespace CrewChiefV4.AiTeam
                         ownCall = true;
                     }
                     personalBest = Good(personalBest) ? Math.Min(personalBest, time) : time;
+                }
+                // LMU 21.11.: „Ich hab grad eine Runde gefahren, gar kein Kommentar dazu.“ Im Rennen kam nur die Bestzeit
+                // eine Ansage; vier Runden (drei gestrichen) blieben stumm. Ab Runde 2 bekommt jede eigene Runde einen Satz.
+                if (race && green && !ownCall && !completed.InPitLap && !gs.PitData.InPitlane && completed.LapNumber >= 2)
+                {
+                    string comment = RaceLapComment(completed.Valid, completed.LapTime, completed.ClockLapTime, bestBefore, raceLapVariant++);
+                    if (comment != null)
+                    {
+                        Add(gs, now, "race-lap", comment, completed.Valid ? "completed_race_lap_vs_personal_best" : "completed_race_lap_not_counted", 4);
+                        ownCall = true;
+                    }
                 }
             }
             // Schnellste Runde im Feld (bei mehreren Klassen: in Robs Klasse), in jeder Session.
@@ -1169,6 +1181,90 @@ namespace CrewChiefV4.AiTeam
         internal static string[] MotivationPhrases => RadioLanguage.Pick(MotivationDe, MotivationEn, MotivationEs);
 
         private static bool Good(float t) { return !float.IsNaN(t) && !float.IsInfinity(t) && t > 10 && t < 3600; }
+
+        private int raceLapVariant;
+
+        /// <summary>Selbst gestoppte Zeit auf Zehntel, damit sie nicht genauer klingt, als sie ist („1:47,7“).</summary>
+        internal static string ApproxLapTime(float seconds)
+        {
+            long tenths = (long)Math.Round(seconds * 10.0, MidpointRounding.AwayFromZero);
+            long minutes = tenths / 600;
+            decimal rest = (tenths % 600) / 10m;
+            return minutes > 0 ? minutes + ":" + rest.ToString("00.0", RadioLanguage.Culture) : rest.ToString("0.0", RadioLanguage.Culture);
+        }
+
+        internal static string Delta(float seconds) =>
+            RadioLanguage.Num(seconds, seconds < 1 ? "0.00" : "0.0") + RadioLanguage.T(" Sekunden", " seconds", " segundos");
+
+        /// <summary>Ein Satz zur gerade beendeten Rennrunde; null, wenn es nichts Ehrliches zu sagen gibt.</summary>
+        internal static string RaceLapComment(bool valid, float lapTime, float clockTime, float bestBefore, int variant)
+        {
+            string[] set; string a = null, b = null;
+            if (!valid)
+            {
+                if (Good(lapTime))
+                {
+                    a = LocalAnswers.LapTime(lapTime);
+                    set = RadioLanguage.Pick(
+                        new[] { "Runde gestrichen, die {0} zählt nicht.", "Die {0} wird nicht gewertet, die Runde ist gestrichen.",
+                            "Gestrichen. {0} wäre es gewesen.", "Die Runde fällt raus, {0} ohne Wertung.", "{0}, aber gestrichen. Die nächste sauber halten." },
+                        new[] { "Lap deleted, the {0} doesn't count.", "The {0} won't be counted, that lap's deleted.",
+                            "Deleted. It would have been a {0}.", "That lap's out, {0} with no credit.", "{0}, but deleted. Keep the next one clean." },
+                        new[] { "Vuelta anulada, el {0} no cuenta.", "El {0} no se cuenta, la vuelta está anulada.",
+                            "Anulada. Habría sido un {0}.", "Esa vuelta no vale, {0} sin contar.", "{0}, pero anulada. La próxima, limpia." });
+                }
+                else if (Good(clockTime))
+                {
+                    a = ApproxLapTime(clockTime);
+                    set = RadioLanguage.Pick(
+                        new[] { "Runde gestrichen, auf unserer Uhr etwa {0}.", "Gestrichen, keine offizielle Zeit. Wir haben ungefähr {0} gestoppt.",
+                            "Die Runde zählt nicht. Gestoppt etwa {0}.", "Ohne Wertung, nach unserer Uhr rund {0}.", "Gestrichene Runde, ungefähr {0}." },
+                        new[] { "Lap deleted, our clock says about {0}.", "Deleted, no official time. We had it at roughly {0}.",
+                            "That lap doesn't count. Timed at about {0}.", "No credit, around {0} on our watch.", "Deleted lap, roughly {0}." },
+                        new[] { "Vuelta anulada, en nuestro reloj unos {0}.", "Anulada, sin tiempo oficial. La cronometramos en unos {0}.",
+                            "Esa vuelta no cuenta. Cronometrada en unos {0}.", "Sin validez, por nuestro reloj alrededor de {0}.", "Vuelta anulada, aproximadamente {0}." });
+                }
+                else
+                    set = RadioLanguage.Pick(
+                        new[] { "Runde gestrichen, keine Zeit gewertet.", "Die Runde ist gestrichen, die Zeit zählt nicht.",
+                            "Gestrichen. Die nächste Runde sauber halten.", "Keine Wertung für diese Runde.", "Die Runde fällt raus, ohne Zeit." },
+                        new[] { "Lap deleted, no time counted.", "That lap's deleted, the time doesn't count.",
+                            "Deleted. Keep the next lap clean.", "No credit for that lap.", "That lap's out, no time." },
+                        new[] { "Vuelta anulada, sin tiempo.", "La vuelta está anulada, el tiempo no cuenta.",
+                            "Anulada. Mantén limpia la próxima.", "Esa vuelta no puntúa.", "Esa vuelta no vale, sin tiempo." });
+            }
+            else
+            {
+                if (!Good(lapTime)) return null;
+                a = LocalAnswers.LapTime(lapTime);
+                float gap = Good(bestBefore) ? lapTime - bestBefore : float.NaN;
+                if (float.IsNaN(gap))
+                    set = RadioLanguage.Pick(
+                        new[] { "Runde in {0}.", "{0} für diese Runde.", "Die Runde: {0}.", "Gestoppt: {0}.", "{0} an der Linie." },
+                        new[] { "Lap in {0}.", "{0} for that lap.", "That lap: {0}.", "Timed: {0}.", "{0} at the line." },
+                        new[] { "Vuelta en {0}.", "{0} en esta vuelta.", "La vuelta: {0}.", "Cronometrado: {0}.", "{0} en la línea." });
+                else if (gap <= .01f) return null; // Bestzeit oder gleich schnell: das übernimmt die Bestzeit-Ansage
+                else
+                {
+                    b = Delta(gap);
+                    set = gap <= .3f ? RadioLanguage.Pick(
+                        new[] { "{0}, nur {1} an der Bestzeit vorbei.", "Knapp: {0}, {1} über deinem Besten.", "{0}. Die Bestzeit ist nur {1} weg.",
+                            "Starke Runde, {0}, {1} hinter deiner Bestzeit.", "{0}, ganz nah dran, {1} fehlen." },
+                        new[] { "{0}, just {1} off your best.", "Close: {0}, {1} above your best.", "{0}. Your best is only {1} away.",
+                            "Strong lap, {0}, {1} behind your best.", "{0}, right there, {1} short." },
+                        new[] { "{0}, solo {1} por encima de tu mejor.", "Cerca: {0}, {1} más que tu mejor.", "{0}. Tu mejor está a solo {1}.",
+                            "Buena vuelta, {0}, {1} detrás de tu mejor.", "{0}, muy cerca, faltan {1}." }) : RadioLanguage.Pick(
+                        new[] { "{0}, {1} über deiner Bestzeit.", "Runde in {0}. Auf die Bestzeit fehlen {1}.", "{0} gefahren, {1} langsamer als dein Bestes.",
+                            "{0}, Abstand zur Bestzeit {1}.", "Die Runde: {0}, {1} hinter deiner Bestzeit." },
+                        new[] { "{0}, {1} off your best.", "Lap in {0}. {1} short of your best.", "{0}, {1} slower than your best.",
+                            "{0}, gap to your best {1}.", "That lap: {0}, {1} behind your best." },
+                        new[] { "{0}, {1} por encima de tu mejor.", "Vuelta en {0}. Te faltan {1} para tu mejor.", "{0}, {1} más lenta que tu mejor.",
+                            "{0}, diferencia con tu mejor {1}.", "La vuelta: {0}, {1} detrás de tu mejor." });
+                }
+            }
+            string line = set[((variant % set.Length) + set.Length) % set.Length];
+            return line.Replace("{0}", a ?? "").Replace("{1}", b ?? "");
+        }
         private static bool IdentityMatches(string key, OpponentData before, OpponentData current) =>
             before != null && RaceReader.Identity(key, before) == RaceReader.Identity(key, current);
         private ObservedRaceCall Add(GameStateData gs, DateTime now, string topic, string text, string evidence, int priority,
@@ -1179,7 +1275,7 @@ namespace CrewChiefV4.AiTeam
                 Position=-1, SessionId=session, SessionType=type, CompletedLaps=gs.SessionData.CompletedLaps,
                 AllowLapFinish=topic == "own-lap" || topic == "near-best",
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic.StartsWith("timed-lap-", StringComparison.Ordinal) ? 4 :
-                    topic == "own-lap" ? 22 : topic == "first-lap-fuel" || topic == "fuel-baseline" ? 30 :
+                    topic == "own-lap" ? 22 : topic == "race-lap" ? 20 : topic == "first-lap-fuel" || topic == "fuel-baseline" ? 30 :
                     topic == "qualifying-last" ? 7 : topic == "quali-target" ? 15 : type == SessionType.Race ? 8 : 12) };
             if (group != null) call.BindVariant(cursor, group, variant);
             if (topic == "timed-lap-approach")
@@ -1206,7 +1302,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (busy) return null;
             var call = pending.Where(c => c.CanReserve(now) && (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
-                c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || !ownLapOnly &&
+                c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || c.Topic == "race-lap" && now - lastRadio >= TimeSpan.FromSeconds(3) || !ownLapOnly &&
                 (c.Topic == "near-best" || c.Topic == "lap-on-pace" || c.Topic == "quali-target" && now - lastRadio >= TimeSpan.FromSeconds(3) || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
             return call != null && call.TryReserve(now) ? call : null;
         }

@@ -16,6 +16,14 @@ namespace CrewChiefV4.AiTeam
         // LMU 20.11.: In 20 Minuten Multiclass kam kein einziger Zwischenstand – mit 5 s freier Bahn auch zu Überrundeten und
         // anderen Klassen gab es nie einen „ruhigen“ Moment. Jetzt 3 s, und nur Autos derselben Klasse in derselben Runde zählen.
         internal const float CalmSeconds = 3f;
+        /// <summary>
+        /// LMU 21.11.: 41 Autos, Rob immer im Pulk – in 15 Minuten kein einziges Zwischenfazit, jede Gelegenheit verfiel. Wer schon
+        /// eine Weile auf die ruhige Minute wartet, braucht nur noch eine Sekunde Luft (kein Zweikampf); die Gelegenheit verfällt
+        /// erst später.
+        /// </summary>
+        internal const float LateCalmSeconds = 1f;
+        internal const double LateAfter = .06, GiveUpAfter = .2;
+        private float calmNeeded = CalmSeconds;
         private readonly Random random;
         private int session = int.MinValue, startPosition, delivered, tallyVariant;
         private readonly List<double> windows = new List<double>();
@@ -120,17 +128,20 @@ namespace CrewChiefV4.AiTeam
             if (progress < 0 || progress < windows[delivered]) return;
             int left = LapWatch.LapsLeft(s);
             if (left > 0 && left <= 2) { delivered = windows.Count; return; } // Schlussphase gehört dem Rennen
-            if (progress > windows[delivered] + .12) { delivered++; return; } // Kein ruhiger Moment gefunden: diese Gelegenheit verfällt
+            if (progress > windows[delivered] + GiveUpAfter) { delivered++; return; } // Kein ruhiger Moment gefunden: diese Gelegenheit verfällt
+            bool late = progress > windows[delivered] + LateAfter;
+            float need = late ? LateCalmSeconds : CalmSeconds;
             var c = context();
             float ahead = Gap(c, true), behind = Gap(c, false);
-            if (!Calm(gs, ahead, behind)) return;
+            if (!Calm(gs, ahead, behind, need)) return;
+            calmNeeded = need;
             string text = Compose(c, ahead, behind);
             if (text == null) return;
             call = new ObservedRaceCall
             {
                 Topic = "race-summary", Text = text, Evidence = "calm_window_measured_position_gaps_fuel", Member = TeamMember.Ben, Priority = 2,
                 Position = s.ClassPosition, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(15),
-                AdditionalValidity = live => Calm(live, -1, -1),
+                AdditionalValidity = live => Calm(live, -1, -1, need), Guaranteed = late,
                 // C3: Platz und Abstände erst beim Sprechen festlegen – wartet die Ansage, sagt Ben trotzdem den aktuellen Stand.
                 RefreshText = Refresh
             };
@@ -142,7 +153,7 @@ namespace CrewChiefV4.AiTeam
         {
             if (ctx?.GameState == null) return null;
             float ahead = Gap(ctx, true), behind = Gap(ctx, false);
-            return Calm(ctx.GameState, ahead, behind) ? Compose(ctx, ahead, behind) : null;
+            return Calm(ctx.GameState, ahead, behind, calmNeeded) ? Compose(ctx, ahead, behind) : null;
         }
 
         /// <summary>Die rundenweise Abstandsmessung des Rennkopfs, nur wenn sie zum aktuellen Nachbarn gehört (letzte bis zu vier Runden).</summary>

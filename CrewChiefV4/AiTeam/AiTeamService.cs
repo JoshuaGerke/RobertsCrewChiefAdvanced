@@ -561,7 +561,10 @@ namespace CrewChiefV4.AiTeam
             if (damage != null)
             {
                 int damageGeneration = Volatile.Read(ref sessionGeneration);
-                Task.Run(() => ReportDamageAsync(damage, damageGeneration));
+                // Ein noch nicht gesprochener dringender Boxenruf geht in der Bewertung auf; war er schon zu hören,
+                // ergänzt die Bewertung nur noch, was er nicht gesagt hat.
+                bool wheelsSaid = !pitDamage.AbsorbUrgent(now) && pitDamage.UrgentJustSpoken(now);
+                Task.Run(() => ReportDamageAsync(damage, damageGeneration, wheelsSaid));
             }
             sessionLaps.Observe(current, lapCompleted ? Memory.GetLaps(1).LastOrDefault() : null, now, settings.SendDriverNames, previous,
                 DriverMemory.QualifyingSectorRadioEnabled, Tracks, settings.RadioName, Memory);
@@ -2194,7 +2197,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Mik meldet den Schaden. Ben folgt nach abgeschlossenem Audio mit einer belegten Boxenempfehlung.</summary>
-        private async Task ReportDamageAsync(DamageAssessment damage, int generation)
+        private async Task ReportDamageAsync(DamageAssessment damage, int generation, bool wheelsSaid = false)
         {
             var current = CrewChief.currentGameState;
             if (current == null || generation != Volatile.Read(ref sessionGeneration)) return;
@@ -2204,7 +2207,7 @@ namespace CrewChiefV4.AiTeam
             // Bathurst 17.11.: „Bremse vorne links-Schadenswert 0,1 Prozent“ nach einem leichten Kontakt. Ohne ernsten Schaden
             // nur Werte ab 1 Prozent, sonst ein kurzer Satz.
             bool brief = !damage.Serious;
-            string report = IncidentWatch.DamageReport(current.CarDamageData, brief, includeAdvice: !paired);
+            string report = IncidentWatch.DamageReport(current.CarDamageData, brief, includeAdvice: !paired, wheelsAlreadySaid: wheelsSaid);
             if (string.IsNullOrWhiteSpace(report)) return;
             // LMU 18.11.: „Aero stark beschädigt …“ achtmal wortgleich. Unveränderter Befund höchstens alle zwei Minuten.
             if (!DamageReportIsNew(report, DateTime.UtcNow))
@@ -2214,7 +2217,7 @@ namespace CrewChiefV4.AiTeam
             }
             var valid = TimelyValidity(current, DateTime.UtcNow, 18, live =>
                 live.SessionData.SessionPhase == SessionPhase.Green &&
-                IncidentWatch.DamageReport(live.CarDamageData, brief, includeAdvice: !paired) == report);
+                IncidentWatch.DamageReport(live.CarDamageData, brief, includeAdvice: !paired, wheelsAlreadySaid: wheelsSaid) == report);
             string incidentId = Guid.NewGuid().ToString("N");
             LiveDiagnostics.Decision("incident-damage", "detected", "mapped_damage_assessment", report, incidentId);
             Action<bool> afterReport = paired ? (Action<bool>)(interrupted =>
@@ -2234,7 +2237,7 @@ namespace CrewChiefV4.AiTeam
                 });
             }) : null;
             await SpeakAsync(TeamMember.Mik, report, true, CancellationToken.None, valid, true, 7,
-                () => LiveDiagnostics.Decision("incident-damage", "delivered", "playback_started", report, incidentId),
+                () => { pitDamage.NoteDamageReportStarted(DateTime.UtcNow); LiveDiagnostics.Decision("incident-damage", "delivered", "playback_started", report, incidentId); },
                 playbackEnded: afterReport, observedTopic: "incident-damage", eventId: incidentId).ConfigureAwait(false);
         }
 

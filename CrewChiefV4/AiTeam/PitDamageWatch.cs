@@ -21,12 +21,33 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastUrgentUtc = DateTime.MinValue, stoppedSinceUtc = DateTime.MinValue, exitUtc = DateTime.MinValue, lastWearUtc = DateTime.MinValue;
         private float[] lastWear;
         private ObservedRaceCall call;
+        private DateTime urgentStartedUtc = DateTime.MinValue, damageReportStartedUtc = DateTime.MinValue;
+        /// <summary>LMU 21.11.: „Box, Box! Das Rad hinten rechts ist weg“ und vier Sekunden später „Rad hinten rechts ist ab, …
+        /// Komm sofort an die Box“. Innerhalb dieses Fensters wird daraus eine Meldung.</summary>
+        internal static readonly TimeSpan CombinedDamageWindow = TimeSpan.FromSeconds(30);
+
+        /// <summary>Die Schadensbewertung kommt: ein noch nicht gesprochener dringender Boxenruf geht in ihr auf.</summary>
+        internal bool AbsorbUrgent(DateTime now)
+        {
+            if (call == null || call.Topic != "pit-urgent-damage" || call.DeliveryStartedUtc != DateTime.MinValue) return false;
+            LiveDiagnostics.Decision(call.Topic, "suppressed", "combined_into_damage_assessment", call.Text, call.EventId);
+            call.ExpiresUtc = now.AddTicks(-1);
+            call = null;
+            return true;
+        }
+
+        /// <summary>Rad und Box wurden gerade dringend durchgesagt; die Bewertung ergänzt nur noch den Rest.</summary>
+        internal bool UrgentJustSpoken(DateTime now) =>
+            urgentStartedUtc != DateTime.MinValue && now >= urgentStartedUtc && now - urgentStartedUtc < CombinedDamageWindow;
+
+        /// <summary>Die Schadensbewertung mit Rad und Box läuft gerade; der erste dringende Boxenruf entfällt dann.</summary>
+        internal void NoteDamageReportStarted(DateTime now) => damageReportStartedUtc = now;
 
         internal void Reset()
         {
             session = int.MinValue; lostCorner = -1; reminders = 0; lostWheel = severe = urgentSpoken = arrivalSpoken = repairFirst = repairSecond = false;
             retiredSpoken = wasInPit = wasDnf = wasCrewReady = pitDamaged = false;
-            lastUrgentUtc = stoppedSinceUtc = exitUtc = lastWearUtc = DateTime.MinValue; lastWear = null; call = null;
+            lastUrgentUtc = stoppedSinceUtc = exitUtc = lastWearUtc = urgentStartedUtc = damageReportStartedUtc = DateTime.MinValue; lastWear = null; call = null;
         }
 
         /// <summary>Stopp angemeldet und im letzten Viertel der Runde: Das Auto fährt gleich in die Box.</summary>
@@ -203,6 +224,7 @@ namespace CrewChiefV4.AiTeam
             if (gs == null) return;
             var s = gs.SessionData;
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
+            if (call != null && call.Topic == "pit-urgent-damage" && call.DeliveryStartedUtc != DateTime.MinValue) urgentStartedUtc = call.DeliveryStartedUtc;
             if (call != null && (call.DeliveryStartedUtc != DateTime.MinValue || now > call.ExpiresUtc)) call = null;
             bool inPit = gs.PitData.InPitlane, green = s.SessionPhase == SessionPhase.Green || s.SessionPhase == SessionPhase.FullCourseYellow;
             bool race = s.SessionType == SessionType.Race;
@@ -246,6 +268,12 @@ namespace CrewChiefV4.AiTeam
             }
 
             // 3. Dringender Boxenruf und Erinnerungen, bis das Auto in der Gasse ist.
+            if (severe && !inPit && green && call == null && !urgentSpoken && damageReportStartedUtc != DateTime.MinValue &&
+                now >= damageReportStartedUtc && now - damageReportStartedUtc < CombinedDamageWindow)
+            {
+                LiveDiagnostics.Decision("pit-urgent-damage", "suppressed", "damage_assessment_already_said_box", null);
+                urgentSpoken = true; lastUrgentUtc = now;
+            }
             if (severe && !inPit && green && call == null && (!urgentSpoken || reminders < 2 && (now - lastUrgentUtc).TotalSeconds >= ReminderSeconds))
             {
                 string text = !urgentSpoken ? Urgent(name, lostCorner, lostWheel, variant++) : Reminder(name, variant++);
@@ -297,6 +325,7 @@ namespace CrewChiefV4.AiTeam
 
         internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, Func<TeamMember, bool> enabled)
         {
+            if (call != null && call.Topic == "pit-urgent-damage" && call.DeliveryStartedUtc != DateTime.MinValue) urgentStartedUtc = call.DeliveryStartedUtc;
             if (call != null && (!call.IsValid(gs, now) || call.DeliveryStartedUtc != DateTime.MinValue)) call = null;
             if (call == null || busy || !enabled(call.Member)) return null;
             return call.TryReserve(now) ? call : null;

@@ -330,7 +330,7 @@ namespace CrewChiefV4.AiTeam
             if (TyreGripWatch.Window(ctx.GameState, out float windowLow, out float windowHigh))
                 o["temperaturfenster_c"] = new JObject { ["von"] = Math.Round(windowLow), ["bis"] = Math.Round(windowHigh),
                     ["quelle"] = TyreGripWatch.IsRaceSlick(t.FrontLeftTyreType)
-                        ? "Robs Richtwert für Rennreifen: ab 70 °C in Ordnung, ab 80 °C gut, 85–90 °C sehr gut; kein Herstellerwert"
+                        ? "Robs Richtwert für Rennreifen: ab 65 °C fahrbar, Ziel 80–90 °C; kein Herstellerwert"
                         : "Crew-Chief-Richtwert für Klasse und Reifentyp (Spitzentemperatur), kein Herstellerwert" };
             else missing.Add("temperaturfenster_fuer_diesen_reifentyp");
             var hotCorners = TyreGripWatch.HotCorners(TyreGripWatch.Temps(ctx.GameState), windowHigh);
@@ -1173,6 +1173,22 @@ namespace CrewChiefV4.AiTeam
                 o["plaetze_gewonnen_seit_start"] = startLatched - s.ClassPosition;
             }
             if (ValidLap(s.LapTimePrevious)) o["letzte_runde_s"] = Math.Round(s.LapTimePrevious, 3);
+            // LMU 21.11.: „keinen bestätigten Rundenabschluss“, obwohl die Runde gerade beendet war (gestrichen, 1:47,657).
+            if (s.CompletedLaps > 0)
+            {
+                o["letzte_runde_nummer"] = s.CompletedLaps;
+                o["letzte_runde_gueltig"] = s.PreviousLapWasValid;
+                var lastLap = ctx.Memory?.GetLaps(1)?.LastOrDefault();
+                if (!ValidLap(s.LapTimePrevious) && lastLap != null && lastLap.LapNumber == s.CompletedLaps && ValidLap(lastLap.ClockLapTime))
+                    o["letzte_runde_selbst_gestoppt_ungefaehr_s"] = Math.Round(lastLap.ClockLapTime, 1);
+            }
+            // LMU 21.11.: Nach dem Crash sagte Mik „den Fahrzeugschaden kann ich hier nicht bestätigen“. Schwerer Schaden und
+            // eine Aufgabe gehören ins Lagebild jeder Antwort.
+            var damageNow = ctx.GameState.CarDamageData;
+            if (damageNow != null && damageNow.DamageEnabled &&
+                (IncidentWatch.IsSerious(damageNow) || damageNow.WheelDetached != null && damageNow.WheelDetached.Any(w => w)))
+                o["schaden_schwer"] = IncidentWatch.DamageReport(damageNow, true, includeAdvice: false);
+            if (s.IsDNF) o["rennen_aufgegeben"] = true;
             if (ctx.GameState.FuelData.FuelUseActive && Finite(ctx.GameState.FuelData.FuelLeft) && ctx.GameState.FuelData.FuelLeft > 0 && ctx.GameState.FuelData.FuelLeft <= 10000)
             {
                 o["tankinhalt_l"] = Math.Round(ctx.GameState.FuelData.FuelLeft, 1);

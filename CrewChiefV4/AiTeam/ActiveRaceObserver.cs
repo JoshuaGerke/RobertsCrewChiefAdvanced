@@ -170,6 +170,8 @@ namespace CrewChiefV4.AiTeam
         public bool AllowLapFinish;
         public bool AllowPitlane;
         internal bool RaceStatus;
+        /// <summary>Eingestellter Bericht, der schon zu lange wartet: kommt in der nächsten freien Lücke, auch im Zweikampf.</summary>
+        internal bool Guaranteed;
         internal Func<RaceDataContext, string> RefreshText;
         internal Func<RaceDataContext, float> RefreshGapS;
         internal float SpokenGapS = -1;
@@ -225,6 +227,8 @@ namespace CrewChiefV4.AiTeam
             get { long ticks = Interlocked.Read(ref playbackStartedTicks); return Volatile.Read(ref deliveryState) == 2 && ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : DateTime.MinValue; }
         }
         public bool DeliveryFailed { get { return Volatile.Read(ref deliveryState) == 3; } }
+        /// <summary>Mindestens ein Zustellversuch lief bis zur Audiowiedergabe oder Sprachausgabe (vielleicht teilweise gehört).</summary>
+        internal bool Attempted => Volatile.Read(ref attempts) > 0;
         public bool CanReserve(DateTime now)
         {
             return Volatile.Read(ref deliveryState) == 0 && Volatile.Read(ref attempts) < MaximumDeliveryAttempts &&

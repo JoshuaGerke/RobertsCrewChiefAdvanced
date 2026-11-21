@@ -96,6 +96,12 @@
     <Compile Include="AiTeam\RaceBoardReplayTests.cs" />
     <Compile Include="AiTeam\RadioDirectorPolicyTests.cs" />
     <Compile Include="AiTeam\SpokenNamesTests.cs" />
+    <Compile Include="AiTeam\RoutineGuaranteeTests.cs" />
+    <Compile Include="AiTeam\HazardCallRegressionTests.cs" />
+    <Compile Include="AiTeam\RaceLapCommentTests.cs" />
+    <Compile Include="AiTeam\CrashReportTests.cs" />
+    <Compile Include="AiTeam\RaceCommentaryTests.cs" />
+    <Compile Include="AiTeam\RobDetailFixTests.cs" />
     <Compile Include="AiTeam\RaceChronicleTests.cs" />
     <Compile Include="AiTeam\FieldPictureTests.cs" />
     <Compile Include="AiTeam\FieldBriefingTests.cs" />

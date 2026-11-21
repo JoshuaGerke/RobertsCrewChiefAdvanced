@@ -285,7 +285,28 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,DateTime> reported = new Dictionary<string,DateTime>();
         private readonly Dictionary<string,DateTime> nativeRear = new Dictionary<string,DateTime>();
         // Rob 16.11.: Ein Auto, das dauerhaft an derselben Stelle steht, wird einmal gemeldet, dann einmal kurz erinnert, dann nicht mehr.
-        private sealed class Parked { public int Cell; public int Reports; }
+        // LMU 21.11.: Noah Froehlich stand minutenlang; nach der Erinnerung fuhr Rob in drei Runden ohne Hinweis vorbei.
+        // Jetzt: erste Meldung, dann je Runde eine kurze Erinnerung beim Näherkommen.
+        private sealed class Parked { public int Cell; public int Reports; public int Lap; }
+        /// <summary>0 = schweigen, 1 = volle Meldung, 2 = kurze Erinnerung.</summary>
+        internal static int ParkedCall(int reports, int reportedLap, int lap)
+        { return reports <= 0 ? 1 : reports == 1 || lap > reportedLap ? 2 : 0; }
+
+        /// <summary>
+        /// LMU 21.11., 21:33:25: „Vorne dreht sich einer“ – Vadim Galygin drehte sich tatsächlich, aber 400 m voraus und war
+        /// wieder unterwegs, als Rob ankam („Hier ist keiner, der sich gedreht hat“). Ein Dreher wird nur noch gemeldet, wenn
+        /// er höchstens 250 m voraus liegt und das Lagebild ihn mindestens 0,3 s lang bestätigt. Weiter weg zählt der Wagen als
+        /// langsam; steht er noch, wenn Rob näherkommt, meldet ihn die normale Abfang-Prüfung.
+        /// </summary>
+        internal const double SpinReachM = 250;
+        internal static readonly TimeSpan SpinConfirm = TimeSpan.FromMilliseconds(300);
+        internal static bool SpinCallable(double gapM, DateTime firstSeen, DateTime now) =>
+            gapM > 0 && gapM <= SpinReachM && firstSeen != DateTime.MinValue && now >= firstSeen && now - firstSeen >= SpinConfirm;
+        /// <summary>Ab hier darf eine Gefahrmeldung eine Antwort an Rob abschneiden: Dreher in Reichweite, stehendes Auto nah.</summary>
+        internal const double UrgentStoppedM = 150;
+        internal static int HazardPriority(bool rear, bool classAhead, bool reminder, bool spin, bool stopped, double gapM) =>
+            rear || classAhead ? 7 : reminder ? 6 : spin || stopped && gapM <= UrgentStoppedM ? CrewSpeechPolicy.InterruptAnswerPriority : 7;
+        private readonly Dictionary<string,DateTime> spinFirst = new Dictionary<string,DateTime>();
         private readonly Dictionary<string,Parked> parked = new Dictionary<string,Parked>();
         private static readonly string[] StillThereDe = { "Der stehende Wagen ist noch an derselben Stelle.", "Das Auto steht immer noch da, gleiche Stelle.",
             "Der Wagen steht weiter dort. Gleiche Stelle wie eben.",
@@ -322,7 +343,7 @@ namespace CrewChiefV4.AiTeam
 
         public void Reset()
         {
-            reference.Clear(); reported.Clear(); nativeRear.Clear(); parked.Clear(); motion.Clear(); spinning.Clear(); pending=null; tracks=null;
+            reference.Clear(); reported.Clear(); nativeRear.Clear(); parked.Clear(); motion.Clear(); spinning.Clear(); spinFirst.Clear(); pending=null; tracks=null;
             launchUtc=DateTime.MinValue; gridQuietLogged=false;
             session=int.MinValue; track=null; lastTick=lastRadio=lastRear=lastRearGroup=DateTime.MinValue; epoch++;
             Volatile.Write(ref facts,null);
@@ -414,14 +435,15 @@ namespace CrewChiefV4.AiTeam
                 bool reminder=false;
                 if (stopped && car.LapDistanceM.HasValue)
                 {
-                    int cell=(int)(car.LapDistanceM.Value/100); Parked spot;
+                    int cell=(int)(car.LapDistanceM.Value/100), lap=gs.SessionData.CompletedLaps; Parked spot;
                     if (parked.TryGetValue(car.Key,out spot) && Math.Abs(spot.Cell-cell)<=1)
                     {
-                        if (spot.Reports>=2) continue;      // bekannt und unverändert: nicht mehr melden
-                        reminder=spot.Reports==1;           // zweites Mal: nur kurz
-                        spot.Reports++;
+                        int call=ParkedCall(spot.Reports,spot.Lap,lap);
+                        if (call==0) continue;              // in dieser Runde schon erinnert
+                        reminder=call==2;                   // danach nur kurz
+                        spot.Reports++; spot.Lap=lap;
                     }
-                    else parked[car.Key]=new Parked{Cell=cell,Reports=1};
+                    else parked[car.Key]=new Parked{Cell=cell,Reports=1,Lap=lap};
                     if (reminder) phrases=StillTherePhrases;
                 }
                 else if (!rear && parked.ContainsKey(car.Key)) parked.Remove(car.Key); // fährt wieder
@@ -432,7 +454,8 @@ namespace CrewChiefV4.AiTeam
                     Topic=rear?"race-traffic-rear":classAhead?"race-class-ahead":"race-hazard-ahead",
                     Text=rear && otherClass ? (group ? MulticlassTraffic.RearGroup(groupLabel,variant++) : MulticlassTraffic.Rear(car.ClassLabel,variant++)) :
                         classAhead ? MulticlassTraffic.Ahead(car.ClassLabel,variant++) : phrases[variant++%phrases.Length],
-                    Member=TeamMember.Ben, Priority=7, Position=-1, SessionId=s.SessionId, SessionType=s.SessionType,
+                    Member=TeamMember.Ben, Priority=HazardPriority(rear,classAhead,reminder,spin,stopped,car.RouteGapM ?? double.MaxValue),
+                    Position=-1, SessionId=s.SessionId, SessionType=s.SessionType,
                     DetectedUtc=now, ExpiresUtc=now.AddSeconds(3),
                     HazardIdentity=rear || classAhead ? null : car.NativeIdentity,
                     Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
@@ -468,10 +491,13 @@ namespace CrewChiefV4.AiTeam
                 if (seen==null) { kept.Add(c); continue; }
                 switch (seen.Motion)
                 {
-                    case Field.CarMotion.Spun: spinning.Add(c.Key); kept.Add(c); break;
+                    case Field.CarMotion.Spun:
+                        if (!spinFirst.ContainsKey(c.Key ?? "")) spinFirst[c.Key ?? ""]=now;
+                        if (SpinCallable(c.RouteGapM ?? 0,spinFirst[c.Key ?? ""],now)) spinning.Add(c.Key); else spinning.Remove(c.Key);
+                        kept.Add(c); break;
                     case Field.CarMotion.Stopped: case Field.CarMotion.Slow: case Field.CarMotion.Retired: spinning.Remove(c.Key); kept.Add(c); break;
                     default:
-                        spinning.Remove(c.Key);
+                        spinning.Remove(c.Key); spinFirst.Remove(c.Key ?? "");
                         if (!rejectedByField.TryGetValue(c.Key ?? "",out var last) || now-last>TimeSpan.FromSeconds(5))
                         {
                             rejectedByField[c.Key ?? ""]=now;
@@ -486,10 +512,15 @@ namespace CrewChiefV4.AiTeam
             {
                 var c=s.Cars.FirstOrDefault(x=>x.NativeName==seen.Name && !x.IsSafetyCar && !x.InPits && x.RouteGapM.HasValue && x.RouteGapM>0 && x.SpeedMps.HasValue);
                 if (c==null || kept.Contains(c) || MulticlassTraffic.OtherClass(c)) continue;
-                if (seen.Motion==Field.CarMotion.Spun) spinning.Add(c.Key);
+                if (seen.Motion==Field.CarMotion.Spun)
+                {
+                    if (!spinFirst.ContainsKey(c.Key ?? "")) spinFirst[c.Key ?? ""]=now;
+                    if (SpinCallable(c.RouteGapM ?? 0,spinFirst[c.Key ?? ""],now)) spinning.Add(c.Key);
+                }
                 kept.Insert(0,c);
             }
             if (rejectedByField.Count>256) rejectedByField.Clear();
+            if (spinFirst.Count>256) spinFirst.Clear();
             return kept.ToArray();
         }
         private readonly Dictionary<string,DateTime> rejectedByField=new Dictionary<string,DateTime>();
@@ -535,7 +566,7 @@ namespace CrewChiefV4.AiTeam
             if (!rear && (c.RouteGapM > 600 || CoveredAhead != null && CoveredAhead(c.Key))) return false;
             if (rear && NativeConfirmed(c,now) && c.SpeedMps>=s.PlayerSpeedMps+3 && Math.Abs(c.RouteGapM.Value)<=500) return true;
             // Dreher voraus (Rennen 20.11.): plötzlicher Einbruch zählt auch ohne Abfang-Zeitfenster, bis 400 m voraus.
-            if (!rear && c.RouteGapM <= 400 && c.SpeedMps < s.PlayerSpeedMps && motion.TryGetValue(c.Key ?? "", out var seen) &&
+            if (!rear && c.RouteGapM <= SpinReachM && c.SpeedMps < s.PlayerSpeedMps && motion.TryGetValue(c.Key ?? "", out var seen) &&
                 SuddenSlowdown(seen, (float)c.SpeedMps.Value, now, NormalSpeedAt(c, gs, now), (float)s.PlayerSpeedMps.Value))
             { spinning.Add(c.Key); return true; }
             if (!c.ClosingMps.HasValue || !TrackSituationWatch.MotionPlausible(c,s.PlayerSpeedMps.Value,!rear)) return false;
