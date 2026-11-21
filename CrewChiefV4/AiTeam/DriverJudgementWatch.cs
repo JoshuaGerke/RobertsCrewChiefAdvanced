@@ -157,6 +157,37 @@ namespace CrewChiefV4.AiTeam
                 new[] { "{n}, bleib bei dir. Lieber eine saubere Runde als zu viel wollen, dann holen wir uns die Plätze zurück.", "{n}, stay with yourself. A clean lap beats trying too hard, then we'll win those places back.", "{n}, céntrate en lo tuyo. Mejor una vuelta limpia que querer demasiado, luego recuperamos las posiciones." });
         }
 
+        /// <summary>Rob 21.11.: auch auf weniger gute Manöver reagieren. Vorbei, aber mit neuem Schaden oder Vorfallpunkten.</summary>
+        internal static string RoughPass(string name, string passed, int variant)
+        {
+            string p = string.IsNullOrWhiteSpace(passed) ? null : passed;
+            string on = p != null ? " gegen " + p : "", onEn = p != null ? " on " + p : "", onEs = p != null ? " sobre " + p : "";
+            return Pick(variant, name,
+                new[] { "Vorbei" + on + ", aber mit Kontakt. Das nächste Mal etwas mehr Platz lassen, {n}.", "Through" + onEn + ", but with contact. Leave a bit more room next time, {n}.", "Pasado" + onEs + ", pero con contacto. La próxima, deja algo más de espacio, {n}." },
+                new[] { "Der Platz ist unser, aber das war eng. Achte auf die Vorfallpunkte, {n}.", "The place is ours, but that was tight. Mind the incident points, {n}.", "El puesto es nuestro, pero ha sido justo. Ojo con los puntos de incidente, {n}." },
+                new[] { "Durch, aber nicht ganz sauber. Lieber eine Kurve später und ohne Berührung.", "Through, but not quite clean. Better a corner later and without contact.", "Pasado, pero no del todo limpio. Mejor una curva más tarde y sin tocar." },
+                new[] { "Das hat am Auto Spuren hinterlassen. Nächstes Manöver mit mehr Geduld, {n}.", "That left a mark on the car. More patience on the next one, {n}.", "Eso ha dejado marca en el coche. Más paciencia en la próxima, {n}." },
+                new[] { "Platz gewonnen, aber mit Berührung. Sauber zählt mehr als schnell, {n}.", "Place gained, but with contact. Clean counts more than quick, {n}.", "Puesto ganado, pero con contacto. Limpio vale más que rápido, {n}." });
+        }
+
+        /// <summary>Rob 21.11.: Überholt und gleich wieder vom selben Auto zurücküberholt.</summary>
+        internal static string Countered(string name, string passed, int variant)
+        {
+            string p = string.IsNullOrWhiteSpace(passed) ? null : passed;
+            string who = p ?? "Er", whoEn = p ?? "He", whoEs = p ?? "Te";
+            return p != null ? Pick(variant, name,
+                new[] { p + " hat direkt gekontert. Beim nächsten Mal den Ausgang sauberer treffen, {n}.", p + " hit straight back. Get a cleaner exit next time, {n}.", p + " ha respondido enseguida. La próxima, mejor salida de curva, {n}." },
+                new[] { "Gleich wieder verloren an " + p + ". Erst die Linie zumachen, dann ist der Platz sicher.", "Lost straight back to " + p + ". Close the line first, then the place is safe.", "Perdido otra vez ante " + p + ". Primero cierra la trazada y el puesto es tuyo." },
+                new[] { p + " ist wieder vorbei. Kein Problem, du bist schneller, nächste Gelegenheit abwarten.", p + " is back ahead. No problem, you're quicker, wait for the next chance.", p + " vuelve a ir delante. Tranquilo, eres más rápido, espera la próxima." },
+                new[] { "Das Manöver hat nicht gehalten, " + p + " kam zurück. Mehr Schwung aus der Kurve mitnehmen, {n}.", "The move didn't stick, " + p + " came back. Carry more speed out of the corner, {n}.", "La maniobra no aguantó, " + p + " volvió. Sal con más velocidad de la curva, {n}." },
+                new[] { "Konter von " + p + ". Ruhig bleiben, der Zweikampf läuft noch.", "Counter from " + p + ". Stay calm, the fight's not over.", "Contraataque de " + p + ". Calma, la pelea sigue." }) : Pick(variant, name,
+                new[] { "Direkt gekontert. Beim nächsten Mal den Ausgang sauberer treffen, {n}.", "Hit straight back. Get a cleaner exit next time, {n}.", "Respuesta inmediata. La próxima, mejor salida de curva, {n}." },
+                new[] { "Gleich wieder verloren. Erst die Linie zumachen, dann ist der Platz sicher.", "Lost straight back. Close the line first, then the place is safe.", "Perdido otra vez. Primero cierra la trazada y el puesto es tuyo." },
+                new[] { who + " ist wieder vorbei. Kein Problem, nächste Gelegenheit abwarten.", whoEn + "'s back ahead. No problem, wait for the next chance.", whoEs + " ha vuelto a pasar. Tranquilo, espera la próxima." },
+                new[] { "Das Manöver hat nicht gehalten. Mehr Schwung aus der Kurve mitnehmen, {n}.", "The move didn't stick. Carry more speed out of the corner, {n}.", "La maniobra no aguantó. Sal con más velocidad de la curva, {n}." },
+                new[] { "Konter bekommen. Ruhig bleiben, der Zweikampf läuft noch.", "Got countered. Stay calm, the fight's not over.", "Te han devuelto el adelantamiento. Calma, la pelea sigue." });
+        }
+
         /// <summary>Den Platz gegen denselben Gegner zurückgeholt, der uns vorher überholt hatte.</summary>
         internal static string Retake(string name, string passed, int variant)
         {
@@ -247,7 +278,8 @@ namespace CrewChiefV4.AiTeam
         private string defendedAttacker;
         private DateTime lastPraise = DateTime.MinValue, lastAny = DateTime.MinValue, lastImpact = DateTime.MinValue, lastImpactCall = DateTime.MinValue;
         private readonly Dictionary<string, int> lastVariant = new Dictionary<string, int>(StringComparer.Ordinal);
-        private Pending overtake;
+        private Pending overtake, countered;
+        internal static readonly TimeSpan CounterWindow = TimeSpan.FromSeconds(20);
         private DateTime impactUtc = DateTime.MinValue;
         private bool impactRepeated;
         private int lastIncidents = -1;
@@ -267,7 +299,7 @@ namespace CrewChiefV4.AiTeam
 
         private sealed class Pending
         {
-            public DateTime Utc; public int Position, Incidents; public float Damage; public string PassedName, PassedIdentity; public bool Stronger, Retake;
+            public DateTime Utc; public int Position, Incidents; public float Damage; public string PassedName, PassedIdentity; public bool Stronger, Retake, Rough;
         }
         // RRCA 2.0 (4.2) Rivalengeschichte: wer uns zuletzt überholt hat. Holt Rob sich den Platz gegen denselben Gegner zurück,
         // ist das eine Geschichte („den hast du dir zurückgeholt“), nicht nur ein weiteres Überholen.
@@ -332,7 +364,14 @@ namespace CrewChiefV4.AiTeam
 
             // Viele Plätze in kurzer Zeit verloren: erst wenn sich die Reihenfolge kurz beruhigt hat.
             int dropped = race && s.CompletedLaps >= 1 ? LostInWindow(s.ClassPosition) : 0;
-            if (dropped >= DropPlaces && now - lastPositionChange >= DropSettle && now - lastDropCall > TimeSpan.FromMinutes(3))
+            // LMU 21.11.: Rad ab, Rob auf dem Weg zur Box – „Das waren gerade 8 Plätze, die holen wir uns wieder“ passte nicht.
+            // Nach schwerem Schaden erklärt die Schadensmeldung den Platzverlust; Ansporn gibt es dann keinen.
+            if (dropped >= DropPlaces && IncidentWatch.IsSerious(gs.CarDamageData))
+            {
+                LiveDiagnostics.Decision("judge-dropped", "suppressed", "serious_damage_explains_the_loss", null);
+                lastDropCall = now; positions.Clear();
+            }
+            else if (dropped >= DropPlaces && now - lastPositionChange >= DropSettle && now - lastDropCall > TimeSpan.FromMinutes(3))
             {
                 Offer(gs, now, "judge-dropped", DriverJudgement.Dropped(name, dropped, Variant("dropped", 6)), "class_position_lost_" + dropped + "_within_45s_without_own_stop", 5, TimeSpan.FromSeconds(40));
                 lastDropCall = now; positions.Clear();
@@ -372,6 +411,14 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
+            if (countered != null && (!race || now - countered.Utc > TimeSpan.FromSeconds(60))) countered = null;
+            if (countered != null && now - lastAny >= AnyGap)
+            {
+                var o = countered; countered = null;
+                Offer(gs, now, "judge-overtake-countered", DriverJudgement.Countered(name, o.PassedName, Variant("countered", 5)),
+                    "same_rival_retook_the_place_within_20s", 4, TimeSpan.FromSeconds(20));
+                return;
+            }
             if (overtake != null && race && now - lastAny >= AnyGap && now - lastPraise >= TimeSpan.FromSeconds(60) && now - overtake.Utc >= TimeSpan.FromSeconds(15))
             {
                 var o = overtake; overtake = null;
@@ -389,8 +436,21 @@ namespace CrewChiefV4.AiTeam
                     return;
                 }
                 // Nicht jedes Überholen braucht ein Lob – nur hart erarbeitete, gegen Schnellere oder jedes dritte saubere.
-                if (clean && (hardFought || o.Stronger || ++overtakeCount % 3 == 0))
+                // Rob 21.11.: „auf gute oder weniger gute Überholmanöver reagieren“. Vorbei und gehalten, aber mit neuem Schaden
+                // oder neuen Vorfallpunkten: ein ehrlicher Hinweis statt Lob.
+                bool held = s.ClassPosition > 0 && s.ClassPosition <= o.Position && now - o.Utc < TimeSpan.FromSeconds(45);
+                bool rough = held && (o.Rough || o.Incidents >= 0 && Incidents(s) > o.Incidents || o.Damage >= 0 && ImpactDamage(gs.CarDamageData) - o.Damage >= 1f);
+                if (rough && !IncidentWatch.IsSerious(gs.CarDamageData))
                 {
+                    Offer(gs, now, "judge-overtake-rough", DriverJudgement.RoughPass(name, o.PassedName, Variant("overtake-rough", 5)),
+                        "position_gain_with_new_damage_or_incident_points", 4, TimeSpan.FromSeconds(25));
+                    lastPraise = now;
+                    return;
+                }
+                // Rob 21.11.: Jedes saubere, gehaltene Überholmanöver bekommt eine Reaktion (höchstens eine pro Minute).
+                if (clean)
+                {
+                    overtakeCount++;
                     float next = s.TimeDeltaFront > 0 ? s.TimeDeltaFront : -1;
                     Offer(gs, now, "judge-overtake", DriverJudgement.Overtake(name, o.PassedName, hardFought, o.Stronger, next, Variant("overtake", 9)),
                         "position_gain_held_without_new_damage_or_incidents", 4, TimeSpan.FromSeconds(25));
@@ -509,7 +569,11 @@ namespace CrewChiefV4.AiTeam
             if (!hit || !green || s.SessionType != SessionType.Race && s.SessionType != SessionType.Practice && s.SessionType != SessionType.Qualify) return;
             if (now - lastImpact < TimeSpan.FromSeconds(10)) { lastImpact = now; return; } // derselbe Abflug
             impactRepeated = lastImpact != DateTime.MinValue && now - lastImpact < TimeSpan.FromMinutes(4);
-            lastImpact = now; impactUtc = now; overtake = null; damage.Clear(); impactCandidateUtc = DateTime.MinValue; spinUtc = DateTime.MinValue;
+            // Kontakt direkt beim Überholen: kein Mitgefühl, sondern später ein ehrlicher Satz zum Manöver.
+            if (overtake != null && now >= overtake.Utc && now - overtake.Utc < TimeSpan.FromSeconds(15) && !IncidentWatch.IsSerious(gs.CarDamageData))
+                overtake.Rough = true;
+            else { impactUtc = now; overtake = null; }
+            lastImpact = now; damage.Clear(); impactCandidateUtc = DateTime.MinValue; spinUtc = DateTime.MinValue;
         }
 
         private void ObservePositions(GameStateData gs, DateTime now, bool racingGreen)
@@ -564,7 +628,16 @@ namespace CrewChiefV4.AiTeam
             if (pos <= 0) { lastPosition = -1; return; }
             int before = lastPosition; lastPosition = pos;
             if (before <= 0) return;
-            if (overtake != null && pos > overtake.Position) overtake = null; // Platz gleich wieder verloren
+            if (overtake != null && pos > overtake.Position)
+            {
+                // Platz gleich wieder verloren. Vom selben Auto kurz danach: ein Konter, auf den die Crew reagiert.
+                var front = RaceDataTools.Neighbour(gs, true);
+                var frontKey = front == null ? null : gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, front)).Key;
+                if (front != null && frontKey != null && overtake.PassedIdentity != null && RaceReader.Identity(frontKey, front) == overtake.PassedIdentity &&
+                    now >= overtake.Utc && now - overtake.Utc < CounterWindow && green && !gs.PitData.InPitlane)
+                    countered = overtake;
+                overtake = null;
+            }
             if (pos == before + 1 && green && !gs.PitData.InPitlane)
             {
                 // Ein Platz verloren: Wer steht jetzt direkt vor uns? Nur ein Gegner auf der Strecke (kein eigener Stopp).
@@ -593,6 +666,9 @@ namespace CrewChiefV4.AiTeam
             };
             if (overtake.PassedIdentity != null && passedBy.TryGetValue(overtake.PassedIdentity, out var lostAt) && now >= lostAt && now - lostAt < RetakeWindow)
                 overtake.Retake = true;
+            // Kontakt kurz vor dem Platzwechsel gehört zum Manöver: statt Mitgefühl später ein Satz zum Überholen.
+            if (lastImpact != DateTime.MinValue && now >= lastImpact && now - lastImpact < TimeSpan.FromSeconds(5) && !IncidentWatch.IsSerious(gs.CarDamageData))
+            { overtake.Rough = true; impactUtc = DateTime.MinValue; }
         }
 
         internal const float PassEvidenceMetres = 300;

@@ -640,7 +640,9 @@ namespace UnitTest.AiTeamTests
             var gs = Race();
             Assert.IsTrue(TyreGripWatch.Window(gs, out float cold, out float hot));
             Assert.AreEqual(80f, cold); Assert.AreEqual(100f, hot);
-            StringAssert.Contains("85 bis 90 sehr gut", TyreGripWatch.WarmText(cold, hot, 0));
+            // Rob 21.11.: „65 Grad, dann 80 bis 90“.
+            StringAssert.Contains("Ab 65 Grad fahrbar, 80 bis 90 ist das Ziel", TyreGripWatch.WarmText(cold, hot, 0));
+            StringAssert.DoesNotContain("70", TyreGripWatch.WarmText(cold, hot, 0));
             StringAssert.Contains("über 80 Grad", TyreGripWatch.WarmText(cold, hot, 0));
             gs.TyreData.FrontLeftTyreType = TyreType.Wet;
             Assert.IsFalse(TyreGripWatch.IsRaceSlick(gs.TyreData.FrontLeftTyreType));

@@ -56,7 +56,8 @@ namespace CrewChiefV4.AiTeam
         internal static bool Allowed(string topic)
         {
             if (string.IsNullOrEmpty(topic)) return false;
-            return topic == "warning-flag-5" || topic == "race-disqualified" || topic == "session-debrief" ||
+            // LMU 21.11.: „Rob, nicht unser Tag …“ zur Aufgabe wurde selbst verworfen, weil die Aufgabe den Ausschluss auslöste.
+            return topic == "warning-flag-5" || topic == "race-disqualified" || topic == "race-retired" || topic == "session-debrief" ||
                 topic.StartsWith("penalty", StringComparison.Ordinal) || topic == "warning-penalty" ||
                 topic.StartsWith("warning-rc-pen", StringComparison.Ordinal);
         }

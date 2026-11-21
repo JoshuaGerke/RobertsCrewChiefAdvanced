@@ -55,7 +55,7 @@ namespace CrewChiefV4.AiTeam
 
         public void Reset()
         {
-            lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = DateTime.MinValue;
+            lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = lastCheckUtc = DateTime.MinValue;
             lastInvalidLap = -1;
             lastReportedCutWarnings = -1;
             TrackLimitWarnings = Spins = InvalidLaps = Penalties = OffTracks = 0;
@@ -135,6 +135,14 @@ namespace CrewChiefV4.AiTeam
         private static int adviceVariant;
         /// <summary>Letzter Kontakt/Schadensanstieg mit eigenem Schadensbericht (die Zahlenmeldung schweigt dann).</summary>
         internal static DateTime LastDamageEventUtc = DateTime.MinValue;
+        /// <summary>
+        /// LMU 21.11.: Ein Abflug mit Einschlag brachte in zwei Sekunden „Du bist von der Strecke“, „Puh, das hat gekracht“ und
+        /// „Alles gut bei dir?“. Pro Zwischenfall fragt Mik einmal nach; nur ein harter Einschlag darf eine frühere,
+        /// leichtere Nachfrage noch ablösen.
+        /// </summary>
+        internal static readonly TimeSpan OneCheckPerIncident = TimeSpan.FromSeconds(12);
+        private DateTime lastCheckUtc = DateTime.MinValue;
+        internal bool RecentCheck(DateTime now) => lastCheckUtc != DateTime.MinValue && now >= lastCheckUtc && now - lastCheckUtc < OneCheckPerIncident;
 
         /// <summary>Ist die laufende Runde gestrichen? In LMU nach dem nativen Wert, sonst nach Crew Chiefs Rundengültigkeit.</summary>
         internal static bool CurrentLapInvalid(GameStateData gs, DateTime nowUtc)
@@ -167,9 +175,11 @@ namespace CrewChiefV4.AiTeam
             bool heavyContact = impactChanged && (previous.PositionAndMotionData.CarSpeed * 3.6f - kmh > 40 || IsSerious(current.CarDamageData));
             if ((impactChanged || DamageIncreased(previous.CarDamageData, current.CarDamageData)) && !inPit)
             {
-                if ((impactChanged || !IsSerious(current.CarDamageData)) && nowUtc - lastContactUtc > TimeSpan.FromSeconds(15))
+                if ((impactChanged || !IsSerious(current.CarDamageData)) && nowUtc - lastContactUtc > TimeSpan.FromSeconds(15) &&
+                    (heavyContact || !RecentCheck(nowUtc)))
                 {
                     result.Add(Say(TeamMember.Mik, impactChanged ? language.Contact(heavyContact) : language.DamageChanged()));
+                    lastCheckUtc = nowUtc;
                 }
                 if (positionBeforeIncident <= 0)
                 {
@@ -245,7 +255,7 @@ namespace CrewChiefV4.AiTeam
                         RadioLanguage.T(" Zuletzt etwa " + gap + " bis zum nächsten Auto hinter dir.", " Last gap to the next car behind was about " + gap + ".",
                             " La última diferencia con el siguiente coche era de unos " + gap + "."));
                 }
-                result.Add(Say(TeamMember.Mik, text));
+                if (!RecentCheck(nowUtc)) { result.Add(Say(TeamMember.Mik, text)); lastCheckUtc = nowUtc; }
             }
 
             // Ausritt: nur Spiele, die den Untergrund melden (RaceRoom z. B. nicht). Kurz übers Gras zählt nicht.
@@ -266,7 +276,7 @@ namespace CrewChiefV4.AiTeam
                             conditions.TrackStatus == ConditionsMonitor.TrackStatus.FLOODED);
                         string text = language.OffTrack(wet);
                         if (!wet && fresh && conditions.RainDensity > 0 && conditions.RainDensity <= 1) text += CrewSpeechPolicy.RainTrackHint;
-                        result.Add(Say(TeamMember.Mik, text));
+                        if (!RecentCheck(nowUtc)) { result.Add(Say(TeamMember.Mik, text)); lastCheckUtc = nowUtc; }
                     }
                 }
             }
@@ -386,7 +396,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Schadensbild in Worten, null wenn die Simulation keinen Schaden meldet bzw. kein Schadensmodell aktiv ist.</summary>
-        public static string DamageReport(CarDamageData d, bool brief = false, bool includeAdvice = true)
+        public static string DamageReport(CarDamageData d, bool brief = false, bool includeAdvice = true, bool wheelsAlreadySaid = false)
         {
             // Im kurzen Routinebericht nur Werte ab 1 Prozent; die ausführliche Auskunft nennt weiter alles ab 0,05.
             var numeric = brief ? NumericDamageWatch.Report(d, 1f) : NumericDamageWatch.Report(d);
@@ -394,7 +404,7 @@ namespace CrewChiefV4.AiTeam
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
-            bool wheelGone = AddWheels(parts, d, ref serious);
+            bool wheelGone = AddWheels(wheelsAlreadySaid ? new List<string>() : parts, d, ref serious);
             Add(parts, RadioLanguage.T("Aero", "Aero", "la aerodinámica"), d.OverallAeroDamage, d.AeroDamagePercent, ref serious);
             AddBody(parts, d);
             Add(parts, RadioLanguage.T("Motor", "Engine", "el motor"), d.OverallEngineDamage, d.EngineDamagePercent, ref serious);
@@ -418,6 +428,13 @@ namespace CrewChiefV4.AiTeam
             }
             else if ((where = SpokenCorner(d.BrakeDamageStatus, DamageLevel.MINOR)) != null)
                 parts.Add(RadioLanguage.T("Bremse " + where + " leicht beschädigt", "Brake lightly damaged " + where, "Daño leve en el freno " + where));
+            // LMU 21.11.: Rad und Box hat der dringende Boxenruf gerade gesagt; die Bewertung ergänzt nur, was dazukommt.
+            if (wheelsAlreadySaid && parts.Count == 0) return null;
+            if (wheelsAlreadySaid)
+            {
+                string extra = string.Join(", ", parts) + ".";
+                return RadioLanguage.T("Dazu: ", "Also: ", "Además: ") + extra;
+            }
             if (parts.Count == 0)
             {
                 if(d.OverallAeroDamage==DamageLevel.UNKNOWN || d.OverallEngineDamage==DamageLevel.UNKNOWN || d.OverallTransmissionDamage==DamageLevel.UNKNOWN)

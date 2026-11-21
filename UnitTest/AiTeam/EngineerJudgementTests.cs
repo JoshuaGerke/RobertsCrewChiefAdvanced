@@ -272,7 +272,9 @@ namespace UnitTest.AiTeamTests
             gs.SessionData.ClassPosition = 5; timo.ClassPosition = 4;
             watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(5));
             watch.Observe(gs, null, false, "Rob", true, T.AddSeconds(16));
-            Assert.IsNull(watch.Take(gs, T.AddSeconds(16), false, true), "Platz gleich wieder verloren");
+            // Rob 21.11.: Kein Lob, aber eine Reaktion auf den Konter desselben Autos.
+            var again = watch.Take(gs, T.AddSeconds(16), false, true);
+            Assert.AreEqual("judge-overtake-countered", again?.Topic, "Platz gleich wieder verloren");
         }
 
         [Test]

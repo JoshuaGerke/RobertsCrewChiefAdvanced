@@ -34,6 +34,12 @@ namespace CrewChiefV4.AiTeam
         /// <summary>RaceRoom Mantorp 21.11.: Hinweis zur Ausfahrt 3 s nach dem Boxenlimit. Er wartet, bis Rob das Limit verdaut hat.</summary>
         internal static readonly TimeSpan PitExitAfterLimit = TimeSpan.FromSeconds(8);
 
+        /// <summary>Flaggen und Rennleitung: Gelb, Grün, Blau, Schwarz, Full Course Yellow, Safety Car.</summary>
+        internal static bool IsFlag(string topic) =>
+            !string.IsNullOrEmpty(topic) && (topic.StartsWith("warning-flag", StringComparison.Ordinal) ||
+            topic.StartsWith("warning-rc-", StringComparison.Ordinal) && !topic.StartsWith("warning-rc-pen", StringComparison.Ordinal) &&
+            !topic.StartsWith("warning-rc-giveback", StringComparison.Ordinal));
+
         internal static RadioRank Classify(string topic)
         {
             if (string.IsNullOrEmpty(topic)) return RadioRank.Event;
@@ -62,7 +68,8 @@ namespace CrewChiefV4.AiTeam
             if (s.StartPhase)
             {
                 if (!RaceRhythm.StartEssential(topic)) { reason = "race_start_phase_essentials_only"; return RadioVerdict.Drop; }
-                if (s.SameHazardNamed) { reason = "race_start_same_hazard_named"; return RadioVerdict.Drop; }
+                // LMU 21.11.: „Sektor 1 ist gelb“ fiel weg, weil Sara 1 s vorher denselben Fahrer genannt hatte. Flaggen nie.
+                if (s.SameHazardNamed && !IsFlag(topic)) { reason = "race_start_same_hazard_named"; return RadioVerdict.Drop; }
             }
             if (Classify(topic) == RadioRank.Data && s.LastSafetyUtc != DateTime.MinValue && s.Now >= s.LastSafetyUtc &&
                 s.Now - s.LastSafetyUtc < DataAfterSafety)

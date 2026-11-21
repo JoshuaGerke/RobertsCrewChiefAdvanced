@@ -46,6 +46,8 @@ namespace CrewChiefV4.AiTeam
         /// Die Crew-Chief-Sammelgrenzen (z. B. 55–95 °C) waren für Slicks zu niedrig und haben zu früh „pushen“ gemeldet.
         /// </summary>
         internal const float SlickGood = 80f, SlickTop = 100f;
+        /// <summary>Rob 21.11.: „65 Grad, dann 80 bis 90“ – ab 65 °C sind Slicks fahrbar, das Ziel sind 80 bis 90 °C.</summary>
+        internal const float SlickUsable = 65f, SlickTargetHigh = 90f;
 
         /// <summary>Regen-, Intermediate- und Straßenreifen haben andere Fenster; dort gelten weiter die Crew-Chief-Grenzwerte.</summary>
         internal static bool IsRaceSlick(TyreType t) => t != TyreType.Wet && t != TyreType.Intermediate && t != TyreType.Road && t != TyreType.Ice &&
@@ -139,7 +141,7 @@ namespace CrewChiefV4.AiTeam
         {
             bool slickGuide = cold == SlickGood && top == SlickTop;
             string window = slickGuide
-                ? RadioLanguage.T(" Ab 80 Grad gut, 85 bis 90 sehr gut.", " 80 degrees and up is good, 85 to 90 is ideal.", " Desde 80 grados bien, de 85 a 90 ideal.")
+                ? RadioLanguage.T(" Ab 65 Grad fahrbar, 80 bis 90 ist das Ziel.", " Usable from 65 degrees, 80 to 90 is the target.", " Utilizables desde 65 grados, el objetivo es de 80 a 90.")
                 : top > 0 ? RadioLanguage.T(" Fenster etwa " + RadioLanguage.Num(cold, "0") + " bis " + RadioLanguage.Num(top, "0") + " Grad.",
                     " Window about " + RadioLanguage.Num(cold, "0") + " to " + RadioLanguage.Num(top, "0") + " degrees.",
                     " Ventana de unos " + RadioLanguage.Num(cold, "0") + " a " + RadioLanguage.Num(top, "0") + " grados.") : "";

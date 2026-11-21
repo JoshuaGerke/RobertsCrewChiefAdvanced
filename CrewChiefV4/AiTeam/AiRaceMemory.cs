@@ -9,6 +9,9 @@ namespace CrewChiefV4.AiTeam
     {
         public int LapNumber;
         public float LapTime = -1;
+        /// <summary>Selbst gestoppt (Sessionuhr zwischen zwei Überfahrten), -1 = unbekannt. LMU liefert für gestrichene
+        /// Runden meist keine Zeit; dann sagt die Crew „etwa“ und nennt diese Zeit.</summary>
+        public float ClockLapTime = -1;
         public bool Valid;
         internal bool Green;
         public int Position;
@@ -58,6 +61,8 @@ namespace CrewChiefV4.AiTeam
         private bool greenDuringLap;
         private SessionType lastSessionType = SessionType.Unavailable;
         private int lastRecordedLap = -1;
+        private float lapClockStart = -1;
+        private int lapClockLap = -1;
 
         public DateTime LastTickUtc { get; private set; } = DateTime.MinValue;
         public int SessionId { get; private set; } = int.MinValue;
@@ -72,7 +77,7 @@ namespace CrewChiefV4.AiTeam
                 radio.Clear();
                 SessionId = int.MinValue;
                 LastTickUtc = DateTime.MinValue;
-                lastRecordedLap = -1;
+                lastRecordedLap = -1; lapClockStart = -1; lapClockLap = -1;
                 RecordedInvalidLaps = 0;
                 fuelAtLapStart = -1;
                 previousFuel = -1;
@@ -107,6 +112,7 @@ namespace CrewChiefV4.AiTeam
                     events.Clear();
                     radio.Clear();
                     lastRecordedLap = -1;
+                    lapClockStart = -1; lapClockLap = -1;
                     RecordedInvalidLaps = 0;
                     // erst ab der ersten Überfahrt messen, sonst zählen Einführungsrunde und Startaufstellung mit
                     fuelAtLapStart = -1;
@@ -160,6 +166,10 @@ namespace CrewChiefV4.AiTeam
                         InPitLap = pitDuringLap,
                         RecordedUtc = nowUtc,
                     };
+                    float clock = current.SessionData.SessionRunningTime;
+                    if (lapClockLap == record.LapNumber - 1 && lapClockStart >= 0 && clock > lapClockStart && clock - lapClockStart < 3600)
+                        record.ClockLapTime = clock - lapClockStart;
+                    lapClockStart = clock; lapClockLap = record.LapNumber;
                     var frontCar = RaceDataTools.Neighbour(current, true);
                     var rearCar = RaceDataTools.Neighbour(current, false);
                     if (frontCar != null) record.FrontIdentity = RaceReader.Identity(current.OpponentData.First(p => ReferenceEquals(p.Value, frontCar)).Key, frontCar);

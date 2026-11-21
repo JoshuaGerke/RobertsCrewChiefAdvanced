@@ -44,8 +44,10 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(RadioVerdict.Drop, RadioDirectorPolicy.Decide("position-loss", start, out _));
             Assert.AreEqual(RadioVerdict.Send, RadioDirectorPolicy.Decide("race-hazard-ahead", start, out _));
             start.SameHazardNamed = true;
-            Assert.AreEqual(RadioVerdict.Drop, RadioDirectorPolicy.Decide("warning-rc-yellow-1", start, out var why));
+            Assert.AreEqual(RadioVerdict.Drop, RadioDirectorPolicy.Decide("race-hazard-ahead", start, out var why));
             Assert.AreEqual("race_start_same_hazard_named", why);
+            // LMU 21.11.: Flaggen kommen trotzdem – „Sektor 1 ist gelb“ darf nicht wegfallen.
+            Assert.AreEqual(RadioVerdict.Send, RadioDirectorPolicy.Decide("warning-rc-yellow-1", start, out _));
             var outOfRace = new RadioSituation { PlayerOut = true, Now = T };
             Assert.AreEqual(RadioVerdict.Drop, RadioDirectorPolicy.Decide("pit-limit", outOfRace, out _));
             Assert.AreEqual(RadioVerdict.Send, RadioDirectorPolicy.Decide("warning-flag-5", outOfRace, out _));

@@ -448,6 +448,21 @@ namespace CrewChiefV4.AiTeam
         public static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, int incomingPriority)
         { return currentIsAi && !currentIsSpotter && !currentIsBleep && incomingPriority >= 7 && currentPriority < incomingPriority; }
 
+        /// <summary>Stufe, ab der eine Gefahr eine Antwort an Rob abschneiden darf (dringende Gefahr, Flagge, Schaden mit „Box“).</summary>
+        internal const int InterruptAnswerPriority = 8;
+
+        /// <summary>
+        /// LMU 21.11.: Sara schnitt viermal Antworten an Rob ab, darunter mit „Der stehende Wagen ist noch da“ und einem langsamen
+        /// Auto 200 m voraus. Eine Antwort auf Robs Frage (Clip ohne Thema) weicht nur noch einer dringenden Gefahr ab Stufe 8.
+        /// </summary>
+        internal static bool CanInterruptForHazard(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority,
+            int incomingPriority, string currentTopic)
+        {
+            bool answer = currentIsAi && string.IsNullOrEmpty(currentTopic);
+            return CanInterruptForHazard(currentIsAi, currentIsSpotter, currentIsBleep, currentPriority, incomingPriority) &&
+                (!answer || incomingPriority >= InterruptAnswerPriority);
+        }
+
         internal static bool CanInterruptForResult(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep,
             int currentPriority, string currentTopic = null, string nextTopic = null)
         {

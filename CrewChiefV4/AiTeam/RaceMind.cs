@@ -324,6 +324,14 @@ namespace CrewChiefV4.AiTeam
             if (Essential(call)) return MindVerdict.Admit;
             string t = call.Topic ?? "";
             bool lastLaps = x.Phase == RacePhase.LastLap || x.Phase == RacePhase.Finished;
+            // Rob 21.11.: eingestellte Berichte, die schon zu lange warten, kommen in der nächsten freien Lücke – auch im
+            // Zweikampf oder Verkehr. Nur unter Gelb und in der Box warten sie weiter, in der letzten Runde entfallen sie.
+            if (call.Guaranteed)
+            {
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit) { reason = "caution_or_pit_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
             bool driverBusy = x.Attention == RaceAttention.Battle || x.Attention == RaceAttention.Caution;
 
             // C7 (Rob 18.11.): Kritik bleibt drin, nur das Timing folgt der Stimmung. Unter Druck wartet sie, bis Luft ist;
@@ -406,7 +414,8 @@ namespace CrewChiefV4.AiTeam
             { reason = "position_just_reported"; return MindVerdict.Drop; }
             if (t == "position" || t == "position-loss") lastPositionNews = now;
             // Funklast: je angespannter und je mehr schon gefunkt wurde, desto wichtiger muss eine Ansage sein.
-            if (!Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }
+            // Ein zugesagter Routinebericht hat schon lange genug gewartet; die Funklast hält ihn nicht noch einmal auf.
+            if (!call.Guaranteed && !Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }
             // Frustriert: höchstens ein Fahrtechnik-Hinweis je zwei Minuten, die übrigen entfallen.
             if (DriverMood.IsCoaching(t) && latest != null && latest.SessionId == call.SessionId && latest.Fresh(now) && latest.Mood == DriverMoodState.Frustration)
             {

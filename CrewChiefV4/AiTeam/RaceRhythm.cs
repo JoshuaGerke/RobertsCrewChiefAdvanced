@@ -84,7 +84,9 @@ namespace CrewChiefV4.AiTeam
                 topic.StartsWith("race-traffic", StringComparison.Ordinal) || topic.StartsWith("race-class", StringComparison.Ordinal) ||
                 topic.StartsWith("pit-", StringComparison.Ordinal) || topic.StartsWith("penalty", StringComparison.Ordinal) ||
                 topic.StartsWith("damage", StringComparison.Ordinal) || topic.StartsWith("spotter", StringComparison.Ordinal) ||
-                topic == "race-start" || topic == "race-disqualified" || topic == "race-retired" || topic == "formation";
+                topic == "race-start" || topic == "race-disqualified" || topic == "race-retired" || topic == "formation" ||
+                // LMU 21.11.: Schaden nach Kontakt und das Startfazit („9 Plätze gutgemacht“) gehören zum Nötigsten.
+                topic.StartsWith("incident-damage", StringComparison.Ordinal) || topic == "start-verdict";
         }
 
         /// <summary>Einmal je Spielzustand; true genau dann, wenn sich das Feld gerade beruhigt hat.</summary>

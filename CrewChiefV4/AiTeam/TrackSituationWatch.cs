@@ -93,6 +93,7 @@ namespace CrewChiefV4.AiTeam
         public const double AlertSeconds=6;
         private readonly Dictionary<string,DateTime> last=new Dictionary<string,DateTime>();
         private DateTime lastAny=DateTime.MinValue, lastTick=DateTime.MinValue;
+        internal static readonly TimeSpan RepeatAfter=TimeSpan.FromSeconds(90), SameCarAfterAttempt=TimeSpan.FromSeconds(20);
         private int session=int.MinValue,variant,epoch;
         private SessionType type;
         private bool wasNewSession;
@@ -135,7 +136,14 @@ namespace CrewChiefV4.AiTeam
             {
                 if(pending.DeliveryStartedUtc!=DateTime.MinValue)
                 {last[pendingKey]=lastAny=pending.DeliveryStartedUtc;pending=null;}
-                else if(!pending.IsValid(state,now)) pending=null;
+                else if(!pending.IsValid(state,now))
+                {
+                    // LMU 21.11. (Quali): „Sehr langsamer Wagen vor dir … Ahmad Dwaik“ wurde beim Abspielen verworfen und zehn
+                    // Sekunden später als „langsamer Verkehr direkt voraus … Ahmad Dwaik“ wiederholt. Ein angefangener Versuch
+                    // sperrt dasselbe Auto für SameCarAfterAttempt.
+                    if(pending.Attempted && pendingKey!=null) last[pendingKey]=now-RepeatAfter+SameCarAfterAttempt;
+                    pending=null;
+                }
             }
             // Remove obsolete identities without retaining an unbounded opponent history.
             if(last.Count>512) last.Clear();
@@ -152,7 +160,7 @@ namespace CrewChiefV4.AiTeam
                 bool ordinaryClosing = car.RouteGapM > 0 && !Relevant(car,s.PlayerSpeedMps.Value,true,AlertSeconds);
                 string topic=ordinaryClosing ? "traffic-closing-ahead" : car.RouteGapM>0?"traffic-catching":"traffic-approaching";
                 string key=car.Id+"|"+topic;DateTime previous;
-                if(last.TryGetValue(key,out previous) && (now<previous || now-previous<TimeSpan.FromSeconds(90))) continue;
+                if(last.TryGetValue(key,out previous) && (now<previous || now-previous<RepeatAfter)) continue;
                 string[] phrases=topic=="traffic-approaching"?ApproachingPhrases:car.SpeedMps<=1?StoppedPhrases:CatchingPhrases;
                 // LMU 18.11. (Training): LMP2 überholte Rob, angesagt wurde nur „schneller Wagen“. Andere Klasse jetzt mit Klasse.
                 bool otherClass=MulticlassTraffic.OtherClass(car) && (topic=="traffic-approaching" || topic=="traffic-closing-ahead");

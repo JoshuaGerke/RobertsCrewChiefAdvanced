@@ -132,6 +132,11 @@ namespace UnitTest.AiTeamTests
             observer.Observe(gs, null, Now, true);
             gs.SessionData.CompletedLaps = 3;
             observer.Observe(gs, new LapRecord { LapNumber = 3, LapTime = 126.33136f, Valid = false }, Now.AddSeconds(1), true);
+            var deleted = observer.Take(gs, Now.AddSeconds(1), false);
+            Assert.IsNotNull(deleted, "Auch eine gestrichene Rennrunde bekommt ihren Kommentar.");
+            Assert.AreEqual("race-lap", deleted.Topic);
+            StringAssert.IsMatch("(?i)gestrichen|nicht gewertet|ohne Wertung|fällt raus|zählt nicht", deleted.Text);
+            StringAssert.DoesNotContain("Bestzeit", deleted.Text);
             Assert.IsNull(observer.Take(gs, Now.AddSeconds(1), false));
 
             gs.SessionData.CompletedLaps = 4;

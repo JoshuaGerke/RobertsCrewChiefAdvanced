@@ -584,7 +584,8 @@ namespace CrewChiefV4.Audio
             // Inspect and stop the same sound instance. A concurrent Sara clip must never be stopped instead.
             var sound = System.Threading.Volatile.Read(ref currentlyPlayingSound);
             if (AudioPlayer.playWithNAudio && sound != null &&
-                AiTeam.CrewSpeechPolicy.CanInterruptForHazard(sound.isAiAudio, sound.isSpotter, sound.isBleep, sound.playbackPriority, priority))
+                AiTeam.CrewSpeechPolicy.CanInterruptForHazard(sound.isAiAudio, sound.isSpotter, sound.isBleep, sound.playbackPriority, priority,
+                    sound.AiAudioTopic))
                 sound.Stop();
         }
 

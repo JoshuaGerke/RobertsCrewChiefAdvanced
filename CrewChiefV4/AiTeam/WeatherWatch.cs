@@ -102,8 +102,8 @@ namespace CrewChiefV4.AiTeam
                     Add(gs,now,"wetness",language.WeatherWetness(value>wetness.Value),4,"measured_surface_wetness_transition",
                         live=>Wet(live.Conditions.LatestConditions)==value,()=>wetness=value);
                 }
-                Temperature(gs,now,c.AmbientTemperature,-40,70,2,"air","Luft",ref air);
-                Temperature(gs,now,c.TrackTemperature,-40,90,3,"track","Strecke",ref track);
+                Temperature(gs,now,c.AmbientTemperature,-40,70,2,"air","Lufttemperatur",ref air);
+                Temperature(gs,now,c.TrackTemperature,-40,90,3,"track","Streckentemperatur",ref track);
                 if(Good(c.WindSpeed,.01f,150)) {
                     if(!wind.HasValue)wind=c.WindSpeed;
                     else if(Math.Abs(c.WindSpeed-wind.Value)>=4) {
@@ -126,7 +126,8 @@ namespace CrewChiefV4.AiTeam
             if(!baseline.HasValue){baseline=value;return;}
             if(Math.Abs(value-baseline.Value)<threshold)return;
             string n=Number(value);
-            Add(gs,now,topic,RadioLanguage.T(name+"temperatur verändert: jetzt "+n+" Grad.",(topic=="air"?"Air":"Track")+" temperature has changed: now "+n+" degrees.",
+            // LMU 21.11.: aus „Strecke“ + „temperatur“ wurde „Strecketemperatur“. Der Name kommt jetzt vollständig.
+            Add(gs,now,topic,RadioLanguage.T(name+" verändert: jetzt "+n+" Grad.",(topic=="air"?"Air":"Track")+" temperature has changed: now "+n+" degrees.",
                 "La temperatura "+(topic=="air"?"del aire":"de la pista")+" ha cambiado: ahora "+n+" grados."),2,"measured_temperature_change",
                 live=>live.Conditions.LatestConditions!=null && Math.Abs((topic=="air"?live.Conditions.LatestConditions.AmbientTemperature:live.Conditions.LatestConditions.TrackTemperature)-value)<=.5f,
                 ()=> { if(topic=="air")air=value;else track=value; });
