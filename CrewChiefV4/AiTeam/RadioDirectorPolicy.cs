@@ -14,6 +14,8 @@ namespace CrewChiefV4.AiTeam
         public bool PlayerOut, StartPhase, SameHazardNamed;
         /// <summary>Zuletzt gesendete Sicherheitsmeldung; MinValue = keine.</summary>
         public DateTime LastSafetyUtc;
+        /// <summary>Zuletzt gesendete Erinnerung ans Boxenlimit; MinValue = keine.</summary>
+        public DateTime LastPitLimitUtc;
         public DateTime Now;
     }
 
@@ -24,10 +26,13 @@ namespace CrewChiefV4.AiTeam
     /// - Startphase: nur Sicherheit und Pflicht; derselbe Fahrer binnen 10 s nur einmal als Gefahr (RaceRoom Mantorp).
     /// - Datenmeldungen (Status, Zwischenstand, Pace, Coaching) warten 6 s nach einer Sicherheitsmeldung, damit Rob nach
     ///   „Gelb!“ oder „Unfall voraus!“ nicht sofort die Platzstatistik hört.
+    /// - Der Hinweis zur Boxenausfahrt wartet 8 s nach der Erinnerung ans Boxenlimit (RaceRoom Mantorp).
     /// </summary>
     internal static class RadioDirectorPolicy
     {
         internal static readonly TimeSpan DataAfterSafety = TimeSpan.FromSeconds(6);
+        /// <summary>RaceRoom Mantorp 21.11.: Hinweis zur Ausfahrt 3 s nach dem Boxenlimit. Er wartet, bis Rob das Limit verdaut hat.</summary>
+        internal static readonly TimeSpan PitExitAfterLimit = TimeSpan.FromSeconds(8);
 
         internal static RadioRank Classify(string topic)
         {
@@ -62,6 +67,9 @@ namespace CrewChiefV4.AiTeam
             if (Classify(topic) == RadioRank.Data && s.LastSafetyUtc != DateTime.MinValue && s.Now >= s.LastSafetyUtc &&
                 s.Now - s.LastSafetyUtc < DataAfterSafety)
             { reason = "data_waits_after_safety_call"; return RadioVerdict.Hold; }
+            if (topic == "pit-exit" && s.LastPitLimitUtc != DateTime.MinValue && s.Now >= s.LastPitLimitUtc &&
+                s.Now - s.LastPitLimitUtc < PitExitAfterLimit)
+            { reason = "pit_exit_waits_after_pit_limit"; return RadioVerdict.Hold; }
             return RadioVerdict.Send;
         }
     }

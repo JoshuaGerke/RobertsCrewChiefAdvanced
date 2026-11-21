@@ -2123,6 +2123,7 @@ namespace CrewChiefV4.AiTeam
         internal static readonly TimeSpan MandatoryPenaltyWindow = TimeSpan.FromSeconds(90);
         private readonly StartHazardNames startNames = new StartHazardNames();
         private DateTime lastSafetyCallUtc = DateTime.MinValue;
+        private DateTime lastPitLimitCallUtc = DateTime.MinValue;
         private volatile string spokenGreetingField;
 
         /// <summary>Wurde die laut Spiel gleiche Session in den letzten 15 Minuten schon begrüßt?</summary>
@@ -2468,7 +2469,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     PlayerOut = RaceExclusion.Active(live), StartPhase = start,
                     SameHazardNamed = start && startNames.NamedRecently(call.OpponentNameClip, at),
-                    LastSafetyUtc = lastSafetyCallUtc, Now = at,
+                    LastSafetyUtc = lastSafetyCallUtc, LastPitLimitUtc = lastPitLimitCallUtc, Now = at,
                 };
                 var verdict = RadioDirectorPolicy.Decide(call.Topic, situation, out string why);
                 if (verdict == RadioVerdict.Drop)
@@ -2484,6 +2485,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 if (start) startNames.Note(call.OpponentNameClip, at);
                 if (RadioDirectorPolicy.Classify(call.Topic) == RadioRank.Safety) lastSafetyCallUtc = at;
+                if (call.Topic == "pit-limit") lastPitLimitCallUtc = at;
             }
             if (call.Topic == "greeting" || call.Topic == "track-welcome")
             {
@@ -2893,6 +2895,21 @@ namespace CrewChiefV4.AiTeam
             return SaraLocal.NoDataAnswer;
         }
 
+        /// <summary>Fahrernamen aus Lagebild und Crew Chief, nur für die Aussprache.</summary>
+        private static IEnumerable<string> SpokenNameSources()
+        {
+            var names = new List<string>();
+            try
+            {
+                var view = Field.FieldPicture.Shared.Current;
+                if (view?.Cars != null) names.AddRange(view.Cars.Where(c => c != null).Select(c => c.Name));
+                var gs = CrewChief.currentGameState;
+                if (gs?.OpponentData != null) names.AddRange(gs.OpponentData.Values.Where(o => o != null).Select(o => o.DriverRawName));
+            }
+            catch (Exception) { } // Lesen während eines Sessionwechsels: dann eben ohne Namensaussprache
+            return names;
+        }
+
         private async Task<byte[]> RenderAsync(TeamMember member, string text, CancellationToken ct, string eventId = null, bool preparePhrase = false)
         {
             using (var diagnosticSpan = LiveDiagnostics.Begin("tts", LiveDiagnostics.Data("speaker",member.ToString()), eventId))
@@ -2900,7 +2917,9 @@ namespace CrewChiefV4.AiTeam
                 try
                 {
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("tts.render",LiveDiagnostics.Data("speaker",member.ToString(),"service",settings.TtsProvider.ToString(),"model",settings.TtsProvider==AiTtsProvider.ELEVENLABS?settings.ElevenLabsModel:settings.TtsModel));
-            string cacheKey = CrewSpeechPolicy.CacheKey(settings, member, text);
+            // Namen in Großbuchstaben spricht die Stimme als Namen statt Buchstabe für Buchstabe (RaceRoom Mantorp 21.11.).
+            string named = SpokenNames.Prepare(text, SpokenNameSources());
+            string cacheKey = CrewSpeechPolicy.CacheKey(settings, member, named);
             lock (phraseCache)
             {
                 byte[] cached;
@@ -2912,7 +2931,7 @@ namespace CrewChiefV4.AiTeam
             }
             // kurze Standardsätze liegen dauerhaft auf der Platte, damit sie nur einmal Credits kosten
             bool cacheable = preparePhrase || CrewSpeechPolicy.IsPreparedPhrase(member, text);
-            string diskFile = cacheable ? PhraseCacheFile(member, text) : null;
+            string diskFile = cacheable ? PhraseCacheFile(member, named) : null;
             if (diskFile != null && File.Exists(diskFile))
             {
                 try
@@ -2928,7 +2947,7 @@ namespace CrewChiefV4.AiTeam
                 catch (Exception) { }
             }
             // Pronunciation only: validation, diagnostics and cache identity keep the exact factual text.
-            string spokenText = GermanRadioText.Prepare(text, pitWall: member != TeamMember.Sara);
+            string spokenText = GermanRadioText.Prepare(named, pitWall: member != TeamMember.Sara);
             // Respect the selected source. A failed provider must not change the crew's identity.
             byte[] pcm = null;
             if (settings.TtsProvider == AiTtsProvider.ELEVENLABS && elevenLabs.HasKey && !ElevenLabsPaused)

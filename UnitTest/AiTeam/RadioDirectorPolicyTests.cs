@@ -63,5 +63,19 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(CrewSpeechPolicy.CanInterruptForHazard(true, false, false, 6, FlagWatch.Priority(FlagWatch.Phrases[1])));
             Assert.IsTrue(CrewSpeechPolicy.CanInterruptForHazard(true, false, false, 6, FlagWatch.Priority(FlagWatch.Phrases[0])));
         }
+
+        [Test]
+        public void Pit_exit_hint_waits_after_the_pit_limit_reminder()
+        {
+            // RaceRoom Mantorp 15:27:16 Boxenlimit beim Losfahren, 15:27:19 schon der Ausfahrt-Hinweis hinterher.
+            var s = new RadioSituation { LastPitLimitUtc = T, Now = T.AddSeconds(3) };
+            Assert.AreEqual(RadioVerdict.Hold, RadioDirectorPolicy.Decide("pit-exit", s, out var why));
+            Assert.AreEqual("pit_exit_waits_after_pit_limit", why);
+            s.Now = T.AddSeconds(8);
+            Assert.AreEqual(RadioVerdict.Send, RadioDirectorPolicy.Decide("pit-exit", s, out _));
+            s.Now = T.AddSeconds(3);
+            Assert.AreEqual(RadioVerdict.Send, RadioDirectorPolicy.Decide("pit-limit", s, out _), "Das Limit selbst wartet nie.");
+            Assert.AreEqual(RadioVerdict.Send, RadioDirectorPolicy.Decide("pit-exit", new RadioSituation { Now = T }, out _));
+        }
     }
 }
