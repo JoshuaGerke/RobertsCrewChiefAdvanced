@@ -169,6 +169,26 @@ namespace UnitTest.AiTeamTests
             Assert.IsTrue(call.IsValid(garage, T.AddSeconds(1)));
         }
 
+        // ---------- Strafen ----------
+
+        [Test]
+        public void New_penalty_waits_for_a_free_radio_and_is_valid_in_the_pit_lane()
+        {
+            var w = new LiveWarningDispatcher();
+            var gs = Race(); gs.PitData.InPitlane = true; // Strafe für Tempo in der Boxengasse
+            DateTime at = T;
+            w.Offer("warning-penalty", "Wir haben eine Durchfahrtsstrafe bekommen.", TeamMember.Ben, 9, gs, at, live => true, "mapped_penalty_data",
+                timed: (live, when) => when >= at && when - at < AiTeamService.MandatoryPenaltyWindow);
+            Assert.IsNull(w.Take(gs, at.AddSeconds(1), true, _ => true), "Funk belegt");
+            for (int i = 2; i <= 40; i += 2) w.Observe(gs, at.AddSeconds(i)); // 40 s belegt: früher nach 6 s verworfen
+            var call = w.Take(gs, at.AddSeconds(41), false, _ => true);
+            Assert.IsNotNull(call, "Pflicht bleibt stehen");
+            Assert.AreEqual("warning-penalty", call.Topic);
+            Assert.IsTrue(RaceExclusion.Allowed("warning-penalty"));
+            Assert.IsTrue(RaceExclusion.Allowed("warning-rc-pen-laps-1"));
+            Assert.IsTrue(RaceRhythm.StartEssential("warning-penalty"));
+        }
+
         // ---------- Sektor-Gelb ----------
 
         private static GameStateData Flag(FlagEnum f) { var g = Race(); g.SessionData.Flag = f; return g; }

@@ -40,6 +40,10 @@ namespace CrewChiefV4.AiTeam
         public int TrackLimitWarnings { get; private set; }
         public int InvalidLaps { get; private set; }
         public int Penalties { get; private set; }
+        private string penaltyCall;
+
+        /// <summary>Neue Strafe als Pflichtmeldung, einmal abholbar; null = keine.</summary>
+        internal string TakePenaltyCall() { string c = penaltyCall; penaltyCall = null; return c; }
         public int OffTracks { get; private set; }
         private DateTime offTrackSinceUtc = DateTime.MinValue;
         private bool offTrackCounted;
@@ -308,7 +312,9 @@ namespace CrewChiefV4.AiTeam
                 string unknownType = p.NumOutstandingPenalties > pp.NumOutstandingPenalties && !serve && !p.HasTimeDeduction && !p.HasSlowDown &&
                     p.PenaltyType == PenatiesData.DetailedPenaltyType.NONE
                     ? RadioLanguage.T(" Die Art meldet das Spiel nicht, schau kurz aufs Display.", " The game doesn't say which kind, check your display.", " El juego no dice de qué tipo, mira la pantalla.") : "";
-                result.Add(Say(TeamMember.Ben, got + serveText + unknownType));
+                // Strafen sind Pflicht (Masterprompt Kap. 10): nicht nach 6 s verwerfen, sondern über die Warnungen, bis gesagt.
+                penaltyCall = got + serveText + unknownType;
+                result.Add(Say(TeamMember.Ben, penaltyCall));
             }
             else if (PenaltyServed(pp, p, current, previous) && !(nowUtc >= NativeRaceControl.LastServedUtc && nowUtc - NativeRaceControl.LastServedUtc < TimeSpan.FromSeconds(30)))
             {

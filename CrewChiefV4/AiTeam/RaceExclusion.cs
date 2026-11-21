@@ -57,7 +57,8 @@ namespace CrewChiefV4.AiTeam
         {
             if (string.IsNullOrEmpty(topic)) return false;
             return topic == "warning-flag-5" || topic == "race-disqualified" || topic == "session-debrief" ||
-                topic.StartsWith("penalty", StringComparison.Ordinal);
+                topic.StartsWith("penalty", StringComparison.Ordinal) || topic == "warning-penalty" ||
+                topic.StartsWith("warning-rc-pen", StringComparison.Ordinal);
         }
     }
 }

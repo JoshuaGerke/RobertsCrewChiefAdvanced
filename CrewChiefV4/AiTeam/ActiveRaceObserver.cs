@@ -311,11 +311,13 @@ namespace CrewChiefV4.AiTeam
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             // Schwarze Flagge ist Pflicht und gilt auch, wenn die Sim Rob danach in die Box versetzt (AC Monza 21.11.).
             bool blackFlag = Topic == "warning-flag-5" && RaceExclusion.Active(gs);
+            // Strafe für Tempo in der Boxengasse kommt in der Boxengasse – dort muss sie auch gesagt werden dürfen.
+            bool penalty = Topic == "warning-penalty" || (Topic ?? "").StartsWith("warning-rc-pen", StringComparison.Ordinal);
             bool phaseValid = blackFlag || retiredAfterFlag || disqualified || liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                (!gs.PitData.InPitlane || blackFlag || disqualified || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
+                (!gs.PitData.InPitlane || blackFlag || penalty || disqualified || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, now, true, AheadName, AheadGap) && GapStillValid(gs, now, false, BehindName, BehindGap);
         }

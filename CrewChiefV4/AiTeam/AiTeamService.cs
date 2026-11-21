@@ -457,9 +457,12 @@ namespace CrewChiefV4.AiTeam
                         opponentNameClip: incidentDriver == null ? null : RaceTrafficWatch.NameClipText(incidentDriver));
                 }
             }
-            foreach (var incident in incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL))
+            var incidents = incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL);
+            string penaltyCall = incidentWatch.TakePenaltyCall();
+            foreach (var incident in incidents)
             {
                 var radio = incident;
+                if (penaltyCall != null && radio.Value == penaltyCall) continue; // Pflichtmeldung, läuft über die Warnungen
                 if (excluded) { LiveDiagnostics.Decision("incident", "suppressed", "player_out_of_race", radio.Value); continue; }
                 if(CrewSpeechPolicy.TrackLimitPhrases.Contains(radio.Value))
                 {
@@ -479,6 +482,12 @@ namespace CrewChiefV4.AiTeam
                 int incidentPriority = CrewSpeechPolicy.HeavyContactPhrases.Contains(radio.Value) ? 7 : 6;
                 // The following priority-7 damage report may not interrupt the driver's safety check.
                 Task.Run(() => SpeakAsync(radio.Key, radio.Value, true, CancellationToken.None, valid, true, incidentPriority));
+            }
+            if (penaltyCall != null && !excluded)
+            {
+                DateTime penaltyAt = now;
+                liveWarnings.Offer("warning-penalty", penaltyCall, TeamMember.Ben, 9, current, now, live => true, "mapped_penalty_data",
+                    timed: (live, when) => when >= penaltyAt && when - penaltyAt < MandatoryPenaltyWindow);
             }
             bool lateRace = current.SessionData.SessionType == SessionType.Race &&
                 (current.SessionData.SessionPhase == SessionPhase.Green || current.SessionData.SessionPhase == SessionPhase.Checkered) &&
@@ -2109,6 +2118,8 @@ namespace CrewChiefV4.AiTeam
         private DateTime greetingRetryAfter = DateTime.MinValue;
         private volatile ObservedRaceCall spokenGreeting;
         private readonly RaceRhythm raceRhythm = new RaceRhythm();
+        /// <summary>Eine neue Strafe bleibt so lange stehen, bis sie gesagt ist (höchstens 90 s, dann ist sie überholt).</summary>
+        internal static readonly TimeSpan MandatoryPenaltyWindow = TimeSpan.FromSeconds(90);
         private readonly StartHazardNames startNames = new StartHazardNames();
         private volatile string spokenGreetingField;
 
