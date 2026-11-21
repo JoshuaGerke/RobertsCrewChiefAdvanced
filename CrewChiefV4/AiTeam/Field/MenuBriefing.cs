@@ -26,8 +26,10 @@ namespace CrewChiefV4.AiTeam.Field
         /// AC Monza 21.11.: Nach der schwarzen Flagge stellte AC Rob in die Garage, das Rennen lief weiter (Phase Green,
         /// noch 4 Runden) – und Ben begrüßte ihn zum Rennen. Ein Rennen, das schon läuft oder vorbei ist, wird nicht begrüßt.
         /// </summary>
+        /// RaceRoom Mantorp 21.11.: 15:49:44, 30 s nach der Zielflagge, Rob im Menü (Phase unbekannt, 0 Runden übrig) –
+        /// „Viel Erfolg, leg los!“. Keine Runde mehr übrig heißt: Das Rennen ist für Rob vorbei.
         internal static bool RaceUnderway(FieldView v) => v != null && v.Session == FieldSession.Race &&
-            (v.Phase == FieldPhase.Checkered || v.Phase == FieldPhase.Green && v.Player != null &&
+            (v.Phase == FieldPhase.Checkered || v.PlayerLapsLeft == 0 || v.Phase == FieldPhase.Green && v.Player != null &&
              (v.Player.CompletedLaps > 0 || v.Player.Motion == CarMotion.Finished || v.Player.Motion == CarMotion.Retired));
 
         internal static int FieldSize(FieldView v) => v == null ? 0 : Math.Max(v.NumCars, v.MaxPlace);

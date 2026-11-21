@@ -294,6 +294,7 @@ namespace CrewChiefV4.AiTeam
                 Corners.SetTrack(null, 0);
                 pendingGreeting = null; greetingAttempts = 0; greetingRetryAfter = DateTime.MinValue;
                 trackWelcome = null; trackWelcomeDone = false;
+                RaceStartLatch.Reset();
                 Interlocked.Exchange(ref callsThisSession, 0);
                 lastProactiveLap = -1;
                 fuelWatch.Reset();

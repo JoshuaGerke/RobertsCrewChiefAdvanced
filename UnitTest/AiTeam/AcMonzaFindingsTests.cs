@@ -113,6 +113,31 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(AiTeamService.FieldAlreadyGreeted(null, at, null, at.AddSeconds(5)), "ohne Lagebild keine Sperre");
         }
 
+        [Test]
+        public void No_greeting_after_the_finish_when_no_lap_is_left()
+        {
+            // RaceRoom Mantorp 21.11., 15:49:44: Rob nach der Zielflagge im Menü, Phase unbekannt, 0 Runden übrig.
+            var view = Garage(FieldSession.Race, FieldPhase.Unknown, 15); view.InMenus = true; view.PlayerLapsLeft = 0;
+            Assert.IsTrue(MenuBriefing.RaceUnderway(view));
+            view.PlayerLapsLeft = -1; view.Player.CompletedLaps = 0;
+            Assert.IsFalse(MenuBriefing.RaceUnderway(view), "vor dem Rennen meldet RaceRoom -1");
+        }
+
+        [Test]
+        public void Start_position_does_not_carry_over_to_the_next_sim_when_both_report_session_minus_one()
+        {
+            RaceStartLatch.Reset();
+            var ac = Race(session: -1); ac.SessionData.SessionStartClassPosition = 7;
+            ac.SessionData.TrackDefinition = new CrewChiefV4.TrackDefinition("monza", 5755f);
+            Assert.AreEqual(7, RaceStartLatch.Position(ac.SessionData));
+            var rre = Race(session: -1); rre.SessionData.SessionStartClassPosition = 18;
+            rre.SessionData.TrackDefinition = new CrewChiefV4.TrackDefinition("Mantorp Park", 3106f);
+            Assert.AreEqual(18, RaceStartLatch.Position(rre.SessionData), "Mantorp: Start 18, nicht 7 aus Monza");
+            rre.SessionData.SessionStartClassPosition = 14;
+            Assert.AreEqual(18, RaceStartLatch.Position(rre.SessionData), "im Rennen bleibt der Startplatz");
+            RaceStartLatch.Reset();
+        }
+
         // ---------- Schwarze Flagge ----------
 
         [Test]
