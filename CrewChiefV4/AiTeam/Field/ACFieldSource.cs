@@ -125,6 +125,11 @@ namespace CrewChiefV4.AiTeam.Field
             int connected = 0;
             for (int i = 0; i < num; i++) if (BitConverter.ToInt32(c, cVeh + i * vSize + vConnected) != 0) connected++;
             f.NumCars = connected;
+            // Wie Crew Chief: Ist irgendwo 0 eingetragen, zählt die Echtzeit-Rangliste ab 0.
+            int realtimeBase = 0;
+            for (int i = 0; i < num; i++)
+                if (BitConverter.ToInt32(c, cVeh + i * vSize + vConnected) != 0 && BitConverter.ToInt32(c, cVeh + i * vSize + vRealtime) == 0) { realtimeBase = 1; break; }
+            bool liveOrder = f.Session == FieldSession.Race && f.Phase == FieldPhase.Green;
             if (f.Cars.Length != connected) f.Cars = new FieldCarFrame[connected];
             f.PlayerIndex = -1; f.PlayerInGarage = false;
             int k = 0;
@@ -142,7 +147,7 @@ namespace CrewChiefV4.AiTeam.Field
                 car.X = BitConverter.ToSingle(c, o + vPos); car.Y = BitConverter.ToSingle(c, o + vPos + 4); car.Z = BitConverter.ToSingle(c, o + vPos + 8);
                 car.InPit = BitConverter.ToInt32(c, o + vPitLane) != 0 || BitConverter.ToInt32(c, o + vPit) != 0;
                 int place = BitConverter.ToInt32(c, o + vPlace), realtime = BitConverter.ToInt32(c, o + vRealtime);
-                car.Place = place > 0 ? place : realtime >= 0 ? realtime + 1 : 0; car.PlaceClass = car.Place;
+                car.Place = PlaceOf(place, realtime, realtimeBase, liveOrder); car.PlaceClass = car.Place;
                 float spline = BitConverter.ToSingle(c, o + vSpline);
                 car.LapDistance = spline >= 0 && spline <= 1.001f && !float.IsNaN(f.TrackLength) ? spline * f.TrackLength : float.NaN;
                 car.BestS1 = car.BestS12 = car.SplitBest1 = car.SplitBest2 = car.SplitBest3 = float.NaN;
@@ -155,5 +160,16 @@ namespace CrewChiefV4.AiTeam.Field
         }
 
         private static float Ms(int ms) => ms > 0 && ms < 36000000 ? ms / 1000f : float.NaN;
+
+        /// <summary>
+        /// AC Monza 21.11.: Die offizielle Rangliste („carLeaderboardPosition“) springt nur an Zeitlinien. Im Rennen lag Rob laut
+        /// Streckenpositionen in 45 von 539 Bildern auf dem Platz der Rangliste, in 376 auf dem der Echtzeit-Rangliste. Im
+        /// laufenden Rennen gilt deshalb die Echtzeit-Rangliste (wie bei Crew Chief), sonst die offizielle.
+        /// </summary>
+        internal static int PlaceOf(int leaderboard, int realtime, int realtimeBase, bool liveOrder)
+        {
+            if (liveOrder && realtime >= 0 && realtime + realtimeBase > 0) return realtime + realtimeBase;
+            return leaderboard > 0 ? leaderboard : realtime >= 0 ? realtime + 1 : 0;
+        }
     }
 }

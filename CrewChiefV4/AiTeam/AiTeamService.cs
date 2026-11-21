@@ -422,6 +422,7 @@ namespace CrewChiefV4.AiTeam
             {
                 lastOverlapUtc = now;
             }
+            Board.RaceBoard.Update(current, Field.FieldPicture.Shared.Current, now);
             RaceExclusion.Observe(current);
             bool excluded = RaceExclusion.Active(current);
             if (raceRhythm.Observe(current, now)) radioSchedule.StaggerAfterStart(now, settings.RadioPreferences);
@@ -2679,8 +2680,16 @@ namespace CrewChiefV4.AiTeam
         private static bool CrewIsRunning() => MainWindow.instance?.crewChief?.running == true;
 
         /// <summary>Session und Phase als Schlüssel: Unterbrochenes gilt nur, solange beide gleich bleiben.</summary>
-        internal static string SessionPhaseKey(GameStateData gs) => gs == null ? null :
-            gs.SessionData.SessionId + "|" + gs.SessionData.SessionType + "|" + gs.SessionData.SessionPhase;
+        internal static string SessionPhaseKey(GameStateData gs) => SessionPhaseKey(gs, Board.RaceBoard.Current, DateTime.UtcNow);
+
+        /// <summary>Session und Phase aus der Lagetafel, solange sie frisch ist (Hotlap/Qualifying-Wechsel von Crew Chief zählt nicht).</summary>
+        internal static string SessionPhaseKey(GameStateData gs, Board.BoardSnapshot board, DateTime now)
+        {
+            if (gs == null) return null;
+            if (board != null && board.Session.Fresh(now, 2) && board.Phase.Fresh(now, 2))
+                return gs.SessionData.SessionId + "|" + board.Session.Value + "|" + board.Phase.Value;
+            return gs.SessionData.SessionId + "|" + gs.SessionData.SessionType + "|" + gs.SessionData.SessionPhase;
+        }
 
         public Task SpeakAsync(TeamMember member, string text, bool isReply, CancellationToken ct)
         {

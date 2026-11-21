@@ -57,6 +57,7 @@ namespace CrewChiefV4.AiTeam
         public long BytesWritten { get { return Interlocked.Read(ref bytes); } }
         private static readonly HashSet<string> allowed = new HashSet<string>((
             // AC 21.11.: „ac-native“ wurde geschrieben, aber ohne diese Schlüssel blieb jede Zeile leer.
+            "board_session board_phase board_place board_field board_laps_left board_time_left board_penalty board_native_age_s board_conflicts " +
             "reifen_schmutz reifen_kern_c bremsen_c reifen_verschleiss delta_zur_bestzeit_s streckengrip " +
             "stage status reason topic text transcript speaker routing confidence_available model service error_type http_status duration_ms " +
             "clip_id message_name message_id priority immediate queue_length sound_key audio_backend measurement bytes samples cpu_percent working_set_bytes private_bytes " +
