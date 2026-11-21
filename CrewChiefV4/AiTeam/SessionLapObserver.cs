@@ -34,7 +34,30 @@ namespace CrewChiefV4.AiTeam
         internal static string TimedLapApproachPhrase => RadioLanguage.T("Gleich beginnt deine erste schnelle Runde. Konzentrier dich auf den Ausgang.",
             "Your first flying lap is coming up. Focus on the exit.",
             "Ya llega tu primera vuelta rápida. Concéntrate en la salida de curva.");
-        private bool firstTimedLapCalled, lastQualifyingLapOffered, firstFuelOffered, fuelBaselineReported;
+        private bool firstTimedLapCalled, lastQualifyingLapOffered, firstFuelOffered, fuelBaselineReported, lastPracticeLapOffered;
+        private int practiceLastVariant;
+
+        /// <summary>Letzte Runde im Training – 5 Varianten je Sprache.</summary>
+        internal static string PracticeLastLap(int variant)
+        {
+            string[] lines = RadioLanguage.Pick(
+                new[] { "Letzte Runde im Training, die Uhr läuft ab. Nimm noch mit, was geht.",
+                        "Das ist die letzte Trainingsrunde. Noch einmal sauber alles testen.",
+                        "Die Zeit reicht nur noch für diese Runde. Nutze sie.",
+                        "Letzte Runde, dann ist das Training vorbei. Ruhig und sauber.",
+                        "Trainingsende nach dieser Runde. Bremspunkte noch einmal bestätigen." },
+                new[] { "Last lap of practice, the clock is running out. Take what you can.",
+                        "This is the last practice lap. One more clean run through everything.",
+                        "Time only allows this lap. Make use of it.",
+                        "Last lap, then practice is over. Calm and clean.",
+                        "Practice ends after this lap. Confirm the braking points once more." },
+                new[] { "Última vuelta de entrenamiento, se acaba el tiempo. Aprovecha lo que puedas.",
+                        "Es la última vuelta de entrenamiento. Repasa todo una vez más, limpio.",
+                        "El tiempo solo da para esta vuelta. Aprovéchala.",
+                        "Última vuelta, luego se acaba el entrenamiento. Tranquilo y limpio.",
+                        "El entrenamiento termina tras esta vuelta. Confirma otra vez las frenadas." });
+            return lines[Math.Abs(variant) % lines.Length];
+        }
         // Rob 17.11.: Im Quali/Training jede neue schnelle Runde nach einer Ausfahrt kurz anschieben und ab und zu sagen,
         // was auf die Bestzeit fehlt – leise, nicht zu oft.
         private int timedLapAttempts, lastGapLap = -100, gapVariant, startVariant;
@@ -120,7 +143,7 @@ namespace CrewChiefV4.AiTeam
             pending.Clear(); session = int.MinValue; type = SessionType.Unavailable; personalBest = classBest = -1;
             lastLap = lastSectorCallLap = lastSectorCall = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor();
             lastRadio = lastSectorBestCall = lastSectorTimeCall = announcedLapUtc = DateTime.MinValue; firstSectorTimeCalled = false; announcedLapSeconds = -1;
-            firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = false;
+            firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = lastPracticeLapOffered = false;
             for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
             edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
             timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue; lastAttemptsAnnounced = -1; lastOutlapGapLap = -1;
@@ -198,9 +221,13 @@ namespace CrewChiefV4.AiTeam
             // Zeitqualifying: Wie viele schnelle Runden passen nach dieser noch in die Restzeit?
             int moreLaps = QualifyingResultWatch.Supported(type) && green && s.IsNewLap && !gs.PitData.InPitlane && s.CurrentLapIsValid
                 ? AttemptsAfterThisLap(s.SessionHasFixedTime ? s.SessionTimeRemaining : -1, Good(s.PlayerLapTimeSessionBest) ? s.PlayerLapTimeSessionBest : s.LapTimePrevious) : -1;
+            // Monza 21.11.: „Du hast mir wieder nicht gesagt, dass ich auf der letzten Runde bin.“ Alle Quali-Runden waren
+            // gestrichen, die Restzeitprüfung lief nur auf gültigen Runden – die Ansage kam erst mit der Zielflagge. Das Lagebild
+            // weiß an der Linie, ob die Uhr noch eine Runde zulässt, auch auf einer gestrichenen Runde.
+            bool fieldLast = green && s.IsNewLap && !gs.PitData.InPitlane && LapWatch.FieldLapsLeft(s) == 1;
             bool finalQualifyingLap = QualifyingResultWatch.Supported(type) && previous?.SessionData.SessionId == session &&
                 previous.SessionData.SessionPhase == SessionPhase.Green && (s.SessionPhase == SessionPhase.Checkered ||
-                green && s.IsNewLap && s.SessionLapsRemaining == 1 && !s.SessionHasFixedTime || moreLaps == 0 && s.CompletedLaps > 0);
+                green && s.IsNewLap && s.SessionLapsRemaining == 1 && !s.SessionHasFixedTime || moreLaps == 0 && s.CompletedLaps > 0 || fieldLast);
             if ((moreLaps == 1 || moreLaps == 2) && moreLaps != lastAttemptsAnnounced && !gs.PitData.OnOutLap && !pending.Any(c => c.Topic == "quali-target"))
             {
                 lastAttemptsAnnounced = moreLaps;
@@ -208,7 +235,7 @@ namespace CrewChiefV4.AiTeam
                 attempts.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
             }
             if (!lastQualifyingLapOffered && finalQualifyingLap && !gs.PitData.InPitlane && !gs.PitData.OnOutLap &&
-                s.CurrentLapIsValid && gs.PositionAndMotionData.CarSpeed > 12 && s.CompletedLaps > 0)
+                (s.CurrentLapIsValid || fieldLast) && gs.PositionAndMotionData.CarSpeed > 12 && s.CompletedLaps > 0)
             {
                 lastQualifyingLapOffered = true;
                 string name = AiPersonas.CleanForRadio(driverName ?? "Rob", 30, false);
@@ -222,8 +249,17 @@ namespace CrewChiefV4.AiTeam
                 var last = Add(gs, now, "qualifying-last", RadioPhraseCatalog.Address(push[qualiLastVariation.Next(push.Length)], name),
                     "confirmed_final_qualifying_lap", 5);
                 last.Member = TeamMember.Ben;
-                last.AdditionalValidity = live => !live.PitData.OnOutLap && live.SessionData.CurrentLapIsValid &&
+                last.AdditionalValidity = live => !live.PitData.OnOutLap && (live.SessionData.CurrentLapIsValid || fieldLast) &&
                     !live.FlagData.isLocalYellow && live.PositionAndMotionData.CarSpeed > 5;
+            }
+            // Training: Rob 21.11.: „dass die Practice in ein, zwei Minuten ausläuft – genau solche Infos solltest du mir sagen.“
+            if (!lastPracticeLapOffered && fieldLast && (type == SessionType.Practice || type == SessionType.LonePractice) &&
+                !gs.PitData.OnOutLap && gs.PositionAndMotionData.CarSpeed > 12 && s.CompletedLaps > 0)
+            {
+                lastPracticeLapOffered = true;
+                var last = Add(gs, now, "practice-last", PracticeLastLap(practiceLastVariant++), "field_picture_clock_allows_no_further_lap", 5);
+                last.Member = TeamMember.Ben;
+                last.AdditionalValidity = live => !live.PitData.InPitlane && !live.FlagData.isLocalYellow && live.PositionAndMotionData.CarSpeed > 5;
             }
             if (completed != null && completed.LapNumber != lastLap)
             {

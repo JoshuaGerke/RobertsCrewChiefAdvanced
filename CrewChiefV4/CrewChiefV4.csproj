@@ -294,6 +294,13 @@
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsAnalyzer.cs" />
     <Compile Include="AiTeam\Dynamics\DrivingDynamicsWatch.cs" />
     <Compile Include="AiTeam\Dynamics\DynamicsSampler.cs" />
+    <Compile Include="AiTeam\Field\FieldFacts.cs" />
+    <Compile Include="AiTeam\Field\FieldFrame.cs" />
+    <Compile Include="AiTeam\Field\MenuBriefing.cs" />
+    <Compile Include="AiTeam\Field\SessionDebrief.cs" />
+    <Compile Include="AiTeam\Field\FieldPicture.cs" />
+    <Compile Include="AiTeam\Field\FieldService.cs" />
+    <Compile Include="AiTeam\Field\R3EFieldSource.cs" />
     <Compile Include="AiTeam\RaceInsightWatch.cs" />
     <Compile Include="AiTeam\BackmarkerWatch.cs" />
     <Compile Include="AiTeam\Probe\PackedLayout.cs" />
@@ -332,6 +339,7 @@
     <Compile Include="AiTeam\NativeTimingEvents.cs" />
     <Compile Include="AiTeam\RaceFactStore.cs" />
     <Compile Include="AiTeam\RaceChronicle.cs" />
+    <Compile Include="AiTeam\InterruptedRadio.cs" />
     <Compile Include="AiTeam\RaceStory.cs" />
     <Compile Include="AiTeam\EndgameBriefWatch.cs" />
     <Compile Include="AiTeam\GermanRadioText.cs" />

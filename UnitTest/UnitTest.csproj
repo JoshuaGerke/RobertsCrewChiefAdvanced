@@ -92,6 +92,8 @@
     <Compile Include="AiTeam\LmuQualiFindingsTests.cs" />
     <Compile Include="AiTeam\AcSessionFindingsTests.cs" />
     <Compile Include="AiTeam\RaceChronicleTests.cs" />
+    <Compile Include="AiTeam\FieldPictureTests.cs" />
+    <Compile Include="AiTeam\FieldBriefingTests.cs" />
     <Compile Include="AiTeam\LmuRaceFindingsTests.cs" />
     <Compile Include="AiTeam\FuelProjectionTests.cs" />
     <Compile Include="AiTeam\PitAndFieldFindingsTests.cs" />

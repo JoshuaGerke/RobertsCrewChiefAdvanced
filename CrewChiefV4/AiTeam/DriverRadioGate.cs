@@ -15,7 +15,9 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kurze Ruhe nach dem Loslassen, damit die Antwort auf die Frage nicht von einer Routinemeldung überholt wird.</summary>
         internal static readonly TimeSpan AfterRelease = TimeSpan.FromSeconds(1.5);
         /// <summary>Schutz gegen eine hängende Taste: länger als so lange gilt die Funkstille nicht.</summary>
-        internal static readonly TimeSpan MaxHold = TimeSpan.FromSeconds(30);
+        /// <summary>Monza 21.11.: Nach 30 s Funkspruch sprach Ben in Robs Satz hinein – die Grenze war zu knapp. Sie folgt jetzt der
+        /// längsten Aufnahme plus Reserve.</summary>
+        internal static readonly TimeSpan MaxHold = TimeSpan.FromSeconds(AiMicRecorder.MaxSeconds + 5);
 
         private static long pressedTicks, releasedTicks;
         private static int talking;

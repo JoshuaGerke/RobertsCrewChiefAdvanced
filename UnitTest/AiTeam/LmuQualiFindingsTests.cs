@@ -272,9 +272,11 @@ namespace UnitTest.AiTeamTests
                 FuelCarry.Reset();
                 var quali = Quali(SessionPhase.Green, 5, 8);
                 quali.carName = "Porsche 911 GT3 R";
-                FuelCarry.Remember(quali, 1.8f, 1);
-                Assert.AreEqual(-1, FuelCarry.For(quali), "eine Runde reicht nicht");
+                FuelCarry.Remember(quali, 1.6f, 1);
+                // Rob 21.11.: schon eine Runde gibt eine (grobe) Schätzung – „liefer uns noch ein paar ordentliche Runden“.
+                Assert.AreEqual(1.6f, FuelCarry.For(quali), 1e-6, "eine Runde gibt eine grobe Schätzung");
                 FuelCarry.Remember(quali, 1.8f, 3);
+                Assert.AreEqual(1.8f, FuelCarry.For(quali), 1e-6, "dieselbe Session wird ersetzt, nicht doppelt gezählt");
                 var race = Quali(SessionPhase.Green, 0, 10); race.SessionData.SessionType = SessionType.Race; race.carName = quali.carName;
                 race.FuelData.FuelUseActive = true; race.FuelData.FuelLeft = 42f;
                 Assert.AreEqual(1.8f, FuelCarry.For(race), 1e-6);
@@ -297,6 +299,34 @@ namespace UnitTest.AiTeamTests
                 Assert.AreEqual(-1, FuelCarry.For(other), "andere Strecke: nichts übernehmen");
             }
             finally { FuelCarry.Reset(); }
+        }
+
+        [Test]
+        public void Fuel_use_from_practice_and_quali_is_combined_weighted_by_laps()
+        {
+            // Rob 21.11.: „wie hoch der Durchschnittsverbrauch war in der Practice und Quali zusammengerechnet“
+            try
+            {
+                FuelCarry.Reset();
+                var practice = Quali(SessionPhase.Green, 4, 8); practice.SessionData.SessionType = SessionType.Practice; practice.SessionData.SessionId = 1;
+                practice.carName = "BMW M4 GT3";
+                FuelCarry.Remember(practice, 3.0f, 4);
+                var quali = Quali(SessionPhase.Green, 2, 8); quali.SessionData.SessionId = 2; quali.carName = practice.carName;
+                FuelCarry.Remember(quali, 3.6f, 2);
+                Assert.AreEqual(3.2f, FuelCarry.For(quali), 1e-5, "(3,0×4 + 3,6×2) / 6");
+                Assert.AreEqual(6, FuelCarry.Laps(quali));
+                var race = Quali(SessionPhase.Green, 0, 10); race.SessionData.SessionType = SessionType.Race; race.SessionData.SessionId = 3; race.carName = practice.carName;
+                race.FuelData.FuelUseActive = false;
+                string answer = LocalAnswers.FuelConsumption("Wie hoch war der Verbrauch in Practice und Quali zusammen?", race, new AiRaceMemory());
+                StringAssert.Contains("Training 3,00 über 4 Runden, Quali 3,60 über 2 Runden.", answer);
+                StringAssert.Contains("3,20 Liter", answer);
+                foreach (var lang in new[] { RadioLanguage.English, RadioLanguage.Spanish })
+                {
+                    RadioLanguage.Current = lang;
+                    Assert.IsTrue(char.IsUpper(LocalAnswers.SessionSplit(race)[0]), lang);
+                }
+            }
+            finally { FuelCarry.Reset(); RadioLanguage.Current = RadioLanguage.German; }
         }
 
         [Test]

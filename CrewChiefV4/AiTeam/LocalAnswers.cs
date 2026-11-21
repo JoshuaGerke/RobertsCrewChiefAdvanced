@@ -220,11 +220,24 @@ namespace CrewChiefV4.AiTeam
         /// Auch längere, umgangssprachliche Fragen; Gegnerfragen und Strategiefragen gehen weiter an die Auswertung.
         /// </summary>
         /// <summary>Geschätzter Verbrauch aus Training und Quali, ausdrücklich ohne belastbare Rennwerte (5 Formulierungen).</summary>
+        internal static string SessionSplit(GameStateData gs)
+        {
+            var parts = FuelCarry.Breakdown(gs);
+            if (parts.Count < 2) return null;
+            var spoken = parts.Select(p => (p.Key == SessionType.Qualify || p.Key == SessionType.PrivateQualify ? RadioLanguage.T("Quali ", "Qualifying ", "Clasificación ") :
+                RadioLanguage.T("Training ", "Practice ", "Entrenamiento ")) + RadioLanguage.Num(p.Value.Key, "0.00") +
+                RadioLanguage.T(" über " + p.Value.Value + (p.Value.Value == 1 ? " Runde" : " Runden"), " over " + p.Value.Value + (p.Value.Value == 1 ? " lap" : " laps"),
+                    " en " + p.Value.Value + (p.Value.Value == 1 ? " vuelta" : " vueltas")));
+            return string.Join(", ", spoken) + ".";
+        }
+
         internal static string CarriedFuelAnswer(float perLap, int laps, GameStateData gs, string driverName = null)
         {
             string c = RadioLanguage.Num(perLap, "0.00");
             string name = string.IsNullOrWhiteSpace(driverName) ? "Rob" : driverName.Trim();
             string basis = laps > 0 ? RadioLanguage.T(" aus " + laps + " Runden", " from " + laps + " laps", " de " + laps + " vueltas") : "";
+            // Rob 21.11.: „Practice und Quali zusammengerechnet“ – bei mehreren Sessions jede einzeln, dann das gemeinsame Mittel.
+            string split = SessionSplit(gs);
             string text = RadioVariants.Pick("fuel-carried",
                 RadioLanguage.T("Belastbare Rennwerte haben wir noch nicht. Aus Training und Quali geschätzt etwa " + c + " Liter pro Runde" + basis + ". Verlass dich aber nicht zu sehr darauf, " + name + ".",
                     "We don't have solid race data yet. From practice and qualifying, roughly " + c + " litres per lap" + basis + ". Don't rely on it too much, " + name + ".",
@@ -241,6 +254,7 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.T("Grob " + c + " Liter pro Runde, geschätzt aus Training und Quali. Kein Messwert aus dem Rennen, also nicht zu fest darauf bauen.",
                     "Roughly " + c + " litres per lap, estimated from practice and qualifying. Not a race measurement, so don't lean on it too hard.",
                     "Más o menos " + c + " litros por vuelta, estimado de libres y clasificación. No es una medición de carrera, no te apoyes demasiado."));
+            if (split != null) text = split + " " + text;
             float left = gs == null ? -1 : gs.FuelData.FuelLeft;
             if (gs != null && gs.FuelData.FuelUseActive && left > 0 && !float.IsNaN(left) && !float.IsInfinity(left))
                 text += " " + RadioLanguage.T("Mit " + RadioLanguage.Num(left, "0") + " Litern wären das rund " + (int)Math.Floor(left / perLap) + " Runden.",

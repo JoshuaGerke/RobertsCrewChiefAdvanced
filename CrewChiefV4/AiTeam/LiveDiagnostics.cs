@@ -67,7 +67,9 @@ namespace CrewChiefV4.AiTeam
             "position_matrix matrix_columns row_offset total_cars track_length_m source_utc due_utc late_s interval_s " +
             "damage_aero_pct damage_engine_pct damage_brake_pct damage_suspension_pct damage_source_utc tyre_temp_lap_peak_c engine_oil_temp_c engine_water_temp_c " +
             "penalties_open penalty_type penalty_cause penalty_warning damage_aero_level damage_engine_level wheels_attached pit_requested pit_crew_ready " +
-            "damage_dents parts_detached last_impact_magnitude last_impact_et wheels_detached wheels_flat").Split(' '));
+            "damage_dents parts_detached last_impact_magnitude last_impact_et wheels_detached wheels_flat " +
+            "sim layout length_m session in_menus in_garage paused timed time_left_s duration_s session_laps race_minutes race_laps num_cars listed_cars " +
+            "max_place player_place player_laps_left give_back layout_verified profile_coverage moving ahead behind player_dist_m player_speed hazards").Split(' '));
         private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk[-_][a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
 
         public DiagnosticRecorder(string folder, DiagnosticLimits options = null, string[] secrets = null)

@@ -263,6 +263,40 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Give_back_names_the_real_cause_cut_or_yellow()
+        {
+            // Monza 21.11.: Rob überholte beim Abkürzen, Sara sagte „Überholen unter Gelb“ – er erkannte die Strafe nicht.
+            var cut = Race(); cut.FlagData.numCarsPassedIllegally = 2; cut.SessionData.CurrentLapIsValid = false;
+            string kind = NativeRaceControl.Resolve("giveback:n", cut);
+            Assert.AreEqual("giveback:2:cut", kind);
+            foreach (var t in NativeRaceControl.Options(kind)) { StringAssert.Contains("2 Plätze", t); StringAssert.DoesNotContain("Gelb", t); }
+            Assert.AreEqual("warning-rc-giveback-2", NativeRaceControl.Topic(kind));
+            Assert.AreEqual(9, NativeRaceControl.Priority(kind));
+            Assert.IsTrue(NativeRaceControl.StillCurrent(kind, cut));
+
+            var yellow = Race(); yellow.FlagData.numCarsPassedIllegally = 1; yellow.FlagData.isLocalYellow = true; yellow.SessionData.CurrentLapIsValid = false;
+            kind = NativeRaceControl.Resolve("giveback:1", yellow);
+            Assert.AreEqual("giveback:1:yellow", kind);
+            foreach (var t in NativeRaceControl.Options(kind)) StringAssert.Contains("Gelb", t);
+
+            var unknown = Race(); unknown.FlagData.numCarsPassedIllegally = 1; unknown.SessionData.CurrentLapIsValid = true;
+            kind = NativeRaceControl.Resolve("giveback:1", unknown);
+            Assert.AreEqual("giveback:1:rc", kind);
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (var k in new[] { "giveback:1:cut", "giveback:3:rc", "giveback:1:yellow", "giveback:2:cut:12" })
+                {
+                    var options = NativeRaceControl.Options(k);
+                    Assert.AreEqual(5, options.Distinct().Count(), lang + " " + k);
+                    Assert.IsTrue(options.All(t => char.IsUpper(t[0])), lang + " " + k);
+                }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+            StringAssert.EndsWith("Dafür hast du noch 12 Sekunden.", NativeRaceControl.Options("giveback:2:cut:12")[0]);
+        }
+
+        [Test]
         public void Ac_native_extras_are_only_reported_while_fresh()
         {
             var saved = AcNativeExtras.Latest;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CrewChiefV4.GameState;
 
@@ -57,13 +58,27 @@ namespace CrewChiefV4.AiTeam
 
         internal static TeamMember Member(string kind) => kind.StartsWith("pen", StringComparison.Ordinal) || kind == "investigation" || kind == "giveback-done" ? TeamMember.Ben : TeamMember.Sara;
 
-        /// <summary>„giveback:n“ bekommt die gemeldete Zahl der Plätze aus dem Spielstand.</summary>
+        /// <summary>
+        /// „giveback:n“ bekommt die gemeldete Zahl der Plätze aus dem Spielstand. Dazu der Grund und die Frist: Monza 21.11. –
+        /// Rob hatte beim Abkürzen überholt, Sara sagte „Überholen unter Gelb“; er erkannte die Strafe nicht als seine.
+        /// Grund nur, wenn belegt (Gelb aktiv bzw. laufende Runde gestrichen), sonst neutral.
+        /// </summary>
         internal static string Resolve(string kind, GameStateData gs)
         {
-            if (kind != "giveback:n" || gs == null) return kind;
-            int n = gs.FlagData.numCarsPassedIllegally;
-            return n == 1 ? "giveback:1" : n >= 2 && n <= 9 ? "giveback:" + n : kind;
+            if (gs == null || !kind.StartsWith("giveback:", StringComparison.Ordinal)) return kind;
+            string count = kind.Substring("giveback:".Length);
+            if (count == "n")
+            {
+                int n = gs.FlagData.numCarsPassedIllegally;
+                count = n == 1 ? "1" : n >= 2 && n <= 9 ? n.ToString(CultureInfo.InvariantCulture) : "n";
+            }
+            bool yellow = gs.FlagData.isLocalYellow || gs.SessionData.Flag == FlagEnum.YELLOW || gs.SessionData.Flag == FlagEnum.DOUBLE_YELLOW;
+            string cause = yellow ? "yellow" : !gs.SessionData.CurrentLapIsValid ? "cut" : "rc";
+            var view = Field.FieldService.Fresh(1);
+            float left = view?.Player == null ? -1 : view.PlayerSlowDown;
+            return "giveback:" + count + ":" + cause + (left >= 2 && left <= 120 ? ":" + ((int)Math.Round(left)).ToString(CultureInfo.InvariantCulture) : "");
         }
+
 
         /// <summary>Zuletzt gemeldete abgesessene Strafe (gegen doppelte Meldung aus Zählung und Rennleitung).</summary>
         internal static DateTime LastServedUtc = DateTime.MinValue;
@@ -163,12 +178,31 @@ namespace CrewChiefV4.AiTeam
                         n == "n" ? RadioLanguage.T("die Plätze", "the places", "las posiciones") :
                         RadioLanguage.T(n + " Plätze", n + " places", n + " posiciones");
                     string him = n == "1" ? RadioLanguage.T("ihn", "him", "") : RadioLanguage.T("sie", "them", "s");
-                    return V("rc-giveback",
-                        RadioLanguage.T("Unter Gelb überholt, gib " + places + " zurück!", "You passed under yellow, give " + places + " back!", "Adelantaste con amarilla, ¡devuelve " + places + "!"),
-                        RadioLanguage.T("Das war unter Gelb: " + places + " zurückgeben.", "That was under yellow: give " + places + " back.", "Fue con amarilla: devuelve " + places + "."),
-                        RadioLanguage.T("Achtung, Überholen unter Gelb. Lass " + him + " wieder vorbei.", "Careful, that pass was under yellow. Let " + him + " back past.", "Ojo, adelantamiento con amarilla. Déjale" + him + " pasar otra vez."),
-                        RadioLanguage.T("Zurückgeben musst du " + places + ", sonst gibt es eine Strafe.", "You have to give " + places + " back or it's a penalty.", "Tienes que devolver " + places + " o habrá sanción."),
-                        RadioLanguage.T("Gelbverstoß: " + places + " zurück, dann ist es erledigt.", "Yellow flag breach: give " + places + " back and it's sorted.", "Infracción con amarilla: devuelve " + places + " y queda resuelto."));
+                    string reason = part.Length > 2 ? part[2] : "yellow";
+                    string deadline = part.Length > 3 ? RadioLanguage.T(" Dafür hast du noch " + part[3] + " Sekunden.", " You have " + part[3] + " seconds for it.", " Tienes " + part[3] + " segundos para hacerlo.") : "";
+                    string[] lines;
+                    if (reason == "cut")
+                        lines = V("rc-giveback-cut",
+                            RadioLanguage.T("Abgekürzt und dabei überholt: gib " + places + " zurück!", "You cut the track while passing: give " + places + " back!", "Recortaste al adelantar: ¡devuelve " + places + "!"),
+                            RadioLanguage.T("Das war über die Streckenbegrenzung: " + places + " zurückgeben.", "That was over the track limits: give " + places + " back.", "Eso fue fuera de los límites: devuelve " + places + "."),
+                            RadioLanguage.T("Die Rennleitung wegen Abkürzen: Gib " + places + " zurück, sonst gibt es eine Strafe.", "Race control, for cutting: give " + places + " back or it's a penalty.", "Dirección de carrera, por recortar: devuelve " + places + " o habrá sanción."),
+                            RadioLanguage.T("Track Limits beim Überholen. Lass " + him + " wieder vorbei, " + places + " zurück.", "Track limits on that pass. Let " + him + " back past, give " + places + " back.", "Límites de pista al adelantar. Déjale" + him + " pasar, devuelve " + places + "."),
+                            RadioLanguage.T("Abkürzen kostet: " + places + " zurück, dann ist es erledigt.", "Cutting costs you: give " + places + " back and it's sorted.", "Recortar se paga: devuelve " + places + " y queda resuelto."));
+                    else if (reason == "rc")
+                        lines = V("rc-giveback-rc",
+                            RadioLanguage.T("Die Rennleitung sagt: Gib " + places + " zurück, sonst gibt es eine Strafe.", "Race control says: give " + places + " back or it's a penalty.", "Dirección de carrera dice: devuelve " + places + " o habrá sanción."),
+                            RadioLanguage.T("Strafe droht: " + places + " zurückgeben, jetzt!", "Penalty threat: give " + places + " back, now!", "Amenaza de sanción: ¡devuelve " + places + " ya!"),
+                            RadioLanguage.T("Unerlaubt überholt laut Rennleitung. Gib " + places + " zurück.", "Illegal pass according to race control. Give " + places + " back.", "Adelantamiento ilegal según dirección de carrera. Devuelve " + places + "."),
+                            RadioLanguage.T("Rennleitung: " + places + " zurück an den Gegner, dann ist es erledigt.", "Race control: give " + places + " back to him and it's done.", "Dirección de carrera: devuelve " + places + " y queda hecho."),
+                            RadioLanguage.T("Lass " + him + " wieder vorbei, " + places + " zurück, sonst Strafe.", "Let " + him + " back past, give " + places + " back, or it's a penalty.", "Déjale" + him + " pasar, devuelve " + places + " o habrá sanción."));
+                    else
+                        lines = V("rc-giveback",
+                            RadioLanguage.T("Unter Gelb überholt, gib " + places + " zurück!", "You passed under yellow, give " + places + " back!", "Adelantaste con amarilla, ¡devuelve " + places + "!"),
+                            RadioLanguage.T("Das war unter Gelb: " + places + " zurückgeben.", "That was under yellow: give " + places + " back.", "Fue con amarilla: devuelve " + places + "."),
+                            RadioLanguage.T("Achtung, Überholen unter Gelb. Lass " + him + " wieder vorbei, " + places + " zurück.", "Careful, that pass was under yellow. Let " + him + " back past, give " + places + " back.", "Ojo, adelantamiento con amarilla. Déjale" + him + " pasar, devuelve " + places + "."),
+                            RadioLanguage.T("Gelb missachtet: Gib " + places + " zurück, sonst gibt es eine Strafe.", "Yellow ignored: give " + places + " back or it's a penalty.", "Amarilla ignorada: devuelve " + places + " o habrá sanción."),
+                            RadioLanguage.T("Gelbverstoß: " + places + " zurück, dann ist es erledigt.", "Yellow flag breach: give " + places + " back and it's sorted.", "Infracción con amarilla: devuelve " + places + " y queda resuelto."));
+                    return lines.Select(t => t + deadline).ToArray();
                 case "giveback-done":
                     return V("rc-giveback-done",
                         RadioLanguage.T("Platz zurückgegeben, das ist sauber.", "Place given back, that's clean.", "Puesto devuelto, todo limpio."),

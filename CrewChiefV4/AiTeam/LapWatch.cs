@@ -87,6 +87,10 @@ namespace CrewChiefV4.AiTeam
         {
             if (s == null) return -1;
             if (s.IsLastLap || (s.SessionType == SessionType.Race && s.SessionPhase == SessionPhase.Checkered)) return 1;
+            // Monza 21.11.: „Voraussichtlich noch zwei Runden“, als die Uhr schon bei null stand. Das Lagebild rechnet die
+            // Restrunden aus Uhr, Führendem und eigenem Tempo direkt aus der Sim.
+            int field = FieldLapsLeft(s);
+            if (field >= 1) return field;
             int planned = Volatile.Read(ref timedFinalLap);
             if (s.SessionHasFixedTime && s.SessionType == SessionType.Race && planned >= 0 && s.SessionId == Volatile.Read(ref timedFinalSession))
             {
@@ -98,8 +102,20 @@ namespace CrewChiefV4.AiTeam
             return LapsAreEstimated(s) ? CrewChiefV4.Events.Fuel.EstimatedLapsRemaining : -1;
         }
 
+        /// <summary>Restrunden aus dem Lagebild (direkt aus der Sim), -1 = keines oder nicht dieselbe Session.</summary>
+        internal static int FieldLapsLeft(SessionData s)
+        {
+            var v = Field.FieldService.Fresh(1);
+            if (v == null || s == null || v.Player == null || v.PlayerLapsLeft < 0) return -1;
+            bool same = v.Session == Field.FieldSession.Race ? s.SessionType == SessionType.Race :
+                v.Session == Field.FieldSession.Qualify ? s.SessionType == SessionType.Qualify || s.SessionType == SessionType.PrivateQualify :
+                v.Session == Field.FieldSession.Practice ? s.SessionType == SessionType.Practice || s.SessionType == SessionType.LonePractice : false;
+            return same && v.Player.CompletedLaps == s.CompletedLaps ? v.PlayerLapsLeft : -1;
+        }
+
         public static bool LapsAreEstimated(SessionData s)
         {
+            if (FieldLapsLeft(s) >= 1) return false;
             int estimate = CrewChiefV4.Events.Fuel.EstimatedLapsRemaining;
             return s != null && s.SessionHasFixedTime && !s.IsLastLap && s.SessionPhase != SessionPhase.Checkered &&
                 Finite(s.SessionTimeRemaining) && s.SessionTimeRemaining > 0 &&

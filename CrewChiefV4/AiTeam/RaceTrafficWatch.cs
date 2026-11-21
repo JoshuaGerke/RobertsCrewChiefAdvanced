@@ -111,6 +111,30 @@ namespace CrewChiefV4.AiTeam
                 return hazardName != null && hazardSession == session && now >= hazardUtc && now - hazardUtc <= maxAge ? hazardName : null;
         }
 
+        private static readonly object spokenGate = new object();
+        private static readonly Dictionary<string, DateTime> spokenHazard = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, DateTime> spokenFlag = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Merkt, dass ein Fahrer gerade als Gefahr voraus (flag=false) bzw. mit Gelb/Unfall (flag=true) genannt wurde.</summary>
+        internal static void NoteSpoken(string name, DateTime utc, bool flag)
+        {
+            if (string.IsNullOrWhiteSpace(name) || utc == DateTime.MinValue) return;
+            lock (spokenGate)
+            {
+                var map = flag ? spokenFlag : spokenHazard;
+                map[name] = utc;
+                if (map.Count > 128) map.Clear();
+            }
+        }
+
+        /// <summary>Wurde der Fahrer innerhalb von <paramref name="span"/> schon genannt – als Gelb/Unfall (flag) bzw. als Gefahr voraus?</summary>
+        internal static bool SpokenRecently(string name, DateTime now, TimeSpan span, bool flag)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            lock (spokenGate)
+                return (flag ? spokenFlag : spokenHazard).TryGetValue(name, out var at) && now >= at && now - at <= span;
+        }
+
         internal static void ClearHazard() { lock (hazardGate) { hazardName = null; hazardUtc = DateTime.MinValue; hazardSession = int.MinValue; } }
 
         private void RecordMotion(TrackPositionSnapshot s, DateTime now)
@@ -293,6 +317,7 @@ namespace CrewChiefV4.AiTeam
         internal const double RearSameCarSeconds = 300, RearAnySeconds = 45;
         private DateTime lastRear = DateTime.MinValue, lastRearGroup = DateTime.MinValue;
         private bool pendingGroup, pendingOtherClass;
+        private string pendingHazardName;
 
         public void Observe(TrackAwareness observer, GameStateData gs, DateTime now)
         {
@@ -307,6 +332,7 @@ namespace CrewChiefV4.AiTeam
                 reported[pendingKey]=lastRadio=pending.DeliveryStartedUtc;
                 if (pending.Topic=="race-traffic-rear") { lastRear=pending.DeliveryStartedUtc; if (pendingGroup) lastRearGroup=lastRear; }
                 if (pendingOtherClass && pending.Topic=="race-traffic-rear") MulticlassTraffic.LastRearClassCallUtc=pending.DeliveryStartedUtc;
+                if (pending.Topic=="race-hazard-ahead") NoteSpoken(pendingHazardName,pending.DeliveryStartedUtc,false);
                 pending=null;
             }
             if (pending!=null && !pending.IsValid(gs,now)) pending=null;
@@ -331,6 +357,7 @@ namespace CrewChiefV4.AiTeam
             spinning.Clear();
             var candidates=s.Cars.Where(c=>!c.IsSafetyCar && Relevant(c,gs,s,now)).OrderBy(c=>c.RouteGapM>0?0:1)
                 .ThenBy(c=>Math.Abs(c.RouteGapM.Value)/Math.Max(1,c.ClosingMps??1)).ToArray();
+            candidates=ConfirmWithFieldPicture(candidates,s,now);
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
             var hazard=candidates.FirstOrDefault(c=>c.RouteGapM>0 && !string.IsNullOrWhiteSpace(c.Name) &&
                 (c.SpeedMps<=5 || spinning.Contains(c.Key) || SlowAgainstReference(c,gs,s,now)));
@@ -378,6 +405,8 @@ namespace CrewChiefV4.AiTeam
                     if (reminder) phrases=StillTherePhrases;
                 }
                 else if (!rear && parked.ContainsKey(car.Key)) parked.Remove(car.Key); // fährt wieder
+                // Rob 21.11.: Unfälle meldet nur Sara, und nur einmal – hat sie den Fahrer gerade mit Gelb/Unfall genannt, schweigt die Gefahrmeldung.
+                if (!rear && !classAhead && SpokenRecently(car.Name,now,TimeSpan.FromSeconds(8),true)) continue;
                 int id=car.Id, generation=epoch; string opponentKey=car.Key;
                 pending=new ObservedRaceCall {
                     Topic=rear?"race-traffic-rear":classAhead?"race-class-ahead":"race-hazard-ahead",
@@ -398,10 +427,53 @@ namespace CrewChiefV4.AiTeam
                 if (spin) { DateTime seenAt=now; pending.TimedValidity=(live,utc)=>generation==epoch && utc>=seenAt && utc-seenAt<=TimeSpan.FromSeconds(2) &&
                     live.SessionData.SessionPhase==SessionPhase.Green && !live.PitData.InPitlane; }
                 if(!rear && !reminder && !classAhead && !spin) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
-                pendingKey=key; pendingGroup=group; pendingOtherClass=otherClass; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
+                pendingKey=key; pendingGroup=group; pendingOtherClass=otherClass; pendingHazardName=rear || classAhead ? null : car.Name; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
             }
             if (reported.Count>512) reported.Clear();
         }
+        /// <summary>
+        /// Monza 21.11.: In der Startrunde zehn „Dreher“, weil die Wagen vor der Schikane bremsten. Liegt ein frisches Lagebild
+        /// direkt aus der Sim vor, entscheidet es: Ein Wagen voraus, der dort fährt, was das Feld an dieser Stelle fährt, ist
+        /// keine Gefahr; Dreher, Stillstand und Langsamfahrt kommen aus dem Lagebild.
+        /// </summary>
+        private TrackCarPosition[] ConfirmWithFieldPicture(TrackCarPosition[] candidates,TrackPositionSnapshot s,DateTime now)
+        {
+            var view=Field.FieldService.Fresh(.5);
+            if (view==null || view.Player==null) return candidates;
+            var kept=new List<TrackCarPosition>(candidates.Length);
+            foreach (var c in candidates)
+            {
+                bool rear=c.RouteGapM<0;
+                var seen=rear || MulticlassTraffic.OtherClass(c) ? null : view.ByName(c.NativeName);
+                if (seen==null) { kept.Add(c); continue; }
+                switch (seen.Motion)
+                {
+                    case Field.CarMotion.Spun: spinning.Add(c.Key); kept.Add(c); break;
+                    case Field.CarMotion.Stopped: case Field.CarMotion.Slow: case Field.CarMotion.Retired: spinning.Remove(c.Key); kept.Add(c); break;
+                    default:
+                        spinning.Remove(c.Key);
+                        if (!rejectedByField.TryGetValue(c.Key ?? "",out var last) || now-last>TimeSpan.FromSeconds(5))
+                        {
+                            rejectedByField[c.Key ?? ""]=now;
+                            LiveDiagnostics.Decision("race-hazard-ahead","rejected","field_picture_"+seen.Motion.ToString().ToLowerInvariant()+";opponent="+c.Key);
+                        }
+                        break;
+                }
+            }
+            // Was das Lagebild als Gefahr voraus sieht, aber die Bewegungsprüfung oben noch nicht erfasst hat, kommt dazu.
+            foreach (var seen in view.Cars.Where(x=>!x.IsPlayer && !x.InPit && x.GapM>=15 && x.GapM<=400 &&
+                (x.Motion==Field.CarMotion.Spun || x.Motion==Field.CarMotion.Stopped || x.Motion==Field.CarMotion.Slow)))
+            {
+                var c=s.Cars.FirstOrDefault(x=>x.NativeName==seen.Name && !x.IsSafetyCar && !x.InPits && x.RouteGapM.HasValue && x.RouteGapM>0 && x.SpeedMps.HasValue);
+                if (c==null || kept.Contains(c) || MulticlassTraffic.OtherClass(c)) continue;
+                if (seen.Motion==Field.CarMotion.Spun) spinning.Add(c.Key);
+                kept.Insert(0,c);
+            }
+            if (rejectedByField.Count>256) rejectedByField.Clear();
+            return kept.ToArray();
+        }
+        private readonly Dictionary<string,DateTime> rejectedByField=new Dictionary<string,DateTime>();
+
         internal static string NameClipText(string name) => RadioLanguage.T("Das ist ", "That's ", "Es ") + name + ".";
 
         private PreparedRadioDetail HazardDetail(GameStateData gs,DateTime now,string key,int id,bool stopped)

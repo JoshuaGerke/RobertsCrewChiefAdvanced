@@ -11,6 +11,8 @@ namespace CrewChiefV4.AiTeam
     public class AiMicRecorder : IDisposable
     {
         public const int SampleRate = 16000;
+        /// <summary>Längste Aufnahme eines Funkspruchs in Sekunden.</summary>
+        public const int MaxSeconds = 60;
         private readonly object sync = new object();
         private WaveInEvent waveIn;
         private MemoryStream buffer;
@@ -64,8 +66,8 @@ namespace CrewChiefV4.AiTeam
                 {
                     lock (stream)
                     {
-                        // Sicherheitsgrenze: 30 Sekunden
-                        if (stream.Length < SampleRate * 2 * 30)
+                        // Sicherheitsgrenze: 60 Sekunden (Monza 21.11.: Robs längere Funksprüche endeten nach 30 s mitten im Satz)
+                        if (stream.Length < SampleRate * 2 * MaxSeconds)
                         {
                             stream.Write(e.Buffer, 0, e.BytesRecorded);
                         }

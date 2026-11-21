@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CrewChiefV4.GameState;
@@ -14,8 +15,12 @@ namespace CrewChiefV4.AiTeam
     {
         private static readonly object gate = new object();
         private static string key;
-        private static float perLap = -1;
-        private static int laps;
+        /// <summary>
+        /// Rob 21.11.2026: „wie hoch der Durchschnittsverbrauch war in der Practice und Quali zusammengerechnet“. Je Session
+        /// (Art + Kennung) das Mittel aller gemessenen Runden; die Sessions werden nach Rundenzahl gewichtet zusammengerechnet.
+        /// Schon eine Runde zählt – die Antwort sagt dann, dass es nur grob ist.
+        /// </summary>
+        private static readonly List<KeyValuePair<string, KeyValuePair<float, int>>> sessions = new List<KeyValuePair<string, KeyValuePair<float, int>>>();
 
         internal static string Key(GameStateData gs)
         {
@@ -24,24 +29,47 @@ namespace CrewChiefV4.AiTeam
             return string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(car) ? null : track + "|" + car;
         }
 
-        /// <summary>Nach jeder Runde außerhalb des Rennens: Mittel aus mindestens zwei gemessenen Runden merken.</summary>
+        /// <summary>Nach jeder Runde außerhalb des Rennens: Mittel dieser Session (alle gemessenen Runden) merken.</summary>
         internal static void Remember(GameStateData gs, float average, int count)
         {
-            if (gs == null || gs.SessionData.SessionType == SessionType.Race || count < 2 || !(average > .05f && average < 100)) return;
+            if (gs == null || gs.SessionData.SessionType == SessionType.Race || count < 1 || !(average > .05f && average < 100)) return;
             string k = Key(gs);
             if (k == null) return;
-            lock (gate) { key = k; perLap = average; laps = count; }
+            string session = gs.SessionData.SessionType + "#" + gs.SessionData.SessionId;
+            lock (gate)
+            {
+                if (k != key) { key = k; sessions.Clear(); }
+                sessions.RemoveAll(s => s.Key == session);
+                sessions.Add(new KeyValuePair<string, KeyValuePair<float, int>>(session, new KeyValuePair<float, int>(average, count)));
+                if (sessions.Count > 8) sessions.RemoveAt(0);
+            }
         }
 
+        /// <summary>Gewichtetes Mittel aller Sessions vor dem Rennen, -1 = keines.</summary>
         internal static float For(GameStateData gs)
         {
             string k = Key(gs);
-            lock (gate) return k != null && k == key ? perLap : -1;
+            lock (gate)
+            {
+                if (k == null || k != key) return -1;
+                int n = sessions.Sum(s => s.Value.Value);
+                return n == 0 ? -1 : sessions.Sum(s => s.Value.Key * s.Value.Value) / n;
+            }
         }
 
-        internal static int Laps(GameStateData gs) { string k = Key(gs); lock (gate) return k != null && k == key ? laps : 0; }
+        internal static int Laps(GameStateData gs) { string k = Key(gs); lock (gate) return k != null && k == key ? sessions.Sum(s => s.Value.Value) : 0; }
 
-        internal static void Reset() { lock (gate) { key = null; perLap = -1; laps = 0; } }
+        /// <summary>Je Session: Art, Mittel, Runden – in zeitlicher Reihenfolge.</summary>
+        internal static List<KeyValuePair<SessionType, KeyValuePair<float, int>>> Breakdown(GameStateData gs)
+        {
+            string k = Key(gs);
+            lock (gate)
+                return k == null || k != key ? new List<KeyValuePair<SessionType, KeyValuePair<float, int>>>() :
+                    sessions.Select(s => new KeyValuePair<SessionType, KeyValuePair<float, int>>(
+                        (SessionType)Enum.Parse(typeof(SessionType), s.Key.Substring(0, s.Key.IndexOf('#'))), s.Value)).ToList();
+        }
+
+        internal static void Reset() { lock (gate) { key = null; sessions.Clear(); } }
     }
 
     /// <summary>The same balance, reserve and evidence are supplied to automatic radio and the language model.</summary>
