@@ -2126,6 +2126,10 @@ namespace CrewChiefV4.Audio
                 return;
             }
 
+            // Drückt der Fahrer die Funktaste zwischen Auswahl und Start, wartet auch diese Ansage (Seitenwarnungen ausgenommen).
+            int heldMs = AiTeam.DriverRadioGate.WaitForSilence(isBleep || IsSafetyRadio, () => DateTime.UtcNow, ms => System.Threading.Thread.Sleep(ms));
+            if (heldMs > 0 && AiTeam.LiveDiagnostics.Enabled)
+                AiTeam.LiveDiagnostics.Audio("held_for_driver", diagnosticClip, diagnosticKey, subtitle, diagnosticPriority, fullPath, diagnosticMessageId);
             if (isAiAudio)
             {
                 byte[] stillCurrent; string ignoredSubtitle;

@@ -56,6 +56,9 @@ namespace CrewChiefV4.AiTeam
         public long Dropped { get { return Interlocked.Read(ref dropped); } }
         public long BytesWritten { get { return Interlocked.Read(ref bytes); } }
         private static readonly HashSet<string> allowed = new HashSet<string>((
+            // AC 21.11.: „ac-native“ wurde geschrieben, aber ohne diese Schlüssel blieb jede Zeile leer.
+            "board_session board_phase board_place board_field board_laps_left board_time_left board_penalty board_native_age_s board_conflicts " +
+            "reifen_schmutz reifen_kern_c bremsen_c reifen_verschleiss delta_zur_bestzeit_s streckengrip " +
             "stage status reason topic text transcript speaker routing confidence_available model service error_type http_status duration_ms " +
             "clip_id message_name message_id priority immediate queue_length sound_key audio_backend measurement bytes samples cpu_percent working_set_bytes private_bytes " +
             "dropped queued capture_limit_bytes folder_limit_bytes segment_limit_bytes stopwatch_frequency process_id schema_version event_id rrca_build " +
@@ -66,7 +69,10 @@ namespace CrewChiefV4.AiTeam
             "prompt_tokens completion_tokens finish_reason reasoning_tokens content_chars completion_limit sample_count input_ticks duplicate late silence_s source trigger result " +
             "position_matrix matrix_columns row_offset total_cars track_length_m source_utc due_utc late_s interval_s " +
             "damage_aero_pct damage_engine_pct damage_brake_pct damage_suspension_pct damage_source_utc tyre_temp_lap_peak_c engine_oil_temp_c engine_water_temp_c " +
-            "penalties_open penalty_type penalty_cause penalty_warning damage_aero_level damage_engine_level wheels_attached pit_requested pit_crew_ready").Split(' '));
+            "penalties_open penalty_type penalty_cause penalty_warning damage_aero_level damage_engine_level wheels_attached pit_requested pit_crew_ready " +
+            "damage_dents parts_detached last_impact_magnitude last_impact_et wheels_detached wheels_flat " +
+            "sim layout length_m session in_menus in_garage paused timed time_left_s duration_s session_laps race_minutes race_laps num_cars listed_cars " +
+            "max_place player_place player_laps_left give_back layout_verified profile_coverage moving ahead behind player_dist_m player_speed hazards").Split(' '));
         private static readonly Regex credentials = new Regex(@"(?i)\b(?:bearer\s+\S+|sk[-_][a-z0-9_-]{8,}|eyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+)|(?:api[_ -]?key|access[_ -]?token|authorization)\s*[:=]\s*[^\s,;]+", RegexOptions.Compiled);
 
         public DiagnosticRecorder(string folder, DiagnosticLimits options = null, string[] secrets = null)
@@ -135,6 +141,11 @@ namespace CrewChiefV4.AiTeam
             }
             var floats = value as float[];
             if (floats != null) return new JArray(floats.Take(12).Select(x => Value(x)));
+            // LMU 20.11.: „wheels_attached“ kam als null an – Ja/Nein-Listen ebenfalls schreiben.
+            var flags = value as bool[];
+            if (flags != null) return new JArray(flags.Take(12).Select(x => (JToken)new JValue(x)));
+            var ints = value as int[];
+            if (ints != null) return new JArray(ints.Take(12).Select(x => (JToken)new JValue(x)));
             return JValue.CreateNull(); // arbitrary objects, headers, nested payloads and audio are never serialized
         }
         private string Subtitle(string path)
@@ -374,6 +385,11 @@ namespace CrewChiefV4.AiTeam
                 "damage_aero_level",current.CarDamageData.OverallAeroDamage.ToString(),"damage_engine_level",current.CarDamageData.OverallEngineDamage.ToString(),
                 "wheels_attached",new[]{t.LeftFrontAttached,t.RightFrontAttached,t.LeftRearAttached,t.RightRearAttached},
                 "pit_requested",current.PitData.HasRequestedPitStop,"pit_crew_ready",current.PitData.IsPitCrewReady,
+                // LMU 20.11.: Karosserie mitschreiben, um die Lage der Dellen-Stellen am Spiel zu bestätigen.
+                "damage_dents",current.CarDamageData.DentSeverity,"parts_detached",current.CarDamageData.PartsDetached,
+                "last_impact_magnitude",current.CarDamageData.LastImpactMagnitude>=0?(object)current.CarDamageData.LastImpactMagnitude:null,
+                "last_impact_et",current.CarDamageData.LastImpactTime>0?(object)current.CarDamageData.LastImpactTime:null,
+                "wheels_detached",current.CarDamageData.WheelDetached,"wheels_flat",current.CarDamageData.WheelFlat,
                 "damage_source_utc",current.SourceTelemetryUtc==DateTime.MinValue?null:current.SourceTelemetryUtc.ToString("o")));
         }
         private static double? FiniteReading(float value,float min,float max)

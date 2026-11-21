@@ -40,10 +40,27 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastBlueUtc = DateTime.MinValue;
         private DateTime localYellowSinceUtc = DateTime.MinValue;
         internal static readonly TimeSpan ShortYellow = TimeSpan.FromSeconds(4);
+        /// <summary>
+        /// AC Monza 21.11.: Die Sektor-Gelbflagge stand in 10 von 15 Fällen unter 1,5 s (0,3–1,3 s) und wurde jedes Mal
+        /// angesagt; das einzige lange Gelb (25 s ab 14:50:36) ging dabei unter. Sektor-Gelb gilt erst, wenn es 1,5 s steht.
+        /// </summary>
+        internal static readonly TimeSpan SectorYellowConfirm = TimeSpan.FromSeconds(1.5);
+        private DateTime sectorYellowSinceUtc = DateTime.MinValue;
+        private bool sectorYellowAnnounced;
+
+        /// <summary>
+        /// RaceRoom Mantorp 21.11., 15:33:05: „Gelb vorbei.“ schnitt Miks „Alles klar? Ganz ruhig …“ nach dem Dreher ab.
+        /// Entwarnungen (Gelb vorbei, wieder Grün) sind Auskunft, keine Gefahr: Sie warten, statt zu unterbrechen.
+        /// </summary>
+        internal static int Priority(string phrase) { int i = IndexOf(phrase); return i == 1 || i == 7 ? 6 : 10; }
+
+        internal static bool SectorYellowConfirmed(DateTime since, DateTime now) =>
+            since != DateTime.MinValue && now >= since && now - since >= SectorYellowConfirm;
 
         public void Reset()
         {
-            lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = DateTime.MinValue;
+            lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = sectorYellowSinceUtc = DateTime.MinValue;
+            sectorYellowAnnounced = false;
         }
 
         internal static bool BlueCoveredByClassCall(DateTime now) =>
@@ -56,8 +73,55 @@ namespace CrewChiefV4.AiTeam
                 (now >= detected && now - detected <= TimeSpan.FromSeconds(3));
         }
 
+        /// <summary>Sprachunabhängige Art einer Flaggenansage für die Rennchronik.</summary>
+        internal static string Kind(string phrase)
+        {
+            switch (IndexOf(phrase))
+            {
+                case 0: return "gelb_lokal";
+                case 2: return "gelb_sektor";
+                case 3: return "doppelt_gelb";
+                case 8: return "unfall_voraus";
+                default: return "flagge";
+            }
+        }
+
+        /// <summary>Gelb, Doppelt Gelb und Unfall voraus nennen den Betroffenen, wenn er belegt ist (AC/RaceRoom 20.11.).</summary>
+        internal static bool NamesIncident(string phrase)
+        {
+            int i = IndexOf(phrase);
+            return i == 0 || i == 2 || i == 3 || i == 8;
+        }
+
+        /// <summary>
+        /// Wer ist betroffen? Zuerst die gemessene Gefahr voraus der letzten 20 s (Dreher, steht, bricht ein), sonst das nächste
+        /// langsame Auto bis 300 m vor uns. Nur mit erlaubtem Namen; ohne Beleg null.
+        /// </summary>
+        internal static string IncidentName(GameStateData gs, DateTime now) =>
+            gs == null ? null : RaceTrafficWatch.RecentHazard(gs.SessionData.SessionId, now, TimeSpan.FromSeconds(20)) ?? IncidentDriver(gs);
+
+        /// <summary>Wer steht am Unfall voraus? Nächstes langsames Auto bis 300 m vor uns, nur mit erlaubtem Namen.</summary>
+        internal static string IncidentDriver(GameStateData gs)
+        {
+            if (gs == null || gs.OpponentData == null || gs.SessionData.TrackDefinition == null) return null;
+            float length = gs.SessionData.TrackDefinition.trackLength, own = gs.PositionAndMotionData.DistanceRoundTrack;
+            if (!(length > 100) || float.IsNaN(own)) return null;
+            OpponentData best = null; float bestGap = 301;
+            foreach (var o in gs.OpponentData.Values)
+            {
+                // iRacing meldet je Auto, ob es neben der Strecke ist (trackSurface 0) – dann zählt es auch bei mehr Tempo.
+                bool offTrack = o != null && o.trackSurface == 0;
+                if (o == null || !o.IsActive || o.InPits || !o.CanUseName || !(o.Speed >= 0) || o.Speed > 20 && !offTrack) continue;
+                float gap = ((o.DistanceRoundTrack - own) % length + length) % length;
+                if (gap >= 5 && gap < bestGap) { bestGap = gap; best = o; }
+            }
+            return best == null ? null : RadioPhraseCatalog.SafeRivalName(best.DriverRawName);
+        }
+
         public static bool StillRelevant(string phrase, GameStateData gs)
         {
+            // Die schwarze Flagge ist Pflicht: Versetzt die Sim Rob danach in die Box, bleibt die Ansage trotzdem stehen.
+            if (IndexOf(phrase) == 5 && RaceExclusion.Active(gs)) return true;
             if (gs == null || gs.PitData.InPitlane || (gs.SessionData.SessionPhase != SessionPhase.Green && gs.SessionData.SessionPhase != SessionPhase.FullCourseYellow)) return false;
             var f=gs.FlagData;
             switch (IndexOf(phrase))
@@ -128,12 +192,18 @@ namespace CrewChiefV4.AiTeam
             // Flagge für den eigenen Wagen
             var flag = current.SessionData.Flag;
             var prevFlag = previous.SessionData.Flag;
+            if (flag != FlagEnum.YELLOW) { sectorYellowSinceUtc = DateTime.MinValue; sectorYellowAnnounced = false; }
+            else if (sectorYellowSinceUtc == DateTime.MinValue) sectorYellowSinceUtc = nowUtc;
+            if (flag == FlagEnum.YELLOW && !sectorYellowAnnounced && SectorYellowConfirmed(sectorYellowSinceUtc, nowUtc))
+            {
+                sectorYellowAnnounced = true;
+                if (!f.isLocalYellow) result.Add(Phrases[2]);
+            }
             if (flag != prevFlag)
             {
                 switch (flag)
                 {
                     case FlagEnum.YELLOW:
-                        if (!f.isLocalYellow) result.Add(Phrases[2]);
                         break;
                     case FlagEnum.DOUBLE_YELLOW:
                         result.Add(Phrases[3]);

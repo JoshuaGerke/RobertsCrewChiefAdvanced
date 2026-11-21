@@ -29,6 +29,10 @@ namespace CrewChiefV4.AiTeam
             TelemetryVehiclesOffset = TelemetryOffset + 4;
         internal static readonly int TotalSize = Align(TelemetryVehiclesOffset + MaxVehicles * VehicleTelemetrySize, 8);
         internal static readonly int ScoringCountOffset = ScoringOffset + Marshal.OffsetOf(typeof(rF2ScoringInfo), "mNumVehicles").ToInt32();
+        /// <summary>Ergebnis-Datenstrom der Rennleitung („results stream additions since last update“): Länge (size_t) direkt nach der
+        /// Wertungs-Info, Text nach den 104 Wertungseinträgen.</summary>
+        internal static readonly int StreamSizeOffset = ScoringOffset + Align(ScoringInfoSize, 8);
+        internal static readonly int StreamOffset = ScoringVehiclesOffset + MaxVehicles * VehicleScoringSize;
 
         internal static int Align(int value, int to) => (value + to - 1) / to * to;
 
@@ -93,6 +97,9 @@ namespace CrewChiefV4.AiTeam
                 int scored = Math.Min(Math.Max(view.ReadInt32(LMUNativeLayout.ScoringCountOffset), 0), LMUNativeLayout.MaxVehicles);
                 view.ReadArray(LMUNativeLayout.ScoringOffset, target, LMUNativeLayout.ScoringOffset, LMUNativeLayout.ScoringVehiclesOffset - LMUNativeLayout.ScoringOffset);
                 view.ReadArray(LMUNativeLayout.ScoringVehiclesOffset, target, LMUNativeLayout.ScoringVehiclesOffset, scored * LMUNativeLayout.VehicleScoringSize);
+                long stream = view.ReadInt64(LMUNativeLayout.StreamSizeOffset);
+                int streamBytes = stream > 0 && stream < LMUNativeLayout.StreamSize ? (int)stream : 0;
+                if (streamBytes > 0) view.ReadArray(LMUNativeLayout.StreamOffset, target, LMUNativeLayout.StreamOffset, streamBytes);
                 int active = Math.Min((int)view.ReadByte(LMUNativeLayout.ActiveVehiclesOffset), LMUNativeLayout.MaxVehicles);
                 view.ReadArray(LMUNativeLayout.TelemetryOffset, target, LMUNativeLayout.TelemetryOffset, 4 + active * LMUNativeLayout.VehicleTelemetrySize);
                 Copies++;

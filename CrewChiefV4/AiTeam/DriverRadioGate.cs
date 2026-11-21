@@ -15,7 +15,9 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kurze Ruhe nach dem Loslassen, damit die Antwort auf die Frage nicht von einer Routinemeldung überholt wird.</summary>
         internal static readonly TimeSpan AfterRelease = TimeSpan.FromSeconds(1.5);
         /// <summary>Schutz gegen eine hängende Taste: länger als so lange gilt die Funkstille nicht.</summary>
-        internal static readonly TimeSpan MaxHold = TimeSpan.FromSeconds(30);
+        /// <summary>Monza 21.11.: Nach 30 s Funkspruch sprach Ben in Robs Satz hinein – die Grenze war zu knapp. Sie folgt jetzt der
+        /// längsten Aufnahme plus Reserve.</summary>
+        internal static readonly TimeSpan MaxHold = TimeSpan.FromSeconds(AiMicRecorder.MaxSeconds + 5);
 
         private static long pressedTicks, releasedTicks;
         private static int talking;
@@ -50,5 +52,22 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Darf diese Meldung jetzt starten? Seitenwarnungen des Spotters immer, alles andere nicht während der Funkstille.</summary>
         internal static bool MayStart(bool spotter, DateTime nowUtc) => spotter || !Holding(nowUtc);
+
+        /// <summary>
+        /// Wartet vor dem Abspielen, solange Funkstille gilt. Fängt den Fall ab, dass eine Ansage schon ausgewählt, aber noch
+        /// nicht gestartet ist, wenn der Fahrer drückt (Quali 20.11.: Mik sprach 0,4 s nach dem Drücken los und redete über Rob).
+        /// Gibt die gewartete Zeit in Millisekunden zurück.
+        /// </summary>
+        internal static int WaitForSilence(bool exempt, Func<DateTime> utcNow, Action<int> sleep, int stepMs = 50)
+        {
+            if (exempt || utcNow == null || sleep == null) return 0;
+            int waited = 0, limit = (int)(MaxHold + AfterRelease).TotalMilliseconds;
+            while (waited < limit && Holding(utcNow()))
+            {
+                sleep(stepMs);
+                waited += stepMs;
+            }
+            return waited;
+        }
     }
 }

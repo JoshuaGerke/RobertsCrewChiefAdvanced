@@ -309,11 +309,15 @@ namespace CrewChiefV4.AiTeam
                 (s.SessionPhase==SessionPhase.Green || s.SessionPhase==SessionPhase.FullCourseYellow);
             bool retiredAfterFlag = AllowPitlane && Topic == "race-retired" && s.SessionType == SessionType.Race &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
-            bool phaseValid = retiredAfterFlag || disqualified || liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
+            // Schwarze Flagge ist Pflicht und gilt auch, wenn die Sim Rob danach in die Box versetzt (AC Monza 21.11.).
+            bool blackFlag = Topic == "warning-flag-5" && RaceExclusion.Active(gs);
+            // Strafe für Tempo in der Boxengasse kommt in der Boxengasse – dort muss sie auch gesagt werden dürfen.
+            bool penalty = Topic == "warning-penalty" || (Topic ?? "").StartsWith("warning-rc-pen", StringComparison.Ordinal);
+            bool phaseValid = blackFlag || retiredAfterFlag || disqualified || liveWarning || pitFinish || qualifyingResult || qualifyingLast || formation || greeting || (weather || pit) && (s.SessionPhase == SessionPhase.Garage || s.SessionPhase == SessionPhase.Gridwalk || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.FullCourseYellow || s.SessionPhase == SessionPhase.Formation) || s.SessionPhase == SessionPhase.Green || AllowLapFinish &&
                 SessionLapObserver.Supported(s.SessionType) && (Topic == "own-lap" || Topic == "near-best") &&
                 (s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Finished);
             return s.SessionId == SessionId && s.SessionType == SessionType && phaseValid &&
-                (!gs.PitData.InPitlane || disqualified || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
+                (!gs.PitData.InPitlane || blackFlag || penalty || disqualified || pitFinish || qualifyingResult || weather || pit || greeting) && (Position < 0 || s.ClassPosition == Position) && (AdditionalValidity == null || AdditionalValidity(gs)) && (TimedValidity == null || TimedValidity(gs,now)) &&
                 (LapsRemaining < 0 || (!s.SessionHasFixedTime && s.SessionLapsRemaining == LapsRemaining)) &&
                 (CompletedLaps < 0 || s.CompletedLaps == CompletedLaps) && GapStillValid(gs, now, true, AheadName, AheadGap) && GapStillValid(gs, now, false, BehindName, BehindGap);
         }
@@ -382,6 +386,10 @@ namespace CrewChiefV4.AiTeam
         private DateTime candidateSince, lastTick, lastCall = DateTime.MinValue, nextSummary;
         private bool candidatePass, candidatePit, previousInPits;
         private string candidatePassKey, candidatePassIdentity;
+        // Rennverständnis (Rob 21.11.): Wer hat Rob auf der Strecke überholt? Nur wenn genau ein Gegner von direkt hinter auf
+        // direkt vor gewechselt ist, beide in Fahrt und nicht in der Box.
+        private string candidateLossKey;
+        private int storyVariant;
         private RadioVariantCursor passVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor firstPassVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor pitGainVariants = new RadioVariantCursor();
@@ -470,7 +478,15 @@ namespace CrewChiefV4.AiTeam
                 trackLength > 500 && lapDistance >= trackLength / 2 && lapDistance < trackLength * .85f)
             {
                 startVerdictDone = true;
-                Add("start-verdict", StartVerdict(s, startPosition, driverName, Environment.TickCount & 0xFF), gs, now, 8, 5, "class_position_at_half_of_lap_one");
+                string startText = StartVerdict(s, startPosition, driverName, Environment.TickCount & 0xFF);
+                // Rennverständnis (Rob 21.11.): an wem vorbei, wer vorbei – aus der Rennchronik, nur mit erlaubten Namen.
+                var chronicle = RaceChronicle.Current;
+                if (names && chronicle.Session == s.SessionId && chronicle.Type == SessionType.Race)
+                {
+                    string who = RaceStory.StartNames(chronicle, storyVariant);
+                    if (who.Length > 0) { startText += " " + who; storyVariant++; }
+                }
+                Add("start-verdict", startText, gs, now, 8, 5, "class_position_at_half_of_lap_one");
             }
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
@@ -486,7 +502,8 @@ namespace CrewChiefV4.AiTeam
                 if (candidatePosition != s.ClassPosition)
                 {
                     candidatePosition = s.ClassPosition; candidateSince = now; candidateSamples = 1;
-                    candidatePass = false; candidatePit = false; candidatePassKey = candidatePassIdentity = null;
+                    candidatePass = false; candidatePit = false; candidatePassKey = candidatePassIdentity = candidateLossKey = null;
+                    if (candidatePosition == stablePosition + 1 && wasGreen) candidateLossKey = Passer(gs, stablePosition, candidatePosition);
                     if (candidatePosition == stablePosition - 1 && wasGreen)
                     {
                         foreach (var pair in gs.OpponentData)
@@ -540,6 +557,14 @@ namespace CrewChiefV4.AiTeam
                             passIndex = passCursor.Select(passGroup, RadioPhraseCatalog.Current.Count(passGroup));
                             text = RaceRadioLanguage.Overtake(firstPass ? 1 : passIndex + 2, candidatePosition, driverName,
                                 RaceRadioLanguage.SeparateClass(s), passIndex);
+                            // Rennverständnis (Rob 21.11.): wer überholt wurde, und die Vorgeschichte mit ihm aus der Rennchronik.
+                            if (names && candidatePass && candidatePassKey != null && gs.OpponentData.TryGetValue(candidatePassKey, out var passedRival) &&
+                                passedRival != null && passedRival.CanUseName)
+                            {
+                                text = (text + " " + RaceStory.Passed(RadioPhraseCatalog.SafeRivalName(passedRival.DriverRawName), storyVariant) + " " +
+                                    RaceStory.AfterGain(candidatePassKey, now, storyVariant)).Trim();
+                                storyVariant++;
+                            }
                         }
                         // Rob 16.11.: „vorgerückt“ nur, wenn es gegenüber der zuletzt gemeldeten Position wirklich nach vorn geht.
                         else if (lastAnnouncedPosition > 0 && candidatePosition >= lastAnnouncedPosition)
@@ -600,7 +625,15 @@ namespace CrewChiefV4.AiTeam
                     else if (lossFrom == 0)
                     {
                         lastAnnouncedPosition = candidatePosition;
-                        Add("position", PositionLost(s, candidatePosition, positionVariant++, driverName), gs, now, 8, 2, "stable_position_loss_cause_unknown");
+                        string lostText = PositionLost(s, candidatePosition, positionVariant++, driverName);
+                        if (names && candidateLossKey != null && gs.OpponentData.TryGetValue(candidateLossKey, out var passer) && passer != null && passer.CanUseName &&
+                            passer.ClassPosition == candidatePosition - 1 && !passer.InPits)
+                        {
+                            lostText = (RaceStory.PassedBy(RadioPhraseCatalog.SafeRivalName(passer.DriverRawName), storyVariant) + " " + lostText + " " +
+                                RaceStory.AfterLoss(candidateLossKey, now, storyVariant)).Trim();
+                            storyVariant++;
+                        }
+                        Add("position", lostText, gs, now, 8, 2, candidateLossKey != null ? "stable_position_loss_same_class_rival_crossed" : "stable_position_loss_cause_unknown");
                     }
                     if (gain < 0)
                         memory?.AddObservation("Zurückgefallen von Platz " + stablePosition + " auf " + candidatePosition + ".",
@@ -724,6 +757,9 @@ namespace CrewChiefV4.AiTeam
             int variant = pressureVariants.Select(group, catalog.Count(group));
             string interval = (gap.IsEstimated ? RadioLanguage.T("etwa ", "about ", "unos ") : "") + RadioLanguage.Num(gap.Seconds, "0.0") + RadioLanguage.T(" Sekunden", " seconds", " segundos");
             string text = catalog.Format(group, variant, name.Length > 0 ? name : RadioLanguage.T("Der Hintermann", "The car behind", "El coche de detrás"), interval);
+            // Rennverständnis (Rob 21.11.): Kennen wir ihn schon aus einem Duell, sagt Ben es dazu.
+            string story = name.Length > 0 ? RaceStory.Approaching(s.OpponentKeyBehind, now, storyVariant) : "";
+            if (story.Length > 0) { text += " " + story; storyVariant++; }
             Add("rear-pressure", text, state, now, 10, 4, "same_class_rival_interval_shrinking_into_attack_range");
             var warning = pending.Last();
             warning.FieldNamesAllowed = name.Length != 0;
@@ -805,6 +841,26 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Gleiche Klasse, direkt hinter uns, in Fahrt und auf der Strecke nah – Hinweis auf ein echtes Überholmanöver.</summary>
+        /// <summary>
+        /// Der Gegner, der Rob gerade auf der Strecke überholt hat: vorher direkt hinter Rob, jetzt direkt vor ihm, derselbe Wagen,
+        /// dieselbe Klasse, beide in Fahrt und nicht in der Box. Mehrdeutig oder unbelegt: null.
+        /// </summary>
+        private string Passer(GameStateData gs, int oldOwn, int newOwn)
+        {
+            string found = null;
+            foreach (var pair in gs.OpponentData)
+            {
+                var rival = pair.Value;
+                if (rival == null || !previousCars.TryGetValue(pair.Key, out var before) || before.Identity != RaceReader.Identity(pair.Key, rival) ||
+                    before.Position != newOwn || rival.ClassPosition != oldOwn || before.Pit || rival.InPits || !before.Active || !rival.IsActive ||
+                    before.Speed <= 10 || rival.Speed <= 10 || gs.PositionAndMotionData.CarSpeed <= 10 ||
+                    rival.CarClass == null || gs.carClass == null || rival.CarClass.getClassIdentifier() != gs.carClass.getClassIdentifier()) continue;
+                if (found != null) return null;
+                found = pair.Key;
+            }
+            return found;
+        }
+
         internal static bool LikelyPassedCarBehind(GameStateData gs, int ownPosition)
         {
             var s = gs.SessionData;

@@ -29,6 +29,14 @@ namespace CrewChiefV4.AiTeam
             lastUrgentUtc = stoppedSinceUtc = exitUtc = lastWearUtc = DateTime.MinValue; lastWear = null; call = null;
         }
 
+        /// <summary>Stopp angemeldet und im letzten Viertel der Runde: Das Auto fährt gleich in die Box.</summary>
+        internal static bool HeadingToPits(GameStateData gs)
+        {
+            float length = gs?.SessionData.TrackDefinition?.trackLength ?? 0;
+            return gs != null && gs.PitData.HasRequestedPitStop && !gs.PitData.InPitlane && length > 100 &&
+                gs.PositionAndMotionData.DistanceRoundTrack > length * .75f;
+        }
+
         internal static string Corner(int i)
         {
             switch (i)

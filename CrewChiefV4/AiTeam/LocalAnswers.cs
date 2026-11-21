@@ -219,18 +219,69 @@ namespace CrewChiefV4.AiTeam
         /// „noch nicht zuverlässig“, obwohl eine vorläufige Schätzung vorlag. Jetzt kommt sofort die Zahl – als Schätzung gekennzeichnet.
         /// Auch längere, umgangssprachliche Fragen; Gegnerfragen und Strategiefragen gehen weiter an die Auswertung.
         /// </summary>
-        public static string FuelConsumption(string question, GameStateData gs, AiRaceMemory memory)
+        /// <summary>Geschätzter Verbrauch aus Training und Quali, ausdrücklich ohne belastbare Rennwerte (5 Formulierungen).</summary>
+        internal static string SessionSplit(GameStateData gs)
+        {
+            var parts = FuelCarry.Breakdown(gs);
+            if (parts.Count < 2) return null;
+            var spoken = parts.Select(p => (p.Key == SessionType.Qualify || p.Key == SessionType.PrivateQualify ? RadioLanguage.T("Quali ", "Qualifying ", "Clasificación ") :
+                RadioLanguage.T("Training ", "Practice ", "Entrenamiento ")) + RadioLanguage.Num(p.Value.Key, "0.00") +
+                RadioLanguage.T(" über " + p.Value.Value + (p.Value.Value == 1 ? " Runde" : " Runden"), " over " + p.Value.Value + (p.Value.Value == 1 ? " lap" : " laps"),
+                    " en " + p.Value.Value + (p.Value.Value == 1 ? " vuelta" : " vueltas")));
+            return string.Join(", ", spoken) + ".";
+        }
+
+        internal static string CarriedFuelAnswer(float perLap, int laps, GameStateData gs, string driverName = null)
+        {
+            string c = RadioLanguage.Num(perLap, "0.00");
+            string name = string.IsNullOrWhiteSpace(driverName) ? "Rob" : driverName.Trim();
+            string basis = laps > 0 ? RadioLanguage.T(" aus " + laps + " Runden", " from " + laps + " laps", " de " + laps + " vueltas") : "";
+            // Rob 21.11.: „Practice und Quali zusammengerechnet“ – bei mehreren Sessions jede einzeln, dann das gemeinsame Mittel.
+            string split = SessionSplit(gs);
+            string text = RadioVariants.Pick("fuel-carried",
+                RadioLanguage.T("Belastbare Rennwerte haben wir noch nicht. Aus Training und Quali geschätzt etwa " + c + " Liter pro Runde" + basis + ". Verlass dich aber nicht zu sehr darauf, " + name + ".",
+                    "We don't have solid race data yet. From practice and qualifying, roughly " + c + " litres per lap" + basis + ". Don't rely on it too much, " + name + ".",
+                    "Aún no tenemos datos fiables de carrera. De libres y clasificación, unos " + c + " litros por vuelta" + basis + ". Pero no te fíes demasiado, " + name + "."),
+                RadioLanguage.T("Nur eine Schätzung, " + name + ": Training und Quali sagen rund " + c + " Liter pro Runde. Im Rennen messe ich neu.",
+                    "Just an estimate, " + name + ": practice and qualifying say about " + c + " litres per lap. I'll measure again in the race.",
+                    "Solo una estimación, " + name + ": libres y clasificación dicen unos " + c + " litros por vuelta. En carrera vuelvo a medir."),
+                RadioLanguage.T("Geschätzter Schnitt aus Training und Quali: " + c + " Liter pro Runde. Sichere Rennwerte fehlen noch, also mit Vorsicht.",
+                    "Estimated average from practice and qualifying: " + c + " litres per lap. No solid race numbers yet, so treat it with care.",
+                    "Media estimada de libres y clasificación: " + c + " litros por vuelta. Faltan datos de carrera, así que con cautela."),
+                RadioLanguage.T("Aus den Trainingsrunden ungefähr " + c + " Liter pro Runde. Im Rennen kann das abweichen, " + name + ", ich prüfe es ab der ersten Runde.",
+                    "From the practice laps about " + c + " litres per lap. It can differ in the race, " + name + ", I'll check it from the first lap.",
+                    "De las vueltas de entrenamiento, unos " + c + " litros por vuelta. En carrera puede variar, " + name + ", lo compruebo desde la primera vuelta."),
+                RadioLanguage.T("Grob " + c + " Liter pro Runde, geschätzt aus Training und Quali. Kein Messwert aus dem Rennen, also nicht zu fest darauf bauen.",
+                    "Roughly " + c + " litres per lap, estimated from practice and qualifying. Not a race measurement, so don't lean on it too hard.",
+                    "Más o menos " + c + " litros por vuelta, estimado de libres y clasificación. No es una medición de carrera, no te apoyes demasiado."));
+            if (split != null) text = split + " " + text;
+            float left = gs == null ? -1 : gs.FuelData.FuelLeft;
+            if (gs != null && gs.FuelData.FuelUseActive && left > 0 && !float.IsNaN(left) && !float.IsInfinity(left))
+                text += " " + RadioLanguage.T("Mit " + RadioLanguage.Num(left, "0") + " Litern wären das rund " + (int)Math.Floor(left / perLap) + " Runden.",
+                    "With " + RadioLanguage.Num(left, "0") + " litres that would be about " + (int)Math.Floor(left / perLap) + " laps.",
+                    "Con " + RadioLanguage.Num(left, "0") + " litros serían unas " + (int)Math.Floor(left / perLap) + " vueltas.");
+            return text;
+        }
+
+        public static string FuelConsumption(string question, GameStateData gs, AiRaceMemory memory, string driverName = null)
         {
             if (gs == null || string.IsNullOrWhiteSpace(question)) return null;
             string q = question.ToLowerInvariant();
             if (q.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length > 22 || complexMarkers.Any(m => q.Contains(m))) return null;
-            if (!AnyOf(q, "sprit", "benzin", "kraftstoff", "fuel", "combustible", "gasolina") ||
-                !AnyOf(q, "verbrauch", "consumption", "consum", "pro runde", "per lap", "por vuelta", "burn")) return null;
+            bool consumption = AnyOf(q, "verbrauch", "verbräuch", "consumption", "consum", "pro runde", "per lap", "por vuelta", "burn");
+            // Rob 20.11.: „die ca. Verbräuche aus Practice und Quali“ – ohne das Wort Sprit.
+            bool fuelWord = AnyOf(q, "sprit", "benzin", "kraftstoff", "fuel", "combustible", "gasolina") ||
+                consumption && AnyOf(q, "practice", "training", "quali", "libres", "clasificación");
+            if (!fuelWord || !consumption) return null;
             if (AnyOf(q, "gegner", "vordermann", "hintermann", " hat ", "opponent", "rival", " tiene ")) return null;
+            // Rob 20.11.: In der Box vor dem Rennen nach dem Verbrauch aus Training und Quali gefragt: ehrlich als Schätzung.
+            float carried = FuelCarry.For(gs);
+            bool measuredHere = memory != null && (memory.AverageFuelPerLap(out int ownLaps) > 0 && ownLaps > 0 || memory.ProvisionalFuelPerLap(gs) > 0);
+            if (carried > 0 && !measuredHere) return CarriedFuelAnswer(carried, FuelCarry.Laps(gs), gs, driverName);
             if (!gs.FuelData.FuelUseActive || float.IsNaN(gs.FuelData.FuelLeft) || float.IsInfinity(gs.FuelData.FuelLeft) || gs.FuelData.FuelLeft < 0)
                 return RadioLanguage.T("Gerade kein verlässlicher Tankstand, also auch kein Verbrauch.", "No reliable fuel reading right now, so no consumption either.",
                     "Ahora no hay nivel de combustible fiable, así que tampoco consumo.");
-            float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out _);
+            float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out int measuredLaps);
             if (!(perLap > 0))
                 return RadioLanguage.T("Für eine Schätzung brauche ich noch ein paar hundert Meter Fahrt ab der Box.",
                     "I need a few hundred metres of driving from the pits for an estimate.", "Necesito unos cientos de metros desde boxes para estimarlo.");

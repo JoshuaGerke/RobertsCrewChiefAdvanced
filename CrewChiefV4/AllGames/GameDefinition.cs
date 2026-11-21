@@ -283,6 +283,14 @@ namespace CrewChiefV4
                 new[]{definition.processName}.Concat(definition.alternativeProcessNames ?? new string[0])
                     .Any(p=>!string.IsNullOrWhiteSpace(p) && string.Equals(Normalize(p),name,StringComparison.OrdinalIgnoreCase));
         }
+        // Several entries share one process (Assetto Corsa: 64 bit, 128 cars, rally mode). Without an
+        // explicit choice the normal variant wins, not whichever happens to come first in the list.
+        private static readonly GameEnum[] StandardVariants={GameEnum.ASSETTO_64BIT};
+        internal static GameDefinition Standard(IList<GameDefinition> variants)
+        {
+            if(variants==null || variants.Count==0) return null;
+            return variants.FirstOrDefault(d=>StandardVariants.Contains(d.gameEnum)) ?? variants[0];
+        }
         public static GameDefinition Select(IEnumerable<GameDefinition> definitions, IEnumerable<string> runningProcesses,
             string foregroundProcess, GameDefinition selected, bool crewRunning, GameDefinition pausedGame = null)
         {
@@ -291,13 +299,15 @@ namespace CrewChiefV4
             var matches=available.Where(d=>running.Any(p=>Matches(d,p))).ToList();
             var foreground=matches.Where(d=>Matches(d,foregroundProcess)).ToList();
             GameDefinition candidate=null;
-            if(foreground.Count>0) candidate=foreground.FirstOrDefault(d=>ReferenceEquals(d,selected)) ?? foreground[0];
+            if(foreground.Count>0) candidate=foreground.FirstOrDefault(d=>ReferenceEquals(d,selected)) ?? Standard(foreground);
             // While driving, an unrelated foreground window must never switch simulators.
             else if(crewRunning) return null;
             else if(matches.Count==1) candidate=matches[0];
-            // Shared-process variants keep the user's explicit choice. Different sims require a choice.
-            else if(selected!=null && matches.Contains(selected) && matches.All(d=>
-                string.Equals(d.processName,selected.processName,StringComparison.OrdinalIgnoreCase))) candidate=selected;
+            // Shared-process variants keep the user's explicit choice, otherwise the standard variant.
+            // Different sims require a choice.
+            else if(matches.Count>1 && matches.All(d=>
+                string.Equals(d.processName,matches[0].processName,StringComparison.OrdinalIgnoreCase)))
+                candidate=matches.FirstOrDefault(d=>ReferenceEquals(d,selected)) ?? Standard(matches);
             return pausedGame!=null && candidate!=null && Matches(pausedGame,candidate.processName) ? null : candidate;
         }
     }

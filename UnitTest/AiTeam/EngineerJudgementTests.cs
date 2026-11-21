@@ -69,8 +69,40 @@ namespace UnitTest.AiTeamTests
             try
             {
                 DriverRadioGate.Pressed(T);
-                Assert.IsTrue(DriverRadioGate.Holding(T.AddSeconds(29)));
-                Assert.IsFalse(DriverRadioGate.Holding(T.AddSeconds(31)));
+                // Monza 21.11.: Robs Funksprüche dauern bis zu 60 s – die Funkstille gilt so lange wie die längste Aufnahme.
+                Assert.IsTrue(DriverRadioGate.Holding(T.AddSeconds(59)));
+                Assert.IsFalse(DriverRadioGate.Holding(T + DriverRadioGate.MaxHold + TimeSpan.FromSeconds(1)));
+                Assert.That(DriverRadioGate.MaxHold, Is.LessThanOrEqualTo(TimeSpan.FromSeconds(70)), "hängende Taste blockiert nicht ewig");
+            }
+            finally { DriverRadioGate.Reset(); }
+        }
+
+        [Test]
+        public void Clip_already_selected_waits_when_the_driver_presses_before_it_starts()
+        {
+            try
+            {
+                // Quali 20.11.: Mik ausgewählt 31,818 s, Funktaste 31,902 s, Start 32,291 s – er redete über Rob.
+                DriverRadioGate.Reset();
+                DriverRadioGate.Pressed(T);
+                var clock = T;
+                int waited = DriverRadioGate.WaitForSilence(false, () => clock, ms =>
+                {
+                    clock = clock.AddMilliseconds(ms);
+                    if (clock >= T.AddSeconds(2) && clock < T.AddSeconds(2).AddMilliseconds(ms)) DriverRadioGate.Released(clock);
+                });
+                Assert.That(clock, Is.GreaterThanOrEqualTo(T.AddSeconds(2) + DriverRadioGate.AfterRelease), "startet erst nach dem Loslassen und der kurzen Ruhe");
+                Assert.That(waited, Is.GreaterThan(3000).And.LessThan(3700));
+
+                DriverRadioGate.Pressed(T);
+                Assert.AreEqual(0, DriverRadioGate.WaitForSilence(true, () => T, ms => Assert.Fail("Seitenwarnung wartet nie")));
+                DriverRadioGate.Reset();
+                Assert.AreEqual(0, DriverRadioGate.WaitForSilence(false, () => T, ms => Assert.Fail("ohne Funkspruch keine Wartezeit")));
+
+                DriverRadioGate.Pressed(T);
+                var stuck = T;
+                int capped = DriverRadioGate.WaitForSilence(false, () => stuck, ms => stuck = stuck.AddMilliseconds(ms));
+                Assert.That(capped, Is.LessThanOrEqualTo((int)(DriverRadioGate.MaxHold + DriverRadioGate.AfterRelease).TotalMilliseconds), "hängende Taste blockiert nicht ewig");
             }
             finally { DriverRadioGate.Reset(); }
         }

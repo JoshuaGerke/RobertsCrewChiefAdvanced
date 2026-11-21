@@ -88,18 +88,39 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Feldgröße und – außerhalb des Rennens – wie viele gerade draußen sind; leer ohne Gegnerdaten.</summary>
+        /// <summary>Feldgröße aus dem Lagebild direkt aus der Sim (größte gemeldete Zahl aus Fahrerliste und Platz), 0 = keines.</summary>
+        internal static int NativeFieldSize()
+        {
+            var v = Field.FieldService.Fresh(2);
+            return v == null ? 0 : Math.Max(v.NumCars, v.MaxPlace);
+        }
+
+        /// <summary>
+        /// Monza 21.11.: „Startplatz 24 von 21“ – Crew Chief kannte 20 Gegner, im Feld standen 31 Autos. Die Sim selbst zählt:
+        /// die größere der beiden Angaben gilt, und nie kleiner als der eigene Platz.
+        /// </summary>
+        internal static int FieldSize(GameStateData gs)
+        {
+            int mapped = gs?.OpponentData == null ? 1 : gs.OpponentData.Values.Count(o => o != null && o.IsActive) + 1;
+            int own = gs == null ? 0 : Math.Max(gs.SessionData.ClassPosition, gs.SessionData.OverallPosition);
+            return Math.Max(Math.Max(mapped, NativeFieldSize()), own);
+        }
+
         internal static string FieldLine(GameStateData gs)
         {
             if (gs?.OpponentData == null) return "";
             var active = gs.OpponentData.Values.Where(o => o != null && o.IsActive).ToList();
-            if (active.Count == 0) return ""; // beim Laden fehlen Gegnerdaten oft noch – dann lieber nichts behaupten
-            int cars = active.Count + 1;
+            if (active.Count == 0 && NativeFieldSize() <= 1) return ""; // beim Laden fehlen Gegnerdaten oft noch – dann lieber nichts behaupten
+            int cars = FieldSize(gs);
             string c = cars.ToString(RadioLanguage.Culture);
             if (gs.SessionData.SessionType == SessionType.Race)
                 return gs.SessionData.ClassPosition > 0 ? "" : RadioLanguage.T(c + " Autos am Start. ", c + " cars on the grid. ", c + " coches en parrilla. ");
             int inPits = active.Count(o => o.InPits);
             // InPits setzen nicht alle Sims; ohne ein einziges Auto in der Box nennen wir nur die Feldgröße.
             if (inPits == 0) return RadioLanguage.T(c + " Autos im Feld. ", c + " cars in the session. ", c + " coches en la sesión. ");
+            // Monza 21.11.: „21 Autos im Feld, 0 davon gerade draußen“ – die Null klingt falsch. Dann: alle noch in der Box.
+            if (inPits >= active.Count) return RadioLanguage.T(c + " Autos im Feld, noch alle in der Box. ", c + " cars in the session, all still in the pits. ",
+                c + " coches en la sesión, todos aún en boxes. ");
             string o2 = (active.Count - inPits).ToString(RadioLanguage.Culture);
             return RadioLanguage.T(c + " Autos im Feld, " + o2 + " davon gerade draußen. ", c + " cars in the session, " + o2 + " of them out on track. ",
                 c + " coches en la sesión, " + o2 + " ahora mismo en pista. ");
@@ -155,7 +176,7 @@ namespace CrewChiefV4.AiTeam
                 race ? "race" : qualifying ? "qualifying" : "practice", race ? "carrera" : qualifying ? "clasificación" : "libres") + ". ";
             string weather = GreetingWeather(context);
             string field = FieldLine(gs);
-            int grid = gs.OpponentData == null ? 0 : gs.OpponentData.Values.Count(o => o != null && o.IsActive) + 1;
+            int grid = FieldSize(gs);
             string start = race && gs.SessionData.ClassPosition > 0 ? (RadioLanguage.IsGerman ? "Startplatz " + gs.SessionData.ClassPosition +
                 (RaceRadioLanguage.SeparateClass(gs.SessionData) ? " in deiner Klasse. " : grid > 1 ? " von " + grid + ". " : ". ") :
                 RadioLanguage.T("", "Starting ", "Sales ") + RaceRadioLanguage.Rank(gs.SessionData, gs.SessionData.ClassPosition) +
@@ -234,7 +255,21 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Interne Streckennamen wie "Monza:Monza_2020" so, wie man sie spricht ("Monza").</summary>
         internal static string SpokenTrack(string track)
         {
-            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Replace('_', ' ').Trim();
+            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Trim();
+            // AC 20.11.: „ks nurburgring“ – Kunos- und Mod-Kürzel vor dem Namen sind kein Streckenname.
+            name = System.Text.RegularExpressions.Regex.Replace(name, @"^(?:ks|rt|acu|rss|vrc|rj|sx)_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            name = name.Replace('_', ' ').Trim();
+            if (name.Length > 0 && name == name.ToLowerInvariant())
+            {
+                var words = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < words.Length; i++)
+                {
+                    string w = words[i];
+                    words[i] = w == "nurburgring" ? "Nürburgring" : w == "nordschleife" ? "Nordschleife" :
+                        char.ToUpperInvariant(w[0]) + w.Substring(1);
+                }
+                name = string.Join(" ", words);
+            }
             return name.Length > 0 ? name : track;
         }
     }

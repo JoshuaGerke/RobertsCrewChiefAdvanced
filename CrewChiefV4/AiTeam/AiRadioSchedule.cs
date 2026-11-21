@@ -139,12 +139,40 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly Random random;
         public AiRadioSchedule(int? seed=null) { random=seed.HasValue?new Random(seed.Value):new Random(); }
+
+        /// <summary>Startphase des Rennens: keine Routine, bis sich das Feld beruhigt hat (siehe <see cref="RaceRhythm"/>).</summary>
+        internal bool StartCalm;
+        /// <summary>Rennlänge; verlängert oder verkürzt die eingestellten Abstände je Thema.</summary>
+        internal RaceLength Length;
+
+        private int Delay(AiRadioPreferences prefs, string topic)
+        {
+            int delay = prefs.NextDelaySeconds(topic, random);
+            return AiRadioPreferences.ApplyDriverScale(topic, delay, RaceRhythm.Scale(Length, topic));
+        }
+
+        /// <summary>
+        /// Nach der Startphase die fälligen Themen nacheinander einplanen statt alle auf einmal: Status zuerst, dann
+        /// Vorder- und Hintermann, Rennfortschritt, Pace und zuletzt die technischen Themen.
+        /// </summary>
+        internal void StaggerAfterStart(DateTime settled, AiRadioPreferences prefs)
+        {
+            string[] order = { "status", "ahead", "behind", "progress", "pace", "fuel", "tyres", "vehicle", "stint", "weather" };
+            DateTime slot = settled + RaceRhythm.FirstRoutineAfterSettle;
+            foreach (string topic in order)
+            {
+                if (prefs[topic] == 0 || !due.TryGetValue(topic, out var at) || at > slot) continue;
+                due[topic] = slot;
+                slot += RaceRhythm.RoutineStep;
+            }
+            LiveDiagnostics.Decision("routine", "staggered", "after_start_phase_" + Length.ToString().ToLowerInvariant());
+        }
         public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
             foreach (var option in AiRadioPreferences.Options)
-                if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(prefs.NextDelaySeconds(option.Id, random));
+                if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(Delay(prefs, option.Id));
         }
         internal bool StatusIsOverdue(DateTime now, AiRadioPreferences prefs) => prefs["status"] > 0 &&
             (outstanding?.Topic == "status" || due.TryGetValue("status", out var next) && now - next >= TimeSpan.FromSeconds(20));
@@ -179,7 +207,7 @@ namespace CrewChiefV4.AiTeam
                         lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
                         technicalGapSeconds = TechnicalSpacingSeconds + random.Next(0, 61);
                     }
-                    due[outstanding.Topic] = lastReport.AddSeconds(prefs.NextDelaySeconds(outstanding.Topic, random));
+                    due[outstanding.Topic] = lastReport.AddSeconds(Delay(prefs, outstanding.Topic));
                     outstanding = null;
                 }
                 else if (!outstanding.IsValid(gs, now) || prefs[outstanding.Topic] == 0 ||
@@ -195,13 +223,13 @@ namespace CrewChiefV4.AiTeam
             int quietSeconds = statusOverdue ? 4 : QuietAfterRadioSeconds;
             bool recentRadio = ctx.Memory != null && ctx.Memory.HasRadioSince(TimeSpan.FromSeconds(quietSeconds), now);
             bool racingQuiet = !busy && !recentRadio && RaceRadioDirector.SuppressBackgroundStatistics(ctx);
-            if (gs == null || busy || recentRadio || racingQuiet || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
+            if (gs == null || busy || StartCalm || recentRadio || racingQuiet || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(statusOverdue ? 8 : RoutineSeparationSeconds))
             {
                 if(due.Any(p=>prefs[p.Key]>0 && p.Value<=now) && now-lastDeferral>=TimeSpan.FromSeconds(15))
                 {
-                    string reason=busy?(busyReason??"channel_busy"):recentRadio?"recent_radio":racingQuiet?"close_battle_or_final_laps":gs!=null && gs.FlagData.isLocalYellow?"local_yellow":BusyForRoutine(gs)?"braking_or_qualifying_push":
+                    string reason=busy?(busyReason??"channel_busy"):StartCalm?"race_start_phase":recentRadio?"recent_radio":racingQuiet?"close_battle_or_final_laps":gs!=null && gs.FlagData.isLocalYellow?"local_yellow":BusyForRoutine(gs)?"braking_or_qualifying_push":
                         ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
                     foreach(var item in due.Where(p=>prefs[p.Key]>0 && p.Value<=now))
                         LiveDiagnostics.Emit("routine.state",LiveDiagnostics.Data("topic",item.Key,"reason",reason,"due_utc",item.Value.ToString("o"),
@@ -219,7 +247,7 @@ namespace CrewChiefV4.AiTeam
             {
                 // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
                 if (TechnicalBudgetBlocks(topic, now)) continue;
-                double delay = prefs.NextDelaySeconds(topic, random);
+                double delay = Delay(prefs, topic);
                 // Bathurst 17.11.: Restzeit im Training alle 3–4 Minuten ist zu oft. Außerhalb des Rennens höchstens alle 6 Minuten,
                 // in den letzten 10 Minuten wieder im eingestellten Takt.
                 var sd = ctx.GameState?.SessionData;
@@ -339,7 +367,7 @@ namespace CrewChiefV4.AiTeam
         public void NoteRelatedReport(string topic,DateTime delivered,AiRadioPreferences prefs)
         {
             if(topic!="ahead" && topic!="behind" || prefs==null)return;
-            due[topic]=delivered.AddSeconds(prefs.NextDelaySeconds(topic,random));
+            due[topic]=delivered.AddSeconds(Delay(prefs,topic));
             lastReport=delivered;
             if(outstanding!=null && outstanding.Topic==topic && outstanding.DeliveryStartedUtc==DateTime.MinValue) {
                 outstanding.ExpiresUtc=delivered.AddTicks(-1);outstanding=null;

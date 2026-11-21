@@ -1,10 +1,77 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
 {
+    /// <summary>
+    /// Verbrauch aus Training und Quali derselben Strecke mit demselben Auto (Rob 20.11.2026: „Ihr müsst die durchschnittlichen
+    /// Verbräuche aus Practice und Quali mit rübernehmen bis in die Rennen“). Gilt nur in dieser Programmsitzung; sobald im Rennen
+    /// gemessen ist, zählt die Messung.
+    /// </summary>
+    internal static class FuelCarry
+    {
+        private static readonly object gate = new object();
+        private static string key;
+        /// <summary>
+        /// Rob 21.11.2026: „wie hoch der Durchschnittsverbrauch war in der Practice und Quali zusammengerechnet“. Je Session
+        /// (Art + Kennung) das Mittel aller gemessenen Runden; die Sessions werden nach Rundenzahl gewichtet zusammengerechnet.
+        /// Schon eine Runde zählt – die Antwort sagt dann, dass es nur grob ist.
+        /// </summary>
+        private static readonly List<KeyValuePair<string, KeyValuePair<float, int>>> sessions = new List<KeyValuePair<string, KeyValuePair<float, int>>>();
+
+        internal static string Key(GameStateData gs)
+        {
+            // Fahrzeugname zuerst: eine unbekannte Klasse bekommt je Sitzung eine neue Platzhalter-Kennung.
+            string track = gs?.SessionData?.TrackDefinition?.name, car = !string.IsNullOrWhiteSpace(gs?.carName) ? gs.carName : gs?.carClass?.getClassIdentifier();
+            return string.IsNullOrWhiteSpace(track) || string.IsNullOrWhiteSpace(car) ? null : track + "|" + car;
+        }
+
+        /// <summary>Nach jeder Runde außerhalb des Rennens: Mittel dieser Session (alle gemessenen Runden) merken.</summary>
+        internal static void Remember(GameStateData gs, float average, int count)
+        {
+            if (gs == null || gs.SessionData.SessionType == SessionType.Race || count < 1 || !(average > .05f && average < 100)) return;
+            string k = Key(gs);
+            if (k == null) return;
+            string session = gs.SessionData.SessionType + "#" + gs.SessionData.SessionId;
+            lock (gate)
+            {
+                if (k != key) { key = k; sessions.Clear(); }
+                sessions.RemoveAll(s => s.Key == session);
+                sessions.Add(new KeyValuePair<string, KeyValuePair<float, int>>(session, new KeyValuePair<float, int>(average, count)));
+                if (sessions.Count > 8) sessions.RemoveAt(0);
+            }
+        }
+
+        /// <summary>Gewichtetes Mittel aller Sessions vor dem Rennen, -1 = keines.</summary>
+        internal static float For(GameStateData gs)
+        {
+            string k = Key(gs);
+            lock (gate)
+            {
+                if (k == null || k != key) return -1;
+                int n = sessions.Sum(s => s.Value.Value);
+                return n == 0 ? -1 : sessions.Sum(s => s.Value.Key * s.Value.Value) / n;
+            }
+        }
+
+        internal static int Laps(GameStateData gs) { string k = Key(gs); lock (gate) return k != null && k == key ? sessions.Sum(s => s.Value.Value) : 0; }
+
+        /// <summary>Je Session: Art, Mittel, Runden – in zeitlicher Reihenfolge.</summary>
+        internal static List<KeyValuePair<SessionType, KeyValuePair<float, int>>> Breakdown(GameStateData gs)
+        {
+            string k = Key(gs);
+            lock (gate)
+                return k == null || k != key ? new List<KeyValuePair<SessionType, KeyValuePair<float, int>>>() :
+                    sessions.Select(s => new KeyValuePair<SessionType, KeyValuePair<float, int>>(
+                        (SessionType)Enum.Parse(typeof(SessionType), s.Key.Substring(0, s.Key.IndexOf('#'))), s.Value)).ToList();
+        }
+
+        internal static void Reset() { lock (gate) { key = null; sessions.Clear(); } }
+    }
+
     /// <summary>The same balance, reserve and evidence are supplied to automatic radio and the language model.</summary>
     public sealed class FuelEstimate
     {
@@ -22,7 +89,11 @@ namespace CrewChiefV4.AiTeam
             if (fullLaps > 0) return average;
             float estimate = memory.ProvisionalFuelPerLap(state);
             provisional = estimate > 0 && Finite(estimate);
-            return provisional ? estimate : -1;
+            if (provisional) return estimate;
+            // Rob 20.11.: Verbrauch aus Training und Quali ins Rennen mitnehmen, bis im Rennen selbst gemessen ist.
+            float carried = FuelCarry.For(state);
+            provisional = carried > 0;
+            return provisional ? carried : -1;
         }
 
         public static FuelEstimate From(RaceDataContext ctx, int minimumMeasuredLaps = 2)
@@ -62,7 +133,8 @@ namespace CrewChiefV4.AiTeam
                 ProvisionalConsumption=provisional,
                 AdditionalWithoutReserve=crew?ctx.CrewChiefAdditionalFuelNeeded:remaining*perLap-gs.FuelData.FuelLeft,
                 ReserveLitres=perLap*FuelWatch.SafetyMarginLaps,
-                Source=provisional ? "Vorläufige Schätzung aus Tankdifferenz und gefahrener Strecke" :
+                Source=provisional && !(ctx.Memory.ProvisionalFuelPerLap(gs) > 0) && FuelCarry.For(gs) == perLap ? "Verbrauch aus Training und Quali dieser Strecke, im Rennen noch nicht gemessen" :
+                    provisional ? "Vorläufige Schätzung aus Tankdifferenz und gefahrener Strecke" :
                     crew ? "Crew-Chief-Bedarfsrechnung ohne Reserve" : "Gemessener Verbrauch; Restdistanz bei Zeitrennen geschätzt" };
         }
         private static bool Finite(float v) { return !float.IsNaN(v) && !float.IsInfinity(v); }

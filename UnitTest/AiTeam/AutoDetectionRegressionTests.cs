@@ -90,6 +90,47 @@ namespace UnitTest.AiTeamTests
             Assert.AreSame(b,AutoGameDetection.Select(new[]{a,b},new[]{"AMS2AVX","RRRE64"},"RRRE64",a,false,a));
         }
 
+        private static readonly GameDefinition[] Real=GameDefinition.AllGameDefinitions.ToArray();
+
+        [TestCase("RRRE64","RACE_ROOM")] [TestCase("AMS2AVX","AMS2")] [TestCase("AMS2","AMS2")]
+        [TestCase("Le Mans Ultimate","LMU")] [TestCase("acs","ASSETTO_64BIT")]
+        public void Rob_sims_start_from_a_fresh_install(string process,string expected)
+        {
+            Assert.AreEqual(expected,AutoGameDetection.Select(Real,new[]{"explorer","CrewChiefV4",process},"CrewChiefV4",null,false)?.commandLineName);
+            Assert.AreEqual(expected,AutoGameDetection.Select(Real,new[]{"explorer","CrewChiefV4",process},process,null,false)?.commandLineName);
+        }
+
+        [TestCase("RACE_ROOM")] [TestCase("AMS2")] [TestCase("LMU")]
+        public void Assetto_after_another_sim_uses_the_normal_64_bit_variant(string previous)
+        {
+            var old=Real.First(d=>d.commandLineName==previous);
+            Assert.AreEqual("ASSETTO_64BIT",AutoGameDetection.Select(Real,new[]{"acs"},"acs",old,false)?.commandLineName,"Assetto in front");
+            Assert.AreEqual("ASSETTO_64BIT",AutoGameDetection.Select(Real,new[]{"acs"},"CrewChiefV4",old,false)?.commandLineName,"Assetto in background");
+        }
+
+        [TestCase("ASSETTO_128CARS")] [TestCase("ASSETTO_64BIT_RALLY")]
+        public void An_explicit_Assetto_variant_is_kept(string variant)
+        {
+            var chosen=Real.First(d=>d.commandLineName==variant);
+            Assert.AreSame(chosen,AutoGameDetection.Select(Real,new[]{"acs"},"acs",chosen,false));
+            Assert.AreSame(chosen,AutoGameDetection.Select(Real,new[]{"acs"},null,chosen,false));
+        }
+
+        [Test]
+        public void Le_Mans_Ultimate_and_rFactor2_are_never_confused()
+        {
+            Assert.AreEqual("LMU",AutoGameDetection.Select(Real,new[]{"Le Mans Ultimate.exe"},null,GameDefinition.rfactor2_64bit,false)?.commandLineName);
+            Assert.AreEqual("RF2",AutoGameDetection.Select(Real,new[]{"rFactor2"},null,GameDefinition.lmu,false)?.commandLineName);
+            Assert.AreEqual("AMS2",AutoGameDetection.Select(Real,new[]{"AMS2AVX"},null,GameDefinition.pCars2,false)?.commandLineName);
+        }
+
+        [Test]
+        public void Every_sim_with_a_live_picture_is_in_the_default_game_list()
+        {
+            var limited=GameDefinition.getAllAvailableGameDefinitions(false).Select(d=>d.commandLineName).ToList();
+            foreach(var name in new[]{"RACE_ROOM","AMS2","LMU","ASSETTO_64BIT"}) CollectionAssert.Contains(limited,name);
+        }
+
         [TestCase(false)] [TestCase(true)]
         public void Toggle_applies_to_timer_and_saved_setting_without_stopping_running_crew(bool running)
         {

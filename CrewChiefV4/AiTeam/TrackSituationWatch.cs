@@ -164,7 +164,8 @@ namespace CrewChiefV4.AiTeam
                         (topic=="traffic-approaching" ? rearAlertSeconds : AlertSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture) + "s;"+
                         (ordinaryClosing ? "ahead_closing_at_least_12mps_in_practice" : topic=="traffic-catching"?"slow_ahead_closing_at_least_8mps":"faster_rear_closing_at_least_3mps"),
                     Member=TeamMember.Ben,Priority=4,Position=-1,SessionId=s.SessionId,SessionType=s.SessionType,
-                    OpponentNameClip=otherClass || string.IsNullOrWhiteSpace(car.Name)?null:RaceTrafficWatch.NameClipText(car.Name),
+                    // AC 20.11.: „Welches Fahrzeug meinte die GT3-Meldung?“ – Klasse UND Name, wenn der Name erlaubt ist.
+                    OpponentNameClip=string.IsNullOrWhiteSpace(car.Name)?null:RaceTrafficWatch.NameClipText(car.Name),
                     DetectedUtc=now,ExpiresUtc=now.AddSeconds(3),
                     TimedValidity=(gs,utc)=>callEpoch==System.Threading.Volatile.Read(ref epoch) && StillRelevant(observer,gs,opponentKey,id,topic,utc,CoveredAhead,rearAlertSeconds) &&
                         (!stopped || gs.OpponentData.ContainsKey(opponentKey) && gs.OpponentData[opponentKey].Speed<=1)

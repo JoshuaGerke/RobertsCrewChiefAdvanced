@@ -104,13 +104,17 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Calm_requires_five_seconds_of_free_road()
+        public void Calm_requires_three_seconds_of_free_road_to_a_same_class_rival()
         {
             var gs = Race();
             Assert.IsTrue(RaceSummaryWatch.Calm(gs, 8, 9));
-            Assert.IsFalse(RaceSummaryWatch.Calm(gs, 4.5f, 9));
-            gs.OpponentData["near"] = new OpponentData { IsActive = true, DistanceRoundTrack = 1150 }; // 150 m = 3,3 s bei 45 m/s
+            Assert.IsTrue(RaceSummaryWatch.Calm(gs, 4.5f, 9), "LMU 20.11.: 5 s verhinderten jeden Zwischenstand");
+            Assert.IsFalse(RaceSummaryWatch.Calm(gs, 2.5f, 9));
+            gs.OpponentData["near"] = new OpponentData { IsActive = true, DistanceRoundTrack = 1100, CompletedLaps = gs.SessionData.CompletedLaps }; // 100 m = 2,2 s bei 45 m/s
             Assert.IsFalse(RaceSummaryWatch.Calm(gs, -1, -1));
+            gs.OpponentData["near"].CompletedLaps = gs.SessionData.CompletedLaps + 1;
+            Assert.IsTrue(RaceSummaryWatch.Calm(gs, -1, -1), "der überrundet uns gerade: Verkehr, kein Zweikampf");
+            gs.OpponentData["near"].CompletedLaps = gs.SessionData.CompletedLaps;
             gs.OpponentData["near"].DistanceRoundTrack = 1400; // 400 m = 8,9 s
             Assert.IsTrue(RaceSummaryWatch.Calm(gs, -1, -1));
             gs.FlagData.isLocalYellow = true;
@@ -129,6 +133,32 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(4, lines.Distinct().Count());
             StringAssert.Contains("Rob", lines[0]);
             StringAssert.DoesNotContain(", ,", RaceSummaryWatch.Closing(RaceSummaryWatch.Mood.Attack, 0, ""));
+        }
+
+        [Test]
+        public void First_summary_comes_after_about_three_minutes_and_two_to_three_per_race()
+        {
+            // Rob 20.11.: „aktive Zusammenfassung nach 2–3 Minuten und das 2–3-mal im Rennen“.
+            var s = Race().SessionData; s.SessionHasFixedTime = true;
+            s.SessionTotalRunTime = 20 * 60; Assert.AreEqual(3, RaceSummaryWatch.TotalCount(s));
+            s.SessionTotalRunTime = 10 * 60; Assert.AreEqual(2, RaceSummaryWatch.TotalCount(s));
+            s.SessionTotalRunTime = 90 * 60; Assert.AreEqual(3, RaceSummaryWatch.TotalCount(s));
+            s.SessionTotalRunTime = 20 * 60;
+            for (int seed = 1; seed < 20; seed++)
+            {
+                double early = new RaceSummaryWatch(seed).EarlyWindow(s) * s.SessionTotalRunTime;
+                Assert.That(early, Is.InRange(150, 210), "früher Zwischenstand nach etwa drei Minuten");
+            }
+            var gs = Race(13); gs.SessionData.SessionHasFixedTime = true; gs.SessionData.SessionTotalRunTime = 1200; gs.SessionData.SessionRunningTime = 30;
+            gs.SessionData.PlayerLapTimeSessionBest = 65.2f; gs.SessionData.PlayerClassSessionBestLapTime = 64.4f;
+            var watch = new RaceSummaryWatch(3);
+            watch.Observe(gs, null, () => null, T);
+            Assert.AreEqual(3, watch.Windows.Count);
+            Assert.That(watch.Windows.Zip(watch.Windows.Skip(1), (a, b) => b - a).All(d => d > .1), "über das Rennen verteilt");
+            var ctx = new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T, Memory = new AiRaceMemory(), DriverName = "Rob" };
+            string text = watch.Compose(ctx, -1, -1);
+            StringAssert.Contains("Klassenbestzeit", text);
+            StringAssert.Contains("acht Zehntel", GermanRadioText.Prepare(text, true));
         }
 
         [Test]
@@ -314,7 +344,9 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-pit"), "Fokus auf dem eigenen Kampf");
             Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Traffic), "reader-pace-front"));
 
-            Assert.AreEqual(MindVerdict.Hold, Judge(open, "race-summary"), "Zwischenstand nur in ruhiger Minute");
+            Assert.AreEqual(MindVerdict.Admit, Judge(open, "race-summary"), "LMU 20.11.: freie Fahrt ohne Zweikampf reicht für den Zwischenstand");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Battle), "race-summary"), "nie im Zweikampf");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Traffic), "race-summary"), "nie im Verkehr");
             Assert.AreEqual(MindVerdict.Admit, Judge(calm, "race-summary"));
             Assert.AreEqual(MindVerdict.Drop, Judge(final, "race-summary"));
 

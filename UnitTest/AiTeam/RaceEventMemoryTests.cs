@@ -144,6 +144,23 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Note_round_with_spoken_reply_needs_no_second_model_round()
+        {
+            // LMU 18.11.: zehnmal save_note und danach eine zweite Runde nur für den Funktext (je 2–3 s).
+            var notes = new List<string> { "Mehr Infos beim Wiedereinsetzen" };
+            StringAssert.Contains("nach dem Stopp sag ich dir, wo du rauskommst",
+                AiTeamService.SaveRoundAnswer(true, notes, "Verstanden, nach dem Stopp sag ich dir, wo du rauskommst.", "Analysier in Zukunft, wo ich rauskomme", 0, 400),
+                "Funktext kam mit dem Speichern: sofort sprechen");
+            Assert.IsNull(AiTeamService.SaveRoundAnswer(true, notes, null, "Analysier in Zukunft, wo ich rauskomme, und wie liege ich jetzt?", 0, 400),
+                "Frage ohne mitgeschickten Text braucht die zweite Runde");
+            StringAssert.Contains("Mehr Infos beim Wiedereinsetzen.", AiTeamService.SaveRoundAnswer(true, notes, "", "Merk dir: mehr Infos beim Wiedereinsetzen", 0, 400),
+                "reiner Merkauftrag: lokale Bestätigung");
+            Assert.IsNull(AiTeamService.SaveRoundAnswer(false, notes, "Text", "Merk dir das", 0, 400), "auch Daten abgefragt: normale Runde");
+            Assert.IsNull(AiTeamService.SaveRoundAnswer(true, notes, "ok", "Wie viel Sprit?", 0, 400), "zu kurzer Text ist keine Antwort");
+            Assert.Greater(AiTeamService.FinalRoundGraceSeconds, 0, "letzte Antwortrunde bekommt Nachfrist");
+        }
+
+        [Test]
         public void Pure_memory_request_is_confirmed_without_a_second_model_round()
         {
             Assert.IsTrue(AiTeamService.PureMemoryRequest("[an Mik] Merk dir bitte, dass ich Sektorvergleiche im Training will."));

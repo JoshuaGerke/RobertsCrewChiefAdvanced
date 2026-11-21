@@ -94,6 +94,11 @@ namespace CrewChiefV4.AiTeam
             }
             if(changed.Count==0)return;
             var snapshot=(float[])values.Clone();var indices=changed.ToArray();
+            // RaceRoom 20.11.: „Aero-Schadenswert 6,1 Prozent.“ und gleich danach derselbe Wert im Schadensbericht. Gehört der Anstieg
+            // zu einem Kontakt, den IncidentWatch gerade meldet, sagt der Bericht die Zahlen – hier nur die Basis nachziehen.
+            if(now>=IncidentWatch.LastDamageEventUtc && now-IncidentWatch.LastDamageEventUtc<=TimeSpan.FromSeconds(10))
+            {Array.Copy(snapshot,baseline,baseline.Length);foreach(int i in indices)jumped[i]=false;
+             LiveDiagnostics.Decision("warning-numeric-damage","suppressed","covered_by_incident_damage_report","components="+string.Join(",",indices));return;}
             string report=string.Join(", ",indices.Take(3).Select(i=>Part(i,snapshot[i])))+".";
             if(indices.Length>3)report+=RadioLanguage.T(" Weitere Komponenten melden ebenfalls mehr Schaden."," Other components are reporting more damage too."," Otros componentes también marcan más daño.");
             output.Offer("warning-numeric-damage",report,TeamMember.Mik,7,gs,now,

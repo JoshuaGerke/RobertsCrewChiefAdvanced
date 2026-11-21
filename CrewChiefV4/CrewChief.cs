@@ -993,6 +993,8 @@ namespace CrewChiefV4
 #endif
 
                             latestRawGameData = gameDataReader.ReadGameData(false);
+                            // Eigenes Lagebild direkt aus der Sim, auch im Boxenmenü (liest selbst, nur lesend).
+                            AiTeam.Field.FieldService.Ensure(gameDefinition.gameEnum);
                             if (latestRawGameData != null)
                                 AiTeam.GameDataConnectionStatus.Record(
                                     gameDataReader is PMR.PMRUDPReader pmr && pmr.UsesLoopback ? gameDefinition.friendlyName + " · UDP Loopback" :
