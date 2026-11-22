@@ -82,6 +82,9 @@ namespace CrewChiefV4.AiTeam.Field
             var timed = v.Cars.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();
             o["bestzeiten"] = new JArray(timed.Take(10).Select((c, i) => new JObject { ["rang"] = i + 1, ["fahrer"] = Label(c, names), ["zeit_s"] = N(c.BestLap) }));
             float mine = !float.IsNaN(p.BestLap) ? p.BestLap : p.FastestAnyLap;
+            // Gestrichenes Rundenstück (Mantorp 22.11.: 28 s auf 3,1 km) nicht als Zeit einordnen.
+            if (float.IsNaN(p.BestLap) && !float.IsNaN(mine) && (!FieldPicture.PlausibleLap(mine, v.TrackLength) || timed.Count > 0 && mine < timed[0].BestLap * .9f))
+                mine = float.NaN;
             if (!float.IsNaN(mine) && timed.Count > 0)
             {
                 int wouldBe = timed.Count(c => !c.IsPlayer && c.BestLap < mine) + 1;

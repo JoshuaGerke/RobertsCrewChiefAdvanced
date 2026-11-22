@@ -153,6 +153,15 @@ namespace CrewChiefV4.AiTeam
         // ElevenLabs lehnt ab (Schlüssel, Kontingent): eine Weile nicht mehr fragen statt bei jedem Satz Credits und Zeit zu verbrennen
         private DateTime elevenLabsPausedUntilUtc = DateTime.MinValue;
         private static readonly TimeSpan ElevenLabsPause = TimeSpan.FromMinutes(10);
+        /// <summary>Bezahlte Erzeugungen je Meldung und Thema (RaceRoom Mantorp 22.11.: Zwischenfazit viermal erzeugt, nie gespielt).</summary>
+        private readonly PaidRenderGuard paidRenders = new PaidRenderGuard();
+        private int voiceOutageAnnounced;
+
+        /// <summary>
+        /// Die gewählte KI-Stimme ist gerade nicht erreichbar (ElevenLabs lehnt ab, z. B. Kontingent leer). Dann übernimmt Crew Chiefs
+        /// Originalstimme Abstände, Zeiten und Positionen, statt dass Ben und Mik verstummen.
+        /// </summary>
+        internal bool AiVoiceOutage => settings != null && settings.Enabled && settings.TtsProvider == AiTtsProvider.ELEVENLABS && ElevenLabsPaused;
 
         private AiTeamService()
         {
@@ -217,7 +226,10 @@ namespace CrewChiefV4.AiTeam
             nativeIncidents.Reset();
             timingEvents.Reset();pendingTimingDelivery=null;
             CrewChiefV4.Events.Timings.NativeTimingHandoff=settings.Enabled && settings.ReplaceCrewChiefVoice
-                ? new Func<NativeTimingFact,bool>(fact=> { if(settings.BenEnabled)timingEvents.Capture(fact);return true; }) : null;
+                ? new Func<NativeTimingFact,bool>(fact=> {
+                    // RaceRoom Mantorp 22.11.: Stimme weg, Abstände weg. Während des Ausfalls spricht Crew Chief die Abstände selbst.
+                    if(AiVoiceOutage)return false;
+                    if(settings.BenEnabled)timingEvents.Capture(fact);return true; }) : null;
             raceTraffic.CoveredAhead=nativeIncidents.CoversAhead;
             trackWatch.CoveredAhead=nativeIncidents.CoversAhead;
             DriverMemory.Configure(settings.Enabled && settings.PersistentMemory);
@@ -227,6 +239,14 @@ namespace CrewChiefV4.AiTeam
             AudioPlayer.messageFilter = settings.Enabled && settings.ReplaceCrewChiefVoice
                 ? new Func<QueuedMessage, bool>(m => {
                     bool allowed=CrewChiefVoiceFilter.Allow(m.messageName,m.messageFolders,settings.SaraEnabled);
+                    // RaceRoom Mantorp 22.11.: Ab Rennhälfte war das ElevenLabs-Kontingent leer – Ben und Mik schwiegen, Abstände,
+                    // Überholmanöver und Bestzeiten fehlten. Während des Ausfalls läuft Crew Chiefs Originalstimme dafür wieder mit.
+                    if(!allowed && AiVoiceOutage && CrewVoiceOutage.NativeFallbackAllows(m.messageName,m.messageFolders,settings.SaraEnabled) &&
+                        !(liveWarnings.EngineMuted && LiveWarningDispatcher.Classify(m.messageFolders) is string engine && engine!="limits"))
+                    {
+                        LiveDiagnostics.Decision("voice-outage","native_fallback",m.messageName);
+                        return true;
+                    }
                     // RaceRoom Norisring 22.11.: Ein Fehler in Capture brach jedes Crew-Chief-Ereignis ab (Runden, Position, Sprit,
                     // Strafen) und die Feldereignisse für Ben gingen verloren. Abgreifen darf das Ereignis nie mehr abbrechen.
                     if(!allowed)
@@ -243,6 +263,8 @@ namespace CrewChiefV4.AiTeam
             elevenLabs = new ElevenLabsClient(AiSecretStore.LoadElevenLabs, TimeSpan.FromSeconds(settings.TimeoutSeconds), Stats);
             pushToTalk.SetKey(settings.PttKey);
             elevenLabsPausedUntilUtc = DateTime.MinValue;
+            Interlocked.Exchange(ref voiceOutageAnnounced, 0);
+            paidRenders.Reset();
             lock (phraseCache)
             {
                 phraseCache.Clear();
@@ -1325,6 +1347,19 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T("Zuletzt am Funk: ", "Last on the radio: ", "Lo último por radio: ") + lastSpoken.Text;
                 await SpeakAsync(routed.Member, repeated, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 return repeated;
+            }
+
+            // Rob (Norisring 22.11.): „Öl und Wasser … streichen für die ganze Session“ – lokal und sofort, nicht über das Modell.
+            int engineMute = routed.Member != TeamMember.Sara ? EngineMuteCommand.Parse(routed.Question) : 0;
+            if (engineMute != 0)
+            {
+                if (engineMute > 0) liveWarnings.MuteEngineWarnings(gs?.EngineData.EngineOilTemp ?? 0, gs?.EngineData.EngineWaterTemp ?? 0);
+                else liveWarnings.UnmuteEngineWarnings();
+                string muteReply = EngineMuteCommand.Reply(engineMute);
+                Stats.AddLocalAnswer();
+                await SpeakAsync(routed.Member, muteReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
+                RememberExchange(routed.Member, routed.Question, muteReply);
+                return muteReply;
             }
 
             // 2. Einfache Standardfragen ohne KI
@@ -2432,6 +2467,14 @@ namespace CrewChiefV4.AiTeam
             return null;
         }
 
+        /// <summary>Kostet dieser Satz bezahlte Credits? Nein bei Windows-Stimme und bei schon gespeichertem Audio.</summary>
+        private bool PaidVoiceNeeded(TeamMember member, string text)
+        {
+            if (settings.TtsProvider == AiTtsProvider.WINDOWS || string.IsNullOrEmpty(text)) return false;
+            try { return PreparedSpeech(member, text) == null; }
+            catch (Exception) { return true; }
+        }
+
         private bool TelemetryFresh()
         {
             DateTime last = Memory.LastTickUtc;
@@ -2687,6 +2730,26 @@ namespace CrewChiefV4.AiTeam
                         else call.ReleaseForRetry(now, reason);
                     }
                     if (!valid(text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid"); return; }
+                    // Kein bezahltes Neu-Erzeugen ohne Ende und kein Sekundentakt bei ausgefallener Stimme (RaceRoom Mantorp 22.11.).
+                    bool paid = PaidVoiceNeeded(call.Member, baseText);
+                    string paidBlock = paid && AiVoiceOutage ? "ai_voice_unavailable" : null;
+                    if (paid && paidBlock == null) paidRenders.MayRender(call.Topic, call.EventId, text, DateTime.UtcNow, out paidBlock);
+                    if (paidBlock != null)
+                    {
+                        var at = DateTime.UtcNow;
+                        call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                        LiveDiagnostics.Decision(call.Topic, "suppressed", paidBlock, call.Text, call.EventId);
+                        eventLog.Note(call, EventStatus.Dropped, at, paidBlock);
+                        return;
+                    }
+                    int rendered = 0;
+                    if (paid) paidRenders.Rendering(call.Topic, call.EventId, text, DateTime.UtcNow);
+                    void PaidDone(bool discarded)
+                    {
+                        if (!paid) return;
+                        if (discarded && Volatile.Read(ref rendered) != 0) paidRenders.Discarded(call.Topic, call.EventId, text, DateTime.UtcNow);
+                        else paidRenders.Finished(call.Topic, call.EventId);
+                    }
                     if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_audio_requested",LiveDiagnostics.Data(
                         "topic",call.Topic,"speaker",call.Member.ToString(),"text",text),call.EventId);
                     bool queued = await SpeakAsync(call.Member, text, true, CancellationToken.None, valid, true, Math.Min(10, call.Priority),
@@ -2701,8 +2764,9 @@ namespace CrewChiefV4.AiTeam
                                     "gap_front_s",call.AheadGap>=0?(object)call.AheadGap:null,"gap_behind_s",call.BehindGap>=0?(object)call.BehindGap:null),call.EventId);
                             }
                         },
-                        () => DeferOrRelease("audio_discarded_before_playback"),
+                        () => { PaidDone(true); DeferOrRelease("audio_discarded_before_playback"); },
                         interrupted => {
+                            PaidDone(false);
                             var finishedUtc = DateTime.UtcNow;
                             call.MarkPlaybackFinished(finishedUtc, interrupted);
                             if (interrupted || generation != Volatile.Read(ref sessionGeneration) || !TelemetryFresh()) return;
@@ -2714,9 +2778,21 @@ namespace CrewChiefV4.AiTeam
                                 radioDirector.OfferPitHandover(live, finishedUtc, (frame, at) =>
                                     frame != null && frame.PitData.PitWindow == PitWindow.Open && pitCycle.MergeReportDue(at) &&
                                     thermalWatch.SustainedHeat(frame, at) != 0 && pitCycle.ReadForecast(frame, at)?.Status == "clear");
-                        },call.Topic,releaseRender,
+                        },call.Topic,() => { if (Interlocked.Exchange(ref rendered, 1) == 0 && paid) paidRenders.Rendered(call.EventId); releaseRender(); },
                         namePcm, namePcm == null ? null : baseText, call.EventId).ConfigureAwait(false);
-                    if (!queued) DeferOrRelease("speech_not_queued");
+                    if (!queued)
+                    {
+                        PaidDone(true);
+                        // Stimme ausgefallen: nicht jede Sekunde neu versuchen, die Meldung verfällt (Crew Chief spricht derweil selbst).
+                        if (paid && AiVoiceOutage)
+                        {
+                            var at = DateTime.UtcNow;
+                            call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                            LiveDiagnostics.Decision(call.Topic, "suppressed", "ai_voice_unavailable", call.Text, call.EventId);
+                            eventLog.Note(call, EventStatus.Dropped, at, "ai_voice_unavailable");
+                        }
+                        else DeferOrRelease("speech_not_queued");
+                    }
                 }
                 catch (Exception e) { call.ReleaseForRetry(DateTime.UtcNow, "delivery_exception"); Log("Lokaler Rennfunk: " + e.Message); }
                 finally { releaseRender(); }
@@ -3004,6 +3080,13 @@ namespace CrewChiefV4.AiTeam
                 }
                 catch (Exception) { }
             }
+            // Derselbe Satz eben schon bezahlt erzeugt (verworfen, gleich wieder angefragt): Audio wiederverwenden.
+            byte[] reused = cacheable ? null : paidRenders.Reuse(cacheKey, DateTime.UtcNow);
+            if (reused != null)
+            {
+                LiveDiagnostics.Decision("tts","cache_hit","recent_paid_render");
+                return reused;
+            }
             // Pronunciation only: validation, diagnostics and cache identity keep the exact factual text.
             string spokenText = GermanRadioText.Prepare(named, pitWall: member != TeamMember.Sara);
             // Respect the selected source. A failed provider must not change the crew's identity.
@@ -3019,6 +3102,7 @@ namespace CrewChiefV4.AiTeam
             {
                 pcm = AiAudio.ApplyRadioEffect(pcm, AiAudio.OpenAiPcmSampleRate);
             }
+            if (!cacheable && settings.TtsProvider != AiTtsProvider.WINDOWS) paidRenders.Remember(cacheKey, pcm, DateTime.UtcNow);
             // kurze Standardsätze (vor allem Saras) zwischenspeichern
             if (cacheable)
             {
@@ -3082,6 +3166,9 @@ namespace CrewChiefV4.AiTeam
                 {
                     elevenLabsPausedUntilUtc = DateTime.UtcNow + ElevenLabsPause;
                     Log("ElevenLabs lehnt ab, 10 Minuten Pause. Vorbereitete Originalclips bleiben verfügbar, keine Ersatzstimme: " + e.Message);
+                    string outage = CrewVoiceOutage.Reason(status, e.Message);
+                    LiveDiagnostics.Decision("voice-outage", "started", outage);
+                    if (Interlocked.Exchange(ref voiceOutageAnnounced, 1) == 0) Status(CrewVoiceOutage.StatusText(outage));
                     return null;
                 }
                 Log(source + " nicht verfügbar; gewählte Stimme bleibt unverändert: " + e.Message);

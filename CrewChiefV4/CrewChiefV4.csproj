@@ -341,6 +341,7 @@
     <Compile Include="AiTeam\FlagWatch.cs" />
     <Compile Include="AiTeam\YellowAheadWatch.cs" />
     <Compile Include="AiTeam\LiveWarningDispatcher.cs" />
+    <Compile Include="AiTeam\CrewVoiceGuard.cs" />
     <Compile Include="AiTeam\ThermalWatch.cs" />
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />

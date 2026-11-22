@@ -48,6 +48,46 @@ namespace CrewChiefV4.AiTeam
                     n + "para que lo sepas: quedan unas " + needLaps + " vueltas de clasificación y hay combustible para unas " + fuelLaps + ". Unos " + litres + " litros podrían quedarse fuera la próxima vez."));
         }
 
+        /// <summary>
+        /// LMU Bahrain 22.11.: „In der Quali keine Spritschätzung.“ Passte die Menge, schwieg Ben. Jetzt gibt es immer eine kurze
+        /// Schätzung nach der ersten gemessenen Runde: reicht knapp, passt, oder reicht nicht bis zum Ende.
+        /// </summary>
+        internal static string Estimate(float fuelLeft, float perLap, float timeLeft, float lapTime, string name)
+        {
+            if (!(fuelLeft > 0) || !(perLap > .1f) || !(timeLeft > 0) || !(lapTime > 10)) return null;
+            int fuelLaps = (int)Math.Floor(fuelLeft / perLap);
+            int needLaps = (int)Math.Ceiling(timeLeft / lapTime) + 1;
+            string n = string.IsNullOrWhiteSpace(name) ? "" : name + ", ";
+            string fl = fuelLaps.ToString(), nl = needLaps.ToString();
+            if (fuelLaps < needLaps)
+                return RadioVariants.Pick("quali-fuel-short",
+                    RadioLanguage.T(n + "Sprit reicht für etwa " + fl + " Runden, bis zum Ende der Quali wären es rund " + nl + ". Plan deine schnellen Runden früh.",
+                        n + "fuel is good for about " + fl + " laps, the rest of qualifying would need around " + nl + ". Plan your fast laps early.",
+                        n + "el combustible da para unas " + fl + " vueltas, hasta el final harían falta unas " + nl + ". Planifica pronto tus vueltas rápidas."),
+                    RadioLanguage.T(n + "der Tank reicht nicht bis zum Schluss: etwa " + fl + " Runden, gebraucht wären rund " + nl + ".",
+                        n + "the tank won't last to the end: about " + fl + " laps, around " + nl + " would be needed.",
+                        n + "el depósito no llega al final: unas " + fl + " vueltas, harían falta unas " + nl + "."),
+                    RadioLanguage.T(n + "Achtung Sprit: noch etwa " + fl + " Runden im Tank, die Quali läuft noch rund " + nl + ". Nutze die Runden, die du hast.",
+                        n + "fuel warning: about " + fl + " laps left in the tank, qualifying runs around " + nl + " more. Use the laps you have.",
+                        n + "ojo con el combustible: quedan unas " + fl + " vueltas en el depósito, la clasificación dura unas " + nl + " más. Aprovecha las que tienes."),
+                    RadioLanguage.T(n + "mit dem Sprit kommst du etwa " + fl + " Runden weit, die Zeit reicht für rund " + nl + ". Die besten Versuche lieber gleich.",
+                        n + "your fuel gets you about " + fl + " laps, the clock allows around " + nl + ". Better do your best attempts now.",
+                        n + "con este combustible haces unas " + fl + " vueltas, el tiempo da para unas " + nl + ". Mejor tus mejores intentos ya."));
+            return RadioVariants.Pick("quali-fuel-ok",
+                RadioLanguage.T(n + "Sprit passt: etwa " + fl + " Runden im Tank, die Quali braucht noch rund " + nl + ".",
+                    n + "fuel is fine: about " + fl + " laps in the tank, qualifying needs around " + nl + " more.",
+                    n + "el combustible está bien: unas " + fl + " vueltas en el depósito, la clasificación necesita unas " + nl + "."),
+                RadioLanguage.T(n + "kurz zum Sprit: reicht für etwa " + fl + " Runden, nötig sind rund " + nl + ". Alles im grünen Bereich.",
+                    n + "quick fuel note: good for about " + fl + " laps, around " + nl + " needed. All in the green.",
+                    n + "nota rápida de combustible: da para unas " + fl + " vueltas, hacen falta unas " + nl + ". Todo en orden."),
+                RadioLanguage.T(n + "der Tank reicht bis zum Ende: etwa " + fl + " Runden, die Restzeit erlaubt rund " + nl + ".",
+                    n + "the tank lasts to the end: about " + fl + " laps, the time left allows around " + nl + ".",
+                    n + "el depósito llega al final: unas " + fl + " vueltas, el tiempo restante permite unas " + nl + "."),
+                RadioLanguage.T(n + "Spritschätzung: rund " + nl + " Runden Quali bleiben, im Tank ist genug für etwa " + fl + ". Du kannst voll fahren.",
+                    n + "fuel estimate: around " + nl + " laps of qualifying left, enough in the tank for about " + fl + ". You can push.",
+                    n + "estimación de combustible: quedan unas " + nl + " vueltas de clasificación, hay para unas " + fl + ". Puedes apretar."));
+        }
+
         internal void Observe(GameStateData gs, AiRaceMemory memory, string name, DateTime now)
         {
             if (gs == null) return;
@@ -58,7 +98,9 @@ namespace CrewChiefV4.AiTeam
             float perLap = FuelEstimate.Consumption(memory, gs, out bool provisional, out int fullLaps);
             if (provisional || fullLaps < 1) return;
             float lap = s.LapTimePrevious > 10 && s.LapTimePrevious < 3600 ? s.LapTimePrevious : s.PlayerLapTimeSessionBest;
-            string text = Advice(gs.FuelData.FuelLeft, perLap, s.SessionTimeRemaining, lap, AiPersonas.CleanForRadio(name ?? "", 30, false));
+            string radioName = AiPersonas.CleanForRadio(name ?? "", 30, false);
+            string text = Advice(gs.FuelData.FuelLeft, perLap, s.SessionTimeRemaining, lap, radioName) ??
+                Estimate(gs.FuelData.FuelLeft, perLap, s.SessionTimeRemaining, lap, radioName);
             done = true; // einmal je Qualifying – auch wenn es passt, wird nicht später erneut gerechnet
             if (text == null) return;
             call = new ObservedRaceCall

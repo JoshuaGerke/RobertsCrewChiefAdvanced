@@ -91,6 +91,34 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Debrief_never_ranks_a_lap_fragment_as_deleted_best()
+        {
+            // RaceRoom Mantorp 22.11.: „Deine schnellste Runde war 28,274, leider gestrichen. Gültig wäre das Rang 1 gewesen.“ (3,1 km Strecke)
+            RadioLanguage.Current = RadioLanguage.German;
+            var v = Done(FieldSession.Practice, float.NaN, 28.274f, 80f); v.TrackLength = 3092.66f;
+            string text = SessionDebrief.Compose(v, "Rob", 1.1f, 2, 0);
+            StringAssert.DoesNotContain("28,274", text);
+            StringAssert.DoesNotContain("leider gestrichen", text);
+            StringAssert.DoesNotContain("Gültig wäre", text);
+            StringAssert.Contains("Eine gezeitete Runde hatten wir nicht.", text);
+            // Ohne Streckenlänge greift die Feldprobe: 28 s gegen 1:45 im Feld ist keine Runde.
+            var w = Done(FieldSession.Practice, float.NaN, 28.274f, 80f); w.TrackLength = float.NaN;
+            StringAssert.DoesNotContain("leider gestrichen", SessionDebrief.Compose(w, "Rob", 1.1f, 2, 0));
+            // Eine echte gestrichene Runde wird weiter genannt.
+            var real = Done(FieldSession.Practice, float.NaN, 106.3f, 80f); real.TrackLength = 5793f;
+            StringAssert.Contains("leider gestrichen", SessionDebrief.Compose(real, "Rob", 1.1f, 2, 0));
+        }
+
+        [TestCase(28.274f, 3092.66f, false)]
+        [TestCase(80.5f, 3092.66f, true)]
+        [TestCase(28.274f, float.NaN, true)]
+        [TestCase(61f, 5793f, true)]
+        public void Plausible_lap_needs_a_believable_average_speed(float seconds, float length, bool plausible)
+        {
+            Assert.AreEqual(plausible, FieldPicture.PlausibleLap(seconds, length));
+        }
+
+        [Test]
         public void Debrief_after_practice_in_three_languages_with_five_variants()
         {
             foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })

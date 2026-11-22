@@ -66,6 +66,7 @@
     </Compile>
     <None Include="GrammarFiles\TDD\TDD_GetGrammars.cs" />
     <Compile Include="AiTeam\AiTeamTests.cs" />
+    <Compile Include="AiTeam\BahrainFollowUpTests.cs" />
     <Compile Include="AiTeam\Test3uTests.cs" />
     <Compile Include="AiTeam\Test3vTests.cs" />
     <Compile Include="AiTeam\Test3wTests.cs" />
@@ -77,6 +78,7 @@
     <Compile Include="AiTeam\RrcaFormSmokeTest.cs" />
     <Compile Include="AiTeam\RaceRadioDirectorTests.cs" />
     <Compile Include="AiTeam\RadioLanguageTests.cs" />
+    <Compile Include="AiTeam\CrewVoiceGuardTests.cs" />
     <Compile Include="AiTeam\FastestLapTests.cs" />
     <Compile Include="AiTeam\LiveCrewV06Tests.cs" />
     <Compile Include="AiTeam\VerifiedV06Tests.cs" />

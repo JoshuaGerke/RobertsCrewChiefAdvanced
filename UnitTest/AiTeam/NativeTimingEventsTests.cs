@@ -155,7 +155,7 @@ namespace UnitTest.AiTeamTests
             var s = State(); var q = Observe(s); var call = q.Take(s, T, false, true, false);
             Advance(s, 2.5); Assert.IsTrue(call.IsValid(s, s.Now), "A fresh, unchanged live source survives a normal rendering delay.");
             Assert.IsFalse(call.IsValid(s, T.AddSeconds(3.6)), "A frozen current source is never re-aged from its decision time.");
-            Advance(s, 8.1); Assert.IsFalse(call.IsValid(s, s.Now), "Native decisions still have a bounded lifetime.");
+            Advance(s, NativeTimingEvents.DecisionLifetime.TotalSeconds + .1); Assert.IsFalse(call.IsValid(s, s.Now), "Native decisions still have a bounded lifetime.");
             s = State(); s.SourceTelemetryUtc = T.AddSeconds(-1.1); Assert.IsNull(Fact(s));
             s = State(); q = Observe(s); s.SourceTelemetryUtc = T.AddSeconds(-1.1);
             Assert.IsNull(q.Take(s, T, false, true, false));
@@ -165,7 +165,7 @@ namespace UnitTest.AiTeamTests
         {
             var s = State(); var f = Fact(s); var q = new NativeTimingEvents(); q.Capture(f);
             Advance(s, 2); q.Observe(s, s.Now, null, true); Assert.IsNotNull(q.Take(s, s.Now, false, true, false));
-            q = new NativeTimingEvents(); q.Capture(f); Advance(s, 8.1); q.Observe(s, s.Now, null, true);
+            q = new NativeTimingEvents(); q.Capture(f); Advance(s, NativeTimingEvents.DecisionLifetime.TotalSeconds + .1); q.Observe(s, s.Now, null, true);
             Assert.IsNull(q.Take(s, s.Now, false, true, false));
             Assert.IsFalse(NativeTimingEvents.StillCurrent(f, State(), T.AddMilliseconds(-1)));
         }
