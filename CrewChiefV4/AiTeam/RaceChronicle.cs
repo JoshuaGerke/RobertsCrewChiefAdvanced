@@ -11,7 +11,8 @@ namespace CrewChiefV4.AiTeam
     internal enum ChronicleKind
     {
         Grid, PositionGained, PositionLost, OwnPit, RivalPit, OwnLap, OwnBest, FieldBest, LeaderChange,
-        Yellow, Hazard, Contact, OwnMistake, Penalty, PenaltyServed, Retired, Left, LastLap, Finish
+        Yellow, Hazard, Contact, OwnMistake, Penalty, PenaltyServed, Retired, Left, LastLap, Finish,
+        RaceControl, TrackLimit, Incident
     }
 
     /// <summary>Ein belegtes Ereignis: wann, welche Runde, wer, was – und woher die Crew es weiß.</summary>

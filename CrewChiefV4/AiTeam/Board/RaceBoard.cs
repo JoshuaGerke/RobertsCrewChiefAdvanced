@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using CrewChiefV4.AiTeam.Field;
 using CrewChiefV4.GameState;
 
@@ -49,6 +50,11 @@ namespace CrewChiefV4.AiTeam.Board
         public Fact<float> TimeLeft, GapFront, GapBehind, Speed;
         public Fact<bool> InPit;
         public Fact<BoardPenalty> Penalty;
+        /// <summary>Nächster Wagen vor bzw. hinter Rob auf der Strecke (Sekunden über das Feldtempo, egal welche Klasse oder Runde).</summary>
+        public Fact<float> TrackAheadS, TrackBehindS;
+        public string TrackAheadName, TrackBehindName;
+        /// <summary>Alter der Daten des nächsten Wagens vorn/hinten in ms (wie frisch die Sim ihn zuletzt gemeldet hat).</summary>
+        public double TrackAheadAgeMs = -1, TrackBehindAgeMs = -1;
         /// <summary>Widersprüche zwischen nativem Bild und Crew Chief in diesem Bild (Schlüssel → „nativ/cc“).</summary>
         public readonly Dictionary<string, string> Conflicts = new Dictionary<string, string>(StringComparer.Ordinal);
     }
@@ -158,6 +164,17 @@ namespace CrewChiefV4.AiTeam.Board
                 if (v.PlayerSlowDown > 0) { pen.SlowDown = true; pen.SlowDownSeconds = v.PlayerSlowDown; penKnown = true; }
             }
             if (penKnown) b.Penalty = Fact<BoardPenalty>.From(pen, native && (v.PositionsToGiveBack >= 0 || v.PlayerSlowDown > 0) ? BoardSource.Native : BoardSource.CrewChief, now);
+            // Gestaffelter Start (RaceRoom 3.6): Die Session ist schon grün, die eigene Startgruppe wartet aber noch.
+            if (gs != null && s.SessionType == SessionType.Race && RaceSituationWatch.InFormation(gs, now) && s.SessionPhase == SessionPhase.Green)
+                b.Phase = Fact<FieldPhase>.From(FieldPhase.Formation, BoardSource.Native, now);
+            // Wer ist direkt vor und hinter Rob auf der Strecke (Lagebild, 20 Hz)?
+            if (native && v.Player != null && v.Cars != null && !v.InMenus)
+            {
+                var ahead = v.Ahead(1).FirstOrDefault();
+                var behind = v.Behind(1).FirstOrDefault();
+                if (ahead != null) { b.TrackAheadS = Fact<float>.From(ahead.GapS, BoardSource.Native, nu); b.TrackAheadName = ahead.Name; b.TrackAheadAgeMs = ahead.DataAgeMs(now); }
+                if (behind != null) { b.TrackBehindS = Fact<float>.From(-behind.GapS, BoardSource.Native, nu); b.TrackBehindName = behind.Name; b.TrackBehindAgeMs = behind.DataAgeMs(now); }
+            }
             return b;
         }
 
@@ -194,6 +211,8 @@ namespace CrewChiefV4.AiTeam.Board
                     "board_field", b.FieldSize.ToString(), "board_laps_left", b.LapsLeft.ToString(),
                     "board_time_left", b.TimeLeft.Known ? Math.Round(b.TimeLeft.Value, 1).ToString(CultureInfo.InvariantCulture) + "@" + Src(b.TimeLeft.Source) : "?",
                     "board_penalty", b.Penalty.Known ? b.Penalty.Value.Kind + "@" + Src(b.Penalty.Source) : "?",
+                    "board_track_ahead", b.TrackAheadS.Known ? Math.Round(b.TrackAheadS.Value, 2).ToString(CultureInfo.InvariantCulture) + "s/" + Math.Round(b.TrackAheadAgeMs) + "ms" : "?",
+                    "board_track_behind", b.TrackBehindS.Known ? Math.Round(b.TrackBehindS.Value, 2).ToString(CultureInfo.InvariantCulture) + "s/" + Math.Round(b.TrackBehindAgeMs) + "ms" : "?",
                     "board_native_age_s", v == null ? -1 : Math.Round(Math.Max(0, (now - v.Utc).TotalSeconds), 3),
                     "board_conflicts", b.Conflicts.Count == 0 ? "" : string.Join(";", b.Conflicts)));
             }

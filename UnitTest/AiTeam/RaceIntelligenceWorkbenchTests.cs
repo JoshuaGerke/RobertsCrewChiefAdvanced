@@ -169,10 +169,10 @@ namespace UnitTest.AiTeamTests
         {
             var driver = new CrewChiefV4.RaceRoom.RaceRoomData.DriverData {
                 DriverInfo = new CrewChiefV4.RaceRoom.RaceRoomData.DriverInfo { SlotId=7 },
-                Unused2 = BitConverter.ToSingle(BitConverter.GetBytes(phase),0)
+                StartPhase = phase
             };
             var raw = new CrewChiefV4.RaceRoom.RaceRoomData.RaceRoomShared {
-                VersionMajor=3,VersionMinor=6,EventUnused1=BitConverter.ToSingle(BitConverter.GetBytes(mode),0),
+                VersionMajor=3,VersionMinor=6,StartMode=mode,
                 AllDriversOffset=System.Runtime.InteropServices.Marshal.OffsetOf(typeof(CrewChiefV4.RaceRoom.RaceRoomData.RaceRoomShared),"NumCars").ToInt32(),
                 DriverDataSize=System.Runtime.InteropServices.Marshal.SizeOf(typeof(CrewChiefV4.RaceRoom.RaceRoomData.DriverData)),
                 VehicleInfo=new CrewChiefV4.RaceRoom.RaceRoomData.DriverInfo { SlotId=7 },

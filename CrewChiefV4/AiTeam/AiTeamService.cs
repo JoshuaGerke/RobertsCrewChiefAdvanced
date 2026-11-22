@@ -56,6 +56,7 @@ namespace CrewChiefV4.AiTeam
         private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
         private readonly PitStopTimer pitStopTimer = new PitStopTimer();
         private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
+        private readonly RaceControlFeed raceControlFeed = new RaceControlFeed();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
         private readonly BattleSectorWatch battleSector = new BattleSectorWatch();
@@ -306,6 +307,7 @@ namespace CrewChiefV4.AiTeam
                 pitLaneWatch.Reset();
                 pitStopTimer.Reset();
                 incidentPoints.Reset();
+                raceControlFeed.Reset();
                 raceSummary.Reset();
                 gapTrend.Reset();
                 battleSector.Reset();
@@ -715,6 +717,8 @@ namespace CrewChiefV4.AiTeam
             else if(pendingTimingDelivery!=null && !pendingTimingDelivery.IsValid(current,now))pendingTimingDelivery=null;
             liveWarnings.IncidentName = settings.SendDriverNames ? (Func<GameStateData, DateTime, string>)FlagWatch.IncidentName : null;
             liveWarnings.Observe(current,now);
+            // Rennleitung aller Sims (Startvergehen, Abkürzen mit Frist, Verwarnung, Box zu/offen …): Chronik, Lagebild, Pflichtfunk.
+            raceControlFeed.Observe(current, now, liveWarnings);
             // LMU: Rennleitung aus dem nativen Datenstrom – alles mitschreiben, eigene Strafen/Tracklimits sofort an die Crew.
             LMURaceControlStream.Line raceControl;
             while (LMURaceControlStream.TryTake(out raceControl))
@@ -723,6 +727,7 @@ namespace CrewChiefV4.AiTeam
                 LiveDiagnostics.Decision("lmu-race-control", kind == null ? "logged" : "classified", (raceControl.Tag ?? "line") + (kind == null ? "" : ";" + kind),
                     LMURaceControlStream.Plain(raceControl.Text));
                 Memory.AddObservation(RadioLanguage.T("Rennleitung: ", "Race control: ", "Dirección de carrera: ") + LMURaceControlStream.Plain(raceControl.Text), now, "race-control");
+                raceControlFeed.ObserveLmuLine(raceControl, current, now);
                 if (kind != null && now >= raceControl.Utc && now - raceControl.Utc < TimeSpan.FromSeconds(5) && current.SessionData.SessionPhase == SessionPhase.Green)
                     liveWarnings.OfferRaceControl(kind, current, now, raceControl.Tag ?? "line");
             }

@@ -23,7 +23,7 @@ namespace CrewChiefV4.RaceRoom
         public enum VersionMinor
         {
             // Minor version number to test against
-            R3E_VERSION_MINOR = 5
+            R3E_VERSION_MINOR = 6
         };
 
         enum GameMode
@@ -714,10 +714,13 @@ namespace CrewChiefV4.RaceRoom
             // Unit: Euler angles
             public Vector3<Single> Orientation;
 
-            // Reserved data
-            public Single Unused1;
-            public Single Unused2;
-            public Single Unused3;
+            // Added in 3.6 (reserved before, read as 0 on older versions)
+            // Start group the car belongs to (-1 = N/A)
+            public Int32 StartGroup;
+            // -1 = N/A, 0 = waiting for its start group, 1 = in the start corridor, 2 = green
+            public Int32 StartPhase;
+            // Slot in the start group's formation order (0 = group leader, -1 = N/A)
+            public Int32 FormationSlot;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -825,9 +828,11 @@ namespace CrewChiefV4.RaceRoom
 
             public Int32 MaxIncidentPoints; // max incident points before the player is booted
             
-            // Reserved data
-            public Single EventUnused1;
-            public Single EventUnused2;
+            // Added in 3.6 (reserved before, read as 0 on older versions)
+            // -1 = N/A (not a race session), 0 = standing, 1 = rolling, 2 = formation lap
+            public Int32 StartMode;
+            // Number of start groups in the race (-1 = N/A)
+            public Int32 StartGroupCount;
 
             //////////////////////////////////////////////////////////////////////////
             // Pit
@@ -1177,6 +1182,23 @@ namespace CrewChiefV4.RaceRoom
             // Contains name and basic vehicle info for all drivers in place order
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)]
             public DriverData[] DriverData;
+
+            // Start procedure for the current vehicle, added in 3.6 (missing, read as 0, on older versions)
+            // All -1 = N/A unless the current vehicle is waiting for its start group's green
+            // Unit: m/s
+            public Single FormationSpeedLimit;
+            // Unit: m/s (start group leader only)
+            public Single FormationPaceFloor;
+            // Unit: Meters
+            public Single StartCorridorLapDistance;
+            // 0 = left, 1 = right
+            public Int32 FormationSide;
+            // Slot id of the car to follow (-1 = none)
+            public Int32 FormationFollowSlotId;
+            // Unit: Seconds
+            public Single PitlaneStartDelayRemaining;
+            // 0 = none, 1 = jumped the start, 2 = wrong side of the track
+            public Int32 StartPenaltyPending;
         }
     }
 }

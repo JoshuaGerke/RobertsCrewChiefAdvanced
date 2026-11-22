@@ -79,13 +79,30 @@ namespace CrewChiefV4.AiTeam.Field
 
         public void Dispose() => Close();
 
+        /// <summary>Bilder, die beim Kopieren von der Sim überschrieben wurden und verworfen sind.</summary>
+        internal int TornFrames { get; private set; }
+
         public bool Read(FieldFrame f, DateTime utc)
         {
             if (view == null) return false;
-            try { view.ReadArray(0, buffer, 0, buffer.Length); }
+            bool consistent = false;
+            try
+            {
+                // Zerrissene Bilder vermeiden: Der Simulationstakt muss vor, während und nach dem Kopieren gleich sein.
+                for (int attempt = 0; attempt < 3 && !consistent; attempt++)
+                {
+                    int before = view.ReadInt32(oTicks);
+                    view.ReadArray(0, buffer, 0, buffer.Length);
+                    int after = view.ReadInt32(oTicks);
+                    consistent = Consistent(before, I(buffer, oTicks), after);
+                    if (!consistent) TornFrames++;
+                }
+            }
             catch (Exception) { Close(); return false; }
-            return Parse(buffer, buffer.Length, f, utc);
+            return consistent && Parse(buffer, buffer.Length, f, utc);
         }
+
+        internal static bool Consistent(int before, int copied, int after) => before == after && copied == after;
 
         private static int I(byte[] b, int o) => BitConverter.ToInt32(b, o);
         private static float F(byte[] b, int o) => BitConverter.ToSingle(b, o);

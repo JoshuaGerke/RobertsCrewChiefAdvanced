@@ -277,6 +277,8 @@ namespace CrewChiefV4.AiTeam
             if (field != null && s.SessionType == SessionType.Race) o["feld_erkenntnisse"] = field;
             var dynamics = DynamicsSampler.Facts(s.CompletedLaps);
             if (dynamics != null) o["fahrdynamik"] = dynamics;
+            var raceControl = RaceControlFeed.Latest(s.SessionId, ctx.NowUtc);
+            if (raceControl != null) o["rennleitung"] = raceControl;
             int startMode, startPhase;
             if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
                 o["raceroom_startgruppe"] = new JObject {

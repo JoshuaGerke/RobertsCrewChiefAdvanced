@@ -26,6 +26,8 @@ namespace CrewChiefV4.AiTeam.Field
             vGarage = Off(Veh, "mInGarageStall");
         private const int Max = rFactor2Constants.MAX_MAPPED_VEHICLES;
         private double lastEt = double.NaN;
+        private readonly System.Collections.Generic.Dictionary<int, float> baseDist = new System.Collections.Generic.Dictionary<int, float>();
+        private long nativeSequence;
 
         public override string Name => "LMU";
         protected override string MapName => LMUConstants.MM_SCORING_FILE_NAME;
@@ -36,9 +38,24 @@ namespace CrewChiefV4.AiTeam.Field
             if (b == null || b.Length < StructSize || BitConverter.ToUInt32(b, 0) != BitConverter.ToUInt32(b, 4)) return false; // Sim schreibt gerade
             double et = BitConverter.ToDouble(b, oInfo + iEt);
             bool realtime = b[oInfo + iRealtime] != 0;
-            if (realtime && et == lastEt) return false;
+            // Keine neue Wertung: zwischen den Wertungsbildern mit der nativen Telemetrie fortschreiben (bis 20 Hz statt 5 Hz).
+            if (realtime && et == lastEt) return Refine(f, utc);
             lastEt = et;
-            return ParseBuffer(b, f, utc);
+            if (!ParseBuffer(b, f, utc)) return false;
+            baseDist.Clear();
+            foreach (var c in f.Cars) if (c != null) baseDist[c.Slot] = c.LapDistance;
+            if (realtime) Refine(f, utc);
+            return true;
+        }
+
+        private bool Refine(FieldFrame f, DateTime utc)
+        {
+            var native = LMUNativeField.Latest;
+            if (native == null || native.Sequence == nativeSequence || utc < native.Utc || utc - native.Utc > TimeSpan.FromMilliseconds(250)) return false;
+            nativeSequence = native.Sequence;
+            if (LMUNativeField.Apply(f, native, lastEt, baseDist) == 0) return false;
+            f.Utc = utc;
+            return true;
         }
 
         internal static FieldSession MapSession(int s) =>
@@ -105,6 +122,7 @@ namespace CrewChiefV4.AiTeam.Field
                 double vx = BitConverter.ToDouble(b, o + vVel), vy = BitConverter.ToDouble(b, o + vVel + 8), vz = BitConverter.ToDouble(b, o + vVel + 16);
                 double sp = Math.Sqrt(vx * vx + vy * vy + vz * vz); c.Speed = sp >= 0 && sp < 200 ? (float)sp : float.NaN;
                 c.PenaltyType = c.PenaltyReason = -1; c.SlowDown = c.DriveThrough = c.StopAndGo = c.TimeDeduction = -1;
+                c.Extrapolated = false;
                 if (c.IsPlayer) { f.PlayerIndex = i; f.PlayerInGarage = b[o + vGarage] != 0; }
             }
             return true;

@@ -32,7 +32,8 @@ namespace CrewChiefV4.AiTeam.Field
         }
 
         internal static bool Supports(GameEnum game) => game == GameEnum.RACE_ROOM || game == GameEnum.AMS2 || game == GameEnum.LMU ||
-            game == GameEnum.ASSETTO_32BIT || game == GameEnum.ASSETTO_64BIT || game == GameEnum.ASSETTO_128CARS || game == GameEnum.IRACING;
+            game == GameEnum.ASSETTO_32BIT || game == GameEnum.ASSETTO_64BIT || game == GameEnum.ASSETTO_128CARS || game == GameEnum.IRACING ||
+            game == GameEnum.ASSETTO_EVO;
 
         internal static IFieldSource Create(GameEnum game)
         {
@@ -43,6 +44,7 @@ namespace CrewChiefV4.AiTeam.Field
                 case GameEnum.LMU: return new LMUFieldSource();
                 case GameEnum.ASSETTO_32BIT: case GameEnum.ASSETTO_64BIT: case GameEnum.ASSETTO_128CARS: return new ACFieldSource();
                 case GameEnum.IRACING: return new IRacingFieldSource();
+                case GameEnum.ASSETTO_EVO: return new ACEFieldSource();
                 default: return null;
             }
         }
@@ -61,12 +63,77 @@ namespace CrewChiefV4.AiTeam.Field
             }
         }
 
+        /// <summary>Gemessene Rate neuer Bilder der Sim (Bilder mit neuer Sim-Zeit je Sekunde), NaN = noch nicht gemessen.</summary>
+        internal static double MeasuredHz => Volatile.Read(ref measuredHz);
+        /// <summary>Sim, für die <see cref="MeasuredHz"/> gilt (Name der Quelle).</summary>
+        internal static string MeasuredSim => Volatile.Read(ref measuredSim);
+        /// <summary>Fehler im Lesetakt seit dem Start (ein Fehler beendet den Faden nicht mehr).</summary>
+        internal static int Errors => Volatile.Read(ref errors);
+        /// <summary>Takte, die wegen Verspätung übersprungen wurden.</summary>
+        internal static int Overruns => Volatile.Read(ref overruns);
+        private static double measuredHz = double.NaN;
+        private static string measuredSim;
+        private static int errors, overruns;
+
+        /// <summary>Zählt neue Bilder (neue Sim-Zeit bzw. veränderte Positionen) und rechnet sie in Hz um.</summary>
+        internal sealed class RateMeter
+        {
+            private readonly TimeSpan window;
+            private DateTime windowStart = DateTime.MinValue;
+            private int fresh;
+            private double lastSimTime = double.NaN;
+            private float lastX = float.NaN, lastDist = float.NaN;
+            internal double Hz { get; private set; } = double.NaN;
+            internal RateMeter(double windowSeconds = 2) { window = TimeSpan.FromSeconds(windowSeconds); }
+
+            /// <summary>Ein gelesenes Bild melden; true, wenn es neue Daten enthielt.</summary>
+            internal bool Observe(FieldFrame f, DateTime now)
+            {
+                if (windowStart == DateTime.MinValue || now < windowStart) { windowStart = now; fresh = 0; }
+                var p = f.Player ?? (f.Cars.Length > 0 ? f.Cars[0] : null);
+                bool isNew;
+                if (!double.IsNaN(f.SimTime) && f.SimTime > 0) isNew = f.SimTime != lastSimTime;
+                else isNew = p != null && (!Same(p.X, lastX) || !Same(p.LapDistance, lastDist));
+                lastSimTime = f.SimTime;
+                if (p != null) { lastX = p.X; lastDist = p.LapDistance; }
+                if (isNew) fresh++;
+                if (now - windowStart >= window)
+                {
+                    Hz = Math.Round(fresh / (now - windowStart).TotalSeconds, 1);
+                    windowStart = now; fresh = 0;
+                }
+                return isNew;
+            }
+
+            private static bool Same(float a, float b) => float.IsNaN(a) && float.IsNaN(b) || a == b;
+        }
+
+        /// <summary>
+        /// Fester Takt: Der nächste Lesezeitpunkt liegt immer ein Intervall nach dem geplanten letzten, nicht nach dem Ende der
+        /// Arbeit (kein Wandern). Wer mehr als ein Intervall zu spät ist, springt auf den nächsten Takt und zählt einen Überlauf.
+        /// </summary>
+        internal static long NextDue(long due, long now, long interval, out bool overrun)
+        {
+            due += interval;
+            overrun = false;
+            if (now - due >= interval)
+            {
+                long behind = (now - due) / interval;
+                due += behind * interval;
+                overrun = true;
+            }
+            return due;
+        }
+
         private static void Run()
         {
             IFieldSource source = null;
             GameEnum sourceGame = GameEnum.NONE;
             var frame = new FieldFrame();
+            var rate = new RateMeter();
             DateTime lastNative = DateTime.MinValue, lastRelative = DateTime.MinValue;
+            long interval = Stopwatch.Frequency * IntervalMs / 1000, due = Stopwatch.GetTimestamp();
+            int consecutive = 0;
             try
             {
                 while (true)
@@ -75,28 +142,45 @@ namespace CrewChiefV4.AiTeam.Field
                     if (idle > 15) break;
                     GameEnum want;
                     lock (gate) want = wanted;
-                    if (source == null || sourceGame != want)
+                    try
                     {
-                        source?.Dispose();
-                        sourceGame = want; source = Create(want); frame = new FieldFrame();
-                        if (source == null) { Thread.Sleep(1000); continue; }
-                    }
-                    if (!source.IsOpen && !source.Open()) { status = "wartet auf " + source.Name; Thread.Sleep(2000); continue; }
-                    var started = Stopwatch.GetTimestamp();
-                    DateTime now = DateTime.UtcNow;
-                    if (source.Read(frame, now))
-                    {
-                        var view = FieldPicture.Shared.Observe(frame);
-                        try { ViewSink?.Invoke(view); } catch (Exception) { }
-                        status = source.Name + " · " + view.Cars.Count + " Wagen · " + (view.LayoutVerified ? "geprüft" : "Layout ungeprüft");
-                        if (LiveDiagnostics.Enabled)
+                        if (source == null || sourceGame != want)
                         {
-                            if (now - lastNative >= TimeSpan.FromSeconds(2)) { lastNative = now; EmitNative(view); }
-                            if (view.Player != null && !view.InMenus && now - lastRelative >= TimeSpan.FromMilliseconds(500)) { lastRelative = now; EmitRelative(view); }
+                            source?.Dispose();
+                            sourceGame = want; source = Create(want); frame = new FieldFrame(); rate = new RateMeter();
+                            if (source == null) { Thread.Sleep(1000); due = Stopwatch.GetTimestamp(); continue; }
                         }
+                        if (!source.IsOpen && !source.Open()) { status = "wartet auf " + source.Name; Thread.Sleep(2000); due = Stopwatch.GetTimestamp(); continue; }
+                        DateTime now = DateTime.UtcNow;
+                        if (source.Read(frame, now))
+                        {
+                            rate.Observe(frame, now);
+                            if (!double.IsNaN(rate.Hz)) { Volatile.Write(ref measuredHz, rate.Hz); Volatile.Write(ref measuredSim, source.Name); }
+                            var view = FieldPicture.Shared.Observe(frame, rate.Hz);
+                            try { ViewSink?.Invoke(view); } catch (Exception) { }
+                            status = source.Name + " · " + view.Cars.Count + " Wagen · " + (view.LayoutVerified ? "geprüft" : "Layout ungeprüft") +
+                                (double.IsNaN(rate.Hz) ? "" : " · " + rate.Hz.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " Hz") +
+                                (Errors > 0 ? " · " + Errors + " Fehler" : "");
+                            if (LiveDiagnostics.Enabled)
+                            {
+                                if (now - lastNative >= TimeSpan.FromSeconds(2)) { lastNative = now; EmitNative(view); }
+                                if (view.Player != null && !view.InMenus && now - lastRelative >= TimeSpan.FromMilliseconds(500)) { lastRelative = now; EmitRelative(view); }
+                            }
+                        }
+                        consecutive = 0;
                     }
-                    int spent = (int)((Stopwatch.GetTimestamp() - started) * 1000 / Stopwatch.Frequency);
-                    Thread.Sleep(Math.Max(5, IntervalMs - spent));
+                    catch (Exception e)
+                    {
+                        // Ein Fehler kostet einen Takt, nicht den Faden. Nach drei Fehlern in Folge wird die Quelle neu geöffnet.
+                        Interlocked.Increment(ref errors);
+                        status = "Fehler · " + e.GetType().Name + " · " + Errors;
+                        if (++consecutive >= 3) { try { source?.Dispose(); } catch (Exception) { } source = null; consecutive = 0; }
+                    }
+                    bool late;
+                    due = NextDue(due, Stopwatch.GetTimestamp(), interval, out late);
+                    if (late) Interlocked.Increment(ref overruns);
+                    long wait = (due - Stopwatch.GetTimestamp()) * 1000 / Stopwatch.Frequency;
+                    if (wait > 0) Thread.Sleep((int)Math.Min(wait, IntervalMs));
                 }
             }
             catch (Exception e) { status = "Fehler · " + e.GetType().Name; }
