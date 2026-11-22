@@ -326,7 +326,8 @@ namespace UnitTest.AiTeamTests
         public void Expired_or_changed_position_never_spoken()
         {
             var gs = Race(); var d = new ActiveRaceObserver(); d.Observe(gs, Now, "Rob", 120); Change(gs); Confirm(d, gs);
-            var call = Take(d, gs); Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(10)));
+            var call = Take(d, gs); Assert.IsTrue(call.IsValid(gs, Now.AddSeconds(10)), "LMU 22.11.: lives long enough to get through a busy queue");
+            Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(ActiveRaceObserver.PositionCallSeconds + 1)));
             gs.SessionData.ClassPosition = 11; Assert.IsFalse(call.IsValid(gs, Now.AddSeconds(1)));
         }
         [Test]

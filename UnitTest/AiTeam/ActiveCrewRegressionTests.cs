@@ -42,7 +42,8 @@ namespace UnitTest.AiTeamTests
             var schedule=new AiRadioSchedule(1); schedule.Observe(gs,T,p);
             var call=schedule.Take(Context(gs,T.AddSeconds(60)),p,false);
             Assert.IsNotNull(call); Assert.AreEqual(type,call.SessionType); Assert.IsTrue(call.IsValid(gs,T.AddSeconds(60)));
-            Assert.IsFalse(call.IsValid(gs,T.AddSeconds(67)),"stale report cannot play");
+            Assert.IsTrue(call.IsValid(gs,T.AddSeconds(60+AiRadioSchedule.RoutineLifetimeSeconds-1)),"a routine report survives a busy radio for a while");
+            Assert.IsFalse(call.IsValid(gs,T.AddSeconds(60+AiRadioSchedule.GuaranteedLifetimeSeconds+1)),"stale report cannot play");
         }
 
         [TestCase(SessionType.Practice)] [TestCase(SessionType.Qualify)]
