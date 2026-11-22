@@ -241,7 +241,8 @@ namespace CrewChiefV4.AiTeam
                     bool allowed=CrewChiefVoiceFilter.Allow(m.messageName,m.messageFolders,settings.SaraEnabled);
                     // RaceRoom Mantorp 22.11.: Ab Rennhälfte war das ElevenLabs-Kontingent leer – Ben und Mik schwiegen, Abstände,
                     // Überholmanöver und Bestzeiten fehlten. Während des Ausfalls läuft Crew Chiefs Originalstimme dafür wieder mit.
-                    if(!allowed && AiVoiceOutage && CrewVoiceOutage.NativeFallbackAllows(m.messageName,m.messageFolders,settings.SaraEnabled))
+                    if(!allowed && AiVoiceOutage && CrewVoiceOutage.NativeFallbackAllows(m.messageName,m.messageFolders,settings.SaraEnabled) &&
+                        !(liveWarnings.EngineMuted && LiveWarningDispatcher.Classify(m.messageFolders) is string engine && engine!="limits"))
                     {
                         LiveDiagnostics.Decision("voice-outage","native_fallback",m.messageName);
                         return true;
@@ -1346,6 +1347,19 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T("Zuletzt am Funk: ", "Last on the radio: ", "Lo último por radio: ") + lastSpoken.Text;
                 await SpeakAsync(routed.Member, repeated, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 return repeated;
+            }
+
+            // Rob (Norisring 22.11.): „Öl und Wasser … streichen für die ganze Session“ – lokal und sofort, nicht über das Modell.
+            int engineMute = routed.Member != TeamMember.Sara ? EngineMuteCommand.Parse(routed.Question) : 0;
+            if (engineMute != 0)
+            {
+                if (engineMute > 0) liveWarnings.MuteEngineWarnings(gs?.EngineData.EngineOilTemp ?? 0, gs?.EngineData.EngineWaterTemp ?? 0);
+                else liveWarnings.UnmuteEngineWarnings();
+                string muteReply = EngineMuteCommand.Reply(engineMute);
+                Stats.AddLocalAnswer();
+                await SpeakAsync(routed.Member, muteReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
+                RememberExchange(routed.Member, routed.Question, muteReply);
+                return muteReply;
             }
 
             // 2. Einfache Standardfragen ohne KI

@@ -37,6 +37,10 @@ namespace CrewChiefV4.AiTeam.Field
             bool valid = !float.IsNaN(p.BestLap);
             float mine = valid ? p.BestLap : p.FastestAnyLap;
             var timed = v.Cars.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();
+            // Mantorp 22.11.: eine gestrichene „Runde“ von 28 s war ein Rundenstück und hieß dann „gültig Rang 1“. Eine gestrichene Zeit
+            // zählt nur, wenn sie eine ganze Runde sein kann: nicht unter der Streckenlänge bei Höchstschnitt und nicht 10 % unter der Feldbestzeit.
+            if (!valid && !float.IsNaN(mine) && (!FieldPicture.PlausibleLap(mine, v.TrackLength) || timed.Count > 0 && mine < timed[0].BestLap * .9f))
+                mine = float.NaN;
             if (!float.IsNaN(mine))
             {
                 string t = LocalAnswers.LapTime(mine);

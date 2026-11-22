@@ -187,6 +187,16 @@ namespace CrewChiefV4.AiTeam.Field
             }
         }
 
+        /// <summary>Schnellster denkbarer Rundenschnitt (m/s, ~340 km/h); was schneller ist, war keine ganze Runde.</summary>
+        internal const float MaxLapAverageSpeed = 95f;
+
+        /// <summary>
+        /// RaceRoom Mantorp 22.11.: „Deine schnellste Runde war 28,274, leider gestrichen. Gültig wäre das Rang 1 gewesen.“ Auf 3,1 km
+        /// fährt niemand 28 s – das war ein Rundenstück (Boxenausfahrt bis Linie). Ohne bekannte Streckenlänge zählt jede Zeit.
+        /// </summary>
+        internal static bool PlausibleLap(float seconds, float trackLength) =>
+            !float.IsNaN(seconds) && seconds > 0 && (float.IsNaN(trackLength) || trackLength < 200 || seconds >= trackLength / MaxLapAverageSpeed);
+
         private static bool SameValue(float a, float b) => float.IsNaN(a) ? float.IsNaN(b) : a == b;
 
         private int Cell(float d) => count.Length == 0 || float.IsNaN(d) ? -1 : Math.Max(0, Math.Min(count.Length - 1, (int)(d / CellM)));
@@ -264,7 +274,7 @@ namespace CrewChiefV4.AiTeam.Field
             if (s.LastLaps >= 0 && c.CompletedLaps == s.LastLaps + 1)
             {
                 float t = !float.IsNaN(c.LastLap) && c.LastLap > 0 ? c.LastLap : s.LastCurrent;
-                if (!float.IsNaN(t) && t > 5 && t < 7200)
+                if (!float.IsNaN(t) && t > 5 && t < 7200 && PlausibleLap(t, length))
                 {
                     s.LastLap = t; s.LastLapValid = s.LastValid; s.Laps.Add(t);
                     if (s.Laps.Count > 8) s.Laps.RemoveAt(0);

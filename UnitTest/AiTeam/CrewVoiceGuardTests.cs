@@ -145,5 +145,39 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("persönliche Bestzeit", prompt);
             StringAssert.Contains("wirklich neue automatische Meldung", prompt);
         }
+    
+        [TestCase("Die Ansagen bezüglich Öl und Wasser, also Motor und Öl, Wasserüberhitzung, streichen für die ganze Session, nicht mehr nennen.", 1)]
+        [TestCase("Keine Motorwarnungen mehr", 1)]
+        [TestCase("No more oil and water calls", 1)]
+        [TestCase("Öl und Wasser bitte wieder melden", -1)]
+        [TestCase("Motor wieder einschalten", -1)]
+        [TestCase("Wie ist die Öltemperatur?", 0)]
+        [TestCase("Wasser auf der Strecke, keine Gefahr mehr?", 0)]
+        [TestCase("Der Motor ist stumm", 0)]
+        [TestCase("Is the engine overheating again?", 0)]
+        public void Driver_can_silence_engine_temperature_calls_for_the_session(string question, int expected)
+        {
+            // RaceRoom Norisring 22.11.: Mik antwortete „automatische Meldungen kann ich nicht abschalten“ und warnte weiter.
+            Assert.AreEqual(expected, EngineMuteCommand.Parse(question));
+        }
+
+        [Test]
+        public void Muted_engine_warnings_stay_quiet_until_it_gets_much_hotter_and_end_with_the_session()
+        {
+            var w = new LiveWarningDispatcher();
+            Assert.IsTrue(w.EngineWarningDue("both", 120, 112, T0));
+            w.EngineWarningSpoken("both", 120, 112, T0);
+            w.MuteEngineWarnings(121, 112);
+            Assert.IsFalse(w.EngineWarningDue("both", 124, 114, T0.AddMinutes(4)), "abgeschaltet: auch nach der 3-Minuten-Sperre still");
+            Assert.IsFalse(w.EngineWarningDue("water", 121, 121, T0.AddMinutes(5)));
+            Assert.IsTrue(w.EngineWarningDue("water", 121, 122, T0.AddMinutes(5)), "echte Eskalation (+10 °C) kommt trotzdem");
+            w.EngineWarningSpoken("water", 121, 122, T0.AddMinutes(5));
+            Assert.IsFalse(w.EngineWarningDue("water", 121, 125, T0.AddMinutes(9)), "die nächste Ausnahme braucht wieder +10 °C");
+            w.Reset();
+            Assert.IsFalse(w.EngineMuted, "neue Session: wieder an");
+            w.MuteEngineWarnings(121, 112);
+            w.UnmuteEngineWarnings();
+            Assert.IsTrue(w.EngineWarningDue("both", 124, 114, T0.AddMinutes(20)));
+        }
     }
 }

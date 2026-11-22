@@ -130,7 +130,7 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,Pending> pending=new Dictionary<string,Pending>();
         private readonly Dictionary<string,DateTime> delivered=new Dictionary<string,DateTime>();
         private int variant;
-        public void Reset(){Native n;while(native.TryDequeue(out n)){}pending.Clear();delivered.Clear();lastEngineUtc=DateTime.MinValue;lastEngineOil=lastEngineWater=float.NaN;lastEngineHadOil=lastEngineHadWater=false;}
+        public void Reset(){Native n;while(native.TryDequeue(out n)){}pending.Clear();delivered.Clear();lastEngineUtc=DateTime.MinValue;lastEngineOil=lastEngineWater=float.NaN;lastEngineHadOil=lastEngineHadWater=false;UnmuteEngineWarnings();}
 
         // RaceRoom Norisring 20.11.: Öl/Wasser-Warnung 15-mal in 13 Minuten (je Thema nur 30 s Pause, drei Themen).
         // RaceRoom Norisring 22.11. (DTM 1995, HotLap 18:33): 13 Motorwarnungen in 7 Minuten, alle 30 s – die Sperre vom 20.11.
@@ -145,9 +145,28 @@ namespace CrewChiefV4.AiTeam
         private bool lastEngineHadOil, lastEngineHadWater;
         private static bool HasOil(string kind) => kind == "oil" || kind == "both";
         private static bool HasWater(string kind) => kind == "water" || kind == "both";
+        /// <summary>
+        /// Rob (RaceRoom Norisring 22.11.): „Die Ansagen bezüglich Öl und Wasser … streichen für die ganze Session, nicht mehr nennen.“
+        /// Mik antwortete, das könne er nicht – und warnte weiter. Jetzt schweigt die Motorwarnung bis zum Sessionende; nur wenn es
+        /// danach noch einmal deutlich heißer wird (+10 °C gegenüber dem Stand beim Abschalten), kommt sie ausnahmsweise.
+        /// </summary>
+        internal const float MutedEngineEscalationC = 10;
+        private volatile bool engineMuted;
+        private float mutedOil = float.NaN, mutedWater = float.NaN;
+        internal bool EngineMuted => engineMuted;
+        internal void MuteEngineWarnings(float oil,float water)
+        {
+            mutedOil=oil>0?oil:float.NaN;mutedWater=water>0?water:float.NaN;engineMuted=true;
+            LiveDiagnostics.Decision("warning-engine","muted","driver_request_this_session");
+        }
+        internal void UnmuteEngineWarnings(){engineMuted=false;mutedOil=mutedWater=float.NaN;}
+        private bool MutedEscalation(string kind,float oil,float water) =>
+            HasOil(kind) && (float.IsNaN(mutedOil) ? oil>0 && !float.IsNaN(lastEngineOil) && oil>=lastEngineOil+MutedEngineEscalationC : oil>=mutedOil+MutedEngineEscalationC) ||
+            HasWater(kind) && (float.IsNaN(mutedWater) ? water>0 && !float.IsNaN(lastEngineWater) && water>=lastEngineWater+MutedEngineEscalationC : water>=mutedWater+MutedEngineEscalationC);
         /// <summary>Darf jetzt eine Motorwarnung dieser Art gesprochen werden? Prüft nur, merkt sich nichts.</summary>
         internal bool EngineWarningDue(string kind,float oil,float water,DateTime now)
         {
+            if(engineMuted && !MutedEscalation(kind,oil,water))return false;
             if(lastEngineUtc==DateTime.MinValue || now<lastEngineUtc)return true;
             var since=now-lastEngineUtc;
             if(since>=EngineWarningGap)return true;
@@ -162,6 +181,8 @@ namespace CrewChiefV4.AiTeam
         {
             lastEngineUtc=utc;lastEngineOil=oil;lastEngineWater=water;
             lastEngineHadOil=HasOil(kind);lastEngineHadWater=HasWater(kind);
+            // Abgeschaltet und trotzdem gewarnt: die nächste Ausnahme braucht wieder 10 °C mehr.
+            if(engineMuted){if(HasOil(kind))mutedOil=oil;if(HasWater(kind))mutedWater=water;}
         }
 
         public static string Classify(IEnumerable<string> folders)
@@ -358,5 +379,31 @@ namespace CrewChiefV4.AiTeam
 
         public DateTime LastDelivered(string topic)
         {DateTime utc;return delivered.TryGetValue(topic,out utc)?utc:DateTime.MinValue;}
+    }
+
+    /// <summary>Sprachbefehl: Motor-/Öl-/Wassertemperatur-Warnungen für diese Session ab- oder wieder anschalten.</summary>
+    internal static class EngineMuteCommand
+    {
+        private static readonly System.Text.RegularExpressions.Regex Subject = new System.Text.RegularExpressions.Regex(
+            @"\b(oel|wasser|motor\w*|kuehl\w*|ueberhitz\w*|temperaturwarnung\w*|motorwarnung\w*|oil|water|engine|aceite|agua|motor)\b");
+        private static readonly System.Text.RegularExpressions.Regex Off = new System.Text.RegularExpressions.Regex(
+            @"(streich\w*|nicht mehr (nennen|melden|ansagen|sagen|erwaehnen)|keine (\w+ )?\w*(warnung|ansage|meldung)\w* mehr|weglassen|abschalten|ausschalten|stummschalten|stumm schalten|lass (das|die) weg|no more|stop (the|calling|telling)|\bmute|turn off|ya no|silencia\w*)");
+        private static readonly System.Text.RegularExpressions.Regex On = new System.Text.RegularExpressions.Regex(
+            @"(wieder (an|ein|melden|ansagen|nennen|einschalten|anschalten)|einschalten|anschalten|unmute|turn (it |them )?back on)");
+
+        /// <summary>+1 abschalten, -1 wieder anschalten, 0 kein Befehl.</summary>
+        internal static int Parse(string question)
+        {
+            string q = DriverRadioPreferences.Normalize(question);
+            if (q.Length == 0 || !Subject.IsMatch(q)) return 0;
+            if (On.IsMatch(q) && !Off.IsMatch(q.Replace("wieder", ""))) return -1;
+            return Off.IsMatch(q) ? 1 : 0;
+        }
+
+        internal static string Reply(int command) => command > 0
+            ? RadioLanguage.T("Verstanden, Öl und Wasser melde ich in dieser Session nicht mehr. Nur wenn es noch deutlich heißer wird, sage ich Bescheid.",
+                "Copy, no more oil and water calls this session. Only if it gets a lot hotter will I tell you.",
+                "Entendido, no más avisos de aceite y agua en esta sesión. Solo si sube mucho más te aviso.")
+            : RadioLanguage.T("Verstanden, Öl- und Wassertemperatur melde ich wieder.", "Copy, oil and water temperature calls are back on.", "Entendido, vuelvo a avisar de aceite y agua.");
     }
 }
