@@ -13,6 +13,8 @@ namespace CrewChiefV4.AiTeam
     public class LapWatch
     {
         private int lastCalledLap = -1;
+        /// <summary>Runde, in der „letzte Runde“ schon angesagt wurde (über Rundenzahl oder Uhr).</summary>
+        private int lastLapAnnounced = -1;
         private int pendingLap = -1;
         private float pendingSince;
         private bool finishCalled, timedClockCalled;
@@ -42,7 +44,7 @@ namespace CrewChiefV4.AiTeam
 
         public void Reset(bool sameDisqualification = false)
         {
-            lastCalledLap = pendingLap = -1;
+            lastCalledLap = pendingLap = lastLapAnnounced = -1;
             finishCalled = timedClockCalled = false; ForgetTimedFinish();
             if (!sameDisqualification) disqualification = null;
         }
@@ -249,9 +251,16 @@ namespace CrewChiefV4.AiTeam
                 timedClockCalled = true;
                 // Rob 16.11.: Nach Ablauf der Uhr muss klar sein, ob dies die letzte Runde ist.
                 int finalLap = PlanTimedFinish(current);
+                // LMU Bahrain 22.11.: „Letzte Runde“ kam um 12:04:26 und zwei Sekunden später noch einmal über die Uhr. Ist die
+                // letzte Runde schon angesagt, bleibt die Uhr still.
+                if (finalLap == s.CompletedLaps && lastLapAnnounced == s.CompletedLaps)
+                {
+                    LiveDiagnostics.Decision("lap-clock-last", "suppressed", "last_lap_already_called");
+                    return null;
+                }
                 if (finalLap == s.CompletedLaps)
                 {
-                    lastCalledLap = s.CompletedLaps;
+                    lastCalledLap = lastLapAnnounced = s.CompletedLaps;
                     string name = AiPersonas.CleanForRadio(driverName ?? "", 30, false);
                     string nm = name.Length > 0 ? ", " + name : "";
                     CoreCall = RadioVariants.Pick("lap-clock-last",
@@ -300,7 +309,7 @@ namespace CrewChiefV4.AiTeam
             pendingLap = -1;
             if (left == 1 && !LapsAreEstimated(s))
             {
-                lastCalledLap = s.CompletedLaps;
+                lastCalledLap = lastLapAnnounced = s.CompletedLaps;
                 string front = FrontChase(current, preciseFront, gapAhead, rivalName);
                 IncludesFrontGap = front != null;
                 CoreCall = (LapsAreEstimated(s) ? RadioLanguage.T("Voraussichtlich letzte Runde! ", "Probably the last lap! ", "¡Probablemente última vuelta! ") :

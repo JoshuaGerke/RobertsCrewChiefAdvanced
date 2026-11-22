@@ -358,7 +358,9 @@ namespace CrewChiefV4.AiTeam
             {
                 if (lastLaps || x.Phase == RacePhase.Final) { reason = "final_laps_only_own_race"; return MindVerdict.Drop; }
                 // Wer gerade verteidigt oder angreift, braucht keine Nachrichten über andere Autos – die verfallen.
-                if ((x.Focus == RaceFocus.Defend || x.Focus == RaceFocus.Attack) && t.StartsWith("field-", StringComparison.Ordinal))
+                // Ausnahme: die schnellste Runde eines Gegners wartet nur (LMU 22.11.: im Rennen nie gemeldet).
+                if ((x.Focus == RaceFocus.Defend || x.Focus == RaceFocus.Attack) && t.StartsWith("field-", StringComparison.Ordinal) &&
+                    t != "field-fastest" && t != "field-fastest-overall")
                 { reason = "focus_on_own_fight"; return MindVerdict.Drop; }
                 if (x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart) { reason = "start_phase_driver_busy"; return MindVerdict.Hold; }
                 if (driverBusy || x.Attention == RaceAttention.Traffic) { reason = "busy_background_waits"; return MindVerdict.Hold; }
