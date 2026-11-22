@@ -99,7 +99,8 @@ namespace UnitTest.AiTeamTests
             string text = SessionDebrief.Compose(v, "Rob", 1.1f, 2, 0);
             StringAssert.DoesNotContain("28,274", text);
             StringAssert.DoesNotContain("leider gestrichen", text);
-            StringAssert.DoesNotContain("Rang 1", text);
+            StringAssert.DoesNotContain("Gültig wäre", text);
+            StringAssert.Contains("Eine gezeitete Runde hatten wir nicht.", text);
             // Ohne Streckenlänge greift die Feldprobe: 28 s gegen 1:45 im Feld ist keine Runde.
             var w = Done(FieldSession.Practice, float.NaN, 28.274f, 80f); w.TrackLength = float.NaN;
             StringAssert.DoesNotContain("leider gestrichen", SessionDebrief.Compose(w, "Rob", 1.1f, 2, 0));
