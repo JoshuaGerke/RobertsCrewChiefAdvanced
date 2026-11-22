@@ -145,6 +145,18 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Rival_fastest_lap_is_not_held_in_traffic_only_in_a_fight()
+        {
+            Func<RaceAttention, MindVerdict> judge = attention => {
+                var x = new RaceSituation { SessionId = 7, Phase = RacePhase.Middle, Attention = attention, Focus = RaceFocus.Defend, Utc = T };
+                var call = new ObservedRaceCall { Topic = "field-fastest", SessionId = 7, SessionType = SessionType.Race, Priority = 4 };
+                return RaceMind.Judge(x, call, T, out _);
+            };
+            Assert.AreEqual(MindVerdict.Admit, judge(RaceAttention.Traffic), "RaceRoom Mantorp 22.11.: im Verkehr dreimal verfallen");
+            Assert.AreEqual(MindVerdict.Hold, judge(RaceAttention.Battle), "im Zweikampf wartet sie, verfällt aber nicht mehr");
+        }
+
+        [Test]
         public void Qualifying_always_gets_a_fuel_estimate()
         {
             Assert.IsNotNull(QualiFuelWatch.Advice(30, 3, 300, 100, "Rob"), "zu viel Sprit: Ballast-Hinweis wie bisher");

@@ -363,7 +363,10 @@ namespace CrewChiefV4.AiTeam
                     t != "field-fastest" && t != "field-fastest-overall")
                 { reason = "focus_on_own_fight"; return MindVerdict.Drop; }
                 if (x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart) { reason = "start_phase_driver_busy"; return MindVerdict.Hold; }
-                if (driverBusy || x.Attention == RaceAttention.Traffic) { reason = "busy_background_waits"; return MindVerdict.Hold; }
+                // RaceRoom Mantorp 22.11.: Die schnellste Runde eines Gegners wurde dreimal im Verkehr gehalten und verfiel. Verkehr
+                // ist kein Zweikampf: sie kommt dann gleich, nur Zweikampf und Gelb lassen sie warten.
+                bool fastest = t == "field-fastest" || t == "field-fastest-overall";
+                if (driverBusy || x.Attention == RaceAttention.Traffic && !fastest) { reason = "busy_background_waits"; return MindVerdict.Hold; }
                 if (x.Attention == RaceAttention.Pit && t != "pit-stop-time") { reason = "pit_lane"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
