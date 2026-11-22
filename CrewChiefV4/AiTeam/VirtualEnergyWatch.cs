@@ -20,10 +20,19 @@ namespace CrewChiefV4.AiTeam
         private readonly object gate = new object();
         private readonly List<float> perLap = new List<float>();
         private int session = int.MinValue, lapAtStart = -1;
+        private SessionType sessionType = SessionType.Unavailable;
         private float atStart = -1, level = -1;
         private bool startClean;
 
-        internal void Reset() { lock (gate) { perLap.Clear(); session = int.MinValue; lapAtStart = -1; atStart = level = -1; startClean = false; } }
+        internal void Reset() { lock (gate) { perLap.Clear(); session = int.MinValue; sessionType = SessionType.Unavailable; lapAtStart = -1; atStart = level = -1; startClean = false; } }
+
+        /// <summary>
+        /// LMU 22.11.: Im Rennen sagte Ben 24-mal „Virtuelle Energie 0 Prozent … reicht für etwa 0,0 Runden. Die Energie ist knapper
+        /// als der Sprit“ – bei 19 bis 34 Litern im Tank. Die Sim lieferte 0 (Energie in diesem Lauf nicht genutzt), der Verbrauch
+        /// stammte noch aus dem Training (LMU meldet für alle Sitzungen dieselbe Sitzungsnummer). Unter einem halben Prozent gilt
+        /// die Energie als nicht genutzt; ein Sitzungswechsel wird auch an der Sitzungsart erkannt.
+        /// </summary>
+        internal const float MinimumUsedPercent = .5f;
 
         /// <summary>Aktueller Stand in Prozent oder -1, wenn die Simulation keine virtuelle Energie nutzt.</summary>
         internal float Level { get { lock (gate) return level; } }
@@ -50,8 +59,9 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             lock (gate)
             {
-                if (s.SessionId != session) { perLap.Clear(); session = s.SessionId; lapAtStart = -1; atStart = -1; startClean = false; }
-                if (energy < 0 || energy > 100) { level = -1; lapAtStart = -1; atStart = -1; return; }
+                if (s.SessionId != session || s.SessionType != sessionType)
+                { perLap.Clear(); session = s.SessionId; sessionType = s.SessionType; lapAtStart = -1; atStart = -1; startClean = false; }
+                if (energy < MinimumUsedPercent || energy > 100) { level = -1; lapAtStart = -1; atStart = -1; return; }
                 if (level >= 0 && energy > level + .5f) { lapAtStart = -1; atStart = -1; } // nachgeladen (Box): neue Messung beginnen
                 level = energy;
                 int lap = s.CompletedLaps;
@@ -70,7 +80,7 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kurzer Funksatz: Stand, Verbrauch, Reichweite und – wenn Sprit knapper ist – der begrenzende Faktor.</summary>
         internal static string Report(float level, float perLap, float fuelLaps, int variant)
         {
-            if (level < 0) return null;
+            if (level < MinimumUsedPercent) return null;
             string pct = RadioLanguage.Num(level, "0");
             if (!(perLap > .05f))
                 return RadioLanguage.T("Virtuelle Energie " + pct + " Prozent, Verbrauch messen wir noch.",

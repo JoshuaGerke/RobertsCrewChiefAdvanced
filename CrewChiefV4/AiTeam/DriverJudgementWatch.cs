@@ -188,6 +188,62 @@ namespace CrewChiefV4.AiTeam
                 new[] { "Konter bekommen. Ruhig bleiben, der Zweikampf läuft noch.", "Got countered. Stay calm, the fight's not over.", "Te han devuelto el adelantamiento. Calma, la pelea sigue." });
         }
 
+        /// <summary>
+        /// LMU 22.11. (Rob): „Überholmanöver kommentieren nach Note: spitzenmäßig, sehr gut, gut, mittelmäßig, nicht so gut,
+        /// schlecht.“ Die Note kommt nur aus Messwerten: schnelleren Gegner sauber überholt (spitzenmäßig), lange erarbeitet oder
+        /// Platz zurückgeholt (sehr gut), sauber (gut), mit Tracklimit oder ungültiger Runde (mittelmäßig), sofort wieder verloren
+        /// (nicht so gut), mit Kontakt, Schaden oder Vorfallpunkten (schlecht).
+        /// </summary>
+        internal enum PassGrade { Top, VeryGood, Good, Average, NotSoGood, Bad }
+
+        internal static PassGrade Grade(bool clean, bool rough, bool countered, bool shaky, bool stronger, bool hardFought, bool retake)
+        {
+            if (rough) return PassGrade.Bad;
+            if (countered) return PassGrade.NotSoGood;
+            if (shaky) return PassGrade.Average;
+            if (!clean) return PassGrade.Average;
+            if (stronger) return PassGrade.Top;
+            return hardFought || retake ? PassGrade.VeryGood : PassGrade.Good;
+        }
+
+        /// <summary>Die Note als erstes Wort der Ansage (kurz, wechselnd).</summary>
+        internal static string GradeWord(PassGrade grade, int variant)
+        {
+            bool b = (variant & 1) == 1;
+            switch (grade)
+            {
+                case PassGrade.Top: return b ? RadioLanguage.T("Spitzenmäßig gemacht!", "Top-class move!", "¡Maniobra de primera!") : RadioLanguage.T("Spitzenmäßig!", "Outstanding!", "¡Sobresaliente!");
+                case PassGrade.VeryGood: return b ? RadioLanguage.T("Sehr gutes Manöver!", "Very good move!", "¡Muy buena maniobra!") : RadioLanguage.T("Sehr gut!", "Very good!", "¡Muy bien!");
+                case PassGrade.Good: return b ? RadioLanguage.T("Gutes Manöver.", "Good move.", "Buena maniobra.") : RadioLanguage.T("Gut.", "Good.", "Bien.");
+                case PassGrade.Average: return b ? RadioLanguage.T("Mittelmäßig.", "So-so.", "Regular.") : RadioLanguage.T("Mittelmäßig, das war knapp.", "So-so, that was close.", "Regular, ha ido justo.");
+                case PassGrade.NotSoGood: return b ? RadioLanguage.T("Nicht so gut.", "Not so good.", "No tan bien.") : RadioLanguage.T("Das war nicht so gut.", "That wasn't so good.", "Eso no ha ido tan bien.");
+                default: return b ? RadioLanguage.T("Schlecht gelöst.", "Badly done.", "Mal resuelto.") : RadioLanguage.T("Das war schlecht.", "That was a bad one.", "Eso ha sido malo.");
+            }
+        }
+
+        /// <summary>Note vor den Satz; steht das Notenwort schon am Anfang („Gut gemacht …“), nicht doppelt.</summary>
+        internal static string Graded(PassGrade grade, string sentence, int variant)
+        {
+            string word = GradeWord(grade, variant);
+            if (string.IsNullOrWhiteSpace(sentence)) return word;
+            // Nur lobende Noten können schon im Satz stecken („Gut gemacht, Rob“); eine Kritik steht immer vorn.
+            bool positive = grade == PassGrade.Top || grade == PassGrade.VeryGood || grade == PassGrade.Good;
+            string stem = word.TrimStart('¡').Split(' ', '.', '!', ',')[0];
+            string head = sentence.TrimStart('¡', '¿');
+            if (positive && stem.Length >= 3 && head.StartsWith(stem.Substring(0, 3), StringComparison.OrdinalIgnoreCase)) return sentence;
+            return word + " " + sentence;
+        }
+
+        /// <summary>Vorbei und gehalten, aber über die Streckenbegrenzung oder mit ungültiger Runde.</summary>
+        internal static string ShakyPass(string name, string passed, int variant)
+        {
+            string p = string.IsNullOrWhiteSpace(passed) ? null : passed;
+            return Pick(variant, name,
+                new[] { "Vorbei" + (p != null ? " an " + p : "") + ", aber über die Streckenbegrenzung. Das kann eine Verwarnung kosten, {n}.", "Past" + (p != null ? " " + p : "") + ", but over the track limits. That could cost a warning, {n}.", "Pasado" + (p != null ? " a " + p : "") + ", pero fuera de los límites. Puede costar un aviso, {n}." },
+                new[] { "Platz gewonnen, aber nicht innerhalb der Linien. Beim nächsten Mal sauber auf der Strecke bleiben.", "Place gained, but not inside the lines. Stay on track next time.", "Puesto ganado, pero fuera de las líneas. La próxima, dentro de la pista." },
+                new[] { "Das Manöver hat geklappt, die Runde ist aber gestrichen. Sauberer geht es auch, {n}.", "The move worked, but the lap is deleted. It can be cleaner, {n}.", "La maniobra salió, pero la vuelta está anulada. Se puede hacer más limpio, {n}." });
+        }
+
         /// <summary>Den Platz gegen denselben Gegner zurückgeholt, der uns vorher überholt hatte.</summary>
         internal static string Retake(string name, string passed, int variant)
         {
@@ -272,6 +328,11 @@ namespace CrewChiefV4.AiTeam
     internal sealed class DriverJudgementWatch
     {
         private static readonly TimeSpan PraiseGap = TimeSpan.FromSeconds(120), AnyGap = TimeSpan.FromSeconds(60);
+        /// <summary>
+        /// LMU 22.11.: Dubus überholt – keine Reaktion; Valgo überholt – Kommentar 28 s später. Das Manöver wurde 15 s auf „gehalten“
+        /// geprüft und durfte nur kommen, wenn eine Minute lang keine andere Bewertung lief. Jetzt: 8 s halten, 20 s Abstand.
+        /// </summary>
+        internal static readonly TimeSpan PassSettle = TimeSpan.FromSeconds(8), PassGap = TimeSpan.FromSeconds(20);
         private readonly Random random;
         private int session = int.MinValue, lastPosition = -1, lastConsistencyLap = -100, lastSlideLap = -100, lastDefenceLap = -100;
         private int overtakeCount, spokenCount;
@@ -299,7 +360,7 @@ namespace CrewChiefV4.AiTeam
 
         private sealed class Pending
         {
-            public DateTime Utc; public int Position, Incidents; public float Damage; public string PassedName, PassedIdentity; public bool Stronger, Retake, Rough;
+            public DateTime Utc; public int Position, Incidents, Cuts; public float Damage; public string PassedName, PassedIdentity; public bool Stronger, Retake, Rough, LapValid;
         }
         // RRCA 2.0 (4.2) Rivalengeschichte: wer uns zuletzt überholt hat. Holt Rob sich den Platz gegen denselben Gegner zurück,
         // ist das eine Geschichte („den hast du dir zurückgeholt“), nicht nur ein weiteres Überholen.
@@ -412,14 +473,15 @@ namespace CrewChiefV4.AiTeam
             }
 
             if (countered != null && (!race || now - countered.Utc > TimeSpan.FromSeconds(60))) countered = null;
-            if (countered != null && now - lastAny >= AnyGap)
+            if (countered != null && now - lastAny >= PassGap)
             {
                 var o = countered; countered = null;
-                Offer(gs, now, "judge-overtake-countered", DriverJudgement.Countered(name, o.PassedName, Variant("countered", 5)),
+                Offer(gs, now, "judge-overtake-countered", DriverJudgement.Graded(DriverJudgement.PassGrade.NotSoGood,
+                        DriverJudgement.Countered(name, o.PassedName, Variant("countered", 5)), Variant("grade", 2)),
                     "same_rival_retook_the_place_within_20s", 4, TimeSpan.FromSeconds(20));
                 return;
             }
-            if (overtake != null && race && now - lastAny >= AnyGap && now - lastPraise >= TimeSpan.FromSeconds(60) && now - overtake.Utc >= TimeSpan.FromSeconds(15))
+            if (overtake != null && race && now - lastAny >= PassGap && now - lastPraise >= PassGap && now - overtake.Utc >= PassSettle)
             {
                 var o = overtake; overtake = null;
                 bool clean = s.ClassPosition > 0 && s.ClassPosition <= o.Position && (o.Incidents < 0 || Incidents(s) == o.Incidents) &&
@@ -430,7 +492,8 @@ namespace CrewChiefV4.AiTeam
                 if (clean && o.Retake)
                 {
                     passedBy.Remove(o.PassedIdentity);
-                    Offer(gs, now, "judge-retake", DriverJudgement.Retake(name, o.PassedName, Variant("retake", 6)),
+                    Offer(gs, now, "judge-retake", DriverJudgement.Graded(DriverJudgement.PassGrade.VeryGood,
+                            DriverJudgement.Retake(name, o.PassedName, Variant("retake", 6)), Variant("grade", 2)),
                         "class_position_regained_against_the_rival_who_passed_us_held_without_new_damage", 4, TimeSpan.FromSeconds(25));
                     lastPraise = now;
                     return;
@@ -442,7 +505,8 @@ namespace CrewChiefV4.AiTeam
                 bool rough = held && (o.Rough || o.Incidents >= 0 && Incidents(s) > o.Incidents || o.Damage >= 0 && ImpactDamage(gs.CarDamageData) - o.Damage >= 1f);
                 if (rough && !IncidentWatch.IsSerious(gs.CarDamageData))
                 {
-                    Offer(gs, now, "judge-overtake-rough", DriverJudgement.RoughPass(name, o.PassedName, Variant("overtake-rough", 5)),
+                    Offer(gs, now, "judge-overtake-rough", DriverJudgement.Graded(DriverJudgement.PassGrade.Bad,
+                            DriverJudgement.RoughPass(name, o.PassedName, Variant("overtake-rough", 5)), Variant("grade", 2)),
                         "position_gain_with_new_damage_or_incident_points", 4, TimeSpan.FromSeconds(25));
                     lastPraise = now;
                     return;
@@ -452,7 +516,11 @@ namespace CrewChiefV4.AiTeam
                 {
                     overtakeCount++;
                     float next = s.TimeDeltaFront > 0 ? s.TimeDeltaFront : -1;
-                    Offer(gs, now, "judge-overtake", DriverJudgement.Overtake(name, o.PassedName, hardFought, o.Stronger, next, Variant("overtake", 9)),
+                    bool shaky = o.Cuts >= 0 && gs.PenaltiesData.CutTrackWarnings > o.Cuts || o.LapValid && !s.CurrentLapIsValid;
+                    var grade = DriverJudgement.Grade(true, false, false, shaky, o.Stronger, hardFought, false);
+                    string sentence = grade == DriverJudgement.PassGrade.Average ? DriverJudgement.ShakyPass(name, o.PassedName, Variant("overtake-shaky", 3)) :
+                        DriverJudgement.Overtake(name, o.PassedName, hardFought, o.Stronger, next, Variant("overtake", 9));
+                    Offer(gs, now, "judge-overtake", DriverJudgement.Graded(grade, sentence, Variant("grade", 2)),
                         "position_gain_held_without_new_damage_or_incidents", 4, TimeSpan.FromSeconds(25));
                     lastPraise = now;
                     return;
@@ -660,6 +728,7 @@ namespace CrewChiefV4.AiTeam
             overtake = new Pending
             {
                 Utc = now, Position = pos, Incidents = Incidents(s), Damage = ImpactDamage(gs.CarDamageData),
+                Cuts = gs.PenaltiesData.CutTrackWarnings, LapValid = s.CurrentLapIsValid,
                 PassedName = names && passed.CanUseName ? RadioPhraseCatalog.SafeRivalName(passed.DriverRawName) : null,
                 PassedIdentity = key == null ? null : RaceReader.Identity(key, passed),
                 Stronger = passed.CurrentBestLapTime > 0 && mine > 0 && passed.CurrentBestLapTime < mine - .1f

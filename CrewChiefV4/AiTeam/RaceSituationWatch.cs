@@ -15,29 +15,20 @@ namespace CrewChiefV4.AiTeam
         private DateTime nextFormation;
         private static readonly int R3eCarsOffset = Marshal.OffsetOf(typeof(CrewChiefV4.RaceRoom.RaceRoomData.RaceRoomShared), "NumCars").ToInt32();
         private static readonly int R3eDriverSize = Marshal.SizeOf(typeof(CrewChiefV4.RaceRoom.RaceRoomData.DriverData));
-        [StructLayout(LayoutKind.Explicit)]
-        private struct IntBits
-        {
-            [FieldOffset(0)] public float Float;
-            [FieldOffset(0)] public int Integer;
-        }
-
-        // RaceRoom 3.6 uses reserved 3.5 slots for integer start information. Keep the
-        // original public struct fields for old traces, and interpret their bits only
-        // for the documented 3.6 layout and an unambiguous current vehicle slot.
-        private static int IntegerBits(float value) => new IntBits { Float = value }.Integer;
+        // RaceRoom 3.6 start information (reserved slots in 3.5). Only trusted for 3.6+, a fresh
+        // frame, the documented layout and an unambiguous current vehicle slot.
         internal static bool RaceRoomStart(GameStateData gs, DateTime now, out int mode, out int phase)
         {
             mode = phase = -1;
             var wrapper = gs?.rawGameData as CrewChiefV4.RaceRoom.R3ESharedMemoryReader.R3EStructWrapper;
-            if (wrapper == null || wrapper.data.VersionMajor != 3 || wrapper.data.VersionMinor != 6) return false;
+            if (wrapper == null || wrapper.data.VersionMajor != 3 || wrapper.data.VersionMinor < 6) return false;
             var raw = wrapper.data;
             long source = wrapper.sourceSampleTicks>0 ? wrapper.sourceSampleTicks : wrapper.ticksWhenRead;
             if(now.Ticks<source || now.Ticks-source>TimeSpan.TicksPerSecond) return true;
             if (wrapper.ticksWhenRead <= 0 || now.Ticks < wrapper.ticksWhenRead ||
                 now.Ticks - wrapper.ticksWhenRead > TimeSpan.TicksPerSecond || raw.GamePaused != 0 || raw.GameInReplay != 0 ||
                 raw.AllDriversOffset != R3eCarsOffset || raw.DriverDataSize != R3eDriverSize) return true;
-            int reportedMode = IntegerBits(raw.EventUnused1);
+            int reportedMode = raw.StartMode;
             if (reportedMode >= 0 && reportedMode <= 2) mode = reportedMode;
             if (raw.VehicleInfo.SlotId < 0 || raw.NumCars < 1 || raw.DriverData == null || raw.NumCars > raw.DriverData.Length) return true;
             int matches = 0;
@@ -45,7 +36,7 @@ namespace CrewChiefV4.AiTeam
                 if (raw.DriverData[i].DriverInfo.SlotId == raw.VehicleInfo.SlotId)
                 {
                     matches++;
-                    int reportedPhase = IntegerBits(raw.DriverData[i].Unused2);
+                    int reportedPhase = raw.DriverData[i].StartPhase;
                     phase = reportedPhase >= 0 && reportedPhase <= 2 ? reportedPhase : -1;
                 }
             if (matches != 1) phase = -1;

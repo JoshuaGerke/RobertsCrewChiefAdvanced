@@ -12,28 +12,39 @@ namespace CrewChiefV4.AiTeam
     {
         private static readonly string[] PhrasesDe =
         {
-            "Gelb! Langsam, nicht überholen.", "Gelb vorbei.", "Gelb im Sektor.", "Doppelt Gelb, Vorsicht.", "Blaue Flagge, lass ihn vorbei.",
+            "Gelb! Nicht überholen.", "Gelb aufgehoben.", "Gelb voraus.", "Doppelt Gelb, Vorsicht.", "Blaue Flagge, lass ihn vorbei.",
             "Schwarze Flagge.", "Full Course Yellow, Tempo runter.", "Grün, wieder freie Fahrt.", "Unfall voraus!",
         };
         private static readonly string[] PhrasesEn =
         {
-            "Yellow! Slow down, no overtaking.", "Yellow's clear.", "Yellow in the sector.", "Double yellow, careful.", "Blue flag, let him by.",
+            "Yellow! No overtaking.", "Yellow lifted.", "Yellow ahead.", "Double yellow, careful.", "Blue flag, let him by.",
             "Black flag.", "Full course yellow, slow down.", "Green, track is clear.", "Incident ahead!",
         };
         private static readonly string[] PhrasesEs =
         {
-            "¡Amarilla! Despacio, no adelantes.", "Fin de amarilla.", "Amarilla en el sector.", "Doble amarilla, cuidado.", "Bandera azul, déjale pasar.",
+            "¡Amarilla! No adelantes.", "Amarilla retirada.", "Amarilla delante.", "Doble amarilla, cuidado.", "Bandera azul, déjale pasar.",
             "Bandera negra.", "Full course yellow, baja el ritmo.", "Verde, vía libre.", "¡Accidente delante!",
         };
         // Index in all three arrays: 0 local yellow, 1 yellow clear, 2 sector yellow, 3 double yellow, 4 blue, 5 black, 6 FCY, 7 green, 8 incident.
         public static string[] Phrases => RadioLanguage.Pick(PhrasesDe, PhrasesEn, PhrasesEs);
+
+        // LMU 22.11. (Rob): „Ein ganz kurzes Rob, Gelb – das reicht. Gelb aufgehoben auch kurz.“ Die früheren, längeren Sätze
+        // (vor diesem Build vorbereitet oder in der Chronik) werden weiter erkannt.
+        private static readonly string[] LegacyPhrases =
+        {
+            "Gelb! Langsam, nicht überholen.", "Gelb vorbei.", "Gelb im Sektor.",
+            "Yellow! Slow down, no overtaking.", "Yellow's clear.", "Yellow in the sector.",
+            "¡Amarilla! Despacio, no adelantes.", "Fin de amarilla.", "Amarilla en el sector.",
+        };
 
         // A phrase offered before a language switch is still recognised.
         private static int IndexOf(string phrase)
         {
             int i = Array.IndexOf(PhrasesDe, phrase);
             if (i < 0) i = Array.IndexOf(PhrasesEn, phrase);
-            return i >= 0 ? i : Array.IndexOf(PhrasesEs, phrase);
+            if (i < 0) i = Array.IndexOf(PhrasesEs, phrase);
+            if (i < 0) { int legacy = Array.IndexOf(LegacyPhrases, phrase); if (legacy >= 0) i = legacy % 3; }
+            return i;
         }
 
         private DateTime lastIncidentCallUtc = DateTime.MinValue;
@@ -47,6 +58,17 @@ namespace CrewChiefV4.AiTeam
         internal static readonly TimeSpan SectorYellowConfirm = TimeSpan.FromSeconds(1.5);
         private DateTime sectorYellowSinceUtc = DateTime.MinValue;
         private bool sectorYellowAnnounced;
+        /// <summary>
+        /// LMU 22.11.: „Gelb kommt nie.“ rF2/LMU (auch rF1, GTR2, ACC, R3E) melden Gelb nur je Sektor (<see cref="FlagData.sectorFlags"/>),
+        /// nicht als Flagge des eigenen Wagens. Crew Chief sagt das nur im Ein-Stimmen-Modus an; im KI-Modus kam es so gut wie nie
+        /// (4 Mal in 85 Minuten, das „wieder grün“ nie). Sara verfolgt die Sektoren jetzt selbst.
+        /// </summary>
+        private DateTime sectorAnnouncedUtc = DateTime.MinValue, sectorClearSinceUtc = DateTime.MinValue;
+        private int announcedSector = -1;
+        /// <summary>So lange muss ein angesagtes Sektor-Gelb grün sein, bevor Sara „Gelb aufgehoben“ sagt (kein Flackern).</summary>
+        internal static readonly TimeSpan SectorClearConfirm = TimeSpan.FromSeconds(2);
+        /// <summary>Später als das kommt kein „aufgehoben“ mehr – dann ist Rob längst woanders.</summary>
+        internal static readonly TimeSpan SectorClearRelevantFor = TimeSpan.FromSeconds(120);
 
         /// <summary>
         /// RaceRoom Mantorp 21.11., 15:33:05: „Gelb vorbei.“ schnitt Miks „Alles klar? Ganz ruhig …“ nach dem Dreher ab.
@@ -60,6 +82,8 @@ namespace CrewChiefV4.AiTeam
         public void Reset()
         {
             lastIncidentCallUtc = lastBlueUtc = localYellowSinceUtc = sectorYellowSinceUtc = DateTime.MinValue;
+            sectorAnnouncedUtc = sectorClearSinceUtc = DateTime.MinValue;
+            announcedSector = -1;
             sectorYellowAnnounced = false;
         }
 
@@ -118,6 +142,36 @@ namespace CrewChiefV4.AiTeam
             return best == null ? null : RadioPhraseCatalog.SafeRivalName(best.DriverRawName);
         }
 
+        /// <summary>
+        /// Gelber Sektor, den Rob gerade fährt oder als nächsten erreicht (Index 0–2, sonst -1). Unbekannter eigener Sektor:
+        /// jeder gelbe Sektor zählt. Sektorzählung wie in Crew Chiefs Flaggenmonitor (Index i = Sektor i+1).
+        /// </summary>
+        internal static int YellowSectorAhead(GameStateData gs)
+        {
+            if (gs == null) return -1;
+            var flags = gs.FlagData.sectorFlags;
+            int own = gs.SessionData.SectorNumber;
+            for (int i = 0; i < flags.Length && i < 3; i++)
+            {
+                if (flags[i] != FlagEnum.YELLOW && flags[i] != FlagEnum.DOUBLE_YELLOW) continue;
+                if (own < 1 || own > 3) return i;
+                int next = own == 3 ? 1 : own + 1;
+                if (i + 1 == own || i + 1 == next) return i;
+            }
+            return -1;
+        }
+
+        internal static bool AnySectorYellow(GameStateData gs)
+        {
+            if (gs == null) return false;
+            foreach (var f in gs.FlagData.sectorFlags) if (f == FlagEnum.YELLOW || f == FlagEnum.DOUBLE_YELLOW) return true;
+            return false;
+        }
+
+        /// <summary>Gelb für Rob: Flagge des eigenen Wagens oder ein gelber Sektor jetzt bzw. direkt voraus.</summary>
+        internal static bool YellowForPlayer(GameStateData gs) =>
+            gs != null && (gs.SessionData.Flag == FlagEnum.YELLOW || YellowSectorAhead(gs) >= 0);
+
         public static bool StillRelevant(string phrase, GameStateData gs)
         {
             // Die schwarze Flagge ist Pflicht: Versetzt die Sim Rob danach in die Box, bleibt die Ansage trotzdem stehen.
@@ -128,8 +182,9 @@ namespace CrewChiefV4.AiTeam
             {
                 case 8: return f.distanceToNearestIncident > 0 && f.distanceToNearestIncident < 250;
                 case 0: return f.isLocalYellow;
-                case 1: return !f.isLocalYellow && !f.isFullCourseYellow && gs.SessionData.Flag != FlagEnum.YELLOW && gs.SessionData.Flag != FlagEnum.DOUBLE_YELLOW;
-                case 2: return gs.SessionData.Flag == FlagEnum.YELLOW;
+                case 1: return !f.isLocalYellow && !f.isFullCourseYellow && gs.SessionData.Flag != FlagEnum.YELLOW && gs.SessionData.Flag != FlagEnum.DOUBLE_YELLOW &&
+                        YellowSectorAhead(gs) < 0;
+                case 2: return YellowForPlayer(gs);
                 case 3: return gs.SessionData.Flag == FlagEnum.DOUBLE_YELLOW;
                 case 4: return gs.SessionData.Flag == FlagEnum.BLUE;
                 case 5: return gs.SessionData.Flag == FlagEnum.BLACK;
@@ -189,15 +244,41 @@ namespace CrewChiefV4.AiTeam
                 localYellowSinceUtc = DateTime.MinValue;
             }
 
-            // Flagge für den eigenen Wagen
+            // Flagge für den eigenen Wagen oder gelber Sektor jetzt/voraus (rF2, LMU, rF1, GTR2, ACC, R3E melden Gelb je Sektor)
             var flag = current.SessionData.Flag;
             var prevFlag = previous.SessionData.Flag;
-            if (flag != FlagEnum.YELLOW) { sectorYellowSinceUtc = DateTime.MinValue; sectorYellowAnnounced = false; }
+            int yellowSector = YellowSectorAhead(current);
+            bool yellowNow = flag == FlagEnum.YELLOW || yellowSector >= 0;
+            if (!yellowNow) { sectorYellowSinceUtc = DateTime.MinValue; sectorYellowAnnounced = false; }
             else if (sectorYellowSinceUtc == DateTime.MinValue) sectorYellowSinceUtc = nowUtc;
-            if (flag == FlagEnum.YELLOW && !sectorYellowAnnounced && SectorYellowConfirmed(sectorYellowSinceUtc, nowUtc))
+            if (yellowNow && !sectorYellowAnnounced && SectorYellowConfirmed(sectorYellowSinceUtc, nowUtc))
             {
                 sectorYellowAnnounced = true;
-                if (!f.isLocalYellow) result.Add(Phrases[2]);
+                // Rob fährt schon unter lokalem Gelb: das „Gelb!“ dafür reicht.
+                if (!f.isLocalYellow && !pf.isLocalYellow)
+                {
+                    result.Add(Phrases[2]);
+                    announcedSector = yellowSector >= 0 ? yellowSector : 3; // 3 = Flagge des eigenen Wagens
+                    sectorAnnouncedUtc = nowUtc; sectorClearSinceUtc = DateTime.MinValue;
+                }
+            }
+            // „Gelb aufgehoben“, sobald der angesagte Sektor (bzw. die eigene Flagge) wieder grün ist – nicht, wenn Rob nur
+            // aus dem gelben Sektor herausfährt und es dort noch gelb ist.
+            if (announcedSector >= 0)
+            {
+                bool lifted = announcedSector == 3 ? flag != FlagEnum.YELLOW && flag != FlagEnum.DOUBLE_YELLOW :
+                    current.FlagData.sectorFlags[announcedSector] != FlagEnum.YELLOW && current.FlagData.sectorFlags[announcedSector] != FlagEnum.DOUBLE_YELLOW;
+                if (nowUtc - sectorAnnouncedUtc > SectorClearRelevantFor) { announcedSector = -1; sectorClearSinceUtc = DateTime.MinValue; }
+                else if (!lifted) sectorClearSinceUtc = DateTime.MinValue;
+                else if (sectorClearSinceUtc == DateTime.MinValue) sectorClearSinceUtc = nowUtc;
+                else if (nowUtc - sectorClearSinceUtc >= SectorClearConfirm)
+                {
+                    bool longEnough = sectorClearSinceUtc - sectorAnnouncedUtc >= ShortYellow;
+                    announcedSector = -1; sectorClearSinceUtc = DateTime.MinValue;
+                    if (longEnough && !f.isLocalYellow && !f.isFullCourseYellow && YellowSectorAhead(current) < 0 && flag != FlagEnum.YELLOW &&
+                        !result.Contains(Phrases[1]))
+                        result.Add(Phrases[1]);
+                }
             }
             if (flag != prevFlag)
             {

@@ -36,6 +36,8 @@ namespace CrewChiefV4.AiTeam.Field
         /// <summary>Offene Strafen in Sekunden (RaceRoom: Slow-down = Zeit, die noch zurückzugeben ist). -1 = keine.</summary>
         public float SlowDown = -1, DriveThrough = -1, StopAndGo = -1, TimeDeduction = -1;
         public bool IsPlayer;
+        /// <summary>Streckenmeter/Position zwischen zwei Wertungsbildern aus Tempo und Zeit fortgeschrieben.</summary>
+        public bool Extrapolated;
 
         public FieldCarFrame Copy() => (FieldCarFrame)MemberwiseClone();
     }

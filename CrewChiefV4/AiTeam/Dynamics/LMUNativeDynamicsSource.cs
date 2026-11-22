@@ -44,6 +44,8 @@ namespace CrewChiefV4.AiTeam
                 // Rennleitung (Strafen, Tracklimits, Vorfälle) aus demselben Abbild, einmal je Wertungsbild.
                 LMURaceControlStream.Observe(buffer, DateTime.UtcNow);
                 LMUNativeSnapshot.Observe(buffer, DateTime.UtcNow);
+                // Positionen aller Wagen für das Lagebild (höchstens alle 40 ms).
+                Field.LMUNativeField.Observe(buffer, DateTime.UtcNow);
                 if (!Fill(buffer, f, ref lastEt)) return false;
                 f.TimeS = timeS;
                 return true;

@@ -131,6 +131,21 @@ namespace CrewChiefV4.AiTeam
                 !gs.PitData.OnOutLap && !gs.PitData.OnInLap && !gs.PitData.InPitlane &&
                 !TrackAwareness.InRange(gs.PositionAndMotionData.CarSpeed,0,4.99).HasValue;
         }
+        /// <summary>
+        /// Was einen fertigen Routinebericht wirklich ungültig macht: Gelb und eine laufende Qualifying- oder Hotlap-Runde.
+        /// Bremsen ist nur ein Grund zu warten (der Funk wartet ohnehin die Bremszone ab), kein Grund, den fertigen Bericht
+        /// wegzuwerfen. (LMU 22.11.: Sprit 0 von 13, Reifen 1 von 9, Stint 0 von 7 Berichten im Rennen – sie wurden als
+        /// zugesagte Berichte freigegeben und in derselben Sekunde im Zweikampf als „Hintergrundstatistik“ wieder verworfen;
+        /// das behebt die Zustellung im Dienst, diese Regel verhindert dasselbe beim Bremsen.)
+        /// </summary>
+        public static bool InvalidatesRoutine(GameStateData gs)
+        {return gs != null && gs.FlagData.isLocalYellow || OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
+            gs.SessionData.CurrentLapIsValid && !gs.PitData.OnOutLap && !gs.PitData.InPitlane;}
+        /// <summary>
+        /// LMU 22.11.: Ein Bericht lebte 6 s (Zwischenstand 10 s), der Rennkopf hält in 2-s-Schritten an, nach einem Sicherheitsfunk
+        /// warten Daten 6 s – er verfiel fast immer, bevor er an der Reihe war. Jetzt darf er so lange auf die Lücke warten.
+        /// </summary>
+        internal const int RoutineLifetimeSeconds = 20, GuaranteedLifetimeSeconds = 30;
         public static bool BusyForRoutine(GameStateData gs)
         {return gs != null && gs.FlagData.isLocalYellow || OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
             gs.SessionData.CurrentLapIsValid && !gs.PitData.OnOutLap && !gs.PitData.InPitlane || gs!=null && TrackAwareness.InRange(gs.ControlData.BrakePedal,.2,1).HasValue;}
@@ -235,7 +250,9 @@ namespace CrewChiefV4.AiTeam
                     // behält seine Verspätung und kommt dadurch spätestens als zugesagter Bericht.
                     bool keep = prefs[outstanding.Topic] > 0 && (memberEnabled == null || memberEnabled(outstanding.Member)) &&
                         outstandingSince != DateTime.MinValue;
-                    due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" || keep && outstanding.Guaranteed ? 5 : 30);
+                    // LMU 22.11.: Ein verfallener, weiter eingestellter Bericht kommt nach 5 s mit frischen Zahlen wieder (bisher 30 s –
+                    // dazwischen lag oft die nächste Bremszone, und er verfiel erneut).
+                    due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" || keep ? 5 : 30);
                     if (keep) overdueSince[outstanding.Topic] = outstandingSince; else overdueSince.Remove(outstanding.Topic);
                     outstanding = null;
                 }
@@ -347,10 +364,10 @@ namespace CrewChiefV4.AiTeam
                 outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=raceStatus ? 3 : 1, VariantCursor=cursor,
                     ReferenceTemplate=template, RaceStatus=raceStatus,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
-                    AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !BusyForRoutine(live)) &&
+                    AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !InvalidatesRoutine(live)) &&
                         (!overallSpoken || live.SessionData.OverallPosition == overall),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
-                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(raceStatus ? 10 : 6),
+                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(promisedTopic ? GuaranteedLifetimeSeconds : RoutineLifetimeSeconds),
                     Guaranteed=promisedTopic };
                 outstandingSince = since == default(DateTime) ? now : since;
                 if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))
@@ -422,7 +439,8 @@ namespace CrewChiefV4.AiTeam
         private static bool Good(double n, double min, double max) { return !double.IsNaN(n) && !double.IsInfinity(n) && n >= min && n <= max; }
         /// <summary>
         /// Routine-Technikcheck wie ein Ingenieur (Rob 17.11.: „zu viele technische Details“): Ist alles im grünen Bereich,
-        /// genügt ein Satz ohne Zahlen. Nur was auffällt – Schaden ab 1 %, Wasser/Öl ab 90 % der Grenze des Fahrzeugs,
+        /// genügt ein Satz ohne Zahlen. Nur was auffällt – Schaden ab 1 %, Wasser/Öl ab 90 % der Grenze des Fahrzeugs (darüber: „über der Grenze“,
+        /// RaceRoom 20.11. sagte bei 115,9 zu 100 Grad noch „nah an der Grenze“),
         /// Bremsen über der Heiß-Schwelle – wird mit Wert genannt. Ohne beurteilbare Werte bleibt der bisherige Bericht.
         /// </summary>
         internal static string VehicleCheck(GameStateData gs, int variant)
@@ -435,13 +453,21 @@ namespace CrewChiefV4.AiTeam
             var issues = new List<string>();
             if (clean == false) { string damage = IncidentWatch.DamageReport(gs.CarDamageData, true); if (!string.IsNullOrWhiteSpace(damage)) issues.Add(damage.TrimEnd('.')); }
             if (water && e.EngineWaterTemp >= .9f * waterLimit)
-                issues.Add(RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, nah an der Grenze von " + Math.Round(waterLimit),
-                    "water " + Number(e.EngineWaterTemp) + " degrees, close to the " + Math.Round(waterLimit) + " limit",
-                    "agua " + Number(e.EngineWaterTemp) + " grados, cerca del límite de " + Math.Round(waterLimit)));
+                issues.Add(e.EngineWaterTemp > waterLimit
+                    ? RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, über der Grenze von " + Math.Round(waterLimit),
+                        "water " + Number(e.EngineWaterTemp) + " degrees, above the " + Math.Round(waterLimit) + " limit",
+                        "agua " + Number(e.EngineWaterTemp) + " grados, por encima del límite de " + Math.Round(waterLimit))
+                    : RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, nah an der Grenze von " + Math.Round(waterLimit),
+                        "water " + Number(e.EngineWaterTemp) + " degrees, close to the " + Math.Round(waterLimit) + " limit",
+                        "agua " + Number(e.EngineWaterTemp) + " grados, cerca del límite de " + Math.Round(waterLimit)));
             if (oil && e.EngineOilTemp >= .9f * oilLimit)
-                issues.Add(RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, nah an der Grenze von " + Math.Round(oilLimit),
-                    "oil " + Number(e.EngineOilTemp) + " degrees, close to the " + Math.Round(oilLimit) + " limit",
-                    "aceite " + Number(e.EngineOilTemp) + " grados, cerca del límite de " + Math.Round(oilLimit)));
+                issues.Add(e.EngineOilTemp > oilLimit
+                    ? RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, über der Grenze von " + Math.Round(oilLimit),
+                        "oil " + Number(e.EngineOilTemp) + " degrees, above the " + Math.Round(oilLimit) + " limit",
+                        "aceite " + Number(e.EngineOilTemp) + " grados, por encima del límite de " + Math.Round(oilLimit))
+                    : RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, nah an der Grenze von " + Math.Round(oilLimit),
+                        "oil " + Number(e.EngineOilTemp) + " degrees, close to the " + Math.Round(oilLimit) + " limit",
+                        "aceite " + Number(e.EngineOilTemp) + " grados, cerca del límite de " + Math.Round(oilLimit)));
             float[] brakes = { t.LeftFrontBrakeTemp, t.RightFrontBrakeTemp, t.LeftRearBrakeTemp, t.RightRearBrakeTemp };
             float hot = cls != null ? cls.maxHotBrakeTemp : -1;
             bool brakesKnown = hot > 0 && brakes.All(b => Good(b, 1, 1500));

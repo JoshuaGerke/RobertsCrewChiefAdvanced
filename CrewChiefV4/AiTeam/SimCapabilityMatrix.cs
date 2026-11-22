@@ -201,8 +201,34 @@ namespace CrewChiefV4.AiTeam
             foreach (var s in sim == null ? Sims : new[] { sim })
                 o[s] = new JArray(For(s).Select(c => new JObject {
                     ["feld"] = c.Field, ["gemappt"] = c.Mapped, ["herkunft"] = c.Origin.ToString(), ["bezug"] = c.Scope, ["einheit"] = c.Unit,
-                    ["max_alter_ms"] = c.MaxAgeMs, ["gemessen_hz"] = c.MeasuredHz.HasValue ? (JToken)c.MeasuredHz.Value : null, ["beleg"] = c.Evidence }));
+                    ["max_alter_ms"] = c.MaxAgeMs, ["gemessen_hz"] = Hz(c), ["beleg"] = c.Evidence }));
             return o;
+        }
+
+        /// <summary>Lagebild-Quelle → Kürzel der Matrix.</summary>
+        internal static string SimOfFieldSource(string name)
+        {
+            switch (name)
+            {
+                case "RaceRoom": return "R3E";
+                case "AMS2": return "AMS2";
+                case "LMU": return "LMU";
+                case "AC": return "AC";
+                case "AC EVO": return "ACE";
+                case "iRacing": return "IRACING";
+                default: return null;
+            }
+        }
+
+        /// <summary>Positionsfelder bekommen die gerade im Lagebild gemessene Rate neuer Bilder, sonst den eingetragenen Messwert.</summary>
+        private static JToken Hz(SimCapability c)
+        {
+            if (c.Field == "weltposition_xyz" || c.Field == "rundenfortschritt" || c.Field == "tempo")
+            {
+                double live = Field.FieldService.MeasuredHz;
+                if (!double.IsNaN(live) && SimOfFieldSource(Field.FieldService.MeasuredSim) == c.Sim) return Math.Round(live, 1);
+            }
+            return c.MeasuredHz.HasValue ? (JToken)c.MeasuredHz.Value : null;
         }
     }
 }

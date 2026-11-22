@@ -242,14 +242,16 @@ namespace UnitTest.AiTeamTests
             watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T);
             gs.SessionData.ClassPosition = 4; timo.ClassPosition = 5;
             watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(.5));
-            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(10));
-            Assert.IsNull(watch.Take(gs, T.AddSeconds(10), false, true), "erst halten, dann loben");
-            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(16));
-            var call = watch.Take(gs, T.AddSeconds(16), false, true);
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(5));
+            Assert.IsNull(watch.Take(gs, T.AddSeconds(5), false, true), "erst halten, dann loben");
+            // LMU 22.11.: nicht erst nach 15 s (Valgo: 28 s später), sondern nach 8 s gehalten.
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(9));
+            var call = watch.Take(gs, T.AddSeconds(9), false, true);
             Assert.IsNotNull(call);
             Assert.AreEqual("judge-overtake", call.Topic);
             Assert.AreEqual(TeamMember.Ben, call.Member);
             StringAssert.Contains("Timo", call.Text);
+            StringAssert.StartsWith("Spitzenmäßig", call.Text, "schnellerer Gegner, sauber vorbei");
         }
 
         [Test]
@@ -350,12 +352,66 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Race_mind_keeps_judgements_out_of_battles_and_final_laps()
         {
-            var call = new ObservedRaceCall { Topic = "judge-overtake", Text = "x", Priority = 4, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+            var call = new ObservedRaceCall { Topic = "judge-consistency", Text = "x", Priority = 4, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
             Func<RacePhase, RaceAttention, MindVerdict> judge = (p, a) =>
                 RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = p, Attention = a }, call, T, out _);
             Assert.AreEqual(MindVerdict.Hold, judge(RacePhase.Middle, RaceAttention.Battle));
             Assert.AreEqual(MindVerdict.Admit, judge(RacePhase.Middle, RaceAttention.Calm));
             Assert.AreEqual(MindVerdict.Drop, judge(RacePhase.LastLap, RaceAttention.Calm));
+        }
+
+        [Test]
+        public void Own_overtake_is_judged_right_after_the_move_even_with_the_rival_close_behind()
+        {
+            // LMU 22.11.: „Ich hatte gerade Dubus überholt – keine Reaktion.“ Der Überholte ist danach direkt hinter Rob (Zweikampf,
+            // Anspannung 1). Genau dann gehört die Bewertung in den Funk – nur unter Gelb und in der Box wartet sie.
+            foreach (string topic in new[] { "judge-overtake", "judge-retake", "judge-overtake-rough", "judge-overtake-countered" })
+            {
+                var call = new ObservedRaceCall { Topic = topic, Text = "x", Priority = 4, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+                Func<RacePhase, RaceAttention, MindVerdict> judge = (p, a) =>
+                    RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = p, Attention = a }, call, T, out _);
+                Assert.AreEqual(MindVerdict.Admit, judge(RacePhase.Middle, RaceAttention.Battle), topic);
+                Assert.AreEqual(MindVerdict.Admit, judge(RacePhase.LastLap, RaceAttention.Battle), topic + ": auch in der letzten Runde");
+                Assert.AreEqual(MindVerdict.Hold, judge(RacePhase.Middle, RaceAttention.Caution), topic + ": unter Gelb wartet sie");
+                Assert.AreEqual(MindVerdict.Drop, judge(RacePhase.Finished, RaceAttention.Calm), topic);
+                var mind = new RaceMind();
+                mind.Load.Update(1, T);
+                Assert.IsTrue(mind.Load.Allows(topic, 4, T, out _), topic + ": die Funklast hält das eigene Manöver nicht auf");
+            }
+            var load = new RadioLoad();
+            load.Update(1, T);
+            Assert.IsTrue(load.Allows("position", 5, T, out _), "Platzmeldung direkt nach dem Überholen (Anspannung 1)");
+            Assert.IsFalse(load.Allows("judge-consistency", 3, T, out _), "anderes Lob wartet weiter");
+        }
+
+        [Test]
+        public void Overtakes_get_a_grade_from_measured_facts()
+        {
+            // Rob 22.11.: „gut, sehr gut, spitzenmäßig oder mittelmäßig, nicht so gut oder schlecht.“
+            Assert.AreEqual(DriverJudgement.PassGrade.Top, DriverJudgement.Grade(true, false, false, false, true, false, false));
+            Assert.AreEqual(DriverJudgement.PassGrade.VeryGood, DriverJudgement.Grade(true, false, false, false, false, true, false));
+            Assert.AreEqual(DriverJudgement.PassGrade.VeryGood, DriverJudgement.Grade(true, false, false, false, false, false, true));
+            Assert.AreEqual(DriverJudgement.PassGrade.Good, DriverJudgement.Grade(true, false, false, false, false, false, false));
+            Assert.AreEqual(DriverJudgement.PassGrade.Average, DriverJudgement.Grade(true, false, false, true, true, false, false), "Tracklimit schlägt Gegnerstärke");
+            Assert.AreEqual(DriverJudgement.PassGrade.NotSoGood, DriverJudgement.Grade(true, false, true, false, false, false, false));
+            Assert.AreEqual(DriverJudgement.PassGrade.Bad, DriverJudgement.Grade(true, true, false, false, true, true, false), "Kontakt ist immer schlecht");
+            RadioLanguage.Current = RadioLanguage.German;
+            StringAssert.StartsWith("Spitzenmäßig", DriverJudgement.Graded(DriverJudgement.PassGrade.Top, "Timo ist schneller, und du bist vorbei.", 0));
+            StringAssert.StartsWith("Das war schlecht.", DriverJudgement.Graded(DriverJudgement.PassGrade.Bad, "Vorbei, aber mit Kontakt.", 0));
+            Assert.AreEqual("Gut gemacht, Rob.", DriverJudgement.Graded(DriverJudgement.PassGrade.Good, "Gut gemacht, Rob.", 0), "kein „Gut. Gut gemacht“");
+            foreach (var lang in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = lang;
+                foreach (DriverJudgement.PassGrade g in Enum.GetValues(typeof(DriverJudgement.PassGrade)))
+                    for (int v = 0; v < 2; v++) Assert.IsFalse(string.IsNullOrWhiteSpace(DriverJudgement.GradeWord(g, v)), lang + " " + g);
+                for (int v = 0; v < 3; v++)
+                {
+                    string shaky = DriverJudgement.ShakyPass("Rob", "Timo", v);
+                    StringAssert.DoesNotContain("{n}", shaky);
+                    StringAssert.DoesNotContain("  ", shaky);
+                }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
         }
 
         [Test]

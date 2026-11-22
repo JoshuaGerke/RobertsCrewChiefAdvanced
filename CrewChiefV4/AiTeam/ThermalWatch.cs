@@ -75,6 +75,7 @@ namespace CrewChiefV4.AiTeam
         private string identity;
         private DateTime lastTick, identitySince;
         private int variant;
+        private bool engineSuppressionLogged;
         public ThermalWatch(Func<GameStateData,ThermalProfile> profileResolver=null){resolver=profileResolver??ThermalProfile.FromCar;}
         private static readonly int[] groups={1,2,4,8,3,12,15};
         private static readonly string[] tyres={"vorn links","vorn rechts","hinten links","hinten rechts","vorn","hinten","an allen vier Rädern"};
@@ -119,7 +120,7 @@ namespace CrewChiefV4.AiTeam
         {
             get {foreach(bool b in new[]{false,true})foreach(int g in groups){for(int v=0;v<3;v++)yield return Phrase(b,g,v);yield return ClearPhrase(b,g);}}
         }
-        public void Reset(){System.Threading.Volatile.Write(ref hotSample,null);since.Clear();recovery.Clear();identity=null;lastTick=identitySince=DateTime.MinValue;}
+        public void Reset(){System.Threading.Volatile.Write(ref hotSample,null);since.Clear();recovery.Clear();identity=null;lastTick=identitySince=DateTime.MinValue;engineSuppressionLogged=false;}
         private static string Key(GameStateData gs)
         {return gs.SessionData.SessionId+"|"+gs.SessionData.SessionType+"|"+gs.carName+"|"+(gs.carClass==null?"":gs.carClass.carClassEnum.ToString())+"|"+gs.TyreData.FrontLeftTyreType+"|"+gs.TyreData.FrontRightTyreType+"|"+gs.TyreData.RearLeftTyreType+"|"+gs.TyreData.RearRightTyreType;}
         private static bool Good(float v,float max){return !float.IsNaN(v) && !float.IsInfinity(v) && v>1 && v<max;}
@@ -251,11 +252,24 @@ namespace CrewChiefV4.AiTeam
                 DateTime start;if(!since.TryGetValue("engine",out start))since["engine"]=start=now;
                 if(now-start>=TimeSpan.FromSeconds(5))
                 {
+                    // RaceRoom Norisring 22.11.: dieselbe Sperre wie für Crew Chiefs EngineMonitor (vorher alle 30 s eine Warnung).
+                    float oilC=gs.EngineData.EngineOilTemp,waterC=gs.EngineData.EngineWaterTemp;
+                    if(!output.EngineWarningDue(name,oilC,waterC,now))
+                    {
+                        if(!engineSuppressionLogged)LiveDiagnostics.Decision("warning-engine-"+name,"suppressed","engine_warning_recently_given",profile.Source);
+                        engineSuppressionLogged=true;return;
+                    }
+                    engineSuppressionLogged=false;
                     var phrases=name=="both"?LiveWarningDispatcher.BothPhrases:oil?LiveWarningDispatcher.OilPhrases:LiveWarningDispatcher.WaterPhrases;
-                    bool checkOil=oil,checkWater=water;string checkedKey=key;
+                    bool checkOil=oil,checkWater=water;string checkedKey=key,kind=name;
                     output.Offer("warning-engine-"+name,phrases[variant++%phrases.Length],TeamMember.Mik,9,gs,now,
                         live=>Key(live)==checkedKey && (!checkOil || EngineHot(live,true,profile)) && (!checkWater || EngineHot(live,false,profile)),
-                        profile.Source+";profiled_engine_temperature",timed:(live,utc)=>Fresh(live,utc));
+                        profile.Source+";profiled_engine_temperature;oil="+oilC.ToString("0.0",System.Globalization.CultureInfo.InvariantCulture)+
+                            ";water="+waterC.ToString("0.0",System.Globalization.CultureInfo.InvariantCulture)+
+                            ";limits="+profile.OilLimitC.ToString("0",System.Globalization.CultureInfo.InvariantCulture)+"/"+
+                            profile.WaterLimitC.ToString("0",System.Globalization.CultureInfo.InvariantCulture),
+                        timed:(live,utc)=>Fresh(live,utc),
+                        onDelivered:utc=>output.EngineWarningSpoken(kind,oilC,waterC,utc));
                 }
             }
         }

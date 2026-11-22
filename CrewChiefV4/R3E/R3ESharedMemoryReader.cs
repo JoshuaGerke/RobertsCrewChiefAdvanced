@@ -18,6 +18,9 @@ namespace CrewChiefV4.RaceRoom
     {
         private MemoryMappedFile memoryMappedFile;
         private int sharedmemorysize;
+        // Bytes the game actually maps. Older API versions (3.5) map less than the 3.6 struct;
+        // the missing tail stays zero instead of failing the read.
+        private int mappedSize;
         private byte[] sharedMemoryReadBuffer;
         private Boolean initialised = false;
         private List<R3EStructWrapper> dataToDump;
@@ -102,6 +105,7 @@ namespace CrewChiefV4.RaceRoom
                     {
                         memoryMappedFile = MemoryMappedFile.OpenExisting(RaceRoomConstant.SharedMemoryName, MemoryMappedFileRights.Read);
                         sharedmemorysize = Marshal.SizeOf(typeof(RaceRoomShared));
+                        mappedSize = ReadableSize(memoryMappedFile, sharedmemorysize);
                         sharedMemoryReadBuffer = new byte[sharedmemorysize];
                         sourceClock.Reset();
                         initialised = true;
@@ -130,10 +134,10 @@ namespace CrewChiefV4.RaceRoom
                 }
                 try
                 {
-                    using (var sharedMemoryStreamView = memoryMappedFile.CreateViewStream(0, sharedmemorysize, MemoryMappedFileAccess.Read))
+                    using (var sharedMemoryStreamView = memoryMappedFile.CreateViewStream(0, mappedSize, MemoryMappedFileAccess.Read))
                     {
                         BinaryReader _SharedMemoryStream = new BinaryReader(sharedMemoryStreamView);
-                        sharedMemoryReadBuffer = _SharedMemoryStream.ReadBytes(sharedmemorysize);
+                        CopyPadded(_SharedMemoryStream.ReadBytes(mappedSize), sharedMemoryReadBuffer);
                         GCHandle handle = GCHandle.Alloc(sharedMemoryReadBuffer, GCHandleType.Pinned);
                         try
                         {
@@ -162,6 +166,31 @@ namespace CrewChiefV4.RaceRoom
                     throw new GameDataReadException(ex.Message, ex);
                 }
             }
+        }
+
+        /// <summary>Readable bytes of the mapping, capped at the struct size.</summary>
+        private static int ReadableSize(MemoryMappedFile file, int structSize)
+        {
+            try
+            {
+                using (var probe = file.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read))
+                {
+                    long capacity = probe.Capacity;
+                    return capacity > 0 && capacity < structSize ? (int)capacity : structSize;
+                }
+            }
+            catch (Exception)
+            {
+                return structSize;
+            }
+        }
+
+        /// <summary>Copies what was read and zeroes the rest, so fields beyond an older map read as 0.</summary>
+        internal static void CopyPadded(byte[] read, byte[] target)
+        {
+            int n = read == null ? 0 : Math.Min(read.Length, target.Length);
+            if (n > 0) Buffer.BlockCopy(read, 0, target, 0, n);
+            if (n < target.Length) Array.Clear(target, n, target.Length - n);
         }
 
         private DriverData[] getPopulatedDriverDataArray(DriverData[] raw)

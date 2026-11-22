@@ -30,6 +30,13 @@ namespace CrewChiefV4.AiTeam.Field
         /// <summary>Schnellste Runde dieser Session, auch gestrichen (NaN = noch keine).</summary>
         public float FastestAnyLap = float.NaN;
         public int LapsTimed;
+        /// <summary>Wann die Sim für diesen Wagen zuletzt neue Position oder Streckenmeter geliefert hat.</summary>
+        public DateTime DataUtc;
+        /// <summary>Streckenmeter und Position zwischen zwei Wertungsbildern fortgeschrieben (nicht direkt gemessen).</summary>
+        public bool Extrapolated;
+
+        /// <summary>Alter der Wagendaten in Millisekunden zum Zeitpunkt <paramref name="now"/>.</summary>
+        public double DataAgeMs(DateTime now) => DataUtc == default(DateTime) || now < DataUtc ? 0 : (now - DataUtc).TotalMilliseconds;
     }
 
     /// <summary>Unveränderlicher Schnappschuss des Lagebilds.</summary>
@@ -55,6 +62,8 @@ namespace CrewChiefV4.AiTeam.Field
         public bool PlayerOnLastLap => PlayerLapsLeft == 1;
         /// <summary>Anteil der Strecke, für den das Feldtempo schon gelernt ist (0–1).</summary>
         public float ProfileCoverage;
+        /// <summary>Gemessene Rate neuer Bilder der Sim in Hz, NaN = noch nicht gemessen.</summary>
+        public double MeasuredHz = double.NaN;
 
         public bool Fresh(DateTime now, double seconds = 1.0) => now >= Utc && (now - Utc).TotalSeconds <= seconds;
 
@@ -101,6 +110,8 @@ namespace CrewChiefV4.AiTeam.Field
             public bool LastValid = true;
             public float LastLap = float.NaN, FastestAny = float.NaN;
             public bool LastLapValid;
+            public float DataX = float.NaN, DataDist = float.NaN;
+            public DateTime DataUtc;
             public readonly List<float> Laps = new List<float>();
         }
 
@@ -125,7 +136,7 @@ namespace CrewChiefV4.AiTeam.Field
             }
         }
 
-        internal FieldView Observe(FieldFrame f)
+        internal FieldView Observe(FieldFrame f, double measuredHz = double.NaN)
         {
             if (f == null) return null;
             lock (gate)
@@ -154,7 +165,7 @@ namespace CrewChiefV4.AiTeam.Field
                     RaceMinutes = (int[])f.RaceMinutes.Clone(), RaceLaps = (int[])f.RaceLaps.Clone(),
                     Cars = result.AsReadOnly(), Player = player, ProfileCoverage = Coverage(),
                     PlayerSlowDown = f.Player != null && f.Player.SlowDown > 0 ? f.Player.SlowDown : -1,
-                    AirTempC = f.AirTempC, TrackTempC = f.TrackTempC, Upcoming = f.Upcoming ?? new FieldUpcoming[0]
+                    AirTempC = f.AirTempC, TrackTempC = f.TrackTempC, Upcoming = f.Upcoming ?? new FieldUpcoming[0], MeasuredHz = measuredHz
                 };
                 built.PlayerLapsLeft = LapsLeft(built);
                 Volatile.Write(ref view, built);
@@ -176,6 +187,8 @@ namespace CrewChiefV4.AiTeam.Field
             }
         }
 
+        private static bool SameValue(float a, float b) => float.IsNaN(a) ? float.IsNaN(b) : a == b;
+
         private int Cell(float d) => count.Length == 0 || float.IsNaN(d) ? -1 : Math.Max(0, Math.Min(count.Length - 1, (int)(d / CellM)));
         private float Expected(int cell) => cell >= 0 && count[cell] >= ProfileMin ? speed[cell] : float.NaN;
         private float Coverage() => count.Length == 0 ? 0 : count.Count(x => x >= ProfileMin) / (float)count.Length;
@@ -185,6 +198,8 @@ namespace CrewChiefV4.AiTeam.Field
             DateTime now = f.Utc;
             CarState s;
             if (!cars.TryGetValue(c.Slot, out s) || s.Name != c.Name) { s = new CarState { Name = c.Name, MotionSince = now, NormalSince = now }; cars[c.Slot] = s; }
+            if (s.DataUtc == default(DateTime) || !SameValue(c.X, s.DataX) || !SameValue(c.LapDistance, s.DataDist))
+            { s.DataUtc = now; s.DataX = c.X; s.DataDist = c.LapDistance; }
             int cell = Cell(c.LapDistance);
             float expected = Expected(cell);
             bool moved = false; float hx = 0, hz = 0;
@@ -265,7 +280,8 @@ namespace CrewChiefV4.AiTeam.Field
                 Slot = c.Slot, Name = c.Name, ClassId = c.ClassId, Place = c.Place, PlaceClass = c.PlaceClass, CompletedLaps = c.CompletedLaps,
                 IsPlayer = c.IsPlayer, InPit = c.InPit, LapDistance = c.LapDistance, Speed = c.Speed, ExpectedSpeed = expected,
                 Motion = m, MotionSinceUtc = s.MotionSince, TopSpeed = s.Top, TopSpeedAtM = s.TopAt, BestLap = c.BestLap,
-                LastLap = s.LastLap, LastLapValid = s.LastLapValid, FastestAnyLap = s.FastestAny, LapsTimed = s.Laps.Count
+                LastLap = s.LastLap, LastLapValid = s.LastLapValid, FastestAnyLap = s.FastestAny, LapsTimed = s.Laps.Count,
+                DataUtc = s.DataUtc, Extrapolated = c.Extrapolated
             };
             if (!float.IsNaN(c.SplitBest1) || !float.IsNaN(c.SplitBest2) || !float.IsNaN(c.SplitBest3))
             {

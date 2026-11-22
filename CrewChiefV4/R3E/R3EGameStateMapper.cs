@@ -176,12 +176,17 @@ namespace CrewChiefV4.RaceRoom
                 R3ESharedMemoryReader.R3EStructWrapper wrapper = (R3ESharedMemoryReader.R3EStructWrapper)memoryMappedFileStruct;
                 string versionString = wrapper.data.VersionMajor + "." + wrapper.data.VersionMinor;
                 Log.Info(() => "Shared memory version " + versionString);
+                // 3.5 still maps correctly (3.6 only renamed reserved fields and appended a tail), it just lacks the start procedure data.
                 if (wrapper.data.VersionMajor != (int)RaceRoomConstant.VersionMajor.R3E_VERSION_MAJOR
-                    || wrapper.data.VersionMinor != (int)RaceRoomConstant.VersionMinor.R3E_VERSION_MINOR)
+                    || wrapper.data.VersionMinor < 5)
                 {
                     Log.Warning("Expected shared data version "
                         + (int)RaceRoomConstant.VersionMajor.R3E_VERSION_MAJOR + "." + (int)RaceRoomConstant.VersionMinor.R3E_VERSION_MINOR
                         + " but got version " + versionString);
+                }
+                else if (wrapper.data.VersionMinor < (int)RaceRoomConstant.VersionMinor.R3E_VERSION_MINOR)
+                {
+                    Log.Info(() => "Shared memory " + versionString + " has no start procedure data (needs 3.6)");
                 }
             }
         }

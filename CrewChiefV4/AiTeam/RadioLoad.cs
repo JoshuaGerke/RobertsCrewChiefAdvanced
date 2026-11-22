@@ -119,12 +119,22 @@ namespace CrewChiefV4.AiTeam
             return RadioClass.Event; // Platz, eigene Runde, Überholen, Verkehr: das Rennen selbst
         }
 
+        /// <summary>
+        /// Rob hat selbst überholt oder einen Platz verloren (Platzmeldung und die Bewertung des Manövers).
+        /// LMU 22.11.: „Ich hatte gerade Dubus überholt – keine Reaktion.“ Direkt nach dem Manöver ist der Gegner unter 0,5 s
+        /// hinter Rob, die Anspannung steht auf 1 – die Platzmeldung wartete 26-mal in 2-s-Schritten, bis sie verfiel. Genau
+        /// dann will Rob sie hören. Diese Meldungen gehen durch die Funklast; Seite an Seite (Überlappung) warten sie weiter.
+        /// </summary>
+        internal static bool OwnPositionChange(string topic) =>
+            topic == "position" || topic == "position-loss" || topic == "judge-overtake" || topic == "judge-retake" ||
+            topic == "judge-overtake-rough" || topic == "judge-overtake-countered";
+
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)
         {
             reason = null;
             var c = Classify(topic, priority);
-            if (c == RadioClass.Safety) return true;
+            if (c == RadioClass.Safety || OwnPositionChange(topic)) return true;
             double t = Tension;
             switch (c)
             {

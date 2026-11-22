@@ -32,20 +32,22 @@ namespace CrewChiefV4.AiTeam.Field
             }
         }
 
-        private static JObject Row(FieldCarView c, bool names) => new JObject
+        private static JObject Row(FieldCarView c, bool names, DateTime at) => new JObject
         {
             ["fahrer"] = Label(c, names), ["platz"] = c.Place, ["klassenplatz"] = c.PlaceClass,
             ["abstand_s"] = N(c.GapS, 2), ["abstand_m"] = N(c.GapM, 0), ["runden_unterschied"] = c.LapDelta,
-            ["zustand"] = Motion(c.Motion), ["tempo_kmh"] = N(c.Speed * 3.6f, 0)
+            ["zustand"] = Motion(c.Motion), ["tempo_kmh"] = N(c.Speed * 3.6f, 0),
+            ["daten_alter_ms"] = Math.Round(c.DataAgeMs(at)), ["fortgeschrieben"] = c.Extrapolated
         };
 
         internal static JObject ToJson(FieldView v, DateTime now, bool names)
         {
-            if (v == null) return new JObject { ["verfuegbar"] = false, ["grund"] = "Kein Lagebild direkt aus der Sim (RaceRoom, AMS2, LMU, AC mit Crew-Chief-Plugin, iRacing) oder Sim nicht aktiv." };
+            if (v == null) return new JObject { ["verfuegbar"] = false, ["grund"] = "Kein Lagebild direkt aus der Sim (RaceRoom, AMS2, LMU, AC mit Crew-Chief-Plugin, AC EVO, iRacing) oder Sim nicht aktiv." };
             var p = v.Player;
             var o = new JObject
             {
-                ["verfuegbar"] = true, ["quelle"] = v.Sim + " direkt (Speicher der Sim, 20 Hz)", ["alter_s"] = Math.Round(Math.Max(0, (now - v.Utc).TotalSeconds), 2),
+                ["verfuegbar"] = true, ["quelle"] = v.Sim + " direkt (Speicher der Sim, Abtastung alle 50 ms)",
+                ["neue_bilder_hz"] = double.IsNaN(v.MeasuredHz) ? (JToken)JValue.CreateNull() : Math.Round(v.MeasuredHz, 1), ["alter_s"] = Math.Round(Math.Max(0, (now - v.Utc).TotalSeconds), 2),
                 ["strecke"] = v.Track, ["layout"] = v.Layout, ["laenge_m"] = N(v.TrackLength, 0),
                 ["session"] = v.Session.ToString(), ["phase"] = v.Phase.ToString(), ["im_menue"] = v.InMenus,
                 ["restzeit_s"] = v.TimedSession ? N(v.TimeRemaining, 0) : JValue.CreateNull(),
@@ -65,8 +67,8 @@ namespace CrewChiefV4.AiTeam.Field
                 ["hoechsttempo_kmh"] = N(p.TopSpeed * 3.6f, 1), ["hoechsttempo_bei_m"] = N(p.TopSpeedAtM, 0),
                 ["zurueckzugebende_plaetze"] = v.PositionsToGiveBack >= 0 ? (JToken)v.PositionsToGiveBack : JValue.CreateNull()
             };
-            o["vor_rob"] = new JArray(v.Ahead(4).Select(c => Row(c, names)));
-            o["hinter_rob"] = new JArray(v.Behind(4).Select(c => Row(c, names)));
+            o["vor_rob"] = new JArray(v.Ahead(4).Select(c => Row(c, names, v.Utc)));
+            o["hinter_rob"] = new JArray(v.Behind(4).Select(c => Row(c, names, v.Utc)));
             var ahead = v.Ahead(1).FirstOrDefault(); var behind = v.Behind(1).FirstOrDefault();
             o["freie_runde"] = new JObject
             {
@@ -74,7 +76,7 @@ namespace CrewChiefV4.AiTeam.Field
                 ["hinweis"] = "frei = vorne mehr als 3 s, hinten mehr als 2 s Luft auf der Strecke"
             };
             o["gefahren_auf_strecke"] = new JArray(v.Cars.Where(c => !c.IsPlayer && (c.Motion == CarMotion.Slow || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun))
-                .OrderBy(c => c.GapM < 0 ? c.GapM + v.TrackLength : c.GapM).Take(6).Select(c => Row(c, names)));
+                .OrderBy(c => c.GapM < 0 ? c.GapM + v.TrackLength : c.GapM).Take(6).Select(c => Row(c, names, v.Utc)));
 
             // Zeitenliste: beste gültige Runde je Fahrer; Robs schnellste (auch gestrichene) dagegen eingeordnet.
             var timed = v.Cars.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();

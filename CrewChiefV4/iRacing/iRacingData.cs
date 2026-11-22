@@ -192,6 +192,10 @@ namespace CrewChiefV4.iRacing
             PlayerTireCompound = (System.Int32)read("PlayerTireCompound");
             PitSvTireCompound = (System.Int32)read("PitSvTireCompound");
 
+            // Fast Repairs: -1 = this build of the sim does not provide the value.
+            FastRepairUsed = variables.ContainsKey("FastRepairUsed") ? (System.Int32)read("FastRepairUsed") : -1;
+            FastRepairAvailable = variables.ContainsKey("FastRepairAvailable") ? (System.Int32)read("FastRepairAvailable") : -1;
+
             PaceMode = (PaceMode)read("PaceMode");
             CarIdxPaceLine = (System.Int32[])read("CarIdxPaceLine");
             CarIdxPaceRow = (System.Int32[])read("CarIdxPaceRow");
@@ -789,6 +793,8 @@ namespace CrewChiefV4.iRacing
         /// <summary>
         /// Are we pacing or not
         /// <summary>
+        public System.Int32 FastRepairUsed = -1;
+        public System.Int32 FastRepairAvailable = -1;
         public PaceMode PaceMode;
 
         /// <summary>

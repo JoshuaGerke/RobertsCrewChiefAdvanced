@@ -951,8 +951,8 @@ namespace UnitTest.AiTeamTests
             var a = Racing(150);
             var yellow = Racing(150);
             yellow.FlagData.isLocalYellow = true;
-            CollectionAssert.AreEqual(new[] { "Gelb! Langsam, nicht überholen." }, watch.Evaluate(a, yellow, now));
-            CollectionAssert.AreEqual(new[] { "Gelb vorbei." }, watch.Evaluate(yellow, a, now.AddSeconds(5)));
+            CollectionAssert.AreEqual(new[] { "Gelb! Nicht überholen." }, watch.Evaluate(a, yellow, now));
+            CollectionAssert.AreEqual(new[] { "Gelb aufgehoben." }, watch.Evaluate(yellow, a, now.AddSeconds(5)));
             var blue = Racing(150);
             blue.SessionData.Flag = FlagEnum.BLUE;
             CollectionAssert.AreEqual(new[] { "Blaue Flagge, lass ihn vorbei." }, watch.Evaluate(a, blue, now.AddSeconds(10)));

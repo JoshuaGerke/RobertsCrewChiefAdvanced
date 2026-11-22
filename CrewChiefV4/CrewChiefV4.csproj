@@ -304,6 +304,8 @@
     <Compile Include="AiTeam\Field\FieldFacts.cs" />
     <Compile Include="AiTeam\Field\IRacingFieldSource.cs" />
     <Compile Include="AiTeam\Field\LMUFieldSource.cs" />
+    <Compile Include="AiTeam\Field\LMUNativeField.cs" />
+    <Compile Include="AiTeam\Field\ACEFieldSource.cs" />
     <Compile Include="AiTeam\Field\FieldFrame.cs" />
     <Compile Include="AiTeam\Field\MenuBriefing.cs" />
     <Compile Include="AiTeam\Field\SessionDebrief.cs" />
@@ -337,6 +339,7 @@
     <Compile Include="AiTeam\CrewChiefVoiceFilter.cs" />
     <Compile Include="AiTeam\ElevenLabsClient.cs" />
     <Compile Include="AiTeam\FlagWatch.cs" />
+    <Compile Include="AiTeam\YellowAheadWatch.cs" />
     <Compile Include="AiTeam\LiveWarningDispatcher.cs" />
     <Compile Include="AiTeam\ThermalWatch.cs" />
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
@@ -348,6 +351,8 @@
     <Compile Include="AiTeam\NativeTimingEvents.cs" />
     <Compile Include="AiTeam\RaceFactStore.cs" />
     <Compile Include="AiTeam\RaceChronicle.cs" />
+    <Compile Include="AiTeam\RaceControl\RaceControlFeed.cs" />
+    <Compile Include="AiTeam\RaceControl\RaceControlRadio.cs" />
     <Compile Include="AiTeam\InterruptedRadio.cs" />
     <Compile Include="AiTeam\RaceStory.cs" />
     <Compile Include="AiTeam\EndgameBriefWatch.cs" />

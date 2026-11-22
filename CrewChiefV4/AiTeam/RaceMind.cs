@@ -338,6 +338,15 @@ namespace CrewChiefV4.AiTeam
             // frustriert kommt höchstens ein Punkt auf einmal (Taktung im Rennkopf) und aufbauend formuliert.
             if (DriverMood.IsCoaching(t) && x.Mood == DriverMoodState.Pressure) { reason = "driver_under_pressure"; return MindVerdict.Hold; }
             // Nachfragen nach Platzverlust oder Dreher kommen auch, wenn noch Autos in der Nähe sind – nur nicht unter Gelb oder in der Box.
+            // LMU 22.11. (Rob): „Ich hatte gerade Dubus überholt – keine Reaktion.“ Nach dem eigenen Überholen ist der Gegner direkt
+            // hinter Rob, die Lage heißt Zweikampf – genau dann gehört die Bewertung des Manövers in den Funk. Sie wartet nur
+            // unter Gelb und in der Box; auch in den letzten Runden zählt sie, erst nach der Zielflagge nicht mehr.
+            if (t.StartsWith("judge-", StringComparison.Ordinal) && RadioLoad.OwnPositionChange(t))
+            {
+                if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit) { reason = "caution_or_pit_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
             if (t == "judge-dropped" || t == "judge-spin")
             {
                 if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }

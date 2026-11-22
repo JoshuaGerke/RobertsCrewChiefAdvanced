@@ -83,6 +83,8 @@
     <Compile Include="AiTeam\LiveDiagnosticsTests.cs" />
     <Compile Include="AiTeam\ActiveRaceIntelligenceTests.cs" />
     <Compile Include="AiTeam\RaceIntelligenceWorkbenchTests.cs" />
+    <Compile Include="AiTeam\RaceControlFeedTests.cs" />
+    <Compile Include="AiTeam\FieldRealtimeTests.cs" />
     <Compile Include="AiTeam\AutoDetectionRegressionTests.cs" />
     <Compile Include="AiTeam\ActiveCrewRegressionTests.cs" />
     <Compile Include="AiTeam\RaceDataAccuracyTests.cs" />
@@ -97,6 +99,7 @@
     <Compile Include="AiTeam\RadioDirectorPolicyTests.cs" />
     <Compile Include="AiTeam\SpokenNamesTests.cs" />
     <Compile Include="AiTeam\RoutineGuaranteeTests.cs" />
+    <Compile Include="AiTeam\LmuBahrainFindingsTests.cs" />
     <Compile Include="AiTeam\HazardCallRegressionTests.cs" />
     <Compile Include="AiTeam\RaceLapCommentTests.cs" />
     <Compile Include="AiTeam\CrashReportTests.cs" />

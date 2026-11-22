@@ -52,10 +52,12 @@ namespace CrewChiefV4.AiTeam
         private readonly FuelWatch fuelWatch = new FuelWatch();
         private readonly IncidentWatch incidentWatch = new IncidentWatch();
         private readonly FlagWatch flagWatch = new FlagWatch();
+        private readonly YellowAheadWatch yellowAhead = new YellowAheadWatch();
         private readonly WeatherWatch weatherWatch = new WeatherWatch();
         private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
         private readonly PitStopTimer pitStopTimer = new PitStopTimer();
         private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
+        private readonly RaceControlFeed raceControlFeed = new RaceControlFeed();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
         private readonly BattleSectorWatch battleSector = new BattleSectorWatch();
@@ -195,6 +197,16 @@ namespace CrewChiefV4.AiTeam
             ApplySettings(AiTeamSettings.Load());
         }
 
+        private readonly HashSet<string> reportedCaptureFailures = new HashSet<string>();
+        /// <summary>Ein Fehler beim Abgreifen einer Crew-Chief-Meldung wird einmal je Art gemeldet, nie weitergeworfen.</summary>
+        private void CaptureFailed(string stage, QueuedMessage message, Exception e)
+        {
+            string key = stage + "|" + e.GetType().Name + "|" + (e.TargetSite == null ? "" : e.TargetSite.Name);
+            lock (reportedCaptureFailures) { if (reportedCaptureFailures.Count > 64 || !reportedCaptureFailures.Add(key)) return; }
+            Console.WriteLine("[KI-Team] Crew-Chief-Meldung „" + (message == null ? "?" : message.messageName) + "“ konnte nicht abgegriffen werden (" +
+                stage + ": " + e.GetType().Name + "). Die Meldung selbst läuft weiter.");
+            LiveDiagnostics.Decision("native-capture", "failed", stage + ":" + e.GetType().Name, message == null ? null : message.messageName);
+        }
         private void ApplySettings(AiTeamSettings newSettings)
         {
             settings = newSettings;
@@ -215,7 +227,15 @@ namespace CrewChiefV4.AiTeam
             AudioPlayer.messageFilter = settings.Enabled && settings.ReplaceCrewChiefVoice
                 ? new Func<QueuedMessage, bool>(m => {
                     bool allowed=CrewChiefVoiceFilter.Allow(m.messageName,m.messageFolders,settings.SaraEnabled);
-                    if(!allowed){liveWarnings.Capture(m,CrewChief.currentGameState,DateTime.UtcNow);fieldEvents.Capture(m.NativeFieldEvent);}
+                    // RaceRoom Norisring 22.11.: Ein Fehler in Capture brach jedes Crew-Chief-Ereignis ab (Runden, Position, Sprit,
+                    // Strafen) und die Feldereignisse für Ben gingen verloren. Abgreifen darf das Ereignis nie mehr abbrechen.
+                    if(!allowed)
+                    {
+                        try{liveWarnings.Capture(m,CrewChief.currentGameState,DateTime.UtcNow);}
+                        catch(Exception e){CaptureFailed("live_warning",m,e);}
+                        try{fieldEvents.Capture(m.NativeFieldEvent);}
+                        catch(Exception e){CaptureFailed("field_event",m,e);}
+                    }
                     return allowed;
                 })
                 : null;
@@ -302,10 +322,12 @@ namespace CrewChiefV4.AiTeam
                 pitFinishCall = null;
                 incidentWatch.Reset();
                 flagWatch.Reset();
+                yellowAhead.Reset();
                 weatherWatch.Reset();
                 pitLaneWatch.Reset();
                 pitStopTimer.Reset();
                 incidentPoints.Reset();
+                raceControlFeed.Reset();
                 raceSummary.Reset();
                 gapTrend.Reset();
                 battleSector.Reset();
@@ -458,6 +480,7 @@ namespace CrewChiefV4.AiTeam
                         opponentNameClip: incidentDriver == null ? null : RaceTrafficWatch.NameClipText(incidentDriver));
                 }
             }
+            OfferHazardFarAhead(current, now);
             var incidents = incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL);
             string penaltyCall = incidentWatch.TakePenaltyCall();
             foreach (var incident in incidents)
@@ -715,6 +738,8 @@ namespace CrewChiefV4.AiTeam
             else if(pendingTimingDelivery!=null && !pendingTimingDelivery.IsValid(current,now))pendingTimingDelivery=null;
             liveWarnings.IncidentName = settings.SendDriverNames ? (Func<GameStateData, DateTime, string>)FlagWatch.IncidentName : null;
             liveWarnings.Observe(current,now);
+            // Rennleitung aller Sims (Startvergehen, Abkürzen mit Frist, Verwarnung, Box zu/offen …): Chronik, Lagebild, Pflichtfunk.
+            raceControlFeed.Observe(current, now, liveWarnings);
             // LMU: Rennleitung aus dem nativen Datenstrom – alles mitschreiben, eigene Strafen/Tracklimits sofort an die Crew.
             LMURaceControlStream.Line raceControl;
             while (LMURaceControlStream.TryTake(out raceControl))
@@ -723,6 +748,7 @@ namespace CrewChiefV4.AiTeam
                 LiveDiagnostics.Decision("lmu-race-control", kind == null ? "logged" : "classified", (raceControl.Tag ?? "line") + (kind == null ? "" : ";" + kind),
                     LMURaceControlStream.Plain(raceControl.Text));
                 Memory.AddObservation(RadioLanguage.T("Rennleitung: ", "Race control: ", "Dirección de carrera: ") + LMURaceControlStream.Plain(raceControl.Text), now, "race-control");
+                raceControlFeed.ObserveLmuLine(raceControl, current, now);
                 if (kind != null && now >= raceControl.Utc && now - raceControl.Utc < TimeSpan.FromSeconds(5) && current.SessionData.SessionPhase == SessionPhase.Green)
                     liveWarnings.OfferRaceControl(kind, current, now, raceControl.Tag ?? "line");
             }
@@ -2460,6 +2486,34 @@ namespace CrewChiefV4.AiTeam
                 !Corners.RadioBrakingWindow(live.PositionAndMotionData.DistanceRoundTrack, live.PositionAndMotionData.CarSpeed);
         }
 
+        /// <summary>
+        /// LMU 22.11. (Rob): „Gelbphase und ein stehendes Auto vor mir – du hättest alle anderen überstimmen müssen.“ Dreher oder
+        /// stehender Wagen 250–1000 m voraus aus dem Lagebild (alle Sims mit Lagebild): Sara, kurz, vor allen anderen.
+        /// </summary>
+        private void OfferHazardFarAhead(GameStateData current, DateTime now)
+        {
+            if (current == null) return;
+            var hazard = yellowAhead.Take(Field.FieldPicture.Shared.Current, current, now);
+            if (hazard == null) return;
+            string hazardName = hazard.Name;
+            string section = TrackAwareness.ConfirmedSection(current.SessionData.TrackDefinition, hazard.LapDistance);
+            string text = YellowAheadWatch.Text(YellowAheadWatch.SimShowsYellow(current), section, hazard.GapM, hazard.Stopped);
+            string spokenName = settings.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(hazardName) : null;
+            if (string.IsNullOrWhiteSpace(spokenName) || RaceTrafficWatch.SpokenRecently(spokenName, now, TimeSpan.FromSeconds(8), true)) spokenName = null;
+            if (spokenName != null)
+            {
+                RaceTrafficWatch.NoteSpoken(spokenName, now, true);
+                RaceTrafficWatch.NoteHazard(spokenName, current.SessionData.SessionId, now);
+            }
+            if (current.SessionData.SessionType == SessionType.Race)
+                RaceChronicle.Current.Add(current, now, ChronicleKind.Yellow, detail: hazard.Stopped ? "steht_voraus" : "dreher_voraus", source: "lagebild",
+                    subjectName: spokenName, dedupe: TimeSpan.FromSeconds(20));
+            liveWarnings.Offer("warning-hazard-far", text, settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : TeamMember.Ben, 7, current, now,
+                live => YellowAheadWatch.StillThere(Field.FieldPicture.Shared.Current, hazardName, DateTime.UtcNow),
+                "field_picture_" + (hazard.Stopped ? "stopped" : "spun") + "_" + (int)hazard.GapM + "m_ahead",
+                opponentNameClip: spokenName == null ? null : RaceTrafficWatch.NameClipText(spokenName));
+        }
+
         private void QueueLocalRaceCall(ObservedRaceCall call)
         {
             // Rob 21.11.: „Ben und Sara haben bei Unfällen die gleichen Funktionen – es reicht, wenn Sara das macht.“
@@ -2617,7 +2671,8 @@ namespace CrewChiefV4.AiTeam
                                 DriverMemory.QualifyingSectorRadioEnabled) &&
                             generation == Volatile.Read(ref sessionGeneration) &&
                             TelemetryFresh() && !Spotter().HasOverlap && call.IsValid(live, now) &&
-                            (!backgroundStatistics || !RaceRadioDirector.SuppressBackgroundStatistics(BuildContext(live))) &&
+                            // LMU 22.11.: Ein zugesagter Routinebericht (30 s überfällig) wird nicht noch im Zweikampf verworfen.
+                            (!backgroundStatistics || call.Guaranteed || !RaceRadioDirector.SuppressBackgroundStatistics(BuildContext(live))) &&
                             (detailIsCurrent == null || detailIsCurrent(live, now)) && CanRefreshRenderedFacts(live);
                     };
                     void DeferOrRelease(string reason)
