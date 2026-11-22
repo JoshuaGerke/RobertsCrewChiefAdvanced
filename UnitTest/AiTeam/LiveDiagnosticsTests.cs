@@ -188,6 +188,28 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("capture.end",(string)Read(folder).Last()["kind"]);
         }
         [Test]
+        public void Volle_Aufnahme_geht_beim_naechsten_Takt_in_einer_neuen_Aufnahme_weiter()
+        {
+            // RaceRoom Norisring 22.11.: Die Aufnahme lief seit 10:13 Uhr und stoppte um 19:45 Uhr am 128-MiB-Limit, das Rennen fehlte.
+            string folder=Folder();
+            var limits=new DiagnosticLimits{QueueCapacity=1024,SegmentBytes=8192,CaptureBytes=32768,FolderBytes=262144,RecordResources=false};
+            StringAssert.Contains("aktiv",LiveDiagnostics.Start(folder,limits));
+            var gs=new GameStateData(1);gs.SessionData.SessionId=5;gs.SessionData.SessionType=SessionType.Race;gs.SessionData.SessionPhase=SessionPhase.Green;
+            for(int i=0;i<2000 && LiveDiagnostics.Enabled;i++)LiveDiagnostics.Emit("large",LiveDiagnostics.Data("text",new string('x',1000)));
+            var until=DateTime.UtcNow.AddSeconds(10);
+            while(!LiveDiagnostics.ContinueAfterSizeLimit() && DateTime.UtcNow<until)Thread.Sleep(20);
+            Assert.IsTrue(LiveDiagnostics.Enabled,"neue Aufnahme läuft");
+            LiveDiagnostics.Sample(null,gs);LiveDiagnostics.Shutdown();
+            var rows=Read(folder);
+            Assert.AreEqual(2,rows.Select(x=>(string)x["capture_id"]).Distinct().Count(),"alte Aufnahme bleibt, neue kommt dazu");
+            string full=(string)rows.Single(x=>(string)x["kind"]=="capture.end" && (string)x["data"]["reason"]=="size_limit")["capture_id"];
+            var continued=rows.Single(x=>(string)x["kind"]=="capture.continued");
+            Assert.AreEqual(full,(string)continued["data"]["source"]);
+            Assert.AreNotEqual(full,(string)continued["capture_id"]);
+            Assert.IsTrue(rows.Any(x=>(string)x["kind"]=="session.start" && (string)x["capture_id"]==(string)continued["capture_id"]),"laufende Sitzung neu gekennzeichnet");
+            Assert.IsFalse(LiveDiagnostics.ContinueAfterSizeLimit(),"ausgeschaltete Diagnose startet nicht von selbst");
+        }
+        [Test]
         public void Vorhandene_Dateien_werden_nicht_geloescht_oder_ueberschrieben()
         {
             string folder=Folder();Directory.CreateDirectory(folder);

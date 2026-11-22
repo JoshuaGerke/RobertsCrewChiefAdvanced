@@ -112,19 +112,99 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("native:",call.Evidence);
             gs.EngineData.EngineOilTemp=110;w.Observe(gs,T.AddSeconds(.1));Assert.IsFalse(call.IsValid(gs,T.AddSeconds(.1)));
         }
+        [TestCase("lap_times/personal_best")] [TestCase("position/leading")] [TestCase("fuel/half_distance_good_fuel")]
+        [TestCase("opponents/the_leader_is_pitting")] [TestCase("race_time/five_minutes_left")] [TestCase("penalties/penalty_served")]
+        public void Ordinary_native_message_passes_the_voice_filter_capture_without_exception(string folder)
+        {
+            // RaceRoom Norisring 22.11. (Rennen 19:36–20:03): Jede gewöhnliche Crew-Chief-Meldung warf im Stimmfilter eine
+            // NullReferenceException (NativeRaceControl.Resolve mit kind=null). LapTimes, Position, Opponents, RaceTime, PushNow,
+            // Fuel und Penalties brachen ab, Feldereignisse erreichten Ben nicht: Ben blieb fast das ganze Rennen stumm.
+            var gs=Frame(3,false,false,true);gs.SessionData.SessionType=SessionType.Race;
+            var w=new LiveWarningDispatcher();
+            Assert.DoesNotThrow(()=>Assert.IsFalse(w.Capture(NativeMessage(folder),gs,T)));
+            Assert.IsNull(NativeRaceControl.Resolve(null,gs));
+            Assert.IsTrue(w.Capture(NativeMessage("flags/give_one_position_back_first_warning"),gs,T),"Rennleitung wird weiter abgegriffen");
+        }
         [Test]
         public void Engine_temperature_warnings_share_one_three_minute_gap_unless_it_gets_hotter()
         {
-            // RaceRoom Norisring 20.11.: 15 Öl/Wasser-Warnungen in 13 Minuten.
-            var gs=Frame(1,false,false,true);gs.carClass=new CrewChiefV4.CarData.CarClass {maxSafeOilTemp=110,maxSafeWaterTemp=100};
-            gs.EngineData.EngineOilTemp=114;gs.EngineData.EngineWaterTemp=104;
+            // RaceRoom Norisring 20.11.: 15 Öl/Wasser-Warnungen in 13 Minuten; 22.11.: 13 in 7 Minuten.
+            // Die Sperre zählt ab der gesprochenen Warnung und prüft nur (EngineWarningDue merkt sich nichts).
             var w=new LiveWarningDispatcher();
-            Assert.IsTrue(w.EngineWarningDue("both",114,104,T));
-            Assert.IsFalse(w.EngineWarningDue("both",114.5f,104,T.AddSeconds(30)),"nicht alle 30 s");
+            Assert.IsTrue(w.EngineWarningDue("both",114,104,T));Assert.IsTrue(w.EngineWarningDue("both",114,104,T),"Prüfen allein sperrt nicht");
+            w.EngineWarningSpoken("both",114,104,T);
+            Assert.IsFalse(w.EngineWarningDue("both",119,104,T.AddSeconds(30)),"nicht alle 30 s, auch nicht heißer");
             Assert.IsFalse(w.EngineWarningDue("oil",115,104,T.AddSeconds(60)),"Öl allein nach „beides“: nichts Neues");
-            Assert.IsTrue(w.EngineWarningDue("both",117.2f,104,T.AddSeconds(90)),"drei Grad heißer: wieder melden");
-            Assert.IsFalse(w.EngineWarningDue("both",117.5f,104,T.AddSeconds(120)));
-            Assert.IsTrue(w.EngineWarningDue("both",117.5f,104,T.AddSeconds(90+181)),"nach drei Minuten erinnern");
+            Assert.IsFalse(w.EngineWarningDue("both",117.2f,104,T.AddSeconds(90)),"drei Grad sind keine neue Lage");
+            Assert.IsTrue(w.EngineWarningDue("both",118.2f,104,T.AddSeconds(90)),"vier Grad heißer: wieder melden");
+            w.EngineWarningSpoken("both",118.2f,104,T.AddSeconds(90));
+            Assert.IsFalse(w.EngineWarningDue("both",118.5f,104,T.AddSeconds(120)));
+            Assert.IsTrue(w.EngineWarningDue("both",118.5f,104,T.AddSeconds(90+181)),"nach drei Minuten erinnern");
+            var oilFirst=new LiveWarningDispatcher();oilFirst.EngineWarningSpoken("oil",126,100,T);
+            Assert.IsFalse(oilFirst.EngineWarningDue("both",126,116,T.AddSeconds(14)),"22.11.: „beides“ 14 s nach „Öl“ war zu dicht");
+            Assert.IsTrue(oilFirst.EngineWarningDue("both",126,116,T.AddSeconds(61)),"Wasser kommt neu dazu: nach 60 s melden");
+        }
+        /// <summary>
+        /// RaceRoom Norisring 22.11., HotLap 18:34–18:40, DTM 1995, ohne Schaden und in freier Luft: Öl und Wasser alle 10 s
+        /// aus der Live-Diagnose. Das ist die normale Betriebstemperatur dieser Autos.
+        /// </summary>
+        private static readonly float[,] Norisring2211Dtm95={{102.4f,96.2f},{106.2f,97.6f},{108.5f,99.7f},{109.4f,100.3f},{109.4f,100.3f},{109.4f,100.3f},
+            {103.7f,89.5f},{103.3f,94.5f},{106.0f,95.6f},{105.8f,95.2f},{107.7f,97.9f},{108.4f,98.8f},{109.2f,99.2f},{110.6f,100.4f},{110.3f,98.6f},
+            {110.9f,101.5f},{111.8f,102.0f},{112.5f,101.6f},{113.9f,104.1f},{113.6f,101.9f},{112.9f,103.8f},{114.3f,104.2f},{114.9f,104.1f},
+            {115.9f,106.5f},{116.4f,104.7f},{115.1f,105.5f},{116.6f,106.3f},{117.6f,107.1f},{116.9f,107.0f},{118.0f,106.9f},{116.2f,104.9f},
+            {117.3f,106.9f},{117.4f,107.2f},{117.2f,107.2f},{118.6f,107.7f},{117.0f,105.2f},{117.8f,107.5f},{117.9f,107.7f},{117.6f,107.3f}};
+        private static CrewChiefV4.CarData.CarClass ShippedCarClass(string carClassEnum)
+        {
+            var dir=new System.IO.DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+            while(dir!=null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName,"CrewChiefV4","carClassData.json")))dir=dir.Parent;
+            Assert.IsNotNull(dir,"carClassData.json nicht gefunden");
+            var classes=CrewChiefV4.JsonFiles.ReadFile<CrewChiefV4.CarData.CarClasses>(
+                System.IO.Path.Combine(dir.FullName,"CrewChiefV4","carClassData.json"),CrewChiefV4.JsonFiles.Comments.Strip,dontCatch:true);
+            return classes.carClasses.Single(c=>c.carClassEnum.ToString()==carClassEnum);
+        }
+        private static ThermalProfile EngineProfile(float oil,float water){var p=Profile();p.OilLimitC=oil;p.WaterLimitC=water;return p;}
+        /// <summary>Spielt Öl/Wasser je 10 s im Sekundentakt ab und zählt die tatsächlich gesprochenen Motorwarnungen.</summary>
+        private static System.Collections.Generic.List<string> ReplayEngine(ThermalProfile profile,float[,] samples)
+        {
+            var gs=Frame(1,false,false,true);Temps(gs,80,80);gs.EngineData.EngineRpm=7000;
+            var o=new LiveWarningDispatcher();var w=new ThermalWatch(_=>profile);var spoken=new System.Collections.Generic.List<string>();
+            for(int i=0;i<samples.GetLength(0);i++)for(int k=0;k<10;k++)
+            {
+                double t=i*10+k;gs.EngineData.EngineOilTemp=samples[i,0];gs.EngineData.EngineWaterTemp=samples[i,1];
+                var call=ThermalTick(w,o,gs,t);
+                if(call!=null){call.MarkPlaybackStarted(T.AddSeconds(t));o.Observe(gs,T.AddSeconds(t));spoken.Add(t+":"+call.Topic);}
+            }
+            return spoken;
+        }
+        [Test]
+        public void Engine_heat_RaceRoom_DTM95_normal_operating_temperature_at_Norisring_is_not_an_alarm()
+        {
+            // Mit den alten Grenzen 106/100 Grad kamen dieselben Werte 13-mal; mit den gemessenen Grenzen ist das Normalbetrieb.
+            var dtm95=ShippedCarClass("DTM_95");
+            Assert.That(dtm95.maxSafeOilTemp,Is.GreaterThan(118.6f+5),"Öl-Grenze muss über der gemessenen Betriebstemperatur liegen");
+            Assert.That(dtm95.maxSafeWaterTemp,Is.GreaterThan(108.9f+5),"Wasser-Grenze muss über der gemessenen Betriebstemperatur liegen");
+            CollectionAssert.IsEmpty(ReplayEngine(EngineProfile(dtm95.maxSafeOilTemp,dtm95.maxSafeWaterTemp),Norisring2211Dtm95));
+        }
+        [Test]
+        public void Engine_heat_profiled_warnings_obey_the_shared_gap_instead_of_every_30_seconds()
+        {
+            // Alter Stand 22.11.: die eigene Temperaturwache sprach alle 30 s (Öl, beides, beides, ...). Jetzt dieselben Werte
+            // gegen die alten, zu niedrigen Grenzen: Öl, dann einmal „beides“, danach nur noch, wenn es 4 Grad heißer wird.
+            var spoken=ReplayEngine(EngineProfile(106,100),Norisring2211Dtm95);
+            Assert.That(spoken.Count,Is.InRange(2,5),string.Join(", ",spoken));
+            for(int i=1;i<spoken.Count;i++)
+                Assert.That(double.Parse(spoken[i].Split(':')[0])-double.Parse(spoken[i-1].Split(':')[0]),Is.GreaterThanOrEqualTo(60),string.Join(", ",spoken));
+        }
+        [Test]
+        public void Engine_heat_real_overheat_with_DTM95_limits_still_warns_and_reminds()
+        {
+            // RaceRoom Norisring 20.11. nach Unfall (Aero 100 %, Motor 35 %): Wasser bis 123, Öl bis 133 Grad – echte Überhitzung.
+            var dtm95=ShippedCarClass("DTM_95");
+            var hot=new float[42,2];for(int i=0;i<42;i++){hot[i,0]=133;hot[i,1]=123;}
+            var spoken=ReplayEngine(EngineProfile(dtm95.maxSafeOilTemp,dtm95.maxSafeWaterTemp),hot);
+            Assert.That(spoken.Count,Is.EqualTo(3),string.Join(", ",spoken));
+            StringAssert.EndsWith("warning-engine-both",spoken[0]);Assert.That(double.Parse(spoken[0].Split(':')[0]),Is.LessThanOrEqualTo(6));
+            Assert.AreEqual(180+5,double.Parse(spoken[1].Split(':')[0]),1.5,"Erinnerung nach drei Minuten");
         }
         [Test]
         public void Native_sector_yellow_and_penalty_laps_reach_the_crew_through_the_voice_filter()

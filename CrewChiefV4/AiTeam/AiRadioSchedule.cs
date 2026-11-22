@@ -439,7 +439,8 @@ namespace CrewChiefV4.AiTeam
         private static bool Good(double n, double min, double max) { return !double.IsNaN(n) && !double.IsInfinity(n) && n >= min && n <= max; }
         /// <summary>
         /// Routine-Technikcheck wie ein Ingenieur (Rob 17.11.: „zu viele technische Details“): Ist alles im grünen Bereich,
-        /// genügt ein Satz ohne Zahlen. Nur was auffällt – Schaden ab 1 %, Wasser/Öl ab 90 % der Grenze des Fahrzeugs,
+        /// genügt ein Satz ohne Zahlen. Nur was auffällt – Schaden ab 1 %, Wasser/Öl ab 90 % der Grenze des Fahrzeugs (darüber: „über der Grenze“,
+        /// RaceRoom 20.11. sagte bei 115,9 zu 100 Grad noch „nah an der Grenze“),
         /// Bremsen über der Heiß-Schwelle – wird mit Wert genannt. Ohne beurteilbare Werte bleibt der bisherige Bericht.
         /// </summary>
         internal static string VehicleCheck(GameStateData gs, int variant)
@@ -452,13 +453,21 @@ namespace CrewChiefV4.AiTeam
             var issues = new List<string>();
             if (clean == false) { string damage = IncidentWatch.DamageReport(gs.CarDamageData, true); if (!string.IsNullOrWhiteSpace(damage)) issues.Add(damage.TrimEnd('.')); }
             if (water && e.EngineWaterTemp >= .9f * waterLimit)
-                issues.Add(RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, nah an der Grenze von " + Math.Round(waterLimit),
-                    "water " + Number(e.EngineWaterTemp) + " degrees, close to the " + Math.Round(waterLimit) + " limit",
-                    "agua " + Number(e.EngineWaterTemp) + " grados, cerca del límite de " + Math.Round(waterLimit)));
+                issues.Add(e.EngineWaterTemp > waterLimit
+                    ? RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, über der Grenze von " + Math.Round(waterLimit),
+                        "water " + Number(e.EngineWaterTemp) + " degrees, above the " + Math.Round(waterLimit) + " limit",
+                        "agua " + Number(e.EngineWaterTemp) + " grados, por encima del límite de " + Math.Round(waterLimit))
+                    : RadioLanguage.T("Wasser " + Number(e.EngineWaterTemp) + " Grad, nah an der Grenze von " + Math.Round(waterLimit),
+                        "water " + Number(e.EngineWaterTemp) + " degrees, close to the " + Math.Round(waterLimit) + " limit",
+                        "agua " + Number(e.EngineWaterTemp) + " grados, cerca del límite de " + Math.Round(waterLimit)));
             if (oil && e.EngineOilTemp >= .9f * oilLimit)
-                issues.Add(RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, nah an der Grenze von " + Math.Round(oilLimit),
-                    "oil " + Number(e.EngineOilTemp) + " degrees, close to the " + Math.Round(oilLimit) + " limit",
-                    "aceite " + Number(e.EngineOilTemp) + " grados, cerca del límite de " + Math.Round(oilLimit)));
+                issues.Add(e.EngineOilTemp > oilLimit
+                    ? RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, über der Grenze von " + Math.Round(oilLimit),
+                        "oil " + Number(e.EngineOilTemp) + " degrees, above the " + Math.Round(oilLimit) + " limit",
+                        "aceite " + Number(e.EngineOilTemp) + " grados, por encima del límite de " + Math.Round(oilLimit))
+                    : RadioLanguage.T("Öl " + Number(e.EngineOilTemp) + " Grad, nah an der Grenze von " + Math.Round(oilLimit),
+                        "oil " + Number(e.EngineOilTemp) + " degrees, close to the " + Math.Round(oilLimit) + " limit",
+                        "aceite " + Number(e.EngineOilTemp) + " grados, cerca del límite de " + Math.Round(oilLimit)));
             float[] brakes = { t.LeftFrontBrakeTemp, t.RightFrontBrakeTemp, t.LeftRearBrakeTemp, t.RightRearBrakeTemp };
             float hot = cls != null ? cls.maxHotBrakeTemp : -1;
             bool brakesKnown = hot > 0 && brakes.All(b => Good(b, 1, 1500));

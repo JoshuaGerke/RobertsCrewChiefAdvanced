@@ -512,8 +512,8 @@
       "carClassEnum": "DTM_95",
       "raceroomClassIds": [ 7075 ],
       "timesInHundredths": true,
-      "maxSafeWaterTemp": 100,
-      "maxSafeOilTemp": 106,
+      "maxSafeWaterTemp": 115,
+      "maxSafeOilTemp": 125,
       "enabledMessageTypes": "TYRE_TEMPS, BRAKE_TEMPS, FUEL, LOCKING_AND_SPINNING",
       "allMembersAreRWD": true
     },
