@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -196,22 +197,26 @@ namespace CrewChiefV4.AiTeam
         /// <summary>
         /// Klassenbestzeit mit Gegenprobe am Feld. LMU Bahrain 22.11.: „Deine 1:22,361 ist die schnellste Runde deiner Klasse“ –
         /// Krobber war schneller, die Sim-Klassenbestzeit zeigte Robs Zeit. Der schnellere Wert aus Sim und Bestzeiten der Gegner
-        /// derselben Klasse zählt. Ohne eine einzige Gegnerzeit lässt sich „schnellste Runde“ nicht belegen: dann -1.
+        /// derselben Klasse zählt; -1, wenn keiner bekannt ist.
         /// </summary>
         internal static float FieldCheckedClassBest(GameStateData gs)
         {
-            var s = gs.SessionData;
-            float best = s.PlayerClassSessionBestLapTime > 10 ? s.PlayerClassSessionBestLapTime : float.MaxValue;
-            bool any = false;
+            float best = gs.SessionData.PlayerClassSessionBestLapTime > 10 ? gs.SessionData.PlayerClassSessionBestLapTime : float.MaxValue;
+            foreach (var o in ClassRivalBests(gs)) if (o < best) best = o;
+            return best == float.MaxValue ? -1 : best;
+        }
+
+        /// <summary>„Schnellste Runde deiner Klasse“ ist nur belegt, wenn mindestens ein Gegner derselben Klasse eine Zeit hat.</summary>
+        internal static bool ClassFieldHasTimes(GameStateData gs) => ClassRivalBests(gs).Any();
+
+        private static IEnumerable<float> ClassRivalBests(GameStateData gs)
+        {
             foreach (var o in gs.OpponentData.Values)
             {
                 if (o == null || !(o.CurrentBestLapTime > 10) || o.CurrentBestLapTime >= 3600) continue;
                 if (gs.carClass != null && o.CarClass != null && !CarData.IsCarClassEqual(gs.carClass, o.CarClass, false)) continue;
-                any = true;
-                if (o.CurrentBestLapTime < best) best = o.CurrentBestLapTime;
+                yield return o.CurrentBestLapTime;
             }
-            if (!any) return -1;
-            return best == float.MaxValue ? -1 : best;
         }
 
         internal enum Mood { Attack, Defend, Safe, Steady, Leading }
@@ -255,13 +260,13 @@ namespace CrewChiefV4.AiTeam
             if (pb > 10 && cb > 10 && pb < 3600 && cb < 3600)
             {
                 string own = LocalAnswers.LapTime(pb);
-                if (pb - cb < .05f)
+                if (pb - cb < .05f && ClassFieldHasTimes(gs))
                     parts.Add(RadioVariants.Pick("summary-pace-best",
                         RadioLanguage.T("Deine " + own + " ist die schnellste Runde deiner Klasse.", "Your " + own + " is the fastest lap in your class.", "Tu " + own + " es la vuelta más rápida de tu clase."),
                         RadioLanguage.T("Mit " + own + " hast du die Klassenbestzeit.", "With " + own + " you hold the class best.", "Con " + own + " tienes el mejor tiempo de la clase."),
                         RadioLanguage.T("Niemand in deiner Klasse war schneller als deine " + own + ".", "Nobody in your class has gone quicker than your " + own + ".", "Nadie de tu clase ha ido más rápido que tu " + own + "."),
                         RadioLanguage.T("Klassenbestzeit gehört dir, " + own + ".", "The class best is yours, " + own + ".", "El mejor tiempo de la clase es tuyo, " + own + ".")));
-                else
+                else if (pb - cb >= .05f)
                 {
                     string gap = GermanRadioText.Interval(pb - cb);
                     parts.Add(RadioVariants.Pick("summary-pace",

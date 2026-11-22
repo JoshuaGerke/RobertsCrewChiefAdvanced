@@ -73,10 +73,12 @@ namespace UnitTest.AiTeamTests
         {
             var gs = Race();
             gs.SessionData.PlayerLapTimeSessionBest = gs.SessionData.PlayerClassSessionBestLapTime = 82.361f;
-            Assert.AreEqual(-1, RaceSummaryWatch.FieldCheckedClassBest(gs), "ohne eine Gegnerzeit ist „schnellste Runde“ nicht belegt");
+            Assert.AreEqual(82.361f, RaceSummaryWatch.FieldCheckedClassBest(gs), 1e-4);
+            Assert.IsFalse(RaceSummaryWatch.ClassFieldHasTimes(gs), "ohne eine Gegnerzeit ist „schnellste Runde“ nicht belegt");
             var krobber = new OpponentData { DriverRawName = "Krobber", IsActive = true, CurrentBestLapTime = 82.104f, CarClass = gs.carClass };
             gs.OpponentData["krobber"] = krobber;
             Assert.AreEqual(82.104f, RaceSummaryWatch.FieldCheckedClassBest(gs), 1e-4, "die schnellere Gegnerzeit zählt, auch wenn die Sim Robs Zeit zeigt");
+            Assert.IsTrue(RaceSummaryWatch.ClassFieldHasTimes(gs));
             krobber.CarClass = new CarData.CarClass { carClassEnum = CarData.CarClassEnum.LMP2 };
             Assert.AreEqual(82.361f, RaceSummaryWatch.FieldCheckedClassBest(gs), 1e-4, "andere Klasse zählt nicht");
         }
