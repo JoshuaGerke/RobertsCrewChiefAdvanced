@@ -55,6 +55,7 @@ namespace CrewChiefV4.AiTeam
         public string Status { get { return status; } }
         public long Dropped { get { return Interlocked.Read(ref dropped); } }
         public long BytesWritten { get { return Interlocked.Read(ref bytes); } }
+        internal DiagnosticLimits Limits { get { return limits; } }
         private static readonly HashSet<string> allowed = new HashSet<string>((
             // AC 21.11.: „ac-native“ wurde geschrieben, aber ohne diese Schlüssel blieb jede Zeile leer.
             "board_session board_phase board_place board_field board_laps_left board_time_left board_penalty board_native_age_s board_conflicts " +
@@ -344,7 +345,37 @@ namespace CrewChiefV4.AiTeam
         public static string NoTrend(string topic,string reason) { Decision(topic,"rejected",reason); return null; }
         public static void Sample(GameStateData previous,GameStateData current)
         {
+            try { ContinueAfterSizeLimit(); } catch(Exception) { }
             try { SampleInternal(previous,current); } catch(Exception) { }
+        }
+        private static long lastContinueAttempt;
+        /// <summary>
+        /// RaceRoom Norisring 22.11.: Die Aufnahme lief seit 10:13 Uhr (LMU, danach RaceRoom) und hielt um 19:45 Uhr am
+        /// 128-MiB-Limit an. Das Rennen danach fehlte vollständig. Ist die eingeschaltete Diagnose nur am Größenlimit
+        /// stehen geblieben, beginnt jetzt eine neue Aufnahme im selben Ordner. Ältere Dateien wandern dafür wie beim
+        /// Einschalten ins Archiv, gelöscht wird nichts. Höchstens ein Versuch alle 30 s.
+        /// </summary>
+        internal static bool ContinueAfterSizeLimit()
+        {
+            var full = Volatile.Read(ref recorder);
+            if (full == null || full.Accepting || !full.Finished || full.Status != "size_limit") return false;
+            long now = Stopwatch.GetTimestamp(), prior = Interlocked.Read(ref lastContinueAttempt);
+            if (prior != 0 && now - prior < Stopwatch.Frequency * 30) return false;
+            if (Interlocked.CompareExchange(ref lastContinueAttempt, now, prior) != prior) return false;
+            DiagnosticRecorder next;
+            try
+            {
+                ArchiveOldRecordings(full.Folder, full.Limits);
+                next = new DiagnosticRecorder(full.Folder, full.Limits, new[] { AiSecretStore.Load(), AiSecretStore.LoadElevenLabs() });
+            }
+            catch (Exception) { return false; }
+            if (Interlocked.CompareExchange(ref recorder, next, full) != full) { next.Dispose(); return false; }
+            last = next; Interlocked.Exchange(ref lastSample, 0); Interlocked.Exchange(ref lastTrackSampleTicks, 0);
+            next.TryRecord("capture.build", Data("rrca_build", RrcaForm.Version()));
+            next.TryRecord("capture.continued", Data("reason", "size_limit", "source", full.CaptureId));
+            // Die neue Aufnahme beginnt mit einem eigenen session.start für die laufende Sitzung.
+            Volatile.Write(ref context, new Session());
+            return true;
         }
         private static void SampleInternal(GameStateData previous,GameStateData current)
         {

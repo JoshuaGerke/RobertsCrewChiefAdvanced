@@ -179,7 +179,8 @@ namespace CrewChiefV4.AiTeam
         public bool Capture(QueuedMessage message,GameStateData gs,DateTime now)
         {
             if(message==null || gs==null)return false;
-            string kind=Classify(message.messageFolders) ?? NativeRaceControl.Resolve(NativeRaceControl.Classify(message.messageFolders),gs);
+            string raceControl=NativeRaceControl.Classify(message.messageFolders);
+            string kind=Classify(message.messageFolders) ?? (raceControl==null?null:NativeRaceControl.Resolve(raceControl,gs));
             if(kind==null)return false;
             native.Enqueue(new Native {Kind=kind,Source=message.messageName,Session=gs.SessionData.SessionId,
                 Type=gs.SessionData.SessionType,Lap=gs.SessionData.CompletedLaps,Utc=now,

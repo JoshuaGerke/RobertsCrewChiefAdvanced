@@ -195,6 +195,16 @@ namespace CrewChiefV4.AiTeam
             ApplySettings(AiTeamSettings.Load());
         }
 
+        private readonly HashSet<string> reportedCaptureFailures = new HashSet<string>();
+        /// <summary>Ein Fehler beim Abgreifen einer Crew-Chief-Meldung wird einmal je Art gemeldet, nie weitergeworfen.</summary>
+        private void CaptureFailed(string stage, QueuedMessage message, Exception e)
+        {
+            string key = stage + "|" + e.GetType().Name + "|" + (e.TargetSite == null ? "" : e.TargetSite.Name);
+            lock (reportedCaptureFailures) { if (reportedCaptureFailures.Count > 64 || !reportedCaptureFailures.Add(key)) return; }
+            Console.WriteLine("[KI-Team] Crew-Chief-Meldung „" + (message == null ? "?" : message.messageName) + "“ konnte nicht abgegriffen werden (" +
+                stage + ": " + e.GetType().Name + "). Die Meldung selbst läuft weiter.");
+            LiveDiagnostics.Decision("native-capture", "failed", stage + ":" + e.GetType().Name, message == null ? null : message.messageName);
+        }
         private void ApplySettings(AiTeamSettings newSettings)
         {
             settings = newSettings;
@@ -215,7 +225,15 @@ namespace CrewChiefV4.AiTeam
             AudioPlayer.messageFilter = settings.Enabled && settings.ReplaceCrewChiefVoice
                 ? new Func<QueuedMessage, bool>(m => {
                     bool allowed=CrewChiefVoiceFilter.Allow(m.messageName,m.messageFolders,settings.SaraEnabled);
-                    if(!allowed){liveWarnings.Capture(m,CrewChief.currentGameState,DateTime.UtcNow);fieldEvents.Capture(m.NativeFieldEvent);}
+                    // RaceRoom Norisring 22.11.: Ein Fehler in Capture brach jedes Crew-Chief-Ereignis ab (Runden, Position, Sprit,
+                    // Strafen) und die Feldereignisse für Ben gingen verloren. Abgreifen darf das Ereignis nie mehr abbrechen.
+                    if(!allowed)
+                    {
+                        try{liveWarnings.Capture(m,CrewChief.currentGameState,DateTime.UtcNow);}
+                        catch(Exception e){CaptureFailed("live_warning",m,e);}
+                        try{fieldEvents.Capture(m.NativeFieldEvent);}
+                        catch(Exception e){CaptureFailed("field_event",m,e);}
+                    }
                     return allowed;
                 })
                 : null;

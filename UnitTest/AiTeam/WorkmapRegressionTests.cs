@@ -112,6 +112,19 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("native:",call.Evidence);
             gs.EngineData.EngineOilTemp=110;w.Observe(gs,T.AddSeconds(.1));Assert.IsFalse(call.IsValid(gs,T.AddSeconds(.1)));
         }
+        [TestCase("lap_times/personal_best")] [TestCase("position/leading")] [TestCase("fuel/half_distance_good_fuel")]
+        [TestCase("opponents/the_leader_is_pitting")] [TestCase("race_time/five_minutes_left")] [TestCase("penalties/penalty_served")]
+        public void Ordinary_native_message_passes_the_voice_filter_capture_without_exception(string folder)
+        {
+            // RaceRoom Norisring 22.11. (Rennen 19:36–20:03): Jede gewöhnliche Crew-Chief-Meldung warf im Stimmfilter eine
+            // NullReferenceException (NativeRaceControl.Resolve mit kind=null). LapTimes, Position, Opponents, RaceTime, PushNow,
+            // Fuel und Penalties brachen ab, Feldereignisse erreichten Ben nicht: Ben blieb fast das ganze Rennen stumm.
+            var gs=Frame(3,false,false,true);gs.SessionData.SessionType=SessionType.Race;
+            var w=new LiveWarningDispatcher();
+            Assert.DoesNotThrow(()=>Assert.IsFalse(w.Capture(NativeMessage(folder),gs,T)));
+            Assert.IsNull(NativeRaceControl.Resolve(null,gs));
+            Assert.IsTrue(w.Capture(NativeMessage("flags/give_one_position_back_first_warning"),gs,T),"Rennleitung wird weiter abgegriffen");
+        }
         [Test]
         public void Engine_temperature_warnings_share_one_three_minute_gap_unless_it_gets_hotter()
         {

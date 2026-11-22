@@ -65,7 +65,9 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         internal static string Resolve(string kind, GameStateData gs)
         {
-            if (gs == null || !kind.StartsWith("giveback:", StringComparison.Ordinal)) return kind;
+            // RaceRoom Norisring 22.11.: kind ist null für jede gewöhnliche Crew-Chief-Meldung (Runden, Position, Sprit …).
+            // kind.StartsWith warf dann im Stimmfilter, das ganze Crew-Chief-Ereignis brach ab und Ben blieb das Rennen über stumm.
+            if (gs == null || kind == null || !kind.StartsWith("giveback:", StringComparison.Ordinal)) return kind;
             string count = kind.Substring("giveback:".Length);
             if (count == "n")
             {
