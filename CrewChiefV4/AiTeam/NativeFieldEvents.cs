@@ -65,6 +65,8 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
         private DateTime lastRadio=DateTime.MinValue;
         private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
+        /// <summary>Schnellste Runde eines Gegners: darf einen kurzen Zweikampf abwarten (LMU 22.11.).</summary>
+        internal const int FastestLapSeconds = 25;
         private readonly RadioVariantCursor fastestVariants = new RadioVariantCursor();
         private int fastestAnnounced;
         /// <summary>Funkname des Fahrers; Gegner-Bestzeiten sprechen ihn im Wechsel persönlich an.</summary>
@@ -127,6 +129,7 @@ namespace CrewChiefV4.AiTeam
         private void ResetLapEvidence()
         {
             lapEvidence.Clear();
+            fieldChecked.Clear();
             pendingClassRecord = pendingOverallRecord = 0;
             classRecordUtc = overallRecordUtc = DateTime.MinValue;
         }
@@ -204,6 +207,61 @@ namespace CrewChiefV4.AiTeam
                     PriorImprovementUtc = improved ? gs.Now : sameDriver ? old.PriorImprovementUtc : DateTime.MinValue,
                     PriorImprovementTime = improved ? car.CurrentBestLapTime : sameDriver ? old.PriorImprovementTime : 0 };
             }
+            CaptureUnconfirmedFastestLaps(gs);
+        }
+
+        /// <summary>Gegnerrunden, die schon per Gegenprobe geprüft wurden (Schlüssel → Bestzeit).</summary>
+        private readonly Dictionary<string, float> fieldChecked = new Dictionary<string, float>();
+
+        /// <summary>
+        /// Rückfallebene, wenn die Klassenbestzeit der Sim die Runde eines Gegners nicht übernimmt: Hat ein Gegner vor 2,5 bis 6 s
+        /// seine Bestzeit verbessert und die Sim-Klassenbestzeit zeigt sie noch nicht, entscheidet die Gegenprobe am Feld.
+        /// </summary>
+        private void CaptureUnconfirmedFastestLaps(GameStateData gs)
+        {
+            var current = gs.SessionData;
+            if (current.SessionPhase != SessionPhase.Green) return;
+            foreach (var pair in lapEvidence)
+            {
+                var e = pair.Value;
+                if (e.PriorImprovementUtc == DateTime.MinValue || gs.Now < e.PriorImprovementUtc) continue;
+                var age = gs.Now - e.PriorImprovementUtc;
+                if (age < TimeSpan.FromSeconds(2.5) || age > TimeSpan.FromSeconds(6)) continue;
+                if (fieldChecked.TryGetValue(pair.Key, out var done) && Math.Abs(done - e.PriorImprovementTime) < .001f) continue;
+                if (!gs.OpponentData.TryGetValue(pair.Key, out var car) || car == null || !car.IsActive ||
+                    RaceReader.Identity(pair.Key, car) != e.Identity || Math.Abs(car.CurrentBestLapTime - e.PriorImprovementTime) >= .005f) continue;
+                if (fieldChecked.Count >= TrackAwareness.MaxCars) fieldChecked.Clear();
+                fieldChecked[pair.Key] = e.PriorImprovementTime;
+                float mapped = current.PlayerClassSessionBestLapTime;
+                if (mapped > 10 && Math.Abs(mapped - car.CurrentBestLapTime) < .005f) continue; // die Sim hat es schon übernommen
+                if (!FastestInClass(gs, pair.Key, car)) continue;
+                LiveDiagnostics.Decision("field-fastest", "cross_checked", "sim_class_best_lags_field", pair.Key);
+                Capture(new NativeFieldFact("fastest", pair.Key, car.CanUseName ? car.DriverRawName : null, null,
+                    "opponent_lap_beats_class_field", gs, car, car.CurrentBestLapTime));
+            }
+        }
+
+        /// <summary>
+        /// LMU Bahrain 22.11.: Krobber fuhr die schnellste Runde, die Crew schwieg – die Erkennung hing allein an der Klassenbestzeit
+        /// der Sim, und die blieb auf Robs Zeit stehen. Gegenprobe direkt am Feld: Die eben beendete Runde des Gegners ist schneller
+        /// als jede Bestzeit der anderen Autos seiner Klasse und als Robs eigene. Erst ab der zweiten gezeiteten Runde (der Start zählt nicht).
+        /// </summary>
+        internal static bool FastestInClass(GameStateData gs, string key, OpponentData car)
+        {
+            float best = car.CurrentBestLapTime;
+            if (gs == null || car == null || !(best > 10) || best >= 3600 || car.CompletedLaps < 2 || car.InPits) return false;
+            bool separate = RaceRadioLanguage.SeparateClass(gs.SessionData);
+            if (separate && (gs.carClass == null || car.CarClass == null || !CarData.IsCarClassEqual(gs.carClass, car.CarClass, false))) return false;
+            float own = gs.SessionData.PlayerLapTimeSessionBest;
+            if (own > 10 && own <= best + .001f) return false;
+            foreach (var pair in gs.OpponentData)
+            {
+                var other = pair.Value;
+                if (pair.Key == key || other == null || !(other.CurrentBestLapTime > 10)) continue;
+                if (separate && (other.CarClass == null || !CarData.IsCarClassEqual(gs.carClass, other.CarClass, false))) continue;
+                if (other.CurrentBestLapTime <= best + .001f) return false;
+            }
+            return true;
         }
 
         private static void UpdateRecordWindow(float previous, float best, DateTime now, ref float pendingBest, ref DateTime pendingUtc)
@@ -304,7 +362,7 @@ namespace CrewChiefV4.AiTeam
                 if (pending.Count >= 16) Remove(pending[0]);
                 var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,SemanticKey="field|"+id,
                     SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=fastest?4:3,
-                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : 10),AdditionalValidity=live=>StillCurrent(fact,live)};
+                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : fastest ? FastestLapSeconds : 10),AdditionalValidity=live=>StillCurrent(fact,live)};
                 pending.Add(call);
                 if (f.Kind == "pit")
                 {
@@ -353,9 +411,12 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;
             float reference = f.Kind == "fastest-overall" ? gs.SessionData.OverallSessionBestLapTime : gs.SessionData.PlayerClassSessionBestLapTime;
+            // LMU Bahrain 22.11.: Die Klassenbestzeit der Sim kann hinter der Runde des Gegners herhinken. Ungültig wird die Meldung
+            // nur, wenn jemand schneller war – nicht, weil der Sim-Wert noch die alte Zeit zeigt.
+            float own = gs.SessionData.PlayerLapTimeSessionBest;
             return (f.Kind=="fastest" || f.Kind=="fastest-overall") && f.Seconds>10 &&
                 op.IsActive && op.CurrentBestLapTime>0 && Math.Abs(op.CurrentBestLapTime-f.Seconds)<=.005 &&
-                (!(reference > 10) || Math.Abs(reference-f.Seconds)<=.005);
+                (!(reference > 10) || reference > f.Seconds-.005) && (!(own > 10) || own > f.Seconds-.005);
         }
         private void Remove(ObservedRaceCall call)
         {

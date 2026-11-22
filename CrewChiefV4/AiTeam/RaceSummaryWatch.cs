@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
@@ -23,6 +24,8 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         internal const float LateCalmSeconds = 1f;
         internal const double LateAfter = .06, GiveUpAfter = .2;
+        /// <summary>Lebensdauer eines Zwischenstands; Platz und Abstände werden beim Sprechen ohnehin neu gelesen.</summary>
+        internal const int SummarySeconds = 30;
         private float calmNeeded = CalmSeconds;
         private readonly Random random;
         private int session = int.MinValue, startPosition, delivered, tallyVariant;
@@ -36,7 +39,7 @@ namespace CrewChiefV4.AiTeam
 
         internal void Reset()
         {
-            session = int.MinValue; startPosition = 0; delivered = 0; windows.Clear(); call = null;
+            session = int.MinValue; startPosition = 0; delivered = 0; windows.Clear(); call = null; halfWindow = -1;
         }
 
         /// <summary>Anteil des Rennens (0..1) aus Runden oder Zeit; -1 wenn unbekannt.</summary>
@@ -70,17 +73,31 @@ namespace CrewChiefV4.AiTeam
             return 1;
         }
 
+        /// <summary>Rennanteil des festen Zwischenfazits zur Rennhälfte.</summary>
+        internal const double HalfRace = .5;
+        private int halfWindow = -1;
+
+        /// <summary>Index des Fensters zur Rennhälfte; -1, wenn das Rennen dafür zu kurz ist.</summary>
+        internal int HalfWindow => halfWindow;
+
         private void Plan(SessionData s)
         {
             windows.Clear();
+            halfWindow = -1;
             double early = EarlyWindow(s);
             windows.Add(early);
             int n = TotalCount(s) - 1;
-            for (int i = 1; i <= n; i++)
+            // LMU Bahrain 22.11.: „Kein Zwischenfazit zur Rennhälfte.“ Ab zwei Zwischenständen ist einer fest bei halber Distanz,
+            // ein weiterer liegt mit Zufall zwischen Halbzeit und Schlussphase.
+            if (n >= 1)
             {
-                double centre = early + (.85 - early) * i / (n + 1) + .1;
-                double jitter = (random.NextDouble() - .5) * (.3 / (n + 1));
-                windows.Add(Math.Max(early + .15, Math.Min(.85, centre + jitter)));
+                halfWindow = windows.Count;
+                windows.Add(Math.Max(early + .15, HalfRace));
+            }
+            for (int i = 2; i <= n; i++)
+            {
+                double jitter = (random.NextDouble() - .5) * .1;
+                windows.Add(Math.Max(windows[windows.Count - 1] + .1, Math.Min(.85, .72 + jitter)));
             }
         }
 
@@ -129,7 +146,8 @@ namespace CrewChiefV4.AiTeam
             int left = LapWatch.LapsLeft(s);
             if (left > 0 && left <= 2) { delivered = windows.Count; return; } // Schlussphase gehört dem Rennen
             if (progress > windows[delivered] + GiveUpAfter) { delivered++; return; } // Kein ruhiger Moment gefunden: diese Gelegenheit verfällt
-            bool late = progress > windows[delivered] + LateAfter;
+            // Das Fazit zur Rennhälfte ist ein fester Moment: es wartet nicht erst, bis es „spät“ ist.
+            bool late = progress > windows[delivered] + LateAfter || delivered == halfWindow;
             float need = late ? LateCalmSeconds : CalmSeconds;
             var c = context();
             float ahead = Gap(c, true), behind = Gap(c, false);
@@ -140,7 +158,7 @@ namespace CrewChiefV4.AiTeam
             call = new ObservedRaceCall
             {
                 Topic = "race-summary", Text = text, Evidence = "calm_window_measured_position_gaps_fuel", Member = TeamMember.Ben, Priority = 2,
-                Position = s.ClassPosition, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(15),
+                Position = s.ClassPosition, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(SummarySeconds),
                 AdditionalValidity = live => Calm(live, -1, -1, need), Guaranteed = late,
                 // C3: Platz und Abstände erst beim Sprechen festlegen – wartet die Ansage, sagt Ben trotzdem den aktuellen Stand.
                 RefreshText = Refresh
@@ -176,11 +194,37 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Veränderung über die letzten bis zu drei Runden (negativ = Abstand schrumpft).</summary>
         private static float Trend(List<float> gaps) => gaps.Count >= 2 ? gaps[gaps.Count - 1] - gaps[0] : 0;
 
+        /// <summary>
+        /// Klassenbestzeit mit Gegenprobe am Feld. LMU Bahrain 22.11.: „Deine 1:22,361 ist die schnellste Runde deiner Klasse“ –
+        /// Krobber war schneller, die Sim-Klassenbestzeit zeigte Robs Zeit. Der schnellere Wert aus Sim und Bestzeiten der Gegner
+        /// derselben Klasse zählt; -1, wenn keiner bekannt ist.
+        /// </summary>
+        internal static float FieldCheckedClassBest(GameStateData gs)
+        {
+            float best = gs.SessionData.PlayerClassSessionBestLapTime > 10 ? gs.SessionData.PlayerClassSessionBestLapTime : float.MaxValue;
+            foreach (var o in ClassRivalBests(gs)) if (o < best) best = o;
+            return best == float.MaxValue ? -1 : best;
+        }
+
+        /// <summary>„Schnellste Runde deiner Klasse“ ist nur belegt, wenn mindestens ein Gegner derselben Klasse eine Zeit hat.</summary>
+        internal static bool ClassFieldHasTimes(GameStateData gs) => ClassRivalBests(gs).Any();
+
+        private static IEnumerable<float> ClassRivalBests(GameStateData gs)
+        {
+            foreach (var o in gs.OpponentData.Values)
+            {
+                if (o == null || !(o.CurrentBestLapTime > 10) || o.CurrentBestLapTime >= 3600) continue;
+                if (gs.carClass != null && o.CarClass != null && !CarData.IsCarClassEqual(gs.carClass, o.CarClass, false)) continue;
+                yield return o.CurrentBestLapTime;
+            }
+        }
+
         internal enum Mood { Attack, Defend, Safe, Steady, Leading }
 
         internal string Compose(RaceDataContext ctx, float ahead, float behind)
         {
             var gs = ctx.GameState; var s = gs.SessionData;
+            bool half = halfWindow >= 0 && delivered == halfWindow;
             if (s.ClassPosition <= 0) return null;
             var parts = new List<string>();
             string name = AiPersonas.CleanForRadio(ctx.DriverName ?? "", 30, false);
@@ -193,6 +237,12 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.T("kurz zur Lage", "quick status", "situación rápida"),
                 RadioLanguage.T("Stand der Dinge", "where we are", "cómo vamos"),
                 RadioLanguage.T("kleines Update", "short update", "pequeña actualización"));
+            if (half)
+                head = RadioVariants.Pick("summary-head-half",
+                    RadioLanguage.T("Halbzeit im Rennen", "halfway through the race", "mitad de carrera"),
+                    RadioLanguage.T("die Hälfte ist geschafft", "half the race is done", "ya llevamos la mitad"),
+                    RadioLanguage.T("Rennhälfte, kurz zur Lage", "halfway, quick status", "mitad de carrera, situación rápida"),
+                    RadioLanguage.T("halbe Distanz, Stand der Dinge", "half distance, where we are", "media distancia, cómo vamos"));
             if (intro.Length == 0) head = Capitalize(head);
             if (gained > 0)
                 parts.Add(RadioLanguage.T(intro + head + ": " + rank + ", seit dem Start " + gained + (gained == 1 ? " Platz" : " Plätze") + " gutgemacht.",
@@ -206,17 +256,17 @@ namespace CrewChiefV4.AiTeam
                 parts.Add(intro + head + ": " + rank + ".");
 
             // Rob 20.11.: „wie ich mich die ersten Runden geschlagen habe“ – eigene Pace gegen die Klassenbestzeit.
-            float pb = s.PlayerLapTimeSessionBest, cb = s.PlayerClassSessionBestLapTime;
+            float pb = s.PlayerLapTimeSessionBest, cb = FieldCheckedClassBest(gs);
             if (pb > 10 && cb > 10 && pb < 3600 && cb < 3600)
             {
                 string own = LocalAnswers.LapTime(pb);
-                if (pb - cb < .05f)
+                if (pb - cb < .05f && ClassFieldHasTimes(gs))
                     parts.Add(RadioVariants.Pick("summary-pace-best",
                         RadioLanguage.T("Deine " + own + " ist die schnellste Runde deiner Klasse.", "Your " + own + " is the fastest lap in your class.", "Tu " + own + " es la vuelta más rápida de tu clase."),
                         RadioLanguage.T("Mit " + own + " hast du die Klassenbestzeit.", "With " + own + " you hold the class best.", "Con " + own + " tienes el mejor tiempo de la clase."),
                         RadioLanguage.T("Niemand in deiner Klasse war schneller als deine " + own + ".", "Nobody in your class has gone quicker than your " + own + ".", "Nadie de tu clase ha ido más rápido que tu " + own + "."),
                         RadioLanguage.T("Klassenbestzeit gehört dir, " + own + ".", "The class best is yours, " + own + ".", "El mejor tiempo de la clase es tuyo, " + own + ".")));
-                else
+                else if (pb - cb >= .05f)
                 {
                     string gap = GermanRadioText.Interval(pb - cb);
                     parts.Add(RadioVariants.Pick("summary-pace",

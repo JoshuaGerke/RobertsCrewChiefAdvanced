@@ -65,7 +65,9 @@ namespace CrewChiefV4.AiTeam
     {
         public const int MaximumIncoming = 32, MaximumPending = 16, MaximumSeen = 128;
         public static readonly TimeSpan MaximumAge = TimeSpan.FromSeconds(1);
-        public static readonly TimeSpan DecisionLifetime = TimeSpan.FromSeconds(8);
+        // LMU Bahrain 22.11.: Der Abstand nach hinten verfiel zweimal vor dem Abspielen. Die Zahl wird beim Sprechen ohnehin neu
+        // gemessen (±0,5 s), deshalb darf die Entscheidung länger auf eine Lücke im Funk warten.
+        public static readonly TimeSpan DecisionLifetime = TimeSpan.FromSeconds(14);
         private readonly ConcurrentQueue<NativeTimingFact> incoming = new ConcurrentQueue<NativeTimingFact>();
         private sealed class Entry
         {

@@ -482,15 +482,31 @@ namespace CrewChiefV4.AiTeam
                 trackLength > 500 && lapDistance >= trackLength / 2 && lapDistance < trackLength * .85f)
             {
                 startVerdictDone = true;
-                string startText = StartVerdict(s, startPosition, driverName, Environment.TickCount & 0xFF);
+                int verdictVariant = Environment.TickCount & 0xFF, verdictStart = startPosition, verdictSession = s.SessionId, verdictStory = storyVariant;
                 // Rennverständnis (Rob 21.11.): an wem vorbei, wer vorbei – aus der Rennchronik, nur mit erlaubten Namen.
-                var chronicle = RaceChronicle.Current;
-                if (names && chronicle.Session == s.SessionId && chronicle.Type == SessionType.Race)
-                {
-                    string who = RaceStory.StartNames(chronicle, storyVariant);
-                    if (who.Length > 0) { startText += " " + who; storyVariant++; }
-                }
-                Add("start-verdict", startText, gs, now, 8, 5, "class_position_at_half_of_lap_one");
+                Func<SessionData, string> compose = snapshot => {
+                    string startText = StartVerdict(snapshot, verdictStart, driverName, verdictVariant);
+                    var chronicle = RaceChronicle.Current;
+                    if (names && chronicle.Session == verdictSession && chronicle.Type == SessionType.Race)
+                    {
+                        string who = RaceStory.StartNames(chronicle, verdictStory);
+                        if (who.Length > 0) startText += " " + who;
+                    }
+                    return startText;
+                };
+                // LMU Bahrain 22.11.: Das Startfazit verfiel nach 8 s (erkannt 11:45:33, verfallen 11:45:41), weil Rob mitten im
+                // Getümmel war und der Platz sich noch änderte. Jetzt lebt es 30 s, ist nicht an den Platz der Erkennung gebunden
+                // und nennt beim Sprechen den aktuellen Platz.
+                Add("start-verdict", compose(s), gs, now, StartVerdictSeconds, 5, "class_position_at_half_of_lap_one");
+                var verdictCall = pending.Last();
+                verdictCall.Position = -1;
+                verdictCall.RefreshText = ctx => {
+                    var snapshot = ctx.GameState.SessionData;
+                    if (snapshot.SessionId != verdictSession || snapshot.ClassPosition <= 0) return null;
+                    verdictCall.StatedPosition = snapshot.ClassPosition;
+                    return compose(snapshot);
+                };
+                storyVariant++;
             }
             if (!green || gs.PitData.InPitlane || s.ClassPosition <= 0 || previousInPits)
             {
@@ -840,6 +856,9 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Lebensdauer einer eigenen Platzmeldung (gebunden an den gemeldeten Platz).</summary>
         internal const int PositionCallSeconds = 15;
+
+        /// <summary>Lebensdauer des Startfazits: lang genug, um das Getümmel der ersten Runde abzuwarten.</summary>
+        internal const int StartVerdictSeconds = 30;
 
         private void Add(string topic, string text, GameStateData gs, DateTime now, int seconds, int priority, string evidence)
         {

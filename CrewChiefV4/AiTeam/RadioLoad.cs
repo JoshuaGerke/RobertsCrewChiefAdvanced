@@ -24,7 +24,8 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class RadioLoad
     {
-        internal static readonly TimeSpan Window = TimeSpan.FromSeconds(60), DataGap = TimeSpan.FromSeconds(8), HalfLife = TimeSpan.FromSeconds(8);
+        internal static readonly TimeSpan Window = TimeSpan.FromSeconds(60), DataGap = TimeSpan.FromSeconds(8), HalfLife = TimeSpan.FromSeconds(8),
+            SummaryGap = TimeSpan.FromSeconds(3);
         /// <summary>Höchste Anspannung, bei der eine Klasse noch sprechen darf.</summary>
         internal const double EventLimit = .95, EncouragementLimit = .8, CoachingLimit = .6, DataLimit = .55;
         /// <summary>Sprechzeit je Minute: insgesamt (ohne Sicherheit) und für Daten.</summary>
@@ -129,12 +130,21 @@ namespace CrewChiefV4.AiTeam
             topic == "position" || topic == "position-loss" || topic == "judge-overtake" || topic == "judge-retake" ||
             topic == "judge-overtake-rough" || topic == "judge-overtake-countered";
 
+        /// <summary>
+        /// Robs eigener Kampf, über den er gerade jetzt Bescheid wissen will: das Startfazit nach der halben ersten Runde und die
+        /// Abstände zum direkten Vorder- und Hintermann. LMU Bahrain 22.11.: Das Startfazit verfiel nach 8 s, die Abstände nach vorn
+        /// wurden viermal wegen hoher Anspannung gehalten – sie kamen genau dann nicht, wenn es eng wurde. Wie Platzwechsel gehen sie
+        /// an Anspannung und Sprechzeit vorbei; Seite an Seite (Überlappung) warten sie weiter.
+        /// </summary>
+        internal static bool OwnFight(string topic) =>
+            topic == "start-verdict" || topic == "native-gap-front" || topic == "native-gap-behind";
+
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)
         {
             reason = null;
             var c = Classify(topic, priority);
-            if (c == RadioClass.Safety || OwnPositionChange(topic)) return true;
+            if (c == RadioClass.Safety || OwnPositionChange(topic) || OwnFight(topic)) return true;
             double t = Tension;
             switch (c)
             {
@@ -153,6 +163,9 @@ namespace CrewChiefV4.AiTeam
                     double limit = density == 0 ? DataLimit + .1 : density == 2 ? DataLimit - .1 : DataLimit;
                     double budget = density == 0 ? DataAirtimePerMinute * 1.5 : density == 2 ? DataAirtimePerMinute * .6 : DataAirtimePerMinute;
                     TimeSpan gap = density == 0 ? TimeSpan.FromSeconds(6) : density == 2 ? TimeSpan.FromSeconds(12) : DataGap;
+                    // LMU Bahrain 22.11.: Der Zwischenstand wartete 13-mal auf 8 s Funkstille und kam nur 2 von 16 Mal. Er entsteht
+                    // ohnehin nur in einer ruhigen Minute; ein kurzer Atemzug nach der letzten Ansage genügt.
+                    if (topic == "race-summary" && gap > SummaryGap) gap = SummaryGap;
                     if (t > limit) { reason = "load_tension_data_waits"; return false; }
                     if (DataAirtime(now) >= budget) { reason = "load_data_budget_used"; return false; }
                     lock (gate) if (lastSpoken != DateTime.MinValue && now >= lastSpoken && now - lastSpoken < gap) { reason = "load_data_needs_a_gap"; return false; }
