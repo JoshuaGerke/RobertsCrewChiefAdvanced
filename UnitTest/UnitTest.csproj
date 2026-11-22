@@ -99,6 +99,7 @@
     <Compile Include="AiTeam\RadioDirectorPolicyTests.cs" />
     <Compile Include="AiTeam\SpokenNamesTests.cs" />
     <Compile Include="AiTeam\RoutineGuaranteeTests.cs" />
+    <Compile Include="AiTeam\LmuBahrainFindingsTests.cs" />
     <Compile Include="AiTeam\HazardCallRegressionTests.cs" />
     <Compile Include="AiTeam\RaceLapCommentTests.cs" />
     <Compile Include="AiTeam\CrashReportTests.cs" />

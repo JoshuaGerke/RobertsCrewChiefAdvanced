@@ -59,6 +59,14 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
+            // LMU 22.11.: „Die Gelbphasen kriegst du aber auch mit, ja, Sarah, und meldest die, oder?“ und „Ich rede von Sarah,
+            // nicht von dir“ gingen an Mik und Ben – der Name stand nicht in den ersten drei Wörtern. Wird genau ein Crewmitglied
+            // später im Satz angesprochen (zwischen Kommas, am Satzende, „von/mit/an Sarah“), ist es gemeint. Ein Gegnername
+            // mitten im Satz („Wie weit ist Mike Rockenfeller?“) zählt nicht.
+            var addressedLater = AddressedLater(text);
+            if (addressedLater.HasValue && !DriverRadioPreferences.IsCommand(text))
+                return new RoutedRequest { Member = addressedLater.Value, Question = text, AddressedByName = true };
+
             // Explicit routine preferences belong to the pit wall, even after a conversation with Sara.
             if (DriverRadioPreferences.IsCommand(text))
                 return new RoutedRequest { Member = TeamMember.Ben, Question = text, AddressedByName = false };
@@ -79,6 +87,24 @@ namespace CrewChiefV4.AiTeam
             }
             TeamMember member = byTopic ?? lastMember ?? TeamMember.Mik;
             return new RoutedRequest { Member = member, Question = text, AddressedByName = false };
+        }
+
+        private static readonly Dictionary<TeamMember, Regex> addressed = names.ToDictionary(p => p.Key, p => new Regex(
+            @"(?:[,;:!?.]\s*|\b(?:von|mit|an|zu|für|frag|to|with|ask|con|a|para)\s+)(?:" + string.Join("|", p.Value.Select(Regex.Escape)) + @")(?=\s*(?:[,;:!?.]|$))",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled));
+
+        /// <summary>Genau ein Crewmitglied später im Satz angesprochen, sonst null.</summary>
+        internal static TeamMember? AddressedLater(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            TeamMember? found = null;
+            foreach (var entry in addressed)
+            {
+                if (!entry.Value.IsMatch(text)) continue;
+                if (found.HasValue) return null; // zwei Namen: unklar, wie bisher nach Thema
+                found = entry.Key;
+            }
+            return found;
         }
 
         /// <summary>

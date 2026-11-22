@@ -131,6 +131,21 @@ namespace CrewChiefV4.AiTeam
                 !gs.PitData.OnOutLap && !gs.PitData.OnInLap && !gs.PitData.InPitlane &&
                 !TrackAwareness.InRange(gs.PositionAndMotionData.CarSpeed,0,4.99).HasValue;
         }
+        /// <summary>
+        /// Was einen fertigen Routinebericht wirklich ungültig macht: Gelb und eine laufende Qualifying- oder Hotlap-Runde.
+        /// Bremsen ist nur ein Grund zu warten (der Funk wartet ohnehin die Bremszone ab), kein Grund, den fertigen Bericht
+        /// wegzuwerfen. (LMU 22.11.: Sprit 0 von 13, Reifen 1 von 9, Stint 0 von 7 Berichten im Rennen – sie wurden als
+        /// zugesagte Berichte freigegeben und in derselben Sekunde im Zweikampf als „Hintergrundstatistik“ wieder verworfen;
+        /// das behebt die Zustellung im Dienst, diese Regel verhindert dasselbe beim Bremsen.)
+        /// </summary>
+        public static bool InvalidatesRoutine(GameStateData gs)
+        {return gs != null && gs.FlagData.isLocalYellow || OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
+            gs.SessionData.CurrentLapIsValid && !gs.PitData.OnOutLap && !gs.PitData.InPitlane;}
+        /// <summary>
+        /// LMU 22.11.: Ein Bericht lebte 6 s (Zwischenstand 10 s), der Rennkopf hält in 2-s-Schritten an, nach einem Sicherheitsfunk
+        /// warten Daten 6 s – er verfiel fast immer, bevor er an der Reihe war. Jetzt darf er so lange auf die Lücke warten.
+        /// </summary>
+        internal const int RoutineLifetimeSeconds = 20, GuaranteedLifetimeSeconds = 30;
         public static bool BusyForRoutine(GameStateData gs)
         {return gs != null && gs.FlagData.isLocalYellow || OnConfirmedQualifyingPushLap(gs) || gs!=null && gs.SessionData.SessionType==SessionType.HotLap &&
             gs.SessionData.CurrentLapIsValid && !gs.PitData.OnOutLap && !gs.PitData.InPitlane || gs!=null && TrackAwareness.InRange(gs.ControlData.BrakePedal,.2,1).HasValue;}
@@ -235,7 +250,9 @@ namespace CrewChiefV4.AiTeam
                     // behält seine Verspätung und kommt dadurch spätestens als zugesagter Bericht.
                     bool keep = prefs[outstanding.Topic] > 0 && (memberEnabled == null || memberEnabled(outstanding.Member)) &&
                         outstandingSince != DateTime.MinValue;
-                    due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" || keep && outstanding.Guaranteed ? 5 : 30);
+                    // LMU 22.11.: Ein verfallener, weiter eingestellter Bericht kommt nach 5 s mit frischen Zahlen wieder (bisher 30 s –
+                    // dazwischen lag oft die nächste Bremszone, und er verfiel erneut).
+                    due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" || keep ? 5 : 30);
                     if (keep) overdueSince[outstanding.Topic] = outstandingSince; else overdueSince.Remove(outstanding.Topic);
                     outstanding = null;
                 }
@@ -347,10 +364,10 @@ namespace CrewChiefV4.AiTeam
                 outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=raceStatus ? 3 : 1, VariantCursor=cursor,
                     ReferenceTemplate=template, RaceStatus=raceStatus,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
-                    AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !BusyForRoutine(live)) &&
+                    AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !InvalidatesRoutine(live)) &&
                         (!overallSpoken || live.SessionData.OverallPosition == overall),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
-                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(raceStatus ? 10 : 6),
+                    SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(promisedTopic ? GuaranteedLifetimeSeconds : RoutineLifetimeSeconds),
                     Guaranteed=promisedTopic };
                 outstandingSince = since == default(DateTime) ? now : since;
                 if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))

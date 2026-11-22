@@ -584,7 +584,9 @@ namespace CrewChiefV4.AiTeam
                             now - recentFrontPit.EnteredUtc <= TimeSpan.FromSeconds(2) && recentFrontPit.StillInPits(gs) &&
                             gs.OpponentData[recentFrontPit.Key].ClassPosition == stablePosition ? recentFrontPit : null;
                         lastAnnouncedPosition = candidatePosition;
-                        Add("position", text, gs, now, 9, candidatePass && !candidatePit ? 5 : 3,
+                        // LMU 22.11.: Die Platzmeldung lebte 9 s und verfiel hinter Funklast und Warteschlange. Sie bleibt an den
+                        // aktuellen Platz gebunden (ändert er sich, ist sie ungültig) und darf deshalb länger auf ihre Lücke warten.
+                        Add("position", text, gs, now, PositionCallSeconds, candidatePass && !candidatePit ? 5 : 3,
                             pitGain != null ? "same_class_front_rival_entered_pit_before_rank_gain" :
                             candidatePass && !candidatePit ? "stable_rank_and_same_active_rival_crossing" : conductUncertain ? "stable_rank_with_track_limit_uncertainty" : "stable_rank_cause_unknown");
                         if (pitGain != null)
@@ -637,7 +639,9 @@ namespace CrewChiefV4.AiTeam
                                 RaceStory.AfterLoss(candidateLossKey, now, storyVariant)).Trim();
                             storyVariant++;
                         }
-                        Add("position", lostText, gs, now, 8, 2, candidateLossKey != null ? "stable_position_loss_same_class_rival_crossed" : "stable_position_loss_cause_unknown");
+                        // LMU 22.11. (Rob): „Valgo hat mich wieder überholt. Das war viel wichtiger.“ Die Meldung stand hinter „Durchatmen“
+                        // und „Blick nach hinten“ in der Schlange und verfiel nach 8 s.
+                        Add("position", lostText, gs, now, PositionCallSeconds, 2, candidateLossKey != null ? "stable_position_loss_same_class_rival_crossed" : "stable_position_loss_cause_unknown");
                     }
                     if (gain < 0)
                         memory?.AddObservation("Zurückgefallen von Platz " + stablePosition + " auf " + candidatePosition + ".",
@@ -833,6 +837,9 @@ namespace CrewChiefV4.AiTeam
             LiveDiagnostics.Decision(next.Topic, "selected", next.Evidence, next.Text, next.EventId);
             return next;
         }
+
+        /// <summary>Lebensdauer einer eigenen Platzmeldung (gebunden an den gemeldeten Platz).</summary>
+        internal const int PositionCallSeconds = 15;
 
         private void Add(string topic, string text, GameStateData gs, DateTime now, int seconds, int priority, string evidence)
         {

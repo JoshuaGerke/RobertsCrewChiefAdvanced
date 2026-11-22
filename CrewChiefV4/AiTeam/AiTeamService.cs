@@ -52,6 +52,7 @@ namespace CrewChiefV4.AiTeam
         private readonly FuelWatch fuelWatch = new FuelWatch();
         private readonly IncidentWatch incidentWatch = new IncidentWatch();
         private readonly FlagWatch flagWatch = new FlagWatch();
+        private readonly YellowAheadWatch yellowAhead = new YellowAheadWatch();
         private readonly WeatherWatch weatherWatch = new WeatherWatch();
         private readonly PitLaneWatch pitLaneWatch = new PitLaneWatch();
         private readonly PitStopTimer pitStopTimer = new PitStopTimer();
@@ -303,6 +304,7 @@ namespace CrewChiefV4.AiTeam
                 pitFinishCall = null;
                 incidentWatch.Reset();
                 flagWatch.Reset();
+                yellowAhead.Reset();
                 weatherWatch.Reset();
                 pitLaneWatch.Reset();
                 pitStopTimer.Reset();
@@ -460,6 +462,7 @@ namespace CrewChiefV4.AiTeam
                         opponentNameClip: incidentDriver == null ? null : RaceTrafficWatch.NameClipText(incidentDriver));
                 }
             }
+            OfferHazardFarAhead(current, now);
             var incidents = incidentWatch.Evaluate(previous, current, now, settings.RadioMode == AiRadioMode.MINIMAL);
             string penaltyCall = incidentWatch.TakePenaltyCall();
             foreach (var incident in incidents)
@@ -2465,6 +2468,34 @@ namespace CrewChiefV4.AiTeam
                 !Corners.RadioBrakingWindow(live.PositionAndMotionData.DistanceRoundTrack, live.PositionAndMotionData.CarSpeed);
         }
 
+        /// <summary>
+        /// LMU 22.11. (Rob): „Gelbphase und ein stehendes Auto vor mir – du hättest alle anderen überstimmen müssen.“ Dreher oder
+        /// stehender Wagen 250–1000 m voraus aus dem Lagebild (alle Sims mit Lagebild): Sara, kurz, vor allen anderen.
+        /// </summary>
+        private void OfferHazardFarAhead(GameStateData current, DateTime now)
+        {
+            if (current == null) return;
+            var hazard = yellowAhead.Take(Field.FieldPicture.Shared.Current, current, now);
+            if (hazard == null) return;
+            string hazardName = hazard.Name;
+            string section = TrackAwareness.ConfirmedSection(current.SessionData.TrackDefinition, hazard.LapDistance);
+            string text = YellowAheadWatch.Text(YellowAheadWatch.SimShowsYellow(current), section, hazard.GapM, hazard.Stopped);
+            string spokenName = settings.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(hazardName) : null;
+            if (string.IsNullOrWhiteSpace(spokenName) || RaceTrafficWatch.SpokenRecently(spokenName, now, TimeSpan.FromSeconds(8), true)) spokenName = null;
+            if (spokenName != null)
+            {
+                RaceTrafficWatch.NoteSpoken(spokenName, now, true);
+                RaceTrafficWatch.NoteHazard(spokenName, current.SessionData.SessionId, now);
+            }
+            if (current.SessionData.SessionType == SessionType.Race)
+                RaceChronicle.Current.Add(current, now, ChronicleKind.Yellow, detail: hazard.Stopped ? "steht_voraus" : "dreher_voraus", source: "lagebild",
+                    subjectName: spokenName, dedupe: TimeSpan.FromSeconds(20));
+            liveWarnings.Offer("warning-hazard-far", text, settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : TeamMember.Ben, 7, current, now,
+                live => YellowAheadWatch.StillThere(Field.FieldPicture.Shared.Current, hazardName, DateTime.UtcNow),
+                "field_picture_" + (hazard.Stopped ? "stopped" : "spun") + "_" + (int)hazard.GapM + "m_ahead",
+                opponentNameClip: spokenName == null ? null : RaceTrafficWatch.NameClipText(spokenName));
+        }
+
         private void QueueLocalRaceCall(ObservedRaceCall call)
         {
             // Rob 21.11.: „Ben und Sara haben bei Unfällen die gleichen Funktionen – es reicht, wenn Sara das macht.“
@@ -2622,7 +2653,8 @@ namespace CrewChiefV4.AiTeam
                                 DriverMemory.QualifyingSectorRadioEnabled) &&
                             generation == Volatile.Read(ref sessionGeneration) &&
                             TelemetryFresh() && !Spotter().HasOverlap && call.IsValid(live, now) &&
-                            (!backgroundStatistics || !RaceRadioDirector.SuppressBackgroundStatistics(BuildContext(live))) &&
+                            // LMU 22.11.: Ein zugesagter Routinebericht (30 s überfällig) wird nicht noch im Zweikampf verworfen.
+                            (!backgroundStatistics || call.Guaranteed || !RaceRadioDirector.SuppressBackgroundStatistics(BuildContext(live))) &&
                             (detailIsCurrent == null || detailIsCurrent(live, now)) && CanRefreshRenderedFacts(live);
                     };
                     void DeferOrRelease(string reason)

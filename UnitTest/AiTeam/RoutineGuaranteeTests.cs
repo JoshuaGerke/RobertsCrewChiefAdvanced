@@ -56,7 +56,12 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(first);
             Assert.IsFalse(first.Guaranteed);
             first.ReleaseForRetry(T.AddSeconds(31));
-            Assert.IsNull(q.Take(At(s, 40), p, false), "verfällt nach sechs Sekunden");
+            // LMU 22.11.: Der Bericht wartet bis zu 20 s auf seine Lücke (bisher 6 s) – ein Fehlversuch wirft ihn nicht weg.
+            var waiting = q.Take(At(s, 40), p, false);
+            Assert.IsNotNull(waiting, "wartet weiter auf die Lücke");
+            Assert.AreEqual(first.EventId, waiting.EventId, "derselbe Bericht, kein neuer");
+            waiting.ReleaseForRetry(T.AddSeconds(41));
+            Assert.IsNull(q.Take(At(s, 51), p, false), "nach 20 s verfallen");
             var again = q.Take(At(s, 71), p, false);
             Assert.IsNotNull(again);
             Assert.IsTrue(again.Guaranteed, "die Wartezeit seit der ersten Fälligkeit zählt weiter");
