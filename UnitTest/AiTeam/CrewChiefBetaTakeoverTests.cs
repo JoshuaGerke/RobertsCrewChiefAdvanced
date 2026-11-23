@@ -39,6 +39,8 @@ namespace UnitTest.AiTeamTests
         {
             var c = new CarData.CarClass();
             c.carClassEnum = e;
+            // wie beim Laden der Klassendaten: setzt das Gruppen-Kennzeichen (DTM 2013–2016, TC1) vorab
+            c.getClassIdentifier();
             return c;
         }
 
