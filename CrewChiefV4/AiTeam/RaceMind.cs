@@ -402,6 +402,18 @@ namespace CrewChiefV4.AiTeam
                 if (driverBusy || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start) { reason = "busy_projection_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
+            if (t.StartsWith("story-", StringComparison.Ordinal))
+            {
+                // Rennverlauf (Rob 23.11.): nie unter Gelb, in der Box oder in der Startrunde; in der letzten Runde entfällt er.
+                // Die Zweikampfdauer und „wie angekündigt“ betreffen den Kampf selbst und kommen auch im Zweikampf (die Funklast
+                // wartet die enge Phase ab); freigefahren, abgesetzt und die Reaktion des Kollegen warten auf eine ruhige Lage.
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
+                { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
+                bool fightStory = t == "story-duel-front" || t == "story-duel-rear" || t == "story-kept-ahead" || t == "story-kept-behind";
+                if (!fightStory && x.Attention == RaceAttention.Battle) { reason = "busy_story_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
             if (t.StartsWith("judge-", StringComparison.Ordinal) || t.StartsWith("insight-", StringComparison.Ordinal))
             {
                 // Lob, Ansporn und Mitgefühl (Rob 16.11.): nie mitten im Zweikampf, unter Gelb, in der Box oder in der Startrunde;
@@ -415,6 +427,19 @@ namespace CrewChiefV4.AiTeam
         }
 
         private DateTime lastPositionNews = DateTime.MinValue;
+
+        /// <summary>So lange gilt ein wortgleicher Ansporn als Wiederholung.</summary>
+        internal static readonly TimeSpan ColourRepeatWindow = TimeSpan.FromMinutes(5);
+
+        /// <summary>Lob, Ansporn oder Fahrtipp, dessen ganzer Satz (Zahlen ausgenommen) eben erst zu hören war.</summary>
+        internal static bool RepeatsRecentColour(ObservedRaceCall call, DateTime now)
+        {
+            if (call == null || string.IsNullOrWhiteSpace(call.Text)) return false;
+            var c = RadioLoad.Classify(call.Topic, call.Priority);
+            if (c != RadioClass.Encouragement && c != RadioClass.Coaching) return false;
+            DateTime last = PhraseMemory.LastHeard(call.Text, now);
+            return last != DateTime.MinValue && now - last < ColourRepeatWindow;
+        }
 
         /// <summary>
         /// Zentrale Freigabe mit Gedächtnis (Rob 16.11., Mosport: nach dem Dreher kamen „Platz 5“, „Platz 6“, „Platz 7“, „von 7 auf 9“
@@ -438,6 +463,9 @@ namespace CrewChiefV4.AiTeam
             if ((t == "status" || t == "summary") && now - lastPositionNews < TimeSpan.FromSeconds(20))
             { reason = "position_just_reported"; return MindVerdict.Drop; }
             if (t == "position" || t == "position-loss") lastPositionNews = now;
+            // Satzgedächtnis (Rob 23.11., Monza): Lob, Ansporn und Fahrtipps, die in den letzten Minuten wortgleich (bis auf Zahlen)
+            // zu hören waren, entfallen – lieber eine Funkpause als derselbe Satz noch einmal.
+            if (!call.Guaranteed && RepeatsRecentColour(call, now)) { reason = "repeat_within_minutes"; return MindVerdict.Drop; }
             // Funklast: je angespannter und je mehr schon gefunkt wurde, desto wichtiger muss eine Ansage sein.
             // Ein zugesagter Routinebericht hat schon lange genug gewartet; die Funklast hält ihn nicht noch einmal auf.
             if (!call.Guaranteed && !Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }

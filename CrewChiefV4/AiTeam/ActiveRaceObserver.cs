@@ -581,7 +581,9 @@ namespace CrewChiefV4.AiTeam
                             if (names && candidatePass && candidatePassKey != null && gs.OpponentData.TryGetValue(candidatePassKey, out var passedRival) &&
                                 passedRival != null && passedRival.CanUseName)
                             {
-                                text = (text + " " + RaceStory.Passed(RadioPhraseCatalog.SafeRivalName(passedRival.DriverRawName), storyVariant) + " " +
+                                string storyPassedName = RadioPhraseCatalog.SafeRivalName(passedRival.DriverRawName);
+                                storyVariant = PhraseMemory.FreshVariant(storyVariant, 5, alt => RaceStory.Passed(storyPassedName, alt));
+                                text = (text + " " + RaceStory.Passed(storyPassedName, storyVariant) + " " +
                                     RaceStory.AfterGain(candidatePassKey, now, storyVariant)).Trim();
                                 storyVariant++;
                             }
@@ -658,7 +660,9 @@ namespace CrewChiefV4.AiTeam
                         if (names && candidateLossKey != null && gs.OpponentData.TryGetValue(candidateLossKey, out var passer) && passer != null && passer.CanUseName &&
                             passer.ClassPosition == candidatePosition - 1 && !passer.InPits)
                         {
-                            lostText = (RaceStory.PassedBy(RadioPhraseCatalog.SafeRivalName(passer.DriverRawName), storyVariant) + " " + lostText + " " +
+                            string storyPasserName = RadioPhraseCatalog.SafeRivalName(passer.DriverRawName);
+                            storyVariant = PhraseMemory.FreshVariant(storyVariant, 5, alt => RaceStory.PassedBy(storyPasserName, alt));
+                            lostText = (RaceStory.PassedBy(storyPasserName, storyVariant) + " " + lostText + " " +
                                 RaceStory.AfterLoss(candidateLossKey, now, storyVariant)).Trim();
                             storyVariant++;
                         }

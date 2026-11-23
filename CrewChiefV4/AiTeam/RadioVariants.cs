@@ -36,10 +36,13 @@ namespace CrewChiefV4.AiTeam
         {
             if (options == null || options.Length == 0) return null;
             if (options.Length == 1 || Deterministic) return options[0];
-            lock (gate) return options[NextIndex(key ?? "", options.Length)];
+            // Satzgedächtnis der ganzen Crew (Rob 23.11., Monza): was in den letzten Minuten tatsächlich zu hören war, kommt erst
+            // wieder, wenn die anderen Formulierungen auch dran waren – egal, welche Stelle den Satz gebildet hat.
+            DateTime now = PhraseMemory.Clock();
+            lock (gate) return options[NextIndex(key ?? "", options.Length, i => PhraseMemory.LastHeard(options[i], now))];
         }
 
-        private static int NextIndex(string key, int count)
+        private static int NextIndex(string key, int count, Func<int, DateTime> lastHeard = null)
         {
             if (!recent.TryGetValue(key, out var heard)) recent[key] = heard = new List<int>();
             heard.RemoveAll(i => i >= count);
@@ -47,6 +50,17 @@ namespace CrewChiefV4.AiTeam
             while (heard.Count > avoid) heard.RemoveAt(0);
             var free = new List<int>(count);
             for (int i = 0; i < count; i++) if (!heard.Contains(i)) free.Add(i);
+            if (lastHeard != null)
+            {
+                var all = new List<int>(count);
+                for (int i = 0; i < count; i++) all.Add(i);
+                var fresh = PhraseMemory.Freshest(free.Count > 0 ? free : all, lastHeard);
+                // Sind alle freien schon gehört, aber eine kürzlich gemiedene nicht, hat die ungehörte Vorrang.
+                var unheard = PhraseMemory.Freshest(all, lastHeard);
+                if (fresh.Count > 0 && lastHeard(fresh[0]) != DateTime.MinValue && unheard.Count > 0 && lastHeard(unheard[0]) == DateTime.MinValue)
+                    fresh = unheard;
+                if (fresh.Count > 0) free = fresh;
+            }
             int pick = free.Count > 0 ? free[random.Next(free.Count)] : random.Next(count);
             heard.Add(pick);
             while (heard.Count > avoid) heard.RemoveAt(0);
