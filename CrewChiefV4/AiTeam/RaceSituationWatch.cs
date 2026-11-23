@@ -192,8 +192,9 @@ namespace CrewChiefV4.AiTeam
         {
             DateTime previous;if(last.TryGetValue(topic,out previous) && now-previous<TimeSpan.FromSeconds(20))return null;
             last[topic]=now;
+            // LMU Sebring 23.11.: „Rob, grün“ verfiel nach 6 s, die Formationsmeldung nach 12 s, beide hinter Saras Startmeldungen.
             var call=new ObservedRaceCall { Topic=topic,Text=text,Evidence="mapped_state_transition",Member=member,Priority=priority,
-                Position=-1,SessionId=gs.SessionData.SessionId,DetectedUtc=now,ExpiresUtc=now.AddSeconds(topic=="formation"?12:6),AdditionalValidity=valid };
+                Position=-1,SessionId=gs.SessionData.SessionId,DetectedUtc=now,ExpiresUtc=now.AddSeconds(topic=="formation"?20:topic=="race-start"?12:6),AdditionalValidity=valid };
             calls.Add(call);
             return call;
         }

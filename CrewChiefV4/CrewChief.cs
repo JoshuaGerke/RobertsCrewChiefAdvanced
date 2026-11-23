@@ -1353,6 +1353,10 @@ namespace CrewChiefV4
                                         currentGameState.PitData.InPitlane,
                                         audioPlayer);
                                 }
+                                AiTeam.SpotterStartCheck.Report(spotter != null, spotterIsRunning, GlobalBehaviourSettings.spotterEnabled,
+                                    GlobalBehaviourSettings.spotterEnabledInitialState, GlobalBehaviourSettings.realisticMode,
+                                    GlobalBehaviourSettings.useOvalLogic, AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse,
+                                    Game.F1_20S || Debug.PlaybackSpotter);
                                 if (spotter != null && GlobalBehaviourSettings.spotterEnabled && !spotterIsRunning &&
                                     (Game.F1_20S || Debug.PlaybackSpotter || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse))
                                 {

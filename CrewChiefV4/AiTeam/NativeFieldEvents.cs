@@ -83,6 +83,8 @@ namespace CrewChiefV4.AiTeam
         private float pendingClassRecord, pendingOverallRecord;
         private DateTime classRecordUtc, overallRecordUtc;
         private readonly Dictionary<ObservedRaceCall, NativeFieldFact> pitFacts = new Dictionary<ObservedRaceCall, NativeFieldFact>();
+        private readonly Dictionary<ObservedRaceCall, NativeFieldFact> saraFacts = new Dictionary<ObservedRaceCall, NativeFieldFact>();
+        private int bundleVariant;
         private NativeFieldFact spokenPit;
         private DateTime spokenPitUtc;
 
@@ -136,6 +138,10 @@ namespace CrewChiefV4.AiTeam
         public void CaptureMappedPits(GameStateData before,GameStateData gs)
         {
             if(before==null || gs==null || before.SessionData.SessionId!=gs.SessionData.SessionId || before.SessionData.SessionType!=gs.SessionData.SessionType || gs.SessionData.IsNewSession)return;
+            // Hockenheim 23.11.: Nach der Zielflagge kam „Walter Becker fährt an die Box. Jetzt hast du freie Bahn, drück ein paar
+            // schnelle Runden.“ – nach Rennende ist ein Boxenbesuch kein Rennereignis mehr.
+            var phase = gs.SessionData.SessionPhase;
+            if (gs.SessionData.SessionType == SessionType.Race && phase != SessionPhase.Green && phase != SessionPhase.FullCourseYellow) return;
             var p=gs.PitData;var old=before.PitData;
             if(p.CarInFrontIsPitting && !old.CarInFrontIsPitting)Capture(NativeFieldFact.Capture("car_in_front_is_pitting",null,gs));
             if(p.CarBehindIsPitting && !old.CarBehindIsPitting)Capture(NativeFieldFact.Capture("car_behind_is_pitting",null,gs));
@@ -145,16 +151,33 @@ namespace CrewChiefV4.AiTeam
             foreach (var pair in gs.OpponentData)
             {
                 var car = pair.Value;
+                // Rob 23.11.: „Nicht nur in der Nähe, im gesamten Grid!“ Jede Boxeneinfahrt mit Namen; mehrere gleichzeitig bündelt Take().
                 if (car == null || !car.IsActive || !car.InPits || string.IsNullOrWhiteSpace(car.DriverRawName) ||
-                    gs.carClass == null || car.CarClass == null || !CarData.IsCarClassEqual(gs.carClass, car.CarClass, false) ||
                     !before.OpponentData.TryGetValue(pair.Key, out var prior) || prior == null || !prior.IsActive ||
                     prior.InPits || RaceReader.Identity(pair.Key, prior) != RaceReader.Identity(pair.Key, car)) continue;
-                int rank = prior.ClassPosition;
-                int ownRank = before.SessionData.ClassPosition;
-                if (rank <= 0 || ownRank <= 0 || rank == ownRank || rank != 1 && Math.Abs(rank - ownRank) > 1) continue;
                 Capture(NativeFieldFact.Capture("car_is_pitting", new[] { MessageFragment.Opponent(car) }, gs));
             }
+            // Rob 23.11. (RaceRoom Hockenheim): „Sara muss mir sofort sagen, wenn jemand ausscheidet, an die Box fährt oder
+            // rauskommt. Die Daten haben wir mit Namen in Echtzeit.“ – „Nicht nur in der Nähe, im gesamten Grid!“ Jede
+            // Boxenausfahrt mit Namen; mehrere gleichzeitig bündelt Take().
+            foreach (var pair in gs.OpponentData)
+            {
+                var car = pair.Value;
+                if (car == null || !car.IsActive || car.InPits || string.IsNullOrWhiteSpace(car.DriverRawName) || !car.CanUseName ||
+                    !before.OpponentData.TryGetValue(pair.Key, out var prior) || prior == null || !prior.IsActive ||
+                    !prior.InPits || RaceReader.Identity(pair.Key, prior) != RaceReader.Identity(pair.Key, car)) continue;
+                Capture(new NativeFieldFact("pit-exit", pair.Key, car.DriverRawName, null, "opponent_left_pit_lane", gs, car, 0));
+            }
         }
+
+        /// <summary>Direkte Gegner: bis drei Plätze vor oder hinter Rob, oder der Führende (für Folgen wie Undercut oder freie Bahn).</summary>
+        internal const int NearRivalPlaces = 3;
+        internal static bool NearRival(int rank, int ownRank) =>
+            rank > 0 && ownRank > 0 && rank != ownRank && (rank == 1 || Math.Abs(rank - ownRank) <= NearRivalPlaces);
+
+        /// <summary>Feldnachrichten, die Sara sofort mit Namen sagt: Ausfall, Abgang, Disqualifikation, Box rein und raus.</summary>
+        internal static bool SaraNews(string topic) =>
+            topic == "field-retired" || topic == "field-left" || topic == "field-dq" || topic == "field-pit" || topic == "field-pit-exit";
 
         public void CaptureMappedFastestLap(GameStateData before, GameStateData gs)
         {
@@ -356,14 +379,16 @@ namespace CrewChiefV4.AiTeam
                 bool nonRace=SessionLapObserver.Supported(f.Type);
                 bool relevant=f.Type==SessionType.Race || nonRace && f.Kind=="pit";
                 // AC/RaceRoom 20.11.: Ausfälle und Abgänge immer mit Namen melden, nicht nur direkte Gegner.
-                if((f.Kind=="dq" || f.Kind=="tyres") && (f.Position<1 || Math.Abs(f.Position-gs.SessionData.ClassPosition)>2 && f.Position!=1))relevant=false;
+                if(f.Kind=="tyres" && (f.Position<1 || Math.Abs(f.Position-gs.SessionData.ClassPosition)>2 && f.Position!=1))relevant=false;
                 if(!relevant){LiveDiagnostics.Decision("field-"+f.Kind,"stored","session_or_rival_not_relevant",text);continue;}
                 var fact=f;
                 if (pending.Count >= 16) Remove(pending[0]);
+                bool sara=f.Type==SessionType.Race && SaraNews("field-"+f.Kind);
                 var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,SemanticKey="field|"+id,
-                    SessionId=f.Session,SessionType=f.Type,Position=-1,Member=TeamMember.Ben,Priority=fastest?4:3,
-                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : fastest ? FastestLapSeconds : 10),AdditionalValidity=live=>StillCurrent(fact,live)};
+                    SessionId=f.Session,SessionType=f.Type,Position=-1,Member=sara?TeamMember.Sara:TeamMember.Ben,Priority=sara?5:fastest?4:3,
+                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : fastest ? FastestLapSeconds : sara ? 15 : 10),AdditionalValidity=PitFlagGrace.For(fact)};
                 pending.Add(call);
+                if (sara) saraFacts[call] = f;
                 if (f.Kind == "pit")
                 {
                     pitFacts.Add(call, f);
@@ -408,16 +433,49 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="dq")return gs.disqualifiedDriverNames.ContainsKey(f.Name);
             OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op==null || RaceReader.Identity(f.Key,op)!=f.Identity)return false;
             if(f.Kind=="pit")return op.IsActive && (op.InPits || op.isEnteringPits());
+            if(f.Kind=="pit-exit")return op.IsActive && !op.InPits;
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;
             float reference = f.Kind == "fastest-overall" ? gs.SessionData.OverallSessionBestLapTime : gs.SessionData.PlayerClassSessionBestLapTime;
             // LMU Bahrain 22.11.: Die Klassenbestzeit der Sim kann hinter der Runde des Gegners herhinken. Ungültig wird die Meldung
             // nur, wenn jemand schneller war – nicht, weil der Sim-Wert noch die alte Zeit zeigt.
+            // RaceRoom Hockenheim 23.11.: juan ayusos 1:43,935 aus dem Fahrerdatensatz, die Klassenbestzeit der Sim zeigte 1:43,925 –
+            // dieselbe Runde, nur anders gerundet. Die Meldung verfiel im selben Moment als „Fakten geändert“. Bis 0,05 s gilt als dieselbe Runde.
             float own = gs.SessionData.PlayerLapTimeSessionBest;
             return (f.Kind=="fastest" || f.Kind=="fastest-overall") && f.Seconds>10 &&
                 op.IsActive && op.CurrentBestLapTime>0 && Math.Abs(op.CurrentBestLapTime-f.Seconds)<=.005 &&
-                (!(reference > 10) || reference > f.Seconds-.005) && (!(own > 10) || own > f.Seconds-.005);
+                (!(reference > 10) || reference > f.Seconds-SameLapTolerance) && (!(own > 10) || own > f.Seconds-.005);
         }
+        /// <summary>
+        /// LMU Sebring 23.11.: „Arod Spearhead fährt an die Box“ verfiel als „Fakten geändert“, weil die Sim das Box-Kennzeichen
+        /// für einen Augenblick verlor. Ein Aussetzer bis 2 s Spielzeit hält die Meldung; ist das Auto länger draußen, ist sie
+        /// überholt und entfällt wie bisher.
+        /// </summary>
+        internal sealed class PitFlagGrace
+        {
+            internal static readonly TimeSpan Grace = TimeSpan.FromSeconds(2);
+            private readonly NativeFieldFact fact;
+            private DateTime outSince;
+            private bool out_;
+            private PitFlagGrace(NativeFieldFact fact) { this.fact = fact; }
+
+            internal static Func<GameStateData, bool> For(NativeFieldFact fact)
+            {
+                if (fact.Kind != "pit") return live => StillCurrent(fact, live);
+                return new PitFlagGrace(fact).Valid;
+            }
+
+            internal bool Valid(GameStateData live)
+            {
+                if (StillCurrent(fact, live)) { out_ = false; return true; }
+                if (live == null || live.SessionData.SessionId != fact.Session || fact.Key == null ||
+                    !live.OpponentData.TryGetValue(fact.Key, out var op) || op == null || !op.IsActive ||
+                    RaceReader.Identity(fact.Key, op) != fact.Identity) return false;
+                if (!out_) { out_ = true; outSince = live.Now; }
+                return live.Now - outSince <= Grace;
+            }
+        }
+
         private void Remove(ObservedRaceCall call)
         {
             if (pitFacts.TryGetValue(call, out var fact) && call.DeliveryStartedUtc > spokenPitUtc)
@@ -426,6 +484,7 @@ namespace CrewChiefV4.AiTeam
                 spokenPitUtc = call.DeliveryStartedUtc;
             }
             pitFacts.Remove(call);
+            saraFacts.Remove(call);
             pending.Remove(call);
         }
 
@@ -442,13 +501,14 @@ namespace CrewChiefV4.AiTeam
                     Remove(call);
                 }
             }
-            if(!enabled || minimal){pending.Clear();pitFacts.Clear();return null;}
+            if(!enabled || minimal){pending.Clear();pitFacts.Clear();saraFacts.Clear();return null;}
             if(busy || AiRadioSchedule.BusyForRoutine(gs))return null;
             foreach (var call in pending.OrderByDescending(c => c.Priority).ThenByDescending(c => c.DetectedUtc))
             {
                 if (!call.CanReserve(now)) continue;
                 bool record = call.Topic == "field-fastest" || call.Topic == "field-fastest-overall";
-                if (now-lastRadio<TimeSpan.FromSeconds(record ? 3 : 8)) continue;
+                if (now-lastRadio<TimeSpan.FromSeconds(record || SaraNews(call.Topic) ? 3 : 8)) continue;
+                if (TryBundle(call, gs, now)) { if (call.TryReserve(now)) return call; continue; }
                 if (pitFacts.TryGetValue(call, out var pit))
                 {
                     if (combinedOwnsPit != null && (combinedOwnsPit(pit) ||
@@ -464,6 +524,64 @@ namespace CrewChiefV4.AiTeam
             }
             return null;
         }
+        /// <summary>Gleichzeitige Sara-Nachrichten derselben Art (Box rein, Box raus, Ausfall/Abgang) innerhalb dieses Fensters werden ein Satz.</summary>
+        /// <summary>Gleiche Runde in zwei Datenquellen der Sim, nur unterschiedlich gerundet.</summary>
+        internal const float SameLapTolerance = .05f;
+
+        internal static readonly TimeSpan BundleWindow = TimeSpan.FromSeconds(12);
+
+        private static string Family(string kind) => kind == "pit" ? "pit" : kind == "pit-exit" ? "pit-exit" :
+            kind == "retired" || kind == "left" || kind == "dq" ? "out" : null;
+
+        /// <summary>
+        /// Rob 23.11.: Boxen und Ausfälle im ganzen Grid, aber verständlich. Warten mehrere Nachrichten derselben Art, sagt Sara
+        /// sie in einem Satz mit allen Namen („Box: A, B und C fahren rein.“); die übrigen entfallen als gebündelt.
+        /// </summary>
+        private bool TryBundle(ObservedRaceCall call, GameStateData gs, DateTime now)
+        {
+            if (!saraFacts.TryGetValue(call, out var fact) || Family(fact.Kind) == null) return false;
+            string family = Family(fact.Kind);
+            var group = pending.Where(c => c != call && c.DeliveryStartedUtc == DateTime.MinValue && !c.IsReserved && c.CanReserve(now) &&
+                    saraFacts.TryGetValue(c, out var f) && Family(f.Kind) == family && Math.Abs((c.DetectedUtc - call.DetectedUtc).TotalSeconds) <= BundleWindow.TotalSeconds)
+                .ToList();
+            if (group.Count == 0) return false;
+            var names = new[] { fact }.Concat(group.Select(c => saraFacts[c])).Select(f => call.FieldNamesAllowed || fact.Kind != "pit" ? Name(f.Name) : "")
+                .Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (names.Count < 2) return false;
+            call.Text = BundleText(family, names, bundleVariant++);
+            call.Evidence += ";bundled=" + (group.Count + 1);
+            pitFacts.Remove(call);
+            foreach (var other in group)
+            {
+                LiveDiagnostics.Decision(other.Topic, "suppressed", "bundled_into:" + call.EventId, other.Text, other.EventId);
+                Remove(other);
+            }
+            LiveDiagnostics.Decision(call.Topic, "bundled", "sara_same_kind_within_" + (int)BundleWindow.TotalSeconds + "s", call.Text, call.EventId);
+            return true;
+        }
+
+        internal static string BundleText(string family, IList<string> names, int variant)
+        {
+            string list = names.Count == 1 ? names[0] : string.Join(", ", names.Take(names.Count - 1)) + RadioLanguage.T(" und ", " and ", " y ") + names[names.Count - 1];
+            if (family == "pit")
+                return RadioVariants.At(variant,
+                    RadioLanguage.T("Box: " + list + " fahren rein.", "Pit lane: " + list + " are coming in.", "Boxes: entran " + list + "."),
+                    RadioLanguage.T(list + " gehen gerade an die Box.", list + " are pitting now.", list + " entran ahora a boxes."),
+                    RadioLanguage.T("Boxenstopps: " + list + ".", "Pit stops: " + list + ".", "Paradas: " + list + "."),
+                    RadioLanguage.T("In der Boxengasse jetzt " + list + ".", "In the pit lane now: " + list + ".", "Ahora en el pit lane: " + list + "."));
+            if (family == "pit-exit")
+                return RadioVariants.At(variant,
+                    RadioLanguage.T(list + " kommen aus der Box.", list + " are out of the pits.", list + " salen de boxes."),
+                    RadioLanguage.T("Boxenausfahrt: " + list + ".", "Pit exit: " + list + ".", "Salida de boxes: " + list + "."),
+                    RadioLanguage.T("Wieder draußen sind " + list + ".", "Back out on track: " + list + ".", "De vuelta en pista: " + list + "."),
+                    RadioLanguage.T(list + " haben ihren Stopp erledigt.", list + " have done their stops.", list + " han hecho su parada."));
+            return RadioVariants.At(variant,
+                RadioLanguage.T("Raus sind " + list + ".", "Out of the race: " + list + ".", "Fuera de carrera: " + list + "."),
+                RadioLanguage.T(list + " sind nicht mehr dabei.", list + " are no longer running.", list + " ya no siguen."),
+                RadioLanguage.T("Ausfälle: " + list + ".", "Retirements: " + list + ".", "Abandonos: " + list + "."),
+                RadioLanguage.T("Nicht mehr im Rennen: " + list + ".", "No longer in the race: " + list + ".", "Ya no están en carrera: " + list + "."));
+        }
+
         /// <summary>
         /// Renningenieur (Rob 17.11.): Was bedeutet der Stopp des direkten Nachbarn für Rob? Vordermann in der Box: freie Bahn,
         /// jetzt schnelle Runden. Hintermann in der Box: möglicher Undercut, Tempo hochhalten. Nur im Rennen.
@@ -491,6 +609,12 @@ namespace CrewChiefV4.AiTeam
             string who=names?Name(f.Name):"";
             if(who.Length==0)who=RadioLanguage.T("Ein Gegner","A rival","Un rival");
             if (f.Kind == "pit") return RadioPhraseCatalog.Current.Format("pit-rival", variant, who) + PitConsequence(f.Source, f.Type, variant);
+            if(f.Kind=="pit-exit")return who+RadioVariants.Pick("field-pit-exit",
+                RadioLanguage.T(" kommt aus der Box."," is out of the pits."," sale de boxes."),
+                RadioLanguage.T(" ist wieder draußen, Boxenausfahrt."," is back out, pit exit."," vuelve a pista, salida de boxes."),
+                RadioLanguage.T(" fährt gerade aus der Box raus."," is just leaving the pit lane."," está saliendo del pit lane."),
+                RadioLanguage.T(" hat seinen Stopp erledigt und ist zurück auf der Strecke."," has done his stop and is back on track."," ha hecho su parada y vuelve a la pista."),
+                RadioLanguage.T(" ist aus der Box zurück, behalt ihn im Blick."," is back from the pits, keep an eye on him."," vuelve de boxes, no le pierdas de vista."));
             if(f.Kind=="leader")return who+RadioVariants.Pick("field-leader",
                 RadioLanguage.T(" führt jetzt unsere Klasse an."," now leads our class."," lidera ahora nuestra clase."),
                 RadioLanguage.T(" ist neuer Klassenführender."," is the new class leader."," es el nuevo líder de la clase."),

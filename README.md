@@ -6,14 +6,17 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New: radio commands while driving.** Press push-to-talk and say:
+> **New in Alpha 0.32: the crew lives the race.** Ben comments on overtakes and battles with feeling and with the history of the duel, differently every time (if the AI line does not arrive within 2.5 seconds he uses the fixed sentence). Sara reports pit stops, retirements and disqualifications across the whole grid, several in one sentence, and spins and crashes behind you. In timed races Ben calls the time left at 15, 10, 5 and 2 minutes with your position. After the flag Mik also names your pit stops.
+>
+> **Radio commands while driving.** Press push-to-talk and say:
 >
 > | Say | What happens |
 > |---|---|
-> | **"Quiet please"** | No more routine reports, essentials only. |
+> | **"Quiet please"** | No more routine reports and analyses. Position changes, battles, time left, field news, warnings and answers still come. |
+| **"Less info"** | One step down (Much more to More, More to Normal, Normal to Quiet). |
 > | **"More info"** | More reports, mostly about the cars ahead and behind. |
-> | **"Much more info"** | The full programme. |
-> | **"Radio normal"** | Back to the normal rhythm. |
+> | **"Much more info"** / **"Full info"** | The full programme. |
+> | **"Radio normal"** / **"Radio back on"** | Back to the normal rhythm. If you ask in Quiet why nothing comes, the crew switches to Normal by itself. |
 > | **"Spotter off"** / **"Spotter on"** | Only Sara's side calls (left, right, clear). She always calls yellows, crashes, slow cars and the safety car. |
 >
 > The radio amount takes effect at once and is saved. In the app it is under **AI & radio** → **Radio amount**. The spotter stays off until you say "spotter on" or restart RRCA. How often the crew reports on its own is up to the crew: it follows the race length and how tense the race is.

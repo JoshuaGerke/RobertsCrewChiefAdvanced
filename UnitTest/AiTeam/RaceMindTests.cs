@@ -337,12 +337,16 @@ namespace UnitTest.AiTeamTests
             var start = Situation(RacePhase.Start, RaceAttention.Open);
 
             Assert.AreEqual(MindVerdict.Admit, Judge(calm, "field-pit"));
-            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Battle), "field-pit"), "im Zweikampf warten");
-            Assert.AreEqual(MindVerdict.Drop, Judge(battle, "field-pit"), "im Angriff verfallen Nachrichten über andere");
+            // Rob 23.11.: „Sara muss mir sofort sagen, wenn jemand an die Box fährt.“
+            Assert.AreEqual(MindVerdict.Admit, Judge(Situation(RacePhase.Middle, RaceAttention.Battle), "field-pit"), "Box eines Gegners auch im Zweikampf");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "field-pit"), "unter Gelb warten");
+            Assert.AreEqual(MindVerdict.Admit, Judge(battle, "field-pit"), "Sara sagt die Box eines Gegners auch im Angriff");
+            Assert.AreEqual(MindVerdict.Drop, Judge(battle, "field-tyres"), "im Angriff verfallen andere Feldnachrichten");
             Assert.AreEqual(MindVerdict.Hold, Judge(start, "status"));
             Assert.AreEqual(MindVerdict.Admit, Judge(final, "field-fastest"), "Rob, Monza 22.11.: Bestzeiten immer melden");
             Assert.AreEqual(MindVerdict.Drop, Judge(lastLap, "field-fastest"), "in der letzten Runde nicht mehr");
-            Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-pit"), "Fokus auf dem eigenen Kampf");
+            Assert.AreEqual(MindVerdict.Admit, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-pit"), "Box eines Gegners gehört zum eigenen Rennen");
+            Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-tyres"), "Fokus auf dem eigenen Kampf");
             Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Traffic), "reader-pace-front"));
 
             Assert.AreEqual(MindVerdict.Admit, Judge(open, "race-summary"), "LMU 20.11.: freie Fahrt ohne Zweikampf reicht für den Zwischenstand");
@@ -351,7 +355,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Admit, Judge(calm, "race-summary"));
             Assert.AreEqual(MindVerdict.Drop, Judge(final, "race-summary"));
 
-            Assert.AreEqual(MindVerdict.Hold, Judge(battle, "gap-trend"));
+            Assert.AreEqual(MindVerdict.Admit, Judge(battle, "gap-trend"), "RaceRoom Hockenheim 23.11.: Näherkommen und Wegfahren gehören in den Zweikampf");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "gap-trend"));
             Assert.AreEqual(MindVerdict.Admit, Judge(final, "gap-trend"), "Hochrechnung zählt gerade am Ende");
             Assert.AreEqual(MindVerdict.Drop, Judge(lastLap, "gap-trend"));
 

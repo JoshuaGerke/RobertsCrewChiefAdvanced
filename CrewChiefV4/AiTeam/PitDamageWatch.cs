@@ -255,7 +255,9 @@ namespace CrewChiefV4.AiTeam
             else if (!inPit) stoppedSinceUtc = DateTime.MinValue;
             if (!inPit && wasInPit)
             {
-                exitUtc = now;
+                // LMU Sebring 23.11.: Die Startaufstellung verließ die Boxengasse in der Formationsphase; bei Grün kam „Rob, du bist
+                // raus“ statt des Startspruchs. Nur eine Boxenausfahrt im laufenden Rennen ist ein Wiedereinsetzen.
+                exitUtc = race && green && s.CompletedLaps >= 1 ? now : DateTime.MinValue;
                 pitDamaged = Major(gs.CarDamageData); arrivalSpoken = repairFirst = repairSecond = false;
             }
             wasInPit = inPit;

@@ -40,6 +40,9 @@ namespace CrewChiefV4.AiTeam
                 if (eventId != null && renders.TryGetValue(eventId, out int n) && n >= MaxRendersPerEvent)
                 { reason = "paid_render_limit_per_event"; return false; }
                 if (!IsLong(text) || topic == null) return true;
+                // LMU Sebring 23.11.: Die Sim meldete den Trainingsstart zweimal in 4 s; die erste Begrüßung wurde verworfen, die zweite
+                // als „eben verworfen“ blockiert – Rob wurde im Training nicht begrüßt. Begrüßung und Bilanz kommen immer.
+                if (RadioLoad.OwnResult(topic)) return true;
                 // Die verworfene Meldung selbst darf einmal frisch nachkommen; andere Meldungen desselben Themas warten.
                 if (longDiscarded.TryGetValue(topic, out var discarded) && discarded.Key != eventId &&
                     now >= discarded.Value && now - discarded.Value < LongTopicCooldown)

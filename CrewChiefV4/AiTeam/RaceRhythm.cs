@@ -86,7 +86,12 @@ namespace CrewChiefV4.AiTeam
                 topic.StartsWith("damage", StringComparison.Ordinal) || topic.StartsWith("spotter", StringComparison.Ordinal) ||
                 topic == "race-start" || topic == "race-disqualified" || topic == "race-retired" || topic == "formation" ||
                 // LMU 21.11.: Schaden nach Kontakt und das Startfazit („9 Plätze gutgemacht“) gehören zum Nötigsten.
-                topic.StartsWith("incident-damage", StringComparison.Ordinal) || topic == "start-verdict";
+                topic.StartsWith("incident-damage", StringComparison.Ordinal) || topic == "start-verdict" ||
+                // RaceRoom Hockenheim 23.11.: Die erste Klassenbestzeit (juan ayuso, Ende Runde 1) fiel in die Startphase und entfiel;
+                // Rob: „Ich möchte den Namen und die schnellste Runde wissen.“ Ein kurzer Satz, er kommt auch in der Startphase.
+                topic == "field-fastest" || topic == "field-fastest-overall" ||
+                // Hockenheim 23.11.: „Federico Bertola hat aufgegeben“ entfiel in der Startphase. Ausfälle sagt Sara sofort.
+                topic == "field-retired" || topic == "field-left" || topic == "field-dq";
         }
 
         /// <summary>Einmal je Spielzustand; true genau dann, wenn sich das Feld gerade beruhigt hat.</summary>

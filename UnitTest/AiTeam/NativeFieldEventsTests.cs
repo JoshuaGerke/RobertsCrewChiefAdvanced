@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
@@ -199,7 +199,8 @@ namespace UnitTest.AiTeamTests
             var s=State();var f=Pit(s);var q=new NativeFieldEvents();q.Capture(f);q.Observe(s,T,null,true);
             s.PitData.OpponentForCarAheadPitting=new OpponentData {DriverRawName="Other"};
             var call=q.Take(s,T,false,true,false);StringAssert.Contains("Nick Heidfeld",call.Text);
-            s.OpponentData["driver-17"].InPits=false;Assert.IsFalse(call.IsValid(s,T.AddSeconds(.1)));
+            s.OpponentData["driver-17"].InPits=false;Assert.IsTrue(call.IsValid(s,T.AddSeconds(.1)),"kurzer Aussetzer des Box-Kennzeichens (LMU Sebring)");
+            s.Now=T.AddSeconds(3);Assert.IsFalse(call.IsValid(s,T.AddSeconds(3)),"länger draußen: Meldung überholt");
             s.OpponentData["driver-17"].DriverRawName="Reused slot";Assert.IsFalse(NativeFieldEvents.StillCurrent(f,s));
         }
         [TestCase(true,false,false)] [TestCase(false,true,false)] [TestCase(false,false,true)]

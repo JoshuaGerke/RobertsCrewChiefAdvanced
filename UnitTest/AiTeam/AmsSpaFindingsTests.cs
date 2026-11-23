@@ -41,7 +41,9 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(At(T.AddSeconds(2), RaceAttention.Traffic), call, T.AddSeconds(2), out _));
             Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(At(T.AddSeconds(7), RaceAttention.Traffic), call, T.AddSeconds(7), out _),
                 "Rob: „Ich höre nichts von euch“ – Verkehr hält nicht ewig auf");
-            Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(At(T.AddSeconds(7), RaceAttention.Battle), call, T.AddSeconds(7), out _), "Zweikampf wartet weiter");
+            // RaceRoom Hockenheim 23.11.: Der Tempovergleich mit dem direkten Gegner gehört im Zweikampf in den Funk.
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(At(T.AddSeconds(7), RaceAttention.Battle), call, T.AddSeconds(7), out _), "Zweikampf: eigener Kampf zählt");
+            Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(At(T.AddSeconds(7), RaceAttention.Caution), call, T.AddSeconds(7), out _), "Gelb wartet weiter");
         }
 
         [Test]

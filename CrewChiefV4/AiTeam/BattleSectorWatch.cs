@@ -45,13 +45,20 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             if (s.SessionType != SessionType.Race) { if (session != int.MinValue) Reset(); return; }
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
-            if (s.SessionPhase != SessionPhase.Green || mind.SampledLap == lastLap || mind.SampledLap < 3) return;
+            if (s.SessionPhase != SessionPhase.Green || mind.SampledLap == lastLap || mind.SampledLap < 2) return;
             lastLap = mind.SampledLap;
             if (call != null || s.CompletedLaps - lastCallLap < 2 || LapWatch.LapsLeft(s) == 1 || gs.PitData.InPitlane) return;
             var own = memory.GetLaps().Where(l => l.Valid && !l.InPitLap && l.SectorTimes != null && l.SectorTimes.Length == 3 &&
                 l.SectorTimes.All(v => v > 1 && v < 3600)).Reverse().Take(3).Select(l => l.SectorTimes).ToList();
-            if (own.Count < 3) return;
-            call = Decide(gs, mind.Front, true, own, names, now) ?? Decide(gs, mind.Rear, false, own, names, now);
+            // RaceRoom Hockenheim 23.11. (15 Minuten, ungültige Runden nach Tracklimits): drei saubere Runden kamen nie zusammen,
+            // der Sektorvergleich zum Vordermann blieb stumm. Rob: „Sektorenvergleiche zum Vordermann.“ Ohne drei saubere Runden
+            // vergleicht Ben die besten Sektorzeiten dieser Session aus dem Lagebild (beide Fahrer gemessen).
+            if (own.Count < 3)
+            {
+                var view = Field.FieldService.Fresh(2);
+                call = DecideBest(gs, view, mind.Front, true, names, now) ?? DecideBest(gs, view, mind.Rear, false, names, now);
+            }
+            else call = Decide(gs, mind.Front, true, own, names, now) ?? Decide(gs, mind.Rear, false, own, names, now);
             if (call != null) { lastCallLap = s.CompletedLaps; LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, call.Text, call.EventId); }
         }
 
@@ -79,6 +86,55 @@ namespace CrewChiefV4.AiTeam
                 SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(15),
                 FieldNamesAllowed = name.Length > 0,
                 Evidence = (ahead ? "attack" : "defend") + "_sector_" + (sector + 1) + "_avg_three_clean_laps_both_drivers_delta_" + delta.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+                AdditionalValidity = live =>
+                {
+                    var next = RaceDataTools.Neighbour(live, ahead);
+                    return next != null && !next.InPits && OpponentStopLog.Key(next) == id && !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
+                }
+            };
+        }
+
+        /// <summary>Sektor (0–2) mit dem größten Vorteil aus den besten Sektorzeiten; -1 ohne klares Bild.</summary>
+        internal static int DecisiveBestSector(float[] own, float[] rival, bool attack, out float delta)
+        {
+            delta = 0;
+            if (own == null || rival == null || own.Length != 3 || rival.Length != 3) return -1;
+            int best = -1;
+            for (int k = 0; k < 3; k++)
+            {
+                if (!(own[k] > 1 && own[k] < 3600) || !(rival[k] > 1 && rival[k] < 3600)) return -1;
+                float d = own[k] - rival[k];
+                float edge = attack ? -d : d;
+                if (edge >= MinDelta && edge < 5 && edge > delta) { delta = edge; best = k; }
+            }
+            return best;
+        }
+
+        private ObservedRaceCall DecideBest(GameStateData gs, Field.FieldView view, GapHistory history, bool ahead, bool names, DateTime now)
+        {
+            var s = gs.SessionData;
+            if (view?.Player == null || history?.Id == null || history.Gaps.Count == 0) return null;
+            if (ahead && s.ClassPosition <= 1) return null;
+            var op = RaceDataTools.Neighbour(gs, ahead);
+            if (op == null || op.InPits || OpponentStopLog.Key(op) != history.Id) return null;
+            float gap = history.Gaps[history.Gaps.Count - 1];
+            if (!(gap > 0) || gap > (ahead ? FrontWindow : RearWindow)) return null;
+            if (saidLap.TryGetValue(history.Id, out int said) && s.CompletedLaps - said < 3) return null;
+            var seen = view.ByName(op.DriverRawName);
+            if (seen == null) return null;
+            int sector = DecisiveBestSector(new[] { view.Player.BestS1, view.Player.BestS2, view.Player.BestS3 },
+                new[] { seen.BestS1, seen.BestS2, seen.BestS3 }, ahead, out float delta);
+            if (sector < 0) return null;
+            saidLap[history.Id] = s.CompletedLaps;
+            string name = names && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
+            string text = ahead ? AttackText(name, sector + 1, delta, variant++) : DefendText(name, sector + 1, delta, variant++);
+            string id = history.Id;
+            return new ObservedRaceCall
+            {
+                Topic = "battle-sector", Text = text, Member = TeamMember.Ben, Priority = 3, Position = s.ClassPosition,
+                SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now, ExpiresUtc = now.AddSeconds(15),
+                FieldNamesAllowed = name.Length > 0,
+                Evidence = (ahead ? "attack" : "defend") + "_sector_" + (sector + 1) + "_session_best_sectors_both_drivers_delta_" + delta.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
                 AdditionalValidity = live =>
                 {
                     var next = RaceDataTools.Neighbour(live, ahead);

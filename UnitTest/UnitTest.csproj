@@ -115,6 +115,7 @@
     <Compile Include="AiTeam\HazardCallRegressionTests.cs" />
     <Compile Include="AiTeam\RaceLapCommentTests.cs" />
     <Compile Include="AiTeam\CrashReportTests.cs" />
+    <Compile Include="AiTeam\CrewChiefBetaTakeoverTests.cs" />
     <Compile Include="AiTeam\RaceCommentaryTests.cs" />
     <Compile Include="AiTeam\RobDetailFixTests.cs" />
     <Compile Include="AiTeam\RaceChronicleTests.cs" />
@@ -134,6 +135,9 @@
     <Compile Include="AiTeam\DriverMoodTests.cs" />
     <Compile Include="AiTeam\DiagnosticReplayTests.cs" />
     <Compile Include="AiTeam\RadioLoadTests.cs" />
+    <Compile Include="AiTeam\HockenheimRadioTests.cs" />
+    <Compile Include="AiTeam\BattleVoiceTests.cs" />
+    <Compile Include="AiTeam\SebringRadioTests.cs" />
     <Compile Include="AiTeam\QualiCoachingTests.cs" />
     <Compile Include="AiTeam\BattleSectorTests.cs" />
     <Compile Include="AiTeam\RaceEventMemoryTests.cs" />

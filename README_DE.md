@@ -6,14 +6,17 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu: Funkbefehle während der Fahrt.** Funktaste drücken und sagen:
+> **Neu in Alpha 0.32: Die Crew fiebert mit.** Ben kommentiert Überholmanöver und Zweikämpfe mit Gefühl und der Vorgeschichte des Duells, jedes Mal anders (kommt die KI-Antwort nicht binnen 2,5 Sekunden, spricht er den festen Satz). Sara meldet Boxenstopps, Ausfälle und Disqualifikationen im ganzen Feld, mehrere in einem Satz, auch Dreher und Unfälle hinter dir. Ben sagt im Zeitrennen 15, 10, 5 und 2 Minuten vor Schluss die Restzeit mit deinem Platz an. Nach der Zielflagge nennt Mik auch deine Boxenstopps.
+>
+> **Funkbefehle während der Fahrt.** Funktaste drücken und sagen:
 >
 > | Sag | Was passiert |
 > |---|---|
-> | **„Ruhe bitte“** | Keine Routineberichte mehr, nur noch das Nötigste. |
+> | **„Ruhe bitte“** | Keine Routineberichte und Analysen mehr. Platzwechsel, Zweikampf, Restzeit, Feldnachrichten, Warnungen und Antworten kommen weiter. |
+| **„Weniger Infos“** | Eine Stufe weniger (von Viel mehr auf Mehr, von Mehr auf Normal, von Normal auf Ruhig). |
 > | **„Mehr Infos“** | Öfter Berichte, vor allem zu Vorder- und Hintermann. |
-> | **„Viel mehr Infos“** | Volles Programm. |
-> | **„Funk normal“** | Zurück zum normalen Rhythmus. |
+> | **„Viel mehr Infos“** / **„Volle Infos“** | Volles Programm. |
+> | **„Funk normal“** / **„Infos wieder an“** | Zurück zum normalen Rhythmus. Fragst du bei Ruhig, warum nichts kommt, schaltet die Crew von selbst auf Normal. |
 > | **„Spotter aus“** / **„Spotter ein“** | Nur Saras Seitenansagen (links, rechts, frei). Gelb, Unfälle, langsame Autos und Safety Car meldet sie immer. |
 >
 > Die Funkmenge gilt sofort und bleibt gespeichert. Im Programm steht sie unter **KI & Funk** → **Funkmenge**. Der Spotter bleibt aus, bis du „Spotter ein“ sagst oder RRCA neu startest. Wie oft die Crew von sich aus berichtet, bestimmt sie selbst: nach Renndauer und Spannung im Rennen.

@@ -310,7 +310,7 @@ namespace CrewChiefV4.AiTeam
         }
         internal static TeamMember MemberFor(string topic) =>
             topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
-        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; outstandingBundle.Clear(); lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
+        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; outstandingBundle.Clear(); lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = lastCalmPull = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -318,6 +318,43 @@ namespace CrewChiefV4.AiTeam
             foreach (var option in AiRadioPreferences.Options)
                 if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(Delay(prefs, option.Id));
         }
+        /// <summary>Ab diesem Anteil des Abstands darf ein Bericht in ein ruhiges Fenster vorgezogen werden.</summary>
+        internal const double CalmPullShare = .6;
+        /// <summary>Höchstens ein vorgezogener Bericht je so viele Sekunden.</summary>
+        internal const int CalmPullSpacingSeconds = 25;
+        private DateTime lastCalmPull = DateTime.MinValue;
+
+        /// <summary>
+        /// Rob 23.11.: „Halt zwischendurch die vorgegebenen regelmäßigen Funkberichte – sofern es aktuell nicht zu knapp ist, wenn
+        /// Ruhe und Abstand da ist. Eine Logik und Erkenntnis einbauen!“ Im Pulk war ein Bericht oft genau dann fällig, wenn es eng
+        /// wurde, und lief kurz danach in die nächste Kampfphase. Ist die Lage jetzt ruhig (Anspannung unter 0,3: mindestens etwa
+        /// 2,5 s Luft nach vorn und hinten, kein Verkehr, kein Gelb), holt die Crew den Bericht vor, der seinem Termin am nächsten
+        /// ist (mindestens 60 % seines Abstands vorbei) – ein Renningenieur nutzt die ruhige Runde, statt auf die Uhr zu warten.
+        /// </summary>
+        internal string PullIntoCalmWindow(GameStateData gs, DateTime now, AiRadioPreferences prefs)
+        {
+            if (gs == null || prefs == null || !prefs.Automatic || gs.SessionData.SessionType != SessionType.Race ||
+                gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane || gs.FlagData.isLocalYellow || StartCalm ||
+                Tension >= AutoRadioPlan.CalmBelow || Amount == RadioAmount.Quiet || outstanding != null ||
+                now - lastCalmPull < TimeSpan.FromSeconds(CalmPullSpacingSeconds) ||
+                due.Any(p => prefs[p.Key] > 0 && p.Value <= now)) return null;
+            string best = null; double bestShare = 0;
+            foreach (var p in due)
+            {
+                if (prefs[p.Key] <= 0 || p.Value <= now || TechnicalBudgetBlocks(p.Key, now, prefs)) continue;
+                double interval = IntervalOf(prefs, p.Key);
+                if (interval <= 0) continue;
+                double share = 1 - (p.Value - now).TotalSeconds / interval;
+                if (share >= CalmPullShare && share > bestShare) { best = p.Key; bestShare = share; }
+            }
+            if (best == null) return null;
+            due[best] = now;
+            lastCalmPull = now;
+            LiveDiagnostics.Decision(best, "pulled_forward", "calm_window;tension=" + Math.Round(Tension, 2).ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                ";share=" + Math.Round(bestShare, 2).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return best;
+        }
+
         internal bool StatusIsOverdue(DateTime now, AiRadioPreferences prefs) => prefs["status"] > 0 &&
             (outstanding?.Topic == "status" || due.TryGetValue("status", out var next) && now - next >= TimeSpan.FromSeconds(20));
         public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true,string busyReason = null)
@@ -394,6 +431,7 @@ namespace CrewChiefV4.AiTeam
                     outstanding = null;
                 }
             }
+            PullIntoCalmWindow(gs, now, prefs);
             foreach (var item in due.Where(p => prefs[p.Key] > 0 && p.Value <= now && !overdueSince.ContainsKey(p.Key)).ToArray())
             {
                 overdueSince[item.Key] = item.Value;

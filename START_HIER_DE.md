@@ -4,9 +4,10 @@
 
 | Deutsch | English | Español | Was passiert |
 |---|---|---|---|
-| **„Ruhe bitte“** | **"Quiet please"** | **«Silencio, por favor»** | Nur noch das Nötigste / essentials only / solo lo esencial |
+| **„Ruhe bitte“** | **"Quiet please"** | **«Silencio, por favor»** | Nur Routineberichte ruhen; Platzwechsel, Zweikampf, Restzeit und Warnungen kommen weiter |
+| **„Weniger Infos“** | **"Less info"** | **«Menos información»** | Eine Stufe weniger / one step down / un nivel menos |
 | **„Mehr Infos“** | **"More info"** | **«Más información»** | Öfter Berichte, vor allem vorn und hinten / more reports / más informes |
-| **„Viel mehr Infos“** | **"Much more info"** | **«Mucha más información»** | Volles Programm / full programme / programa completo |
+| **„Viel mehr Infos“ / „Volle Infos“** | **"Much more info" / "Full info"** | **«Mucha más información» / «Toda la información»** | Volles Programm / full programme / programa completo |
 | **„Funk normal“** | **"Radio normal"** | **«Radio normal»** | Zurück zum normalen Rhythmus / back to normal / ritmo normal |
 | **„Spotter aus“ / „Spotter ein“** | **"Spotter off" / "Spotter on"** | **«Spotter apagado» / «Spotter activado»** | Nur links, rechts, frei. Gelb, Unfälle und Safety Car bleiben immer an. |
 

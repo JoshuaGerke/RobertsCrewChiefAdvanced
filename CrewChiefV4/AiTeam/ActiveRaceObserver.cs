@@ -218,6 +218,19 @@ namespace CrewChiefV4.AiTeam
         private int playbackInterrupted;
         public bool PlaybackInterrupted {get{return Volatile.Read(ref playbackInterrupted)!=0;}}
         public DateTime PlaybackEndedUtc {get{long t=Interlocked.Read(ref playbackEndedTicks);return t>0?new DateTime(t,DateTimeKind.Utc):DateTime.MinValue;}}
+        /// <summary>
+        /// Verworfen statt gesprochen: Der Ruf gilt als erledigt (Folgelogik wie nach dem Abspielen), aber ohne „delivered“ im
+        /// Log. Hockenheim 23.11.: „delivered playback_started“ und „suppressed“ standen in derselben Millisekunde – die Statistik
+        /// zählte nie gespielte Meldungen als gesprochen.
+        /// </summary>
+        public void MarkConsumed(DateTime now)
+        {
+            consumedOnly = true;
+            MarkPlaybackStarted(now);
+            MarkPlaybackFinished(now, false);
+        }
+        private bool consumedOnly;
+
         public void MarkPlaybackFinished(DateTime now,bool interrupted)
         {
             DateTime started=DeliveryStartedUtc;
@@ -228,9 +241,9 @@ namespace CrewChiefV4.AiTeam
                 if (PitGain == null || Volatile.Read(ref pitGainSpoken) != 0) VariantCursor?.OnPlaybackCompleted(VariantGroup, VariantIndex);
                 AdditionalVariantCursor?.OnPlaybackCompleted();
                 PlaybackCompleted?.Invoke(now);
-                if (ReferenceTemplate != null) LiveDiagnostics.Decision(Topic, "template_completed", ReferenceTemplate);
+                if (ReferenceTemplate != null && !consumedOnly) LiveDiagnostics.Decision(Topic, "template_completed", ReferenceTemplate);
             }
-            if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_completed",LiveDiagnostics.Data("topic",Topic,
+            if(LiveDiagnostics.Enabled && !consumedOnly)LiveDiagnostics.Emit("race.event_completed",LiveDiagnostics.Data("topic",Topic,
                 "duration_ms",(now-started).TotalMilliseconds,"template",ReferenceTemplate,
                 "result",interrupted?"interrupted":"backend_finished_not_audibility_proof"),EventId);
         }
@@ -263,6 +276,7 @@ namespace CrewChiefV4.AiTeam
             Volatile.Write(ref pitGainSpoken, spokePitGain ? 1 : 0);
             if (Interlocked.CompareExchange(ref deliveryState, 2, 1) == 1)
             {
+                if (consumedOnly) return;
                 LiveDiagnostics.Decision(Topic, "delivered", "playback_started", Evidence, EventId);
                 if(LiveDiagnostics.Enabled)LiveDiagnostics.Emit("race.event_delivered",LiveDiagnostics.Data("topic",Topic,"reason",Evidence,"template",ReferenceTemplate,
                     "duration_ms",(now-DetectedUtc).TotalMilliseconds,"measurement","detection_to_audio_backend_start"),EventId);
@@ -670,6 +684,7 @@ namespace CrewChiefV4.AiTeam
                     else if (lossFrom == 0)
                     {
                         lastAnnouncedPosition = candidatePosition;
+                        if (candidateLossKey == null) candidateLossKey = PasserJustAhead(gs, candidatePosition);
                         string lostText = PositionLost(s, candidatePosition, positionVariant++, driverName);
                         if (names && candidateLossKey != null && gs.OpponentData.TryGetValue(candidateLossKey, out var passer) && passer != null && passer.CanUseName &&
                             passer.ClassPosition == candidatePosition - 1 && !passer.InPits)
@@ -916,6 +931,30 @@ namespace CrewChiefV4.AiTeam
                     before.Position != newOwn || rival.ClassPosition != oldOwn || before.Pit || rival.InPits || !before.Active || !rival.IsActive ||
                     before.Speed <= 10 || rival.Speed <= 10 || gs.PositionAndMotionData.CarSpeed <= 10 ||
                     rival.CarClass == null || gs.carClass == null || rival.CarClass.getClassIdentifier() != gs.carClass.getClassIdentifier()) continue;
+                if (found != null) return null;
+                found = pair.Key;
+            }
+            return found ?? PasserJustAhead(gs, newOwn);
+        }
+
+        /// <summary>
+        /// RaceRoom Hockenheim 23.11. (21:35:08): Iban Garcia überholte Rob in der Haarnadel, die Ansage war nur „Platz 4 jetzt“ –
+        /// Robs Platz und der des Gegners wechselten in verschiedenen Bildern, der Vergleich mit dem vorigen Bild fand niemanden.
+        /// Ersatz aus der Strecke: genau ein Klassengegner jetzt direkt vor Rob (ein Platz besser), höchstens 80 m voraus, in Fahrt.
+        /// </summary>
+        internal static string PasserJustAhead(GameStateData gs, int ownNow)
+        {
+            var s = gs.SessionData;
+            float length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
+            if (length < 100 || gs.carClass == null || ownNow <= 1) return null;
+            string found = null;
+            foreach (var pair in gs.OpponentData)
+            {
+                var rival = pair.Value;
+                if (rival == null || !rival.IsActive || rival.InPits || rival.Speed <= 5 || rival.ClassPosition != ownNow - 1 ||
+                    rival.CarClass == null || rival.CarClass.getClassIdentifier() != gs.carClass.getClassIdentifier()) continue;
+                float ahead = (rival.CompletedLaps - s.CompletedLaps) * length + rival.DistanceRoundTrack - gs.PositionAndMotionData.DistanceRoundTrack;
+                if (ahead < 0 || ahead > 80) continue;
                 if (found != null) return null;
                 found = pair.Key;
             }

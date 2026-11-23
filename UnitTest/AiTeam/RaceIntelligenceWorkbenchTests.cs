@@ -161,7 +161,8 @@ namespace UnitTest.AiTeamTests
             var before = State(SessionPhase.Formation); var after = State();
             var call = new RaceSituationWatch().Evaluate(before, after, T, "Rob").Single();
             Assert.AreEqual("race-start", call.Topic); Assert.IsTrue(call.IsValid(after, T.AddMilliseconds(100)));
-            Assert.IsFalse(call.IsValid(after, T.AddSeconds(7)));
+            Assert.IsTrue(call.IsValid(after, T.AddSeconds(7)), "LMU Sebring: Startmeldung lebt 12 s");
+            Assert.IsFalse(call.IsValid(after, T.AddSeconds(13)));
             after.SessionData.SessionPhase = SessionPhase.Formation; Assert.IsFalse(call.IsValid(after, T.AddSeconds(1)));
         }
 

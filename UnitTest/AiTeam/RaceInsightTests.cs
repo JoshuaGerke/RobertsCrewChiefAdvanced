@@ -106,7 +106,9 @@ namespace UnitTest.AiTeamTests
         public void Race_mind_keeps_insights_out_of_battles_and_the_last_laps()
         {
             var call = new ObservedRaceCall { Topic = "insight-battle-ahead", Text = "x", Priority = 4, SessionId = 5, SessionType = SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
-            Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.Middle, Attention = RaceAttention.Battle }, call, T, out _));
+            // RaceRoom Hockenheim 23.11. (Rob: „knappe Kämpfe um mich herum“): der Zweikampf voraus kommt auch im eigenen Zweikampf.
+            Assert.AreEqual(MindVerdict.Admit, RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.Middle, Attention = RaceAttention.Battle }, call, T, out _));
+            Assert.AreEqual(MindVerdict.Hold, RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.Middle, Attention = RaceAttention.Caution }, call, T, out _));
             Assert.AreEqual(MindVerdict.Drop, RaceMind.Judge(new RaceSituation { Utc = T, SessionId = 5, Phase = RacePhase.LastLap, Attention = RaceAttention.Calm }, call, T, out _));
         }
 

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-
-using CrewChiefV4.Audio;
-using CrewChiefV4.Events.PubSub;
 using CrewChiefV4.GameState;
+using CrewChiefV4.Audio;
 using CrewChiefV4.NumberProcessing;
 using CrewChiefV4.R3E;
 
@@ -99,7 +97,6 @@ namespace CrewChiefV4.Events
             this.audioPlayer = audioPlayer;
             maxOffPaceBeforeReadingOpponentRaceTime = (float)frequencyOfOpponentRaceLapTimes / 10f;
             minImprovementBeforeReadingOpponentRaceTime = (1f - maxOffPaceBeforeReadingOpponentRaceTime) / 5f;
-            EventBus.Subscribe(GameEvent.SectorChanged, _announceIfLappedCarAhead);
         }
 
         public override List<SessionType> applicableSessionTypes
@@ -293,6 +290,8 @@ namespace CrewChiefV4.Events
                             _updateDue(currentGameState);
                         }
                         _announceIfLeadChanged(previousGameState, currentGameState);
+
+                        _announceIfLappedCarAhead(previousGameState, currentGameState);
                     }
                 }
 
@@ -313,8 +312,8 @@ namespace CrewChiefV4.Events
         {
             // in race sessions, announce tyre type changes once the session is underway
             if (racing &&
-                currentGameState.SessionData.SessionRunningTime > 30 && 
-                opponentData.hasJustChangedToDifferentTyreType && 
+                currentGameState.SessionData.SessionRunningTime > 30 &&
+                opponentData.hasJustChangedToDifferentTyreType &&
                 currentGameState.Now > suppressOpponentTyreChangeUntil)
             {
                 // this may be a race position or an OpponentData object
@@ -328,11 +327,11 @@ namespace CrewChiefV4.Events
                 }
             }
 
-            bool __justDoneAtLeast2laps = opponentData.IsNewLap && opponentData.LastLapTime > 0 && 
+            bool __justDoneAtLeast2laps = opponentData.IsNewLap && opponentData.LastLapTime > 0 &&
                                           opponentData.OpponentLapData.Count > 1;
             bool __validLap = opponentData.LastLapValid && opponentData.CurrentBestLapTime > 0;
 
-            if (__justDoneAtLeast2laps && __validLap && 
+            if (__justDoneAtLeast2laps && __validLap &&
                 !WatchedOpponents.watchedOpponentKeys.Contains(opponentKey) /* to avoid duplicate messages*/)
             {
                 float currentFastestLap;
@@ -352,7 +351,7 @@ namespace CrewChiefV4.Events
                 // this opponent has just completed a lap - do we need to report it? if it's fast overall and more than
                 // a tenth quicker then his previous best we do...
                 bool __racedAtLeast3laps = racing && opponentData.CompletedLaps > 2;
-                bool __what_____ = !PitStops.waitingForMandatoryStopTimer && 
+                bool __what_____ = !PitStops.waitingForMandatoryStopTimer &&
                                 currentGameState.SessionData.SessionType != SessionType.Race &&
                                 opponentData.CompletedLaps > 1;
                 bool __canBeNamed = opponentData.CanUseName && AudioPlayer.canReadName(opponentData.DriverRawName, false);
@@ -360,10 +359,10 @@ namespace CrewChiefV4.Events
                 bool __realImprovement = opponentData.LastLapTime <= opponentData.CurrentBestLapTime &&
                                         opponentData.LastLapTime < opponentData.PreviousBestLapTime - minImprovementBeforeReadingOpponentRaceTime &&
                                         opponentData.LastLapTime < currentFastestLap + maxOffPaceBeforeReadingOpponentRaceTime;
-                bool __bestPracQuallyTime = (currentGameState.SessionData.SessionType == SessionType.Practice || 
-                                             currentGameState.SessionData.SessionType == SessionType.Qualify) && 
+                bool __bestPracQuallyTime = (currentGameState.SessionData.SessionType == SessionType.Practice ||
+                                             currentGameState.SessionData.SessionType == SessionType.Qualify) &&
                                             opponentData.LastLapTime <= opponentData.CurrentBestLapTime;
-                if ((__racedAtLeast3laps || __what_____) && 
+                if ((__racedAtLeast3laps || __what_____) &&
                     opponentData.LastLapTime <= currentFastestLap &&
                     __canBeNamed)
                 {
@@ -371,7 +370,7 @@ namespace CrewChiefV4.Events
                         (!racing && frequencyOfOpponentPracticeAndQualLapTimes > 0))
                     {
                         audioPlayer.playMessage(new QueuedMessage("new_fastest_lap", 5,
-                            messageFragments: MessageContents(folderNewFastestLapFor, opponentData, 
+                            messageFragments: MessageContents(folderNewFastestLapFor, opponentData,
                                 TimeSpanWrapper.FromSeconds(opponentData.LastLapTime, Precision.AUTO_LAPTIMES)), abstractEvent: this, priority: 3));
                     }
                 }
@@ -537,8 +536,8 @@ namespace CrewChiefV4.Events
                     {
                         // guard against when the racing is too tight to call it right now
                     }
-                    else if (currentGameState.SessionData.TimeDeltaBehind > 0 && 
-                             currentGameState.SessionData.TimeDeltaBehind <= 1 && 
+                    else if (currentGameState.SessionData.TimeDeltaBehind > 0 &&
+                             currentGameState.SessionData.TimeDeltaBehind <= 1 &&
                              currentGameState.SessionData.TimeDeltaFront >= 5)
                     {
                         // guard against when the car behind is so close that we don't care about a car ahead in the distance
@@ -552,7 +551,7 @@ namespace CrewChiefV4.Events
                     {
                         // guard against reporting drivers a long way ahead, based on track distance.
                     }
-                    else if (opponentData.isEnteringPits() || 
+                    else if (opponentData.isEnteringPits() ||
                              opponentData.InPits ||
                              opponentData.stoppedInLandmark != null ||
                              (opponentData.trackSurface != -1 &&
@@ -565,7 +564,7 @@ namespace CrewChiefV4.Events
                     {
                         // never call watched opponents, they have their own system
                     }
-                    else if (onlyAnnounceOpponentAfter.TryGetValue(opponentName, out announceAfterTime) && 
+                    else if (onlyAnnounceOpponentAfter.TryGetValue(opponentName, out announceAfterTime) &&
                              currentGameState.Now < announceAfterTime)
                     {
                         // we told the player about this driver very recently, even though positions have swapped, they should recognise them
@@ -611,13 +610,8 @@ namespace CrewChiefV4.Events
             return Math.Min(2000.0f, track.trackLength / 3.0f);
         }
 
-        private void _announceIfLappedCarAhead(GameStateData currentGameState)
+        private void _announceIfLappedCarAhead(GameStateData previousGameState, GameStateData currentGameState)
         {
-            if (!CrewChief.enableDriverNames || 
-                currentGameState.SessionData.SessionPhase == SessionPhase.FullCourseYellow)
-            {
-                return;
-            }
             // here we check for lapped cars and let the player know that they are not racing (with the
             // limited sound data we have available).
             //
@@ -629,38 +623,41 @@ namespace CrewChiefV4.Events
             //
             // checking for new cars on track on every tick is a bit expensive, so only do this when
             // crossing over sector boundaries. We could change this to gap points to be more responsive.
-            var key = currentGameState.getOpponentKeyInFrontOnTrack(onlyIncludeClass: currentGameState.carClass);
-            if (key != null && (lastDriverAheadOnTrack == null || !lastDriverAheadOnTrack.Equals(key))
-                            && currentGameState.OpponentData.TryGetValue(key, out OpponentData opponent)
-                            && opponent.ClassPosition > currentGameState.SessionData.ClassPosition
-                            && !WatchedOpponents.watchedOpponentKeys.Contains(key))
+            if (currentGameState.SessionData.SectorNumber != previousGameState.SessionData.SectorNumber)
             {
-                var (lapDiff, timeDiff) = currentGameState.SessionData.DeltaTime.GetRelativeDelta(opponent.DeltaTime);
-                if (lapDiff > 0 && Math.Abs(timeDiff) < 10)
+                var key = currentGameState.getOpponentKeyInFrontOnTrack(onlyIncludeClass: currentGameState.carClass);
+                if (key != null && (lastDriverAheadOnTrack == null || !lastDriverAheadOnTrack.Equals(key))
+                                && currentGameState.OpponentData.TryGetValue(key, out OpponentData opponent)
+                                && opponent.ClassPosition > currentGameState.SessionData.ClassPosition
+                                && !WatchedOpponents.watchedOpponentKeys.Contains(key))
                 {
-                    lastDriverAheadOnTrack = key;
-
-                    var message = MkLapDifferenceMessage(lapDiff);
-                    // unfortunately there is no separate audio for "next car on track" but the context should make this clear
-                    message.Insert(0, MessageFragment.Text(folderNextCarIs));
-                    // since we are lapping the car, we are unlikely to remember any reputation info, so ask for it fresh
-                    message.AddRange( MkFreshReputationAdvice(opponent, opponentIsAhead: true));
-
-                    DelayedMessage callback = delegate (GameStateData futureGameState, List<MessageFragment> primary, List<MessageFragment> alt)
+                    var (lapDiff, timeDiff) = currentGameState.SessionData.DeltaTime.GetRelativeDelta(opponent.DeltaTime);
+                    if (lapDiff > 0 && Math.Abs(timeDiff) < 10)
                     {
-                        if (!key.Equals(futureGameState.getOpponentKeyInFrontOnTrack(onlyIncludeClass: futureGameState.carClass))) { return; }
-                        primary.AddRange(message);
-                        nextCarOnTrackChangeMessage = futureGameState.Now.Add(TimeSpan.FromSeconds(secondsToAnnounceNextCar));
-                    };
+                        lastDriverAheadOnTrack = key;
 
-                    int delay = Utilities.random.Next(Position.maxSecondsToWaitBeforeReportingPass + 1, Position.maxSecondsToWaitBeforeReportingPass + 3);
-                    int despam_delay = (nextCarOnTrackChangeMessage - currentGameState.Now).Seconds;
-                    if (despam_delay > delay)
-                    {
-                        delay = despam_delay;
+                        var message = MkLapDifferenceMessage(lapDiff);
+                        // unfortunately there is no separate audio for "next car on track" but the context should make this clear
+                        message.Insert(0, MessageFragment.Text(folderNextCarIs));
+                        // since we are lapping the car, we are unlikely to remember any reputation info, so ask for it fresh
+                        message.AddRange( MkFreshReputationAdvice(opponent, opponentIsAhead: true));
+
+                        DelayedMessage callback = delegate (GameStateData futureGameState, List<MessageFragment> primary, List<MessageFragment> alt)
+                        {
+                            if (!key.Equals(futureGameState.getOpponentKeyInFrontOnTrack(onlyIncludeClass: futureGameState.carClass))) { return; }
+                            primary.AddRange(message);
+                            nextCarOnTrackChangeMessage = futureGameState.Now.Add(TimeSpan.FromSeconds(secondsToAnnounceNextCar));
+                        };
+
+                        int delay = Utilities.random.Next(Position.maxSecondsToWaitBeforeReportingPass + 1, Position.maxSecondsToWaitBeforeReportingPass + 3);
+                        int despam_delay = (nextCarOnTrackChangeMessage - currentGameState.Now).Seconds;
+                        if (despam_delay > delay)
+                        {
+                            delay = despam_delay;
+                        }
+
+                        audioPlayer.playMessage(new QueuedMessage("lapped_car_ahead", delay + 2, secondsDelay: delay, delayedMessage: callback, messageFragments: message));
                     }
-
-                    audioPlayer.playMessage(new QueuedMessage("lapped_car_ahead", delay + 2, secondsDelay: delay, delayedMessage: callback, messageFragments: message));
                 }
             }
         }
