@@ -63,6 +63,7 @@ namespace CrewChiefV4.AiTeam
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
         private readonly RaceStorylineWatch storyline = new RaceStorylineWatch();
+        private readonly TopSpeedWatch topSpeed = new TopSpeedWatch();
         private readonly BattleSectorWatch battleSector = new BattleSectorWatch();
         private readonly PitDamageWatch pitDamage = new PitDamageWatch();
         /// <summary>Renningenieur-Kopf: führt die Rennlage zusammen und entscheidet, welche Info-Meldung jetzt wichtig ist.</summary>
@@ -361,6 +362,7 @@ namespace CrewChiefV4.AiTeam
                 raceSummary.Reset();
                 gapTrend.Reset();
                 storyline.Reset(); RaceStorylineWatch.ForgetExpectations();
+                topSpeed.Reset();
                 battleSector.Reset();
                 pitDamage.Reset();
                 raceMind.Reset();
@@ -651,9 +653,22 @@ namespace CrewChiefV4.AiTeam
                     if (hint != null)
                     {
                         var advice = new ObservedRaceCall { Topic="corner-coaching",
-                            Text=RadioLanguage.T("In " + hint.Name + " verlierst du wiederholt Zeit. Nimm dir die Kurve in der nächsten Runde vor.",
-                                "You keep losing time in " + hint.Name + ". Work on that corner next lap.",
-                                "Sigues perdiendo tiempo en " + hint.Name + ". Trabaja esa curva en la próxima vuelta."),
+                            Text=RadioVariants.Pick("corner-coaching",
+                                RadioLanguage.T("In " + hint.Name + " verlierst du wiederholt Zeit. Nimm dir die Kurve in der nächsten Runde vor.",
+                                    "You keep losing time in " + hint.Name + ". Work on that corner next lap.",
+                                    "Sigues perdiendo tiempo en " + hint.Name + ". Trabaja esa curva en la próxima vuelta."),
+                                RadioLanguage.T(hint.Name + " kostet dich Runde für Runde Zeit. Da schauen wir als Nächstes hin.",
+                                    hint.Name + " is costing you time lap after lap. That's where we look next.",
+                                    hint.Name + " te cuesta tiempo vuelta tras vuelta. Ahí miramos ahora."),
+                                RadioLanguage.T("Die meiste Zeit bleibt in " + hint.Name + " liegen. Nächste Runde dort sauberer.",
+                                    "Most of the time is going in " + hint.Name + ". Cleaner there next lap.",
+                                    "La mayor parte del tiempo se va en " + hint.Name + ". Más limpio ahí la próxima vuelta."),
+                                RadioLanguage.T("Schau dir " + hint.Name + " an, da verlierst du immer wieder. Ruhig rein, sauber raus.",
+                                    "Have a look at " + hint.Name + ", you keep dropping time there. Calm in, clean out.",
+                                    "Fíjate en " + hint.Name + ", ahí pierdes una y otra vez. Entra tranquilo, sal limpio."),
+                                RadioLanguage.T("In " + hint.Name + " liegt dein Potenzial. Da fehlt dir jede Runde etwas.",
+                                    "Your potential is in " + hint.Name + ". You're missing something there every lap.",
+                                    "Tu margen está en " + hint.Name + ". Ahí te falta algo cada vuelta.")),
                             Evidence=hint.Evidence, Member=TeamMember.Mik, Priority=3, Position=-1,
                             SessionId=current.SessionData.SessionId, SessionType=current.SessionData.SessionType,
                             CompletedLaps=current.SessionData.CompletedLaps, DetectedUtc=now, ExpiresUtc=now.AddSeconds(9),
@@ -704,6 +719,7 @@ namespace CrewChiefV4.AiTeam
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
             gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
             storyline.Observe(current,raceMind,() => BuildContext(current),now);
+            topSpeed.Observe(current,now,settings.SendDriverNames);
             if (timingEvents.Commentary == null)
                 timingEvents.Commentary = (live, fact, names) => fact.Relation == NativeTimingRelation.BehindOnTrack ||
                     !live.OpponentData.TryGetValue(fact.Key, out var rival) ? null :
@@ -875,6 +891,10 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = storyline.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
                     !AllowsRadioNow(false), settings.IsMemberEnabled);
+            // Rob 23.11.: Topspeed des direkten Gegners und ab und zu der Klassenspitze.
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = topSpeed.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
+                    !AllowsRadioNow(false), settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = battleSector.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
