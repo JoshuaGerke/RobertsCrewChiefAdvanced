@@ -177,6 +177,7 @@ namespace UnitTest.AiTeamTests
             memory.Remember(status, T);
             Assert.IsFalse(memory.SaidRecently(Report("status", "Platz 3. Seit dem Start 1 Platz gutgemacht.", 3), T.AddSeconds(120)), "Rennstatus alle 120 s");
             Assert.IsFalse(memory.NothingNew(Report("status", "P3, weiter so.", 3), T.AddSeconds(60), out _), "gleicher Platz im Bericht");
+            Assert.IsTrue(memory.NothingNew(Report("status", "P3, weiter so.", 3), T.AddSeconds(5), out _), "Mosport 16.11.: nicht im selben Atemzug");
             memory.Remember(Report("vehicle", "Auto in Ordnung, keine Schäden."), T);
             Assert.IsFalse(memory.SaidRecently(Report("vehicle", "Auto in Ordnung, keine Schäden."), T.AddSeconds(200)));
             // Ein anderer Wächter mit demselben Satz bleibt gesperrt.

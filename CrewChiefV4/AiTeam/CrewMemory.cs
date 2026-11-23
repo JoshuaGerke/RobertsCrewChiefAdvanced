@@ -16,6 +16,7 @@ namespace CrewChiefV4.AiTeam
         internal static readonly TimeSpan Window = TimeSpan.FromMinutes(4);
         /// <summary>RRCA 2.0 (6.3): Wie lange ein gemeldeter eigener Platz als „schon gesagt“ gilt.</summary>
         internal static readonly TimeSpan PositionWindow = TimeSpan.FromSeconds(90);
+        internal static readonly TimeSpan RoutinePositionWindow = TimeSpan.FromSeconds(20);
         private readonly Dictionary<string, DateTime> said = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         private readonly Dictionary<string, DateTime> events = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         private int reportedPosition, reportedPositionSession = int.MinValue;
@@ -60,6 +61,15 @@ namespace CrewChiefV4.AiTeam
         internal bool NothingNew(ObservedRaceCall call, DateTime now, out string reason)
         {
             reason = null;
+            if (RaceMind.RoutineReport(call))
+            {
+                // Mosport 16.11. bleibt gültig: Ein eingestellter Bericht wiederholt den gerade gemeldeten Platz nicht im selben Atemzug.
+                lock (gate)
+                    if (call.StatedPosition > 0 && call.SessionId == reportedPositionSession && call.StatedPosition == reportedPosition &&
+                        now >= reportedPositionUtc && now - reportedPositionUtc < RoutinePositionWindow)
+                    { reason = "crew_memory_position_just_reported"; return true; }
+                return false;
+            }
             if (Exempt(call)) return false;
             lock (gate)
             {
