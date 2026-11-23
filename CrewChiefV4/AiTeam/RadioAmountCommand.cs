@@ -9,27 +9,38 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal static class RadioAmountCommand
     {
-        private const string Lead = @"^(?:(?:ben|mik|crew|team|jungs|leute|guys|chicos|equipo|ok|okay|so|jetzt|ab jetzt|bitte|please|por favor)[, ]+)*";
+        private const string Lead = @"^(?:(?:ben|mik|crew|team|jungs|leute|guys|chicos|equipo|ok|okay|so|jetzt|ab jetzt|bitte|please|por favor|ich moechte|ich will|ich haette gerne?|i want|i.?d like|quiero)[, ]+)*";
         private const string Tail = @"(?:[, ]+(?:bitte|please|por favor|danke|thanks|gracias|jetzt|now|ahora|ab jetzt|from now on))*$";
 
         private static readonly Regex MuchMore = new Regex(Lead +
-            @"(?:viel mehr (?:infos?|informationen|funk|daten)|noch (?:viel )?mehr (?:infos?|informationen|funk)|alle infos|" +
+            @"(?:viel mehr (?:infos?|informationen|funk|daten)|noch (?:viel )?mehr (?:infos?|informationen|funk)|alle infos|alle informationen|" +
+            @"volle (?:infos?|informationen)(?:,? (?:insbesondere|vor allem|besonders) [a-z ]+)?|wieder (?:volle|alle) (?:infos?|informationen)|volles programm|wieder alles|alles wieder|" +
+            @"full (?:info|information|radio)|all (?:the )?information|everything|" +
+            @"toda la (?:info|informacion)|informacion completa|todo|" +
             @"(?:much|lots|a lot) more (?:info|information|radio|data)|all the info|" +
             @"mucha mas (?:info|informacion)|muchas mas infos?|mucho mas (?:radio|datos|info))" + Tail);
         private static readonly Regex More = new Regex(Lead +
             @"(?:mehr (?:infos?|informationen|funk|daten)|gib mir mehr infos?|more (?:info|information|radio|data)|give me more info|" +
             @"mas (?:info|infos|informacion|radio|datos)|dame mas info)" + Tail);
         private static readonly Regex Quiet = new Regex(Lead +
-            @"(?:ruhe|ruhig|funkruhe|weniger (?:infos?|informationen|funk|daten)|seid (?:mal )?ruhig|sei (?:mal )?ruhig|" +
-            @"quiet|be quiet|keep quiet|less (?:info|information|radio|data)|radio silence|" +
-            @"silencio|menos (?:info|infos|informacion|radio|datos)|callaos|calla)" + Tail);
+            @"(?:ruhe|ruhig|funkruhe|seid (?:mal )?ruhig|sei (?:mal )?ruhig|" +
+            @"quiet|be quiet|keep quiet|radio silence|" +
+            @"silencio|callaos|calla)" + Tail);
+        /// <summary>LMU Sebring 23.11.: „Weniger Infos bitte“ aus „Viel mehr Infos“ schaltete ganz auf Ruhig. „Weniger“ ist eine Stufe weniger.</summary>
+        private static readonly Regex Less = new Regex(Lead +
+            @"(?:weniger (?:infos?|informationen|funk|daten)|etwas weniger|less (?:info|information|radio|data)|a bit less|" +
+            @"menos (?:info|infos|informacion|radio|datos))" + Tail);
         private static readonly Regex Normal = new Regex(Lead +
-            @"(?:(?:funk|infos?|funkmenge|radio) (?:wieder )?normal|(?:wieder )?normal(?:er)? funk|zurueck auf normal|wieder normal|normal|" +
+            @"(?:(?:funk|infos?|funkmenge|radio) (?:wieder )?normal|(?:funk|infos?|informationen|ansagen) wieder (?:an|ein)|wieder (?:infos?|informationen|ansagen|funk)|" +
+            @"(?:radio|info) back on|(?:wieder )?normal(?:er)? funk|zurueck auf normal|wieder normal|normal|" +
             @"(?:radio|info) (?:back )?(?:to )?normal|back to normal|normal radio|" +
             @"radio normal|vuelve a normal|otra vez normal|volvemos a lo normal)" + Tail);
 
-        /// <summary>Erkannter Wunsch oder null.</summary>
-        internal static RadioAmount? Parse(string text)
+        /// <summary>Erkannter Wunsch oder null; „weniger“ von der Stufe Normal aus.</summary>
+        internal static RadioAmount? Parse(string text) => Parse(text, RadioAmount.Normal);
+
+        /// <summary>Erkannter Wunsch oder null. „Weniger Infos“ geht eine Stufe unter <paramref name="current"/>.</summary>
+        internal static RadioAmount? Parse(string text, RadioAmount current)
         {
             string raw = (text ?? "").Trim();
             if (raw.Length == 0 || raw.Length > 80 || raw.EndsWith("?")) return null;
@@ -39,9 +50,37 @@ namespace CrewChiefV4.AiTeam
             if (MuchMore.IsMatch(n)) return RadioAmount.MuchMore;
             if (More.IsMatch(n)) return RadioAmount.More;
             if (Quiet.IsMatch(n)) return RadioAmount.Quiet;
+            if (Less.IsMatch(n)) return current == RadioAmount.MuchMore ? RadioAmount.More : current == RadioAmount.More ? RadioAmount.Normal : RadioAmount.Quiet;
             if (Normal.IsMatch(n)) return RadioAmount.Normal;
             return null;
         }
+
+        /// <summary>
+        /// LMU Sebring 23.11.: Bei „Ruhig“ beschwerte sich Rob viermal („Ben, kommt von dir nichts mehr?“, „Keine Reaktion auf meine
+        /// Überholmanöver“, „Keine Ansagen mehr über die Rennzeit“) – die Crew antwortete mit Erklärungen, der Funk blieb still.
+        /// Wer bei Ruhig fehlende Meldungen beklagt, will wieder Funk: das gilt als „Funk normal“.
+        /// </summary>
+        private static readonly Regex Complaint = new Regex(
+            @"(?:kommt (?:von (?:dir|euch) )?(?:gar )?nichts|(?:keine|gar keine) (?:ansagen|meldungen|reaktion|infos?|informationen)|" +
+            @"warum (?:sagt|kommt|meldet) (?:ihr |du |keiner |niemand )?(?:mir )?nichts|ihr seid (?:so )?(?:still|ruhig)|hoert man nichts|" +
+            @"warum hast du mir nicht gesagt|" +
+            @"nothing from you|no (?:calls|info|information|reaction)|why (?:didn.?t|don.?t) you (?:tell|say)|you.?re (?:so )?quiet|" +
+            @"no (?:me )?dices nada|no hay (?:avisos|informacion)|por que no me (?:dices|avisas|dijiste))");
+
+        /// <summary>Beschwerde über fehlende Meldungen, solange die Funkmenge auf Ruhig steht.</summary>
+        internal static bool ComplainsAboutSilence(string text, RadioAmount current)
+        {
+            if (current != RadioAmount.Quiet || string.IsNullOrWhiteSpace(text)) return false;
+            string n = DriverRadioPreferences.Normalize(text).Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u").Replace("ñ", "n");
+            return Complaint.IsMatch(n);
+        }
+
+        /// <summary>Antwort auf eine Beschwerde bei Ruhig: ehrlich sagen, warum es still war, und wieder normal funken.</summary>
+        internal static string SilenceReply(int variant) => AiRadioSchedule.Of(variant,
+            RadioLanguage.T("Stimmt, du hattest auf Ruhig gestellt. Ab jetzt funken wir wieder normal.", "Right, you'd set us to quiet. From now on we're back to normal radio.", "Cierto, nos habías puesto en silencio. A partir de ahora radio normal."),
+            RadioLanguage.T("Das lag an der Einstellung Ruhig. Ist zurückgenommen, du hörst wieder alles Wichtige.", "That was the quiet setting. It's undone, you'll hear everything important again.", "Era el modo silencio. Ya está quitado, vuelves a oír todo lo importante."),
+            RadioLanguage.T("Wir waren auf Ruhig. Verstanden, Funk wieder normal.", "We were on quiet. Copy, radio back to normal.", "Estábamos en silencio. Entendido, radio otra vez normal."),
+            RadioLanguage.T("Sorry, Ruhig war noch aktiv. Jetzt wieder normaler Funk.", "Sorry, quiet was still on. Normal radio again now.", "Perdona, el silencio seguía activo. Ahora radio normal otra vez."));
 
         /// <summary>Kurze Bestätigung in der Funksprache, vier Formulierungen je Stufe.</summary>
         internal static string Reply(RadioAmount amount, int variant)

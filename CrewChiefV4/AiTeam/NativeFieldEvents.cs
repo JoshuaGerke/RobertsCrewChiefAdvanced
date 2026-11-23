@@ -432,7 +432,9 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="left")return f.Key!=null && (!gs.OpponentData.TryGetValue(f.Key,out var gone) || gone==null || !gone.IsActive);
             if(f.Kind=="dq")return gs.disqualifiedDriverNames.ContainsKey(f.Name);
             OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op==null || RaceReader.Identity(f.Key,op)!=f.Identity)return false;
-            if(f.Kind=="pit")return op.IsActive && (op.InPits || op.isEnteringPits());
+            // LMU Sebring 23.11.: „Arod Spearhead fährt an die Box“ verfiel als „Fakten geändert“, weil die Sim das Box-Kennzeichen
+            // kurz verlor. Die Boxeinfahrt ist geschehen; die Meldung lebt ohnehin nur 15 s. Gültig, solange das Auto im Rennen ist.
+            if(f.Kind=="pit")return op.IsActive;
             if(f.Kind=="pit-exit")return op.IsActive && !op.InPits;
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;

@@ -407,7 +407,7 @@ namespace CrewChiefV4.AiTeam
                 // Wer gerade verteidigt oder angreift, braucht keine Nachrichten über andere Autos – die verfallen.
                 // Ausnahme: die schnellste Runde eines Gegners wartet nur (LMU 22.11.: im Rennen nie gemeldet).
                 if ((x.Focus == RaceFocus.Defend || x.Focus == RaceFocus.Attack) && t.StartsWith("field-", StringComparison.Ordinal) &&
-                    t != "field-fastest" && t != "field-fastest-overall")
+                    t != "field-fastest" && t != "field-fastest-overall" && t != "field-topspeed")
                 { reason = "focus_on_own_fight"; return MindVerdict.Drop; }
                 if (x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart) { reason = "start_phase_driver_busy"; return MindVerdict.Hold; }
                 // RaceRoom Mantorp 22.11.: Die schnellste Runde eines Gegners wurde dreimal im Verkehr gehalten und verfiel. Verkehr

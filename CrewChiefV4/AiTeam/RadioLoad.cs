@@ -197,7 +197,7 @@ namespace CrewChiefV4.AiTeam
         internal static bool OwnResult(string topic) =>
             topic == "own-lap" || topic == "race-lap" || topic == "first-lap-fuel" || topic == "fuel-baseline" ||
             topic == "field-fastest" || topic == "field-fastest-overall" ||
-            topic == "greeting" || topic == "race-start" || topic == "session-debrief";
+            topic == "greeting" || topic == "race-start" || topic == "session-debrief" || topic == "time-left";
 
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)

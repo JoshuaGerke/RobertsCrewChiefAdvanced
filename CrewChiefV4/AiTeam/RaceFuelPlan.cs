@@ -83,14 +83,11 @@ namespace CrewChiefV4.AiTeam
             float stated = StatedPerLap(question);
             float perLap = measured > 0 && !provisional ? measured : stated > 0 ? stated : measured;
             float lap = LapTimeBasis(memory, gs);
+            // LMU Sebring 23.11.: Zu Rennbeginn fehlte die Rundenzeit der neuen Sitzung, die schnelle Antwort sagte „Mir fehlt noch eine
+            // Rundenzeit“, obwohl Training und Quali Verbrauch und Zeiten hatten. Ohne eigene Grundlage antwortet jetzt das Sprachmodell
+            // mit dem Lagebild, das die Werte der vorherigen Sitzung enthält.
             if (!Compute(seconds, lapCount, lap, perLap, out int raceLaps, out double needed, out double reserve))
-                return perLap <= 0
-                    ? RadioLanguage.T("Mir fehlt noch ein Verbrauch pro Runde. Fahr eine saubere Runde oder nenn mir deinen Wert.",
-                        "I still need a consumption per lap. Do a clean lap or give me your figure.",
-                        "Aún me falta un consumo por vuelta. Haz una vuelta limpia o dime tu valor.")
-                    : RadioLanguage.T("Mir fehlt noch eine Rundenzeit für die Hochrechnung. Nach einer sauberen Runde rechne ich es dir aus.",
-                        "I still need a lap time to project it. After a clean lap I'll work it out.",
-                        "Aún me falta un tiempo de vuelta para calcularlo. Tras una vuelta limpia te lo calculo.");
+                return null;
             string pl = RadioLanguage.Num(perLap, "0.0"), n = RadioLanguage.Num(needed, "0"), r = RadioLanguage.Num(reserve, "0");
             string basis = measured > 0 && !provisional && perLap == measured ? RadioLanguage.T("gemessen", "measured", "medido") : RadioLanguage.T("dein Wert", "your figure", "tu valor");
             if (lapCount > 0)

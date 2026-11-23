@@ -78,6 +78,11 @@ namespace CrewChiefV4.AiTeam.Field
                         ". En pista " + passesMade + " adelantamientos, te adelantaron " + passesLost + " veces");
                 parts.Add(own + ".");
             }
+            // LMU Sebring 23.11. (Rob): „Deine Bilanz war ziemlich schwach“ – der Boxenstopp fehlte.
+            int stops = chronicle.Count(e => e.Kind == ChronicleKind.OwnPit);
+            if (stops > 0)
+                parts.Add(stops == 1 ? RadioLanguage.T("Ein Boxenstopp.", "One pit stop.", "Una parada en boxes.")
+                    : RadioLanguage.T(stops + " Boxenstopps.", stops + " pit stops.", stops + " paradas en boxes."));
 
             var laps = cls.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();
             if (laps.Count > 0)

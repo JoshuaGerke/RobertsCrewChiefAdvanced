@@ -266,6 +266,7 @@
     <Compile Include="AiTeam\Crew\PhraseMemory.cs" />
     <Compile Include="AiTeam\Crew\BattleVoice.cs" />
     <Compile Include="AiTeam\Crew\RaceStorylineWatch.cs" />
+    <Compile Include="AiTeam\Crew\TimeLeftWatch.cs" />
     <Compile Include="AiTeam\Crew\TopSpeedWatch.cs" />
     <Compile Include="AiTeam\RaceMind.cs" />
     <Compile Include="AiTeam\TyreGripWatch.cs" />

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -378,6 +379,19 @@ namespace CrewChiefV4.AiTeam
             return sec == 0 ? min : min + RadioLanguage.T(" " + sec, " " + sec, " y " + sec);
         }
 
+        private static readonly HashSet<string> commonCapitalWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Hintermann", "Vordermann", "Platz", "Position", "Runde", "Runden", "Box", "Führende", "Führender", "Leader", "Sektor", "Klasse",
+            "Auto", "Wagen", "Gegner", "Fahrer", "Ben", "Mik", "Sara", "Sarah", "Rob", "Spitze", "Abstand", "Zweikampf", "Gelb", "Strecke",
+        };
+
+        /// <summary>Steht in der Frage ein Wort, das wie ein Name aussieht (groß geschrieben, nicht am Satzanfang, kein Allerweltswort)?</summary>
+        internal static bool MentionsUnknownName(string question)
+        {
+            var words = System.Text.RegularExpressions.Regex.Split(question ?? "", @"[^\p{L}'-]+").Where(w => w.Length >= 3).ToList();
+            return words.Skip(1).Any(w => char.IsUpper(w[0]) && !commonCapitalWords.Contains(w));
+        }
+
         public static string TryAnswer(string question, GameStateData gs, AiRaceMemory memory, bool allowDriverNames = true)
         {
             if (gs == null || string.IsNullOrWhiteSpace(question))
@@ -407,6 +421,13 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T("Den aktuellen Streckensektor liefert die Simulation gerade nicht sicher.", "The sim isn't giving a reliable sector right now.",
                         "El simulador no da el sector con seguridad ahora mismo.");
             }
+
+            // LMU Sebring 23.11.: „Wer ist dieser Wilcox hinter mir?“ – die Sim schreibt „Willcox“, die schnelle Antwort nannte den
+            // Hintermann laut Abstand (Bartosz). Wer nach einer Person fragt, deren Name nicht eindeutig im Feld steht, bekommt die
+            // Antwort vom Sprachmodell mit dem ganzen Feld.
+            if (AnyOf(q, "wer ist", "wer war", "who is", "who's", "who was", "quién es", "quien es", "quién era", "quien era") &&
+                RaceFieldTools.NamedInQuestion(question, gs).Count == 0 && MentionsUnknownName(question))
+                return null;
 
             bool lapTimeWords = AnyOf(q, "rundenzeit", "letzte runde", "lap time", "laptime", "last lap", "tiempo de vuelta", "última vuelta", "ultima vuelta");
             var named = RaceFieldTools.NamedInQuestion(question, gs);

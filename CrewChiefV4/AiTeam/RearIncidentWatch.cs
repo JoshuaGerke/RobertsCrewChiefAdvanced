@@ -26,6 +26,8 @@ namespace CrewChiefV4.AiTeam
             public string Name;
             public float GapS, GapM;
             public bool Stopped;
+            /// <summary>Weitere Wagen, die im selben Moment hinter Rob stehen oder sich gedreht haben (Massenunfall).</summary>
+            public List<string> Others = new List<string>();
         }
 
         private readonly Dictionary<string, DateTime> called = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
@@ -45,8 +47,10 @@ namespace CrewChiefV4.AiTeam
         internal static Incident Nearest(FieldView view, DateTime now)
         {
             if (view == null || view.Cars == null || view.Player == null || !view.Fresh(now, 2) || view.InMenus || view.Paused || view.InReplay) return null;
-            var car = view.Cars.Where(c => Relevant(c, now)).OrderByDescending(c => c.GapM).FirstOrDefault();
-            return car == null ? null : new Incident { Name = car.Name, GapS = car.GapS, GapM = car.GapM, Stopped = car.Motion == CarMotion.Stopped };
+            var cars = view.Cars.Where(c => Relevant(c, now)).OrderByDescending(c => c.GapM).ToList();
+            var car = cars.FirstOrDefault();
+            return car == null ? null : new Incident { Name = car.Name, GapS = car.GapS, GapM = car.GapM, Stopped = car.Motion == CarMotion.Stopped,
+                Others = cars.Skip(1).Select(c => c.Name).Take(3).ToList() };
         }
 
         internal Incident Take(FieldView view, GameStateData gs, DateTime now)
@@ -59,7 +63,29 @@ namespace CrewChiefV4.AiTeam
             if (incident == null) return null;
             if (called.TryGetValue(incident.Name, out var at) && now >= at && now - at < SameCarAgain) return null;
             called[incident.Name] = now; lastCall = now;
+            foreach (var other in incident.Others) called[other] = now;
             return incident;
+        }
+
+        /// <summary>
+        /// LMU Sebring 23.11. (Rob, 22:29:57): „Gar keine Ansagen, dass es hinter mir einen Massencrash gab.“ Stehen mehrere Wagen
+        /// zugleich hinter Rob, sagt Sara es als einen Satz mit allen Namen.
+        /// </summary>
+        internal string CrashText(IList<string> names)
+        {
+            var list = (names ?? new List<string>()).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            int v = variant++;
+            if (list.Count < 2)
+                return RadioVariants.At(v,
+                    RadioLanguage.T("Massenunfall hinter dir, mehrere Autos stehen.", "Big crash behind you, several cars stopped.", "Accidente múltiple detrás, varios coches parados."),
+                    RadioLanguage.T("Hinter dir hat es gekracht, mehrere Autos.", "There's been a crash behind you, several cars.", "Ha habido un choque detrás, varios coches."),
+                    RadioLanguage.T("Unfall hinter dir mit mehreren Autos. Du bist durch.", "Multi-car crash behind you. You're through.", "Accidente con varios coches detrás. Has pasado."));
+            string joined = string.Join(", ", list.Take(list.Count - 1)) + RadioLanguage.T(" und ", " and ", " y ") + list[list.Count - 1];
+            return RadioVariants.At(v,
+                RadioLanguage.T("Massenunfall hinter dir: " + joined + ".", "Big crash behind you: " + joined + ".", "Accidente múltiple detrás: " + joined + "."),
+                RadioLanguage.T("Hinter dir hat es gekracht, " + joined + " stehen.", "Crash behind you, " + joined + " are stopped.", "Choque detrás, " + joined + " están parados."),
+                RadioLanguage.T("Unfall hinter dir mit " + joined + ". Du bist durch.", "Crash behind you involving " + joined + ". You're through.", "Accidente detrás con " + joined + ". Has pasado."),
+                RadioLanguage.T(joined + " sind hinter dir verunfallt.", joined + " have crashed behind you.", joined + " han tenido un accidente detrás."));
         }
 
         /// <summary>Kurz wie eine Spotterin, mit Namen; ohne Namen „hinter dir“.</summary>
