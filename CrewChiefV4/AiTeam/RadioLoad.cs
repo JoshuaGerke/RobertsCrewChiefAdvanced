@@ -111,6 +111,9 @@ namespace CrewChiefV4.AiTeam
             if (t.StartsWith("judge-", StringComparison.Ordinal) || t == "personal-best-record" || t == "personal-best-sector" ||
                 t == "sector-best" || t == "near-best" || t == "own-best-pace" || t == "lap-on-pace" || t == "personal-best-near")
                 return t == "judge-dropped" || t == "judge-spin" || t == "judge-impact" ? RadioClass.Event : RadioClass.Encouragement;
+            // Rob (Monza 22.11.): „Sofort eine Rundenzeit, wenn jemand eine Bestrunde gefahren hat.“ Die Klassen- bzw. Feldbestzeit
+            // ist ein Rennereignis, keine Statistik – beide Meldungen warteten als Daten im Dauerzweikampf, bis sie verfielen.
+            if (t == "field-fastest" || t == "field-fastest-overall") return RadioClass.Event;
             if (t.StartsWith("fuel-", StringComparison.Ordinal) || t.StartsWith("tyre-", StringComparison.Ordinal) || t.StartsWith("engine-", StringComparison.Ordinal) ||
                 t.StartsWith("field-", StringComparison.Ordinal) || t.StartsWith("reader-", StringComparison.Ordinal) || t.StartsWith("weather-", StringComparison.Ordinal) ||
                 t == "stint-consistency" || t == "status" || t == "summary" || t == "race-summary" || t == "gap-trend" || t == "rival-best" ||
@@ -136,8 +139,10 @@ namespace CrewChiefV4.AiTeam
         /// wurden viermal wegen hoher Anspannung gehalten – sie kamen genau dann nicht, wenn es eng wurde. Wie Platzwechsel gehen sie
         /// an Anspannung und Sprechzeit vorbei; Seite an Seite (Überlappung) warten sie weiter.
         /// </summary>
+        /// RaceRoom Monza 22.11.: Auch die eingestellten Abstandsberichte zum Vorder- und Hintermann („ahead“/„behind“) gehören dazu –
+        /// 18 Berichte erkannt, 3 gespielt, Rob: „Das muss häufiger kommen, wenn ich im Zweikampf bin.“
         internal static bool OwnFight(string topic) =>
-            topic == "start-verdict" || topic == "native-gap-front" || topic == "native-gap-behind";
+            topic == "start-verdict" || topic == "native-gap-front" || topic == "native-gap-behind" || topic == "ahead" || topic == "behind";
 
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)

@@ -198,7 +198,7 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(2,prefs.IntervalScale("fuel"));
             var reopened=new DriverRadioPreferences(folder);Assert.AreEqual(2,reopened.IntervalScale("fuel"));
             Assert.IsTrue(reopened.TryCommand("Abstandsmeldungen häufiger",out reply));
-            Assert.AreEqual(1.5,reopened.IntervalScale("ahead"));Assert.AreEqual(2,reopened.IntervalScale("fuel"));
+            Assert.AreEqual(1,reopened.IntervalScale("ahead"));Assert.AreEqual(2,reopened.IntervalScale("fuel")); // seltener × häufiger
             Assert.IsTrue(reopened.TryCommand("Welche Funkwünsche sind gespeichert?",out reply));StringAssert.Contains("häufiger",reply);
             Assert.IsTrue(reopened.TryCommand("Funkwünsche zurücksetzen",out reply));
             Assert.AreEqual(1,new DriverRadioPreferences(folder).IntervalScale("ahead"));
@@ -218,7 +218,7 @@ namespace UnitTest.AiTeamTests
         }
 
         [TestCase("Bitte melde mir Abstände seltener.",2)]
-        [TestCase("Melde Abstandsberichte bitte häufiger",0.75)]
+        [TestCase("Melde Abstandsberichte bitte häufiger",0.5)]
         [TestCase("Ich möchte Abstandsberichte seltener hören",2)]
         public void Natural_explicit_gap_wishes_persist_on_first_use_without_affecting_other_topics(string command,double scale)
         {

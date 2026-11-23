@@ -352,12 +352,25 @@ namespace UnitTest.AiTeamTests
         }
 
         [TestCase(true, SessionType.Practice, true)]
-        [TestCase(true, SessionType.Race, false)]
+        [TestCase(true, SessionType.Race, true)] // RaceRoom Monza 22.11.: auch im Rennen „auf Bestzeitkurs“
         [TestCase(false, SessionType.Practice, false)]
         public void Live_best_pace_compares_the_first_two_splits_with_one_measured_best_lap(bool coherent, SessionType type, bool expected)
         {
+            Live_best_pace(coherent, type, expected, 0f);
+        }
+
+        [TestCase(.6f, false)]
+        [TestCase(1.4f, true)]
+        public void Race_best_pace_hint_waits_in_a_close_fight(float gapFront, bool expected)
+        {
+            Live_best_pace(true, SessionType.Race, expected, gapFront);
+        }
+
+        private void Live_best_pace(bool coherent, SessionType type, bool expected, float gapFront)
+        {
             var before = State(type);
             var present = State(type);
+            present.SessionData.TimeDeltaFront = before.SessionData.TimeDeltaFront = gapFront;
             var now = T.AddSeconds(65);
             before.SourceTelemetryUtc = now.AddMilliseconds(-30);
             present.SourceTelemetryUtc = now;

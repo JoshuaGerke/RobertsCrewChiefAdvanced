@@ -340,7 +340,8 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Battle), "field-pit"), "im Zweikampf warten");
             Assert.AreEqual(MindVerdict.Drop, Judge(battle, "field-pit"), "im Angriff verfallen Nachrichten über andere");
             Assert.AreEqual(MindVerdict.Hold, Judge(start, "status"));
-            Assert.AreEqual(MindVerdict.Drop, Judge(final, "field-fastest"));
+            Assert.AreEqual(MindVerdict.Admit, Judge(final, "field-fastest"), "Rob, Monza 22.11.: Bestzeiten immer melden");
+            Assert.AreEqual(MindVerdict.Drop, Judge(lastLap, "field-fastest"), "in der letzten Runde nicht mehr");
             Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-pit"), "Fokus auf dem eigenen Kampf");
             Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Traffic), "reader-pace-front"));
 

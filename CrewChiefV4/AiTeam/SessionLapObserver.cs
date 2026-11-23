@@ -470,14 +470,16 @@ namespace CrewChiefV4.AiTeam
             string key = "timing.sector.personal." + (sector + 1);
             float time = lap.SectorTimes[sector];
             float prior = completedSectorBest[sector];
-            if (GoodSector(prior) && prior - time < .04f) return false;
+            if (GoodSector(prior) && prior - time < .04f)
+            { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":not_faster_than_kept_best_by_0.04s"); return false; }
             string evidence;
             float gain;
             if (state.Measurements.TryGetValue(key, out var value) && previous.Measurements.TryGetValue(key, out var old) &&
                 old.Value.HasValue && value.Value.HasValue)
             {
                 if (value.StatusAt(now) != "gueltig" || old.StatusAt(now) != "gueltig" || value.SampleUtc <= old.SampleUtc ||
-                    Math.Abs(value.Value.Value - time) > .035 || old.Value.Value - value.Value.Value < .04) return false;
+                    Math.Abs(value.Value.Value - time) > .035 || old.Value.Value - value.Value.Value < .04)
+                { LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + ":native_personal_best_unchanged"); return false; }
                 evidence = "native_personal_sector_best_and_completed_current_split";
                 gain = (float)(old.Value.Value - value.Value.Value);
             }
@@ -710,10 +712,25 @@ namespace CrewChiefV4.AiTeam
             return !battle && sectorBestCount % 3 == 1;
         }
 
+        /// <summary>Größter Vorsprung auf die eigene Bestzeit nach zwei Sektoren, der im Rennen noch angesagt wird.</summary>
+        internal const double MaxRacePaceDelta = 15;
+
+        /// <summary>Hinweis „auf Bestzeitkurs“ im Rennen: Runde gültig, keine Gelbe Flagge, kein Zweikampf unter einer Sekunde.</summary>
+        internal static bool RacePaceHintFits(GameStateData state)
+        {
+            var s = state?.SessionData;
+            if (s == null || !s.CurrentLapIsValid || state.PitData.OnInLap || state.PitData.InPitlane || state.FlagData.isLocalYellow) return false;
+            return !(Math.Abs(s.TimeDeltaFront) > 0 && Math.Abs(s.TimeDeltaFront) < 1f || Math.Abs(s.TimeDeltaBehind) > 0 && Math.Abs(s.TimeDeltaBehind) < 1f);
+        }
+
         private bool ObservePersonalBestPace(GameStateData state, LapData lap, int sector, DateTime now)
         {
-            if (sector != 1 || type == SessionType.Race || !GoodSector(lap.SectorTimes[0]) ||
-                now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
+            // RaceRoom Monza 22.11. (Rob): „Du solltest ansagen, wenn ich meine besten Sektorzeiten fahre, dass ich auf meiner
+            // schnellsten Runde sein könnte.“ In Runde 7 war Sektor 2 persönliche Bestzeit, die Runde wurde Bestzeit – Funk: nichts,
+            // weil dieser Hinweis im Rennen abgeschaltet war. Jetzt auch im Rennen, nur nicht im engen Zweikampf.
+            bool race = type == SessionType.Race;
+            if (sector != 1 || !GoodSector(lap.SectorTimes[0]) || now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
+            if (race && !RacePaceHintFits(state)) { LiveDiagnostics.Decision("own-best-pace", "skipped", "race_battle_or_invalid_lap"); return false; }
             var s = state.SessionData;
             float s1 = s.PlayerBestLapSector1Time, s2 = s.PlayerBestLapSector2Time, s3 = s.PlayerBestLapSector3Time;
             if (!Good(personalBest)) return false;
@@ -727,7 +744,9 @@ namespace CrewChiefV4.AiTeam
                 s2 = best.SectorTimes[1];
             }
             double delta = s1 + s2 - lap.SectorTimes[0] - lap.SectorTimes[1];
-            if (delta < .25 || delta > 3) return false;
+            // Im Rennen ist die erste Bestzeit oft die Startrunde aus dem Stand – dann liegt die schnelle Runde deutlich darunter.
+            if (delta < .25 || delta > (race ? MaxRacePaceDelta : 3))
+            { LiveDiagnostics.Decision("own-best-pace", "skipped", "delta_" + delta.ToString("0.00", CultureInfo.InvariantCulture)); return false; }
             var catalog = RadioPhraseCatalog.Current;
             int variant = SelectVariant("own-best-pace", bestPaceVariants);
             var call = Add(state, now, "own-best-pace", catalog.Format("own-best-pace", variant, GermanRadioText.Interval(delta)),

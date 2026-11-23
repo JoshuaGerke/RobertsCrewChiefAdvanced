@@ -102,9 +102,56 @@ namespace CrewChiefV4.AiTeam
         private int technicalGapSeconds;
         internal static bool IsTechnical(string topic) =>
             topic == "fuel" || topic == "weather" || topic == "tyres" || topic == "stint" || topic == "vehicle";
-        internal bool TechnicalBudgetBlocks(string topic, DateTime now) =>
+        internal bool TechnicalBudgetBlocks(string topic, DateTime now, AiRadioPreferences prefs = null) =>
             IsTechnical(topic) && lastTechnicalTopic != null && topic != lastTechnicalTopic &&
-            now - lastTechnicalUtc < TimeSpan.FromSeconds(technicalGapSeconds);
+            now - lastTechnicalUtc < TimeSpan.FromSeconds(technicalGapSeconds) && !OverdueByItsInterval(topic, now, prefs);
+
+        /// <summary>
+        /// Abstand zwischen zwei Technikberichten: drei Viertel des kürzesten eingestellten Technik-Intervalls, mindestens 60 s,
+        /// höchstens <see cref="TechnicalSpacingSeconds"/>. Mit den Standardwerten (4–5 Minuten) bleibt es bei 3–4 Minuten (Rob 16.11.);
+        /// stellt Rob Sprit auf 2 Minuten (Monza 22.11.), sind es 90 s – sonst kam von fünf Technikthemen fast nichts.
+        /// </summary>
+        internal int TechnicalSpacingFor(AiRadioPreferences prefs)
+        {
+            if (TechnicalSpacingSeconds <= 0) return 0;
+            int shortest = prefs == null ? 0 : AiRadioPreferences.Options.Where(o => IsTechnical(o.Id) && prefs[o.Id] > 0).Select(o => prefs[o.Id]).DefaultIfEmpty(0).Min();
+            if (shortest <= 0) return TechnicalSpacingSeconds;
+            return Math.Max(Math.Min(60, TechnicalSpacingSeconds), Math.Min(TechnicalSpacingSeconds, (int)Math.Round(shortest * .75)));
+        }
+
+        /// <summary>
+        /// Fairness: Ein Thema, das schon ein ganzes eigenes Intervall (mindestens 60 s) zu spät ist, wartet nicht länger auf das
+        /// gemeinsame Technik-Budget. Monza 22.11.: Wetter 7, Stint 7 und Sprit 8½ Minuten zu spät, nie gesprochen.
+        /// </summary>
+        internal bool OverdueByItsInterval(string topic, DateTime now, AiRadioPreferences prefs) =>
+            prefs != null && prefs[topic] > 0 && due.TryGetValue(topic, out var at) && now - at >= TimeSpan.FromSeconds(Math.Max(60, prefs[topic]));
+
+        /// <summary>
+        /// Welcher fällige Bericht zuerst? Nicht der zuerst fällige, sondern der dringendste: Verspätung im Verhältnis zum eigenen
+        /// Intervall, plus ein kleiner Vorrang für das, was im Rennen mehr zählt (Abstände, Stand, Fortschritt, Sprit vor Wetter).
+        /// Ein 5-Minuten-Thema, das 5 Minuten zu spät ist, kommt so vor einem 2-Minuten-Thema, das 10 s zu spät ist.
+        /// </summary>
+        internal static double Urgency(string topic, double lateSeconds, int intervalSeconds)
+        {
+            double ratio = intervalSeconds > 0 ? Math.Max(0, lateSeconds) / intervalSeconds : 0;
+            return ratio + RaceWeight(topic);
+        }
+
+        internal static double RaceWeight(string topic)
+        {
+            switch (topic)
+            {
+                case "ahead": case "behind": return .5;
+                case "status": return .4;
+                case "progress": case "fuel": return .3;
+                case "tyres": case "pace": case "vehicle": return .2;
+                case "stint": return .1;
+                default: return 0;
+            }
+        }
+
+        /// <summary>Rangfolge über alle Funksprüche; fällige Routine meldet sich hier an, damit andere ihr den Vortritt lassen.</summary>
+        internal RadioArbiter Arbiter { get; } = new RadioArbiter();
         private bool interruptionHandled;
         /// <summary>
         /// LMU 21.11.: Von zehn fälligen Zwischenständen kam einer – jeder wartete im Zweikampf oder Verkehr, verfiel nach
@@ -116,6 +163,13 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, DateTime> overdueSince = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         private DateTime outstandingSince = DateTime.MinValue;
         private bool firstStatusPending;
+
+        /// <summary>Abstand zum direkten Vorder- oder Hintermann: Robs eigener Kampf, im Zweikampf nicht zurückgehalten.</summary>
+        internal static bool FightGap(string topic) => topic == "ahead" || topic == "behind";
+
+        /// <summary>Abstand im Zweikampf: halbes Intervall, frühestens nach 30 s.</summary>
+        internal static double BattleGapDelay(double delay) => delay <= 0 ? delay : Math.Max(30, delay / 2);
+
         internal bool Guaranteed(string topic, DateTime now) =>
             topic != null && overdueSince.TryGetValue(topic, out var since) && now >= since &&
             (now - since >= TimeSpan.FromSeconds(GuaranteeLateSeconds) || topic == "status" && firstStatusPending);
@@ -197,7 +251,9 @@ namespace CrewChiefV4.AiTeam
             firstStatusPending = prefs["status"] > 0;
             LiveDiagnostics.Decision("routine", "staggered", "after_start_phase_" + Length.ToString().ToLowerInvariant());
         }
-        public void Reset() { facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
+        internal static TeamMember MemberFor(string topic) =>
+            topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
+        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -235,10 +291,14 @@ namespace CrewChiefV4.AiTeam
                     if (IsTechnical(outstanding.Topic) && TechnicalSpacingSeconds > 0)
                     {
                         lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
-                        technicalGapSeconds = TechnicalSpacingSeconds + random.Next(0, 61);
+                        int spacing = TechnicalSpacingFor(prefs);
+                        technicalGapSeconds = spacing + random.Next(0, spacing / 3 + 1);
                     }
-                    due[outstanding.Topic] = lastReport.AddSeconds(Delay(prefs, outstanding.Topic));
+                    double next = Delay(prefs, outstanding.Topic);
+                    if (FightGap(outstanding.Topic) && RaceRadioDirector.SuppressBackgroundStatistics(ctx)) next = BattleGapDelay(next);
+                    due[outstanding.Topic] = lastReport.AddSeconds(next);
                     overdueSince.Remove(outstanding.Topic);
+                    Arbiter.Done(outstanding.Topic);
                     if (outstanding.Topic == "status") firstStatusPending = false;
                     outstanding = null;
                 }
@@ -263,10 +323,25 @@ namespace CrewChiefV4.AiTeam
             bool race = gs?.SessionData.SessionType == SessionType.Race;
             bool statusOverdue = race && StatusIsOverdue(now, prefs);
             bool promised = race && (outstanding?.Guaranteed == true || outstanding == null && due.Any(p => prefs[p.Key] > 0 && p.Value <= now && Guaranteed(p.Key, now)));
-            int quietSeconds = statusOverdue || promised ? 4 : QuietAfterRadioSeconds;
+            // Monza 22.11.: 8 s Funkstille gab es im Rennen nur 40 % der Zeit (Median zwischen zwei Funksprüchen 4,4 s). Wer schon
+            // 20 s wartet, braucht nur noch eine kurze Lücke – die anderen lassen ihm ohnehin den Vortritt.
+            bool claimed = race && due.Any(p => prefs[p.Key] > 0 && now - p.Value >= TimeSpan.FromSeconds(RadioArbiter.RoutineClaimSeconds));
+            int quietSeconds = statusOverdue || promised || claimed ? 4 : QuietAfterRadioSeconds;
             bool recentRadio = ctx.Memory != null && ctx.Memory.HasRadioSince(TimeSpan.FromSeconds(quietSeconds), now);
             bool battleQuiet = RaceRadioDirector.SuppressBackgroundStatistics(ctx);
-            bool racingQuiet = !busy && !recentRadio && !promised && battleQuiet;
+            // RaceRoom Monza 22.11.: Im Zweikampf und in den letzten Runden blieb auch der Abstand zum Vorder- und Hintermann
+            // stumm (18 Berichte, 3 gespielt) – genau dann will Rob ihn hören. Er ist kein Hintergrund, sondern sein eigener Kampf.
+            bool gapDue = race && due.Any(p => prefs[p.Key] > 0 && p.Value <= now && FightGap(p.Key));
+            bool racingQuiet = !busy && !recentRadio && !promised && battleQuiet && !gapDue;
+            // Rob 23.11.: Ein Bericht, der schon 20 s wartet, beansprucht den nächsten freien Moment – Kommentar, Lob und
+            // Einordnungen lassen ihm den Vortritt (siehe RadioArbiter). Nur, wenn ihn allein der volle Funk aufhält, nicht Box,
+            // Gelb, Start oder Zweikampf-Ruhe.
+            if (gs != null && !StartCalm && gs.SessionData.SessionPhase == SessionPhase.Green && !gs.PitData.InPitlane && !gs.FlagData.isLocalYellow &&
+                ctx.TelemetryAgeSeconds >= 0 && ctx.TelemetryAgeSeconds <= 1)
+                foreach (var claim in due.Where(d => prefs[d.Key] > 0 && now - d.Value >= TimeSpan.FromSeconds(RadioArbiter.RoutineClaimSeconds)).ToArray())
+                    if ((!battleQuiet || Guaranteed(claim.Key, now) || FightGap(claim.Key)) && !TechnicalBudgetBlocks(claim.Key, now, prefs) &&
+                        (memberEnabled == null || memberEnabled(MemberFor(claim.Key))))
+                        Arbiter.Note(claim.Key, RadioArbiter.Tier(claim.Key, 1), claim.Value, now);
             if (gs == null || busy || StartCalm || recentRadio || racingQuiet || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(statusOverdue || promised ? 8 : RoutineSeparationSeconds))
@@ -286,23 +361,28 @@ namespace CrewChiefV4.AiTeam
             }
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now && (!statusOverdue || kv.Key == "status") &&
-                    (!battleQuiet || Guaranteed(kv.Key, now)))
+                    (!battleQuiet || Guaranteed(kv.Key, now) || FightGap(kv.Key)))
                 .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
+                .ThenByDescending(kv => Urgency(kv.Key, (now - kv.Value).TotalSeconds, prefs[kv.Key]))
                 .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
                 // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
-                if (TechnicalBudgetBlocks(topic, now)) continue;
+                if (TechnicalBudgetBlocks(topic, now, prefs)) continue;
                 bool promisedTopic = Guaranteed(topic, now);
                 overdueSince.TryGetValue(topic, out var since);
                 overdueSince.Remove(topic);
                 double delay = Delay(prefs, topic);
+                // Rob (Monza 22.11.): „Das muss häufiger kommen, wenn ich im Zweikampf bin.“ Im Zweikampf kommt der nächste
+                // Abstandsbericht nach der halben Zeit, frühestens nach 30 s.
+                if (battleQuiet && FightGap(topic)) delay = BattleGapDelay(delay);
                 // Bathurst 17.11.: Restzeit im Training alle 3–4 Minuten ist zu oft. Außerhalb des Rennens höchstens alle 6 Minuten,
                 // in den letzten 10 Minuten wieder im eingestellten Takt.
                 var sd = ctx.GameState?.SessionData;
                 if (topic == "progress" && sd != null && sd.SessionType != SessionType.Race &&
                     !(sd.SessionHasFixedTime && sd.SessionTimeRemaining > 0 && sd.SessionTimeRemaining < 600)) delay = Math.Max(delay, PracticeProgressSeconds);
                 due[topic] = now.AddSeconds(delay);
-                TeamMember member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
+                Arbiter.Done(topic); // kommt gleich als fertiger Bericht wieder (mit seiner Wartezeit) oder entfällt
+                TeamMember member=MemberFor(topic);
                 if (memberEnabled!=null && !memberEnabled(member)) continue;
                 var cursor = topic == "fuel" ? fuelVariants : topic == "ahead" ? aheadVariants : topic == "behind" ? behindVariants : null;
                 string gapGroup = topic == "ahead" ? "gap-front-measured" : topic == "behind" ? "gap-rear-measured" : null;
@@ -370,6 +450,7 @@ namespace CrewChiefV4.AiTeam
                     SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(promisedTopic ? GuaranteedLifetimeSeconds : RoutineLifetimeSeconds),
                     Guaranteed=promisedTopic };
                 outstandingSince = since == default(DateTime) ? now : since;
+                Arbiter.Note(topic, RadioArbiter.Tier(topic, 1), outstandingSince, now);
                 if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))
                     outstanding.IncludeNeighbour(ctx, topic == "ahead", false);
                 if (variantGroup != null && template != null) outstanding.BindVariant(cursor, variantGroup, index);
