@@ -58,6 +58,7 @@ namespace CrewChiefV4.AiTeam
         private readonly PitStopTimer pitStopTimer = new PitStopTimer();
         private readonly IncidentPointsWatch incidentPoints = new IncidentPointsWatch();
         private readonly RaceControlFeed raceControlFeed = new RaceControlFeed();
+        private readonly Strategy.StrategyWatch strategyWatch = new Strategy.StrategyWatch();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
         private readonly BattleSectorWatch battleSector = new BattleSectorWatch();
@@ -350,6 +351,8 @@ namespace CrewChiefV4.AiTeam
                 pitStopTimer.Reset();
                 incidentPoints.Reset();
                 raceControlFeed.Reset();
+                strategyWatch.Reset();
+                Strategy.StrategyWatch.ClearLatest();
                 raceSummary.Reset();
                 gapTrend.Reset();
                 battleSector.Reset();
@@ -762,6 +765,16 @@ namespace CrewChiefV4.AiTeam
             liveWarnings.Observe(current,now);
             // Rennleitung aller Sims (Startvergehen, Abkürzen mit Frist, Verwarnung, Box zu/offen …): Chronik, Lagebild, Pflichtfunk.
             raceControlFeed.Observe(current, now, liveWarnings);
+            // Rohdatentafel: jedes Feld der Sim-Schnittstelle mit Zustand und Alter, höchstens alle 500 ms.
+            try
+            {
+                bool driving = current.SessionData.SessionPhase == SessionPhase.Green && !current.PitData.InPitlane &&
+                    current.PositionAndMotionData.CarSpeed > 5;
+                Telemetry.RawSimBoard.Current.Observe(current.rawGameData, Game.gameType.ToString(), driving, now);
+            }
+            catch (Exception e) { LiveDiagnostics.Decision("telemetry-raw", "error", e.GetType().Name); }
+            // Strategiebild an jeder Ziellinie im Rennen: Plan, Boxenfenster, Tempoverlauf.
+            if (lapCompleted) strategyWatch.Observe(BuildContext(current), true, now);
             // LMU: Rennleitung aus dem nativen Datenstrom – alles mitschreiben, eigene Strafen/Tracklimits sofort an die Crew.
             LMURaceControlStream.Line raceControl;
             while (LMURaceControlStream.TryTake(out raceControl))
@@ -839,6 +852,9 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = strategyWatch.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
+                    sessionLaps.HotLap(current) || !AllowsRadioNow(false), settings.IsMemberEnabled(TeamMember.Ben), settings.IsMemberEnabled(TeamMember.Mik));
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = battleSector.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
@@ -920,7 +936,7 @@ namespace CrewChiefV4.AiTeam
                 }
                 else
                 {
-                    string pace = radioDirector.ConsistentPaceLoss(Memory.GetLaps());
+                    string pace = now - strategyWatch.LastPaceFadeUtc < TimeSpan.FromMinutes(5) ? null : radioDirector.ConsistentPaceLoss(Memory.GetLaps());
                     if (pace != null)
                     {
                         trigger = "Gemessener Pace-Trend: " + pace + " Mik soll nur den Befund melden, keine Ursachen behaupten.";

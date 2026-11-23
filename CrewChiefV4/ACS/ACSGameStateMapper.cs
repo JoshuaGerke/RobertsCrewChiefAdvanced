@@ -891,6 +891,7 @@ namespace CrewChiefV4.assetto
         {
             ACSSharedMemoryReader.ACSStructWrapper wrapper = (ACSSharedMemoryReader.ACSStructWrapper)memoryMappedFileStruct;
             GameStateData currentGameState = new GameStateData(wrapper.ticksWhenRead);
+            currentGameState.rawGameData = wrapper;
             if (wrapper.sourceSampleTicks > 0)
                 currentGameState.SourceTelemetryUtc = new DateTime(wrapper.sourceSampleTicks,DateTimeKind.Utc);
             AssettoCorsaShared shared = wrapper.data;

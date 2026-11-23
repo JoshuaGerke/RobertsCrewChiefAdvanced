@@ -356,6 +356,9 @@
     <Compile Include="AiTeam\RaceChronicle.cs" />
     <Compile Include="AiTeam\RaceControl\RaceControlFeed.cs" />
     <Compile Include="AiTeam\RaceControl\RaceControlRadio.cs" />
+    <Compile Include="AiTeam\Strategy\StrategyPicture.cs" />
+    <Compile Include="AiTeam\Strategy\StrategyWatch.cs" />
+    <Compile Include="AiTeam\Telemetry\RawSimBoard.cs" />
     <Compile Include="AiTeam\InterruptedRadio.cs" />
     <Compile Include="AiTeam\RaceStory.cs" />
     <Compile Include="AiTeam\EndgameBriefWatch.cs" />
