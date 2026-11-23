@@ -386,7 +386,7 @@ namespace CrewChiefV4.AiTeam
                 bool sara=f.Type==SessionType.Race && SaraNews("field-"+f.Kind);
                 var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,SemanticKey="field|"+id,
                     SessionId=f.Session,SessionType=f.Type,Position=-1,Member=sara?TeamMember.Sara:TeamMember.Ben,Priority=sara?5:fastest?4:3,
-                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : fastest ? FastestLapSeconds : sara ? 15 : 10),AdditionalValidity=live=>StillCurrent(fact,live)};
+                    DetectedUtc=now,ExpiresUtc=now.AddSeconds(f.Kind=="retired" || f.Kind=="left" ? 45 : fastest ? FastestLapSeconds : sara ? 15 : 10),AdditionalValidity=PitFlagGrace.For(fact)};
                 pending.Add(call);
                 if (sara) saraFacts[call] = f;
                 if (f.Kind == "pit")
@@ -432,9 +432,7 @@ namespace CrewChiefV4.AiTeam
             if(f.Kind=="left")return f.Key!=null && (!gs.OpponentData.TryGetValue(f.Key,out var gone) || gone==null || !gone.IsActive);
             if(f.Kind=="dq")return gs.disqualifiedDriverNames.ContainsKey(f.Name);
             OpponentData op;if(f.Key==null || !gs.OpponentData.TryGetValue(f.Key,out op) || op==null || RaceReader.Identity(f.Key,op)!=f.Identity)return false;
-            // LMU Sebring 23.11.: „Arod Spearhead fährt an die Box“ verfiel als „Fakten geändert“, weil die Sim das Box-Kennzeichen
-            // kurz verlor. Die Boxeinfahrt ist geschehen; die Meldung lebt ohnehin nur 15 s. Gültig, solange das Auto im Rennen ist.
-            if(f.Kind=="pit")return op.IsActive;
+            if(f.Kind=="pit")return op.IsActive && (op.InPits || op.isEnteringPits());
             if(f.Kind=="pit-exit")return op.IsActive && !op.InPits;
             if(f.Kind=="leader")return op.IsActive && op.ClassPosition==1 && gs.SessionData.ClassPosition>1;
             if(f.Kind=="tyres")return op.CurrentTyres.ToString()==f.Detail;
@@ -448,6 +446,36 @@ namespace CrewChiefV4.AiTeam
                 op.IsActive && op.CurrentBestLapTime>0 && Math.Abs(op.CurrentBestLapTime-f.Seconds)<=.005 &&
                 (!(reference > 10) || reference > f.Seconds-SameLapTolerance) && (!(own > 10) || own > f.Seconds-.005);
         }
+        /// <summary>
+        /// LMU Sebring 23.11.: „Arod Spearhead fährt an die Box“ verfiel als „Fakten geändert“, weil die Sim das Box-Kennzeichen
+        /// für einen Augenblick verlor. Ein Aussetzer bis 2 s Spielzeit hält die Meldung; ist das Auto länger draußen, ist sie
+        /// überholt und entfällt wie bisher.
+        /// </summary>
+        internal sealed class PitFlagGrace
+        {
+            internal static readonly TimeSpan Grace = TimeSpan.FromSeconds(2);
+            private readonly NativeFieldFact fact;
+            private DateTime outSince;
+            private bool out_;
+            private PitFlagGrace(NativeFieldFact fact) { this.fact = fact; }
+
+            internal static Func<GameStateData, bool> For(NativeFieldFact fact)
+            {
+                if (fact.Kind != "pit") return live => StillCurrent(fact, live);
+                return new PitFlagGrace(fact).Valid;
+            }
+
+            internal bool Valid(GameStateData live)
+            {
+                if (StillCurrent(fact, live)) { out_ = false; return true; }
+                if (live == null || live.SessionData.SessionId != fact.Session || fact.Key == null ||
+                    !live.OpponentData.TryGetValue(fact.Key, out var op) || op == null || !op.IsActive ||
+                    RaceReader.Identity(fact.Key, op) != fact.Identity) return false;
+                if (!out_) { out_ = true; outSince = live.Now; }
+                return live.Now - outSince <= Grace;
+            }
+        }
+
         private void Remove(ObservedRaceCall call)
         {
             if (pitFacts.TryGetValue(call, out var fact) && call.DeliveryStartedUtc > spokenPitUtc)

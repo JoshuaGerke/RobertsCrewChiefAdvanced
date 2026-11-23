@@ -161,6 +161,21 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void A_silent_spotter_names_its_reason()
+        {
+            Assert.AreEqual("ready_to_start", SpotterStartCheck.Reason(true, false, true, true, false, false, true, false));
+            Assert.AreEqual("realistic_mode_on_road_course", SpotterStartCheck.Reason(true, false, false, true, true, false, true, false));
+            Assert.AreEqual("spotter_switched_off_in_settings", SpotterStartCheck.Reason(true, false, false, false, false, false, true, false));
+            Assert.AreEqual("crew_or_sara_switched_off", SpotterStartCheck.Reason(true, false, true, true, false, false, false, false));
+            Assert.AreEqual("spotter_off_for_this_session", SpotterStartCheck.Reason(true, false, false, true, false, false, true, false));
+            Assert.AreEqual("no_spotter_for_this_game", SpotterStartCheck.Reason(false, false, true, true, false, false, true, false));
+            SpotterStartCheck.Reset();
+            Assert.AreEqual("running", SpotterStartCheck.Changed("running"));
+            Assert.IsNull(SpotterStartCheck.Changed("running"), "nur Änderungen ins Protokoll");
+            SpotterStartCheck.Reset();
+        }
+
+        [Test]
         public void Race_debrief_names_the_pit_stop()
         {
             var player = new FieldCarView { Name = "Rob", IsPlayer = true, PlaceClass = 6, Place = 6, ClassId = 1, CompletedLaps = 18 };

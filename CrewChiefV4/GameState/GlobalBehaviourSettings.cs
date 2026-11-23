@@ -205,6 +205,10 @@ namespace CrewChiefV4.GameState
                 }
             }
             ovalSpotterMode = useOvalLogic && enableOvalSpotterBehaviours;
+            // RRCA: Spotterzustand bei jedem Sitzungsstart protokollieren, damit ein stummer Spotter einen Grund im Log hat.
+            Console.WriteLine("RRCA Spotter: track oval=" + useOvalLogic + " settings=" + spotterEnabledInitialState +
+                " realistic=" + realisticMode + " enabled=" + spotterEnabled);
+            CrewChiefV4.AiTeam.SpotterStartCheck.Reset();
         }
 
         private static void parseMessageTypes(String messageTypes)

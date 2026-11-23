@@ -6,14 +6,17 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Nuevo: órdenes por radio mientras conduces.** Pulsa el botón de radio y di:
+> **Novedades de Alpha 0.32: el equipo vive la carrera.** Ben comenta adelantamientos y duelos con emoción y con la historia del duelo, cada vez distinto (si la frase de la IA no llega en 2,5 segundos, usa la frase fija). Sara avisa de paradas, abandonos y descalificaciones de toda la parrilla, varias en una frase, y de trompos y accidentes detrás de ti. En carreras por tiempo Ben avisa a 15, 10, 5 y 2 minutos del final con tu posición. Tras la bandera Mik también nombra tus paradas.
+>
+> **Órdenes por radio mientras conduces.** Pulsa el botón de radio y di:
 >
 > | Di | Qué pasa |
 > |---|---|
-> | **«Silencio, por favor»** | Sin informes de rutina, solo lo esencial. |
+> | **«Silencio, por favor»** | Sin informes de rutina ni análisis. Cambios de posición, duelos, tiempo restante, noticias de la parrilla, avisos y respuestas siguen llegando. |
+| **«Menos información»** | Un nivel menos (de Mucha más a Más, de Más a Normal, de Normal a Tranquila). |
 > | **«Más información»** | Más informes, sobre todo del coche de delante y el de detrás. |
-> | **«Mucha más información»** | Programa completo. |
-> | **«Radio normal»** | Vuelta al ritmo normal. |
+> | **«Mucha más información»** / **«Toda la información»** | Programa completo. |
+> | **«Radio normal»** | Vuelta al ritmo normal. Si en Tranquila preguntas por qué no llega nada, el equipo vuelve solo a Normal. |
 > | **«Spotter apagado»** / **«Spotter activado»** | Solo los avisos laterales de Sara (izquierda, derecha, libre). Amarillas, accidentes, coches lentos y safety car los avisa siempre. |
 >
 > La cantidad de radio se aplica al momento y queda guardada. En el programa está en **IA y radio** → **Cantidad de radio**. El spotter sigue apagado hasta que digas «spotter activado» o reinicies RRCA. Con qué frecuencia informa el equipo por su cuenta lo decide él mismo: según la duración de la carrera y la tensión.
