@@ -153,7 +153,8 @@ namespace UnitTest.AiTeamTests
                 return RaceMind.Judge(x, call, T, out _);
             };
             Assert.AreEqual(MindVerdict.Admit, judge(RaceAttention.Traffic), "RaceRoom Mantorp 22.11.: im Verkehr dreimal verfallen");
-            Assert.AreEqual(MindVerdict.Hold, judge(RaceAttention.Battle), "im Zweikampf wartet sie, verfällt aber nicht mehr");
+            Assert.AreEqual(MindVerdict.Admit, judge(RaceAttention.Battle), "RaceRoom Monza 22.11.: im Dauerzweikampf zweimal verfallen");
+            Assert.AreEqual(MindVerdict.Hold, judge(RaceAttention.Caution), "unter Gelb wartet sie kurz");
         }
 
         [Test]

@@ -40,10 +40,12 @@ namespace CrewChiefV4.AiTeam
             } catch(Exception e) when(e is InvalidDataException || e is IOException || e is UnauthorizedAccessException || e is Newtonsoft.Json.JsonException || e is ArgumentException || e is FormatException || e is InvalidCastException || e is OverflowException) { invalid=true; }
         }
         private static double Scale(int level) => level==2?2:level==0?.75:1;
+        /// <summary>Abstände „häufiger“ halbiert das Intervall (Rob, Monza 22.11.: ein Viertel kürzer war nicht spürbar).</summary>
+        internal static double GapScale(int level) => level==2?2:level==0?.5:1;
         public double IntervalScale(string topic)
         {
             var current=Volatile.Read(ref values);
-            return Scale(current.Routine)*((topic=="ahead" || topic=="behind")?Scale(current.Gaps):1);
+            return Scale(current.Routine)*((topic=="ahead" || topic=="behind")?GapScale(current.Gaps):1);
         }
         private static string Label(int level) => level==2?"seltener":level==0?"häufiger":"normal";
         public bool QualifyingSectors => Volatile.Read(ref values).QualifyingSectors;
@@ -68,8 +70,38 @@ namespace CrewChiefV4.AiTeam
         internal static string Normalize(string question) => Regex.Replace((question??"").ToLowerInvariant()
             .Replace("ä","ae").Replace("ö","oe").Replace("ü","ue").Replace("ß","ss").Replace("á","a").Trim().TrimEnd('.','!','?'),@"\s+"," ");
         internal static bool IsCommand(string question) => Parse(question).Success;
-        private static Match Parse(string question) => Regex.Match(Normalize(question),
-            @"^(?:(?:bitte|ab jetzt|kuenftig|merke dir[:,]?) )*(?:(?:(?:melde(?: mir)?|ich moechte) )?(?<topic>routinefunk|routineberichte|abstandsmeldungen|abstandsberichte|abstaende) (?:bitte )?(?<level>seltener|haeufiger|normal)(?: hoeren)?|(?:sektorvergleiche|sektoransagen) im qual(?:i|ifying) (?<sectors>an|aus)|ich moechte im qual(?:i|ifying) (?:(?<no>keine) )?(?:sektorvergleiche|sektoransagen) hoeren|(?:schneller verkehr von hinten|schnellere (?:autos|gegner) von hinten) (?:bitte )?(?:erst )?bei (?<rear>[2-6]|zwei|drei|vier|fuenf|sechs) sekunden|(?<density>mehr funk|weniger funk|funk normal|mehr infos|weniger infos|infos normal|more radio|less radio|radio normal|mas radio|menos radio|radio normal)|(?<reset>funkwuensche zuruecksetzen)|(?<query>welche funkwuensche sind gespeichert|funkwuensche anzeigen))$");
+        private static Match Parse(string question)
+        {
+            var strict = Regex.Match(Normalize(question), CommandPattern);
+            if (strict.Success) return strict;
+            string loose = LooseGapWish(question);
+            return loose == null ? strict : Regex.Match(loose, CommandPattern);
+        }
+
+        /// <summary>
+        /// RaceRoom Monza 22.11. (Rob an Ben): „Das muss häufiger kommen, Ben. … wie die Abstände sind zum Hintermann, zum
+        /// Vordermann. Das muss häufiger kommen.“ Ben antwortete „automatische Häufigkeit bleibt unverändert“ – erkannt wurde nur
+        /// der feste Satz „Abstände häufiger“. Ein klarer Wunsch mit „Abstand“ und „häufiger/öfter“ (oder „seltener“) zählt jetzt
+        /// auch frei formuliert. Fragen („Kommen die Abstände häufiger?“) ändern nichts.
+        /// </summary>
+        internal static string LooseGapWish(string question)
+        {
+            string raw = (question ?? "").Trim();
+            if (raw.Length == 0 || raw.Length > 400 || raw.EndsWith("?")) return null;
+            string n = Normalize(raw);
+            if (Regex.IsMatch(n, @"^(wie|was|warum|wieso|wann|kommen|kommt|gibt|ist|sind|kannst|koenntest|how|what|why|when|do|does|are|is)\b")) return null;
+            if (!Regex.IsMatch(n, @"\b(abstand|abstaende|abstaenden|gaps?|gap calls|distancias?)\b")) return null;
+            // „nicht häufiger“ und Bedingungen („nur wenn ich führe“) bleiben mehrdeutig – außer Robs Fall „wenn ich im Zweikampf bin“.
+            if (Regex.IsMatch(n, @"\b(nicht|kein|keine|nie|not|no|never)\b")) return null;
+            if (Regex.IsMatch(n, @"\b(wenn|nur|aber|ausser|when|only|but|unless)\b") && !Regex.IsMatch(n, @"\b(zweikampf\w*|duell\w*|battle\w*)\b")) return null;
+            bool more = Regex.IsMatch(n, @"\b(haeufiger|oefter|oefters|more often|mas a menudo|mas seguido)\b");
+            bool less = Regex.IsMatch(n, @"\b(seltener|less often|menos a menudo)\b");
+            if (more == less) return null;
+            return more ? "abstaende haeufiger" : "abstaende seltener";
+        }
+
+        private const string CommandPattern =
+            @"^(?:(?:bitte|ab jetzt|kuenftig|merke dir[:,]?) )*(?:(?:(?:melde(?: mir)?|ich moechte) )?(?<topic>routinefunk|routineberichte|abstandsmeldungen|abstandsberichte|abstaende) (?:bitte )?(?<level>seltener|haeufiger|normal)(?: hoeren)?|(?:sektorvergleiche|sektoransagen) im qual(?:i|ifying) (?<sectors>an|aus)|ich moechte im qual(?:i|ifying) (?:(?<no>keine) )?(?:sektorvergleiche|sektoransagen) hoeren|(?:schneller verkehr von hinten|schnellere (?:autos|gegner) von hinten) (?:bitte )?(?:erst )?bei (?<rear>[2-6]|zwei|drei|vier|fuenf|sechs) sekunden|(?<density>mehr funk|weniger funk|funk normal|mehr infos|weniger infos|infos normal|more radio|less radio|radio normal|mas radio|menos radio|radio normal)|(?<reset>funkwuensche zuruecksetzen)|(?<query>welche funkwuensche sind gespeichert|funkwuensche anzeigen))$";
         public bool TryCommand(string question,out string reply)
         {
             reply=null; var match=Parse(question); if(!match.Success)return false;

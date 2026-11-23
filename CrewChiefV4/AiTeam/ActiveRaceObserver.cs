@@ -638,6 +638,13 @@ namespace CrewChiefV4.AiTeam
                                 passed.IsActive && !passed.InPits && passed.ClassPosition > live.SessionData.ClassPosition &&
                                 RaceReader.Identity(passedKey, passed) == passedIdentity;
                         }
+                        // RaceRoom Monza 22.11.: Viermal hintereinander „Wieder einen Platz erkämpft. Sauber.“ Beim wahrscheinlichen
+                        // Überholen (Gegner direkt hinter uns) wurde der Satz gewählt, aber nie als gehört verbucht – der Zeiger blieb stehen.
+                        else if (likelyPass && !candidatePit && pitGain == null)
+                        {
+                            pending.Last().BindVariant(passCursor, passGroup, passIndex);
+                            if (firstPass) pending.Last().AdditionalVariantCursor = passVariants;
+                        }
                     }
                     else if (lossFrom == 0 && (-gain >= 3 || gs.PositionAndMotionData.CarSpeed > 0 && gs.PositionAndMotionData.CarSpeed < 12))
                     {

@@ -354,6 +354,17 @@ namespace CrewChiefV4.AiTeam
                 return MindVerdict.Admit;
             }
 
+            // RaceRoom Monza 22.11.: Beide Klassenbestzeiten (Duval 1:57,397, Molck 1:56,978) warteten im Dauerzweikampf 19- bzw.
+            // 19-mal und verfielen. Rob: „Immer dann, wenn jemand eine Bestzeit fährt.“ Sie kommt jetzt auch im Zweikampf und in der
+            // Schlussphase; nur Gelb, Box und Start lassen sie kurz warten, in der letzten Runde entfällt sie. Seite an Seite wartet
+            // sie wie jede Meldung auf eine Lücke.
+            if (t == "field-fastest" || t == "field-fastest-overall")
+            {
+                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
+                { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
             if (Background(call))
             {
                 if (lastLaps || x.Phase == RacePhase.Final) { reason = "final_laps_only_own_race"; return MindVerdict.Drop; }

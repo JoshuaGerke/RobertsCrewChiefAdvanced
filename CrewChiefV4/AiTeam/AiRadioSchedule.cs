@@ -116,6 +116,13 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, DateTime> overdueSince = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         private DateTime outstandingSince = DateTime.MinValue;
         private bool firstStatusPending;
+
+        /// <summary>Abstand zum direkten Vorder- oder Hintermann: Robs eigener Kampf, im Zweikampf nicht zurückgehalten.</summary>
+        internal static bool FightGap(string topic) => topic == "ahead" || topic == "behind";
+
+        /// <summary>Abstand im Zweikampf: halbes Intervall, frühestens nach 30 s.</summary>
+        internal static double BattleGapDelay(double delay) => delay <= 0 ? delay : Math.Max(30, delay / 2);
+
         internal bool Guaranteed(string topic, DateTime now) =>
             topic != null && overdueSince.TryGetValue(topic, out var since) && now >= since &&
             (now - since >= TimeSpan.FromSeconds(GuaranteeLateSeconds) || topic == "status" && firstStatusPending);
@@ -237,7 +244,9 @@ namespace CrewChiefV4.AiTeam
                         lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
                         technicalGapSeconds = TechnicalSpacingSeconds + random.Next(0, 61);
                     }
-                    due[outstanding.Topic] = lastReport.AddSeconds(Delay(prefs, outstanding.Topic));
+                    double next = Delay(prefs, outstanding.Topic);
+                    if (FightGap(outstanding.Topic) && RaceRadioDirector.SuppressBackgroundStatistics(ctx)) next = BattleGapDelay(next);
+                    due[outstanding.Topic] = lastReport.AddSeconds(next);
                     overdueSince.Remove(outstanding.Topic);
                     if (outstanding.Topic == "status") firstStatusPending = false;
                     outstanding = null;
@@ -266,7 +275,10 @@ namespace CrewChiefV4.AiTeam
             int quietSeconds = statusOverdue || promised ? 4 : QuietAfterRadioSeconds;
             bool recentRadio = ctx.Memory != null && ctx.Memory.HasRadioSince(TimeSpan.FromSeconds(quietSeconds), now);
             bool battleQuiet = RaceRadioDirector.SuppressBackgroundStatistics(ctx);
-            bool racingQuiet = !busy && !recentRadio && !promised && battleQuiet;
+            // RaceRoom Monza 22.11.: Im Zweikampf und in den letzten Runden blieb auch der Abstand zum Vorder- und Hintermann
+            // stumm (18 Berichte, 3 gespielt) – genau dann will Rob ihn hören. Er ist kein Hintergrund, sondern sein eigener Kampf.
+            bool gapDue = race && due.Any(p => prefs[p.Key] > 0 && p.Value <= now && FightGap(p.Key));
+            bool racingQuiet = !busy && !recentRadio && !promised && battleQuiet && !gapDue;
             if (gs == null || busy || StartCalm || recentRadio || racingQuiet || BusyForRoutine(gs) || ctx.TelemetryAgeSeconds < 0 || ctx.TelemetryAgeSeconds > 1 ||
                 (gs.SessionData.SessionType != SessionType.Race && !SessionLapObserver.Supported(gs.SessionData.SessionType)) || gs.SessionData.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 now - lastReport < TimeSpan.FromSeconds(statusOverdue || promised ? 8 : RoutineSeparationSeconds))
@@ -286,7 +298,7 @@ namespace CrewChiefV4.AiTeam
             }
             if (outstanding != null) return outstanding.TryReserve(now) ? outstanding : null;
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now && (!statusOverdue || kv.Key == "status") &&
-                    (!battleQuiet || Guaranteed(kv.Key, now)))
+                    (!battleQuiet || Guaranteed(kv.Key, now) || FightGap(kv.Key)))
                 .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
                 .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
@@ -296,6 +308,9 @@ namespace CrewChiefV4.AiTeam
                 overdueSince.TryGetValue(topic, out var since);
                 overdueSince.Remove(topic);
                 double delay = Delay(prefs, topic);
+                // Rob (Monza 22.11.): „Das muss häufiger kommen, wenn ich im Zweikampf bin.“ Im Zweikampf kommt der nächste
+                // Abstandsbericht nach der halben Zeit, frühestens nach 30 s.
+                if (battleQuiet && FightGap(topic)) delay = BattleGapDelay(delay);
                 // Bathurst 17.11.: Restzeit im Training alle 3–4 Minuten ist zu oft. Außerhalb des Rennens höchstens alle 6 Minuten,
                 // in den letzten 10 Minuten wieder im eingestellten Takt.
                 var sd = ctx.GameState?.SessionData;
