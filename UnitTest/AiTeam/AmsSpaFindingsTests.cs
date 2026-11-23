@@ -216,5 +216,45 @@ namespace UnitTest.AiTeamTests
             if (active) Assert.GreaterOrEqual(Heard("weather"), 3, "Aktiv: Wetter auch unverändert alle 293–308 s");
             else Assert.LessOrEqual(Heard("weather"), 1, "Normal: unverändertes Wetter wird gebündelt");
         }
+
+        [Test]
+        public void Dropped_report_keeps_its_bundled_topics_due()
+        {
+            // RaceRoom Hockenheim 23.11.: Rennstatus verworfen („Platz eben gesagt“), der mitgebündelte Abstand galt als gesprochen.
+            var prefs = new AiRadioPreferences();
+            foreach (var o in AiRadioPreferences.Options) prefs.Set(o.Id, 0);
+            prefs.Set("status", 120); prefs.Set("weather", 120); prefs.Set("progress", 120);
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 5; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.ClassPosition = 3; gs.SessionData.SessionNumberOfLaps = 30; gs.SessionData.SessionLapsRemaining = 20; gs.SessionData.CompletedLaps = 10;
+            gs.carClass = new CarData.CarClass(); gs.PositionAndMotionData.CarSpeed = 60;
+            gs.Conditions.UpdateLiveSample(T, 10, 1, 18, 24, 0, 0, 0, 0, 0, false, CrewChiefV4.Events.ConditionsMonitor.TrackStatus.UNKNOWN);
+            var schedule = new AiRadioSchedule(3);
+            string[] dropped = null;
+            var heardAfter = new HashSet<string>();
+            for (int t = 0; t <= 900; t++)
+            {
+                var now = T.AddSeconds(t);
+                schedule.Observe(gs, now, prefs);
+                var call = schedule.Take(new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = now }, prefs, false, null, false);
+                if (call == null) continue;
+                var bundled = schedule.BundledTopics.ToArray();
+                if (dropped == null && bundled.Length > 0)
+                {
+                    dropped = bundled;
+                    schedule.ReleaseBundle(call, now);
+                    Assert.IsEmpty(schedule.BundledTopics);
+                    call.MarkPlaybackStarted(now); call.MarkPlaybackFinished(now, false);
+                    continue;
+                }
+                call.MarkPlaybackStarted(now); call.MarkPlaybackFinished(now.AddSeconds(3), false);
+                if (dropped != null) foreach (var topic in new[] { call.Topic }.Concat(bundled)) heardAfter.Add(topic);
+                if (dropped != null && dropped.All(heardAfter.Contains) && t < 900) break;
+            }
+            Assert.IsNotNull(dropped, "Es gab ein Bündel");
+            CollectionAssert.IsSubsetOf(dropped, heardAfter, "Gebündelte Themen kommen nach dem Verwerfen noch");
+            Assert.IsTrue(AiRadioSchedule.IsRoutineTopic("fuel"));
+            Assert.IsFalse(AiRadioSchedule.IsRoutineTopic("position"));
+        }
     }
 }

@@ -743,6 +743,26 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Für Tests: Themen, die im ausstehenden Funkspruch mitgesagt werden.</summary>
         internal IEnumerable<string> BundledTopics => outstandingBundle.Select(b => b.Item1).ToArray();
 
+        /// <summary>Eines der zehn regelmäßigen Berichtsthemen (Rennstatus, Wetter, Sprit, …).</summary>
+        internal static bool IsRoutineTopic(string topic) => topic != null && Array.Exists(AiRadioPreferences.Options, o => o.Id == topic);
+
+        /// <summary>
+        /// Rob 23.11. (RaceRoom Hockenheim): Der Rennstatus wurde verworfen, weil Ben eben den Platz gesagt hatte – der mitgebündelte
+        /// Abstand zum Vordermann galt trotzdem als gesprochen und fiel stillschweigend weg. Wird ein Routinebericht verworfen,
+        /// bleiben die mitgebündelten Themen fällig und kommen nach 5 s mit frischen Zahlen.
+        /// </summary>
+        internal void ReleaseBundle(ObservedRaceCall call, DateTime now)
+        {
+            if (call == null || !ReferenceEquals(call, outstanding) || outstandingBundle.Count == 0) return;
+            foreach (var b in outstandingBundle)
+            {
+                due[b.Item1] = now.AddSeconds(5);
+                overdueSince[b.Item1] = b.Item2;
+                LiveDiagnostics.Decision(b.Item1, "requeued", "bundle_host_dropped:" + call.Topic, b.Item3);
+            }
+            outstandingBundle.Clear();
+        }
+
         public static string Compose(string topic, RaceDataContext ctx, int variant = 0) => Compose(topic, ctx, variant, out _);
 
         private static string Compose(string topic, RaceDataContext ctx, int variant, out string template)

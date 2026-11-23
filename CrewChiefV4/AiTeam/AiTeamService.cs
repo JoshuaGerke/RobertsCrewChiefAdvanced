@@ -2646,10 +2646,18 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        private bool AllowsRadioNow(bool shortTactical)
+        /// <param name="battleStraight">Rob 23.11. (RaceRoom Hockenheim, 25 Autos): Im Pulk galt fast die ganze Zeit „Zweikampf“,
+        /// und kein einziger Routinebericht kam durch. Routineberichte dürfen im Zweikampf auf der Geraden kommen (ruhige Pedale,
+        /// keine Bremszone), wie die kurzen taktischen Ansagen – Kurven und Bremszonen bleiben frei.</param>
+        /// <param name="overdue">Ein zugesagter Routinebericht (30 s überfällig, im Zweikampf 2 min) wartet nicht mehr auf eine
+        /// ruhige Fahrerlage: Im Pulk kam sie in RaceRoom Hockenheim 23.11. nie (Rennstatus 26-mal zurückgestellt). Bremszonen,
+        /// Auto daneben und der sprechende Fahrer halten ihn weiter auf.</param>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> overdueRoutineEvents =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, DateTime>();
+        private bool AllowsRadioNow(bool shortTactical, bool battleStraight = false, bool overdue = false)
         {
             if (DriverRadioGate.Holding(DateTime.UtcNow)) return false; // der Fahrer spricht gerade
-            if (!workload.AllowsReport(DateTime.UtcNow, shortTactical)) return false;
+            if (!overdue && !workload.AllowsReport(DateTime.UtcNow, shortTactical || battleStraight)) return false;
             var live = CrewChief.currentGameState;
             return shortTactical || live == null || live.PitData.InPitlane || !TelemetryFresh() ||
                 !Corners.RadioBrakingWindow(live.PositionAndMotionData.DistanceRoundTrack, live.PositionAndMotionData.CarSpeed);
@@ -2692,6 +2700,7 @@ namespace CrewChiefV4.AiTeam
             if (!SaraFlagPolicy.Allows(call.Topic, CrewChief.currentGameState, Field.FieldService.Fresh(2), DateTime.UtcNow, out string flagWhy))
             {
                 var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", flagWhy, call.Text);
                 eventLog.Note(call, EventStatus.Dropped, at, flagWhy);
@@ -2752,6 +2761,7 @@ namespace CrewChiefV4.AiTeam
             if (CoveredByRecentCall(call, DateTime.UtcNow))
             {
                 var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "same_call_recently_spoken", call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 return;
@@ -2760,6 +2770,7 @@ namespace CrewChiefV4.AiTeam
             if (crewMemory.SaidRecently(call, DateTime.UtcNow))
             {
                 var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "crew_memory_same_sentence", call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 eventLog.Note(call, EventStatus.Dropped, at, "crew_memory_same_sentence");
@@ -2769,6 +2780,7 @@ namespace CrewChiefV4.AiTeam
             if (crewMemory.NothingNew(call, DateTime.UtcNow, out string sameEvent))
             {
                 var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", sameEvent, call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 eventLog.Note(call, EventStatus.Dropped, at, sameEvent);
@@ -2785,6 +2797,7 @@ namespace CrewChiefV4.AiTeam
             if (mindVerdict == MindVerdict.Drop)
             {
                 var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
                 LiveDiagnostics.Decision(call.Topic, "suppressed", "race_mind:" + mindReason, call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 eventLog.Note(call, EventStatus.Dropped, at, "race_mind:" + mindReason);
@@ -2807,7 +2820,8 @@ namespace CrewChiefV4.AiTeam
                     return;
                 }
             }
-            if (call.CanRefresh && (currentRequest != null || Spotter().HasOverlap || !AllowsRadioNow(IsShortTactical(call.Topic))))
+            if (call.CanRefresh && (currentRequest != null || Spotter().HasOverlap ||
+                !AllowsRadioNow(IsShortTactical(call.Topic), AiRadioSchedule.IsRoutineTopic(call.Topic), call.Guaranteed && AiRadioSchedule.IsRoutineTopic(call.Topic))))
             {
                 call.DeferDelivery(DateTime.UtcNow, "waiting_for_clear_tactical_radio");
                 return;
@@ -2819,6 +2833,12 @@ namespace CrewChiefV4.AiTeam
             }
             RememberLocalCall(call, DateTime.UtcNow);
             radioSchedule.Arbiter.Done(call.Topic);
+            if (call.Guaranteed && AiRadioSchedule.IsRoutineTopic(call.Topic) && call.EventId != null)
+            {
+                overdueRoutineEvents[call.EventId] = DateTime.UtcNow;
+                foreach (var old in overdueRoutineEvents.Where(e => DateTime.UtcNow - e.Value > TimeSpan.FromMinutes(2)).Select(e => e.Key).ToArray())
+                    overdueRoutineEvents.TryRemove(old, out _);
+            }
             bool pitAlreadyClaimed = fieldEvents.HasClaimedPit(call.PitGain, DateTime.UtcNow);
             int renderReleased = 0;
             Action releaseRender = () => {
@@ -2972,14 +2992,14 @@ namespace CrewChiefV4.AiTeam
 
         // ---------------- Sprachausgabe ----------------
 
-        private async Task<bool> WaitForCalmAsync(string text, DateTime deadline, int generation, Func<string, bool> valid, CancellationToken ct, bool shortTactical)
+        private async Task<bool> WaitForCalmAsync(string text, DateTime deadline, int generation, Func<string, bool> valid, CancellationToken ct, bool shortTactical, bool battleStraight = false, bool overdue = false)
         {
-            if (AllowsRadioNow(shortTactical)) return true;
+            if (AllowsRadioNow(shortTactical, battleStraight, overdue)) return true;
             if (!radioRenderGate.TryHoldRoutine()) return false;
             LiveDiagnostics.Decision("radio", "deferred", "driver_workload");
             try
             {
-                while (!AllowsRadioNow(shortTactical))
+                while (!AllowsRadioNow(shortTactical, battleStraight, overdue))
                 {
                     if (ct.IsCancellationRequested || generation != Volatile.Read(ref sessionGeneration) ||
                         DateTime.UtcNow >= deadline || valid != null && !valid(text)) return false;
@@ -3038,7 +3058,9 @@ namespace CrewChiefV4.AiTeam
                 observedTopic == "position" && localPriority < 5 || observedTopic == "rear-pressure" || observedTopic == "position-loss" ||
                 observedTopic == "incident-pit-advice" || observedTopic == "fuel-baseline" || observedTopic == "rival-sector-loss" || observedTopic == "reader-temperature-context" || observedTopic == "crew-thermal-pit-handover";
             bool shortTactical = localOnly && IsShortTactical(observedTopic);
-            if (needsCalm && radioRenderGate.PreparedRoutineBusy && !AllowsRadioNow(shortTactical))
+            bool battleStraight = localOnly && !shortTactical && AiRadioSchedule.IsRoutineTopic(observedTopic);
+            bool overdue = localOnly && eventId != null && overdueRoutineEvents.ContainsKey(eventId);
+            if (needsCalm && radioRenderGate.PreparedRoutineBusy && !AllowsRadioNow(shortTactical, battleStraight, overdue))
             { LiveDiagnostics.Decision("radio", "deferred", "prepared_routine_slot_busy"); return false; }
             // Ohne nAudio kann der Spotter laufende Clips nicht unterbrechen – dann nur kurze Funksprüche
             if (!AudioPlayer.playWithNAudio && text.Length > 160)
@@ -3085,11 +3107,11 @@ namespace CrewChiefV4.AiTeam
                 { LiveDiagnostics.Decision("radio","suppressed","cancelled_stale_or_no_audio"); return false; }
             }
             renderCompleted?.Invoke();
-            if (needsCalm && CrewIsRunning() && !await WaitForCalmAsync(text, deadline, generation, stillValid, ct, shortTactical).ConfigureAwait(false))
+            if (needsCalm && CrewIsRunning() && !await WaitForCalmAsync(text, deadline, generation, stillValid, ct, shortTactical, battleStraight, overdue).ConfigureAwait(false))
             { LiveDiagnostics.Decision("radio", "suppressed", "workload_hold_expired_or_slot_busy"); return false; }
             // Nicht-dringliche KI-Meldungen nach TTS nicht mitten im Zweikampf abspielen.
             // Sofortige Fahrerantworten und lokale Sicherheits-/Schadensmeldungen bleiben möglich.
-            if (!isReply && (Spotter().HasOverlap || radioDirector.TrafficQuiet(DateTime.UtcNow)))
+            if (!isReply && (Spotter().HasOverlap || !overdue && radioDirector.TrafficQuiet(DateTime.UtcNow)))
             {
                 Log("Nicht-dringlicher KI-Funk wegen Verkehr verworfen");
                 { LiveDiagnostics.Decision("radio","suppressed","traffic_quiet"); return false; }
@@ -3137,8 +3159,8 @@ namespace CrewChiefV4.AiTeam
                     string reason = !settings.IsMemberEnabled(member) ? "member_disabled" : DateTime.UtcNow > deadline ? "audio_deadline_expired" :
                         generation != Volatile.Read(ref sessionGeneration) ? "session_changed" :
                         stillValid != null && !stillValid(text) ? "event_or_facts_changed" :
-                        needsCalm && !AllowsRadioNow(shortTactical) ? "driver_workload_changed" :
-                        !isReply && (Spotter().HasOverlap || radioDirector.TrafficQuiet(DateTime.UtcNow)) ? "traffic_priority" : null;
+                        needsCalm && !AllowsRadioNow(shortTactical, battleStraight, overdue) ? "driver_workload_changed" :
+                        !isReply && (Spotter().HasOverlap || !overdue && radioDirector.TrafficQuiet(DateTime.UtcNow)) ? "traffic_priority" : null;
                     if (reason != null) LiveDiagnostics.Decision("audio", "suppressed", reason, eventId:eventId);
                     return reason == null;
                 },
