@@ -111,6 +111,9 @@ namespace CrewChiefV4.AiTeam
             if (t.StartsWith("judge-", StringComparison.Ordinal) || t == "personal-best-record" || t == "personal-best-sector" ||
                 t == "sector-best" || t == "near-best" || t == "own-best-pace" || t == "lap-on-pace" || t == "personal-best-near")
                 return t == "judge-dropped" || t == "judge-spin" || t == "judge-impact" ? RadioClass.Event : RadioClass.Encouragement;
+            // Rennverlauf (Rob 23.11.): „freigefahren“, „abgesetzt“ und die kurze Reaktion eines Kollegen sind Ton, keine Daten;
+            // Zweikampfdauer und „wie angekündigt“ gehören zum eigenen Rennen (Ereignis).
+            if (t == "story-free" || t == "story-escaped" || t == "story-followup") return RadioClass.Encouragement;
             // Rob (Monza 22.11.): „Sofort eine Rundenzeit, wenn jemand eine Bestrunde gefahren hat.“ Die Klassen- bzw. Feldbestzeit
             // ist ein Rennereignis, keine Statistik – beide Meldungen warteten als Daten im Dauerzweikampf, bis sie verfielen.
             if (t == "field-fastest" || t == "field-fastest-overall") return RadioClass.Event;

@@ -60,6 +60,7 @@ namespace CrewChiefV4.AiTeam
         private readonly RaceControlFeed raceControlFeed = new RaceControlFeed();
         private readonly RaceSummaryWatch raceSummary = new RaceSummaryWatch();
         private readonly GapTrendWatch gapTrend = new GapTrendWatch();
+        private readonly RaceStorylineWatch storyline = new RaceStorylineWatch();
         private readonly BattleSectorWatch battleSector = new BattleSectorWatch();
         private readonly PitDamageWatch pitDamage = new PitDamageWatch();
         /// <summary>Renningenieur-Kopf: führt die Rennlage zusammen und entscheidet, welche Info-Meldung jetzt wichtig ist.</summary>
@@ -352,6 +353,7 @@ namespace CrewChiefV4.AiTeam
                 raceControlFeed.Reset();
                 raceSummary.Reset();
                 gapTrend.Reset();
+                storyline.Reset(); RaceStorylineWatch.ForgetExpectations();
                 battleSector.Reset();
                 pitDamage.Reset();
                 raceMind.Reset();
@@ -693,6 +695,7 @@ namespace CrewChiefV4.AiTeam
             incidentPoints.Observe(current,now);
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
             gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
+            storyline.Observe(current,raceMind,() => BuildContext(current),now);
             battleSector.Observe(current, raceMind, Memory, settings.SendDriverNames, now);
             {
                 var frontCar = RaceDataTools.Neighbour(current, true); var rearCar = RaceDataTools.Neighbour(current, false);
@@ -839,6 +842,9 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = gapTrend.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
+            if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
+                raceCall = storyline.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning ||
+                    !AllowsRadioNow(false), settings.IsMemberEnabled);
             if (raceCall == null && settings.RadioMode != AiRadioMode.MINIMAL)
                 raceCall = battleSector.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null || proactiveRunning,
                     settings.IsMemberEnabled(TeamMember.Ben));
@@ -3001,6 +3007,7 @@ namespace CrewChiefV4.AiTeam
                 Memory.AddRadio(member, text, DateTime.UtcNow);
                 DriverMemory.RememberRadio(member,text,Memory.SessionId);
                 raceMind.NoteSpoken(observedTopic, text, DateTime.UtcNow);
+                PhraseMemory.NoteSpoken(member, text, DateTime.UtcNow);
                 if (playbackStarted != null) playbackStarted();
                 return true;
             }
@@ -3019,6 +3026,7 @@ namespace CrewChiefV4.AiTeam
                     Memory.AddRadio(member, text, DateTime.UtcNow);
                 DriverMemory.RememberRadio(member,text,Memory.SessionId);
                     raceMind.NoteSpoken(observedTopic, text, DateTime.UtcNow);
+                    PhraseMemory.NoteSpoken(member, text, DateTime.UtcNow);
                     if (playbackStarted != null) playbackStarted();
                 } }, discarded, playbackEnded, eventId, observedTopic);
             if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("radio.enqueue",LiveDiagnostics.Data("clip_id",id,"topic",observedTopic,"speaker",member.ToString(),"text",text,"priority",localOnly?localPriority:isReply?5:SoundMetadata.DEFAULT_PRIORITY,"immediate",isReply,"event_id",eventId),eventId);

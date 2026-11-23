@@ -388,6 +388,15 @@ namespace CrewChiefV4.AiTeam
             return v;
         }
 
+        /// <summary>Wie <see cref="Variant(string,int)"/>, aber ein Satz, der gerade erst im Funk war (egal von welcher Stelle), kommt
+        /// erst wieder, wenn die anderen dran waren (Rob 23.11., Monza: viermal dieselbe Überholreaktion).</summary>
+        private int Variant(string group, int count, Func<int, string> render)
+        {
+            int v = PhraseMemory.FreshVariant(Variant(group, count), count, render);
+            lastVariant[group] = v;
+            return v;
+        }
+
         /// <summary>Mal mit Namen, mal ohne – wie am echten Funk.</summary>
         private string Name(string radioName) => spokenCount % 2 == 0 ? radioName : null;
 
@@ -434,7 +443,7 @@ namespace CrewChiefV4.AiTeam
             }
             else if (dropped >= DropPlaces && now - lastPositionChange >= DropSettle && now - lastDropCall > TimeSpan.FromMinutes(3))
             {
-                Offer(gs, now, "judge-dropped", DriverJudgement.Dropped(name, dropped, Variant("dropped", 6)), "class_position_lost_" + dropped + "_within_45s_without_own_stop", 5, TimeSpan.FromSeconds(40));
+                Offer(gs, now, "judge-dropped", DriverJudgement.Dropped(name, dropped, Variant("dropped", 6, alt => DriverJudgement.Dropped(name, dropped, alt))), "class_position_lost_" + dropped + "_within_45s_without_own_stop", 5, TimeSpan.FromSeconds(40));
                 lastDropCall = now; positions.Clear();
                 if (laps != null && laps.Count > 0) lastSlideLap = laps[laps.Count - 1].LapNumber + 1; // nicht gleich noch einmal als Rundenbilanz
                 return;
@@ -445,7 +454,7 @@ namespace CrewChiefV4.AiTeam
                 if (now - spinUtc > TimeSpan.FromSeconds(40) || now - lastImpact < TimeSpan.FromSeconds(15)) spinUtc = DateTime.MinValue;
                 else if (now - spinUtc >= TimeSpan.FromSeconds(5) && gs.PositionAndMotionData.CarSpeed > 15 && now - lastSpinCall > TimeSpan.FromMinutes(2))
                 {
-                    Offer(gs, now, "judge-spin", DriverJudgement.Spin(name, Variant("spin", 6)), "speed_from_above_20_to_below_3_mps_within_3s_no_impact", 5, TimeSpan.FromSeconds(25));
+                    Offer(gs, now, "judge-spin", DriverJudgement.Spin(name, Variant("spin", 6, alt => DriverJudgement.Spin(name, alt))), "speed_from_above_20_to_below_3_mps_within_3s_no_impact", 5, TimeSpan.FromSeconds(25));
                     lastSpinCall = now; spinUtc = DateTime.MinValue;
                     return;
                 }
@@ -454,7 +463,7 @@ namespace CrewChiefV4.AiTeam
             int added = IncidentsAdded(s);
             if (added >= IncidentStep && now - lastIncidentCall > TimeSpan.FromMinutes(5) && now - lastImpactCall > TimeSpan.FromSeconds(60))
             {
-                Offer(gs, now, "judge-incidents", DriverJudgement.IncidentsRising(name, added, Variant("incidents", 5)), "incident_points_plus_" + added + "_within_3_minutes", 4, TimeSpan.FromSeconds(30));
+                Offer(gs, now, "judge-incidents", DriverJudgement.IncidentsRising(name, added, Variant("incidents", 5, alt => DriverJudgement.IncidentsRising(name, added, alt))), "incident_points_plus_" + added + "_within_3_minutes", 4, TimeSpan.FromSeconds(30));
                 lastIncidentCall = now; incidentHistory.Clear();
                 return;
             }
@@ -477,7 +486,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var o = countered; countered = null;
                 Offer(gs, now, "judge-overtake-countered", DriverJudgement.Graded(DriverJudgement.PassGrade.NotSoGood,
-                        DriverJudgement.Countered(name, o.PassedName, Variant("countered", 5)), Variant("grade", 2)),
+                        DriverJudgement.Countered(name, o.PassedName, Variant("countered", 5, alt => DriverJudgement.Countered(name, o.PassedName, alt))), Variant("grade", 2)),
                     "same_rival_retook_the_place_within_20s", 4, TimeSpan.FromSeconds(20));
                 return;
             }
@@ -493,7 +502,7 @@ namespace CrewChiefV4.AiTeam
                 {
                     passedBy.Remove(o.PassedIdentity);
                     Offer(gs, now, "judge-retake", DriverJudgement.Graded(DriverJudgement.PassGrade.VeryGood,
-                            DriverJudgement.Retake(name, o.PassedName, Variant("retake", 6)), Variant("grade", 2)),
+                            DriverJudgement.Retake(name, o.PassedName, Variant("retake", 6, alt => DriverJudgement.Retake(name, o.PassedName, alt))), Variant("grade", 2)),
                         "class_position_regained_against_the_rival_who_passed_us_held_without_new_damage", 4, TimeSpan.FromSeconds(25));
                     lastPraise = now;
                     return;
@@ -506,7 +515,7 @@ namespace CrewChiefV4.AiTeam
                 if (rough && !IncidentWatch.IsSerious(gs.CarDamageData))
                 {
                     Offer(gs, now, "judge-overtake-rough", DriverJudgement.Graded(DriverJudgement.PassGrade.Bad,
-                            DriverJudgement.RoughPass(name, o.PassedName, Variant("overtake-rough", 5)), Variant("grade", 2)),
+                            DriverJudgement.RoughPass(name, o.PassedName, Variant("overtake-rough", 5, alt => DriverJudgement.RoughPass(name, o.PassedName, alt))), Variant("grade", 2)),
                         "position_gain_with_new_damage_or_incident_points", 4, TimeSpan.FromSeconds(25));
                     lastPraise = now;
                     return;
@@ -518,8 +527,8 @@ namespace CrewChiefV4.AiTeam
                     float next = s.TimeDeltaFront > 0 ? s.TimeDeltaFront : -1;
                     bool shaky = o.Cuts >= 0 && gs.PenaltiesData.CutTrackWarnings > o.Cuts || o.LapValid && !s.CurrentLapIsValid;
                     var grade = DriverJudgement.Grade(true, false, false, shaky, o.Stronger, hardFought, false);
-                    string sentence = grade == DriverJudgement.PassGrade.Average ? DriverJudgement.ShakyPass(name, o.PassedName, Variant("overtake-shaky", 3)) :
-                        DriverJudgement.Overtake(name, o.PassedName, hardFought, o.Stronger, next, Variant("overtake", 9));
+                    string sentence = grade == DriverJudgement.PassGrade.Average ? DriverJudgement.ShakyPass(name, o.PassedName, Variant("overtake-shaky", 3, alt => DriverJudgement.ShakyPass(name, o.PassedName, alt))) :
+                        DriverJudgement.Overtake(name, o.PassedName, hardFought, o.Stronger, next, Variant("overtake", 9, alt => DriverJudgement.Overtake(name, o.PassedName, hardFought, o.Stronger, next, alt)));
                     Offer(gs, now, "judge-overtake", DriverJudgement.Graded(grade, sentence, Variant("grade", 2)),
                         "position_gain_held_without_new_damage_or_incidents", 4, TimeSpan.FromSeconds(25));
                     lastPraise = now;
@@ -538,7 +547,7 @@ namespace CrewChiefV4.AiTeam
                     laps[laps.Count - 1].Valid && now - lastAny >= AnyGap)
                 {
                     frustratedLap = -100;
-                    Offer(gs, now, "judge-recovered", DriverJudgement.Recovered(name, Variant("recovered", 5)), "race_mind_mood_back_from_frustration_valid_lap", 3, TimeSpan.FromSeconds(30));
+                    Offer(gs, now, "judge-recovered", DriverJudgement.Recovered(name, Variant("recovered", 5, alt => DriverJudgement.Recovered(name, alt))), "race_mind_mood_back_from_frustration_valid_lap", 3, TimeSpan.FromSeconds(30));
                     lastPraise = now;
                     return;
                 }
@@ -549,7 +558,7 @@ namespace CrewChiefV4.AiTeam
                 if (lost >= 2)
                 {
                     lastSlideLap = lap;
-                    Offer(gs, now, "judge-slide", DriverJudgement.Slide(name, lost, 2, Variant("slide", 5)), "lap_memory_positions_lost_without_own_stop", 4, TimeSpan.FromSeconds(30));
+                    Offer(gs, now, "judge-slide", DriverJudgement.Slide(name, lost, 2, Variant("slide", 5, alt => DriverJudgement.Slide(name, lost, 2, alt))), "lap_memory_positions_lost_without_own_stop", 4, TimeSpan.FromSeconds(30));
                     return;
                 }
             }
@@ -561,7 +570,7 @@ namespace CrewChiefV4.AiTeam
                 if (defended >= 2 && again && AttackerFaster(gs, attacker, out string attackerName))
                 {
                     lastDefenceLap = lap; defendedAttacker = attacker;
-                    Offer(gs, now, "judge-defence", DriverJudgement.Defence(name, names ? attackerName : null, defended, Variant("defence", 5)),
+                    Offer(gs, now, "judge-defence", DriverJudgement.Defence(name, names ? attackerName : null, defended, Variant("defence", 5, alt => DriverJudgement.Defence(name, names ? attackerName : null, defended, alt))),
                         "lap_memory_same_faster_car_within_one_second_position_kept", 4, TimeSpan.FromSeconds(30));
                     lastPraise = now;
                     return;
@@ -573,7 +582,7 @@ namespace CrewChiefV4.AiTeam
                 if (spread >= 0 && spread <= DriverJudgement.ConsistencySpread)
                 {
                     lastConsistencyLap = lap;
-                    Offer(gs, now, "judge-consistency", DriverJudgement.Consistency(name, DriverJudgement.ConsistencyLaps, spread, Variant("consistency", 5)),
+                    Offer(gs, now, "judge-consistency", DriverJudgement.Consistency(name, DriverJudgement.ConsistencyLaps, spread, Variant("consistency", 5, alt => DriverJudgement.Consistency(name, DriverJudgement.ConsistencyLaps, spread, alt))),
                         "five_clean_consecutive_laps_within_half_a_second", 3, TimeSpan.FromSeconds(30));
                     lastPraise = now;
                     return;
