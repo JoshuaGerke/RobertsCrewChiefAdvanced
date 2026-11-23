@@ -170,6 +170,10 @@ namespace CrewChiefV4.AiTeam
         public bool AllowLapFinish;
         public bool AllowPitlane;
         internal bool RaceStatus;
+        /// <summary>Gewählte Formulierung des Rennstatus, bleibt beim Auffrischen erhalten.</summary>
+        internal int StatusVariant;
+        /// <summary>Im selben Funkspruch mitgesagte Berichte (Thema, Formulierung), die beim Auffrischen neu berechnet werden.</summary>
+        internal List<KeyValuePair<string, int>> BundleParts;
         /// <summary>Eingestellter Bericht, der schon zu lange wartet: kommt in der nächsten freien Lücke, auch im Zweikampf.</summary>
         internal bool Guaranteed;
         internal Func<RaceDataContext, string> RefreshText;
@@ -184,8 +188,17 @@ namespace CrewChiefV4.AiTeam
             if (live == null || context.NowUtc > ExpiresUtc || live.SessionData.SessionId != SessionId ||
                 live.SessionData.SessionType != SessionType || live.SessionData.SessionPhase != SessionPhase.Green ||
                 live.FlagData.isLocalYellow || live.PitData.InPitlane) return false;
-            string current = RaceStatus ? AiRadioSchedule.Compose("status", context) : RefreshText(context);
+            // AMS2 Spa 23.11.: Vier Formulierungen wurden erzeugt, gesprochen wurde viermal „Platz 3. Seit dem Start 1 Platz
+            // gutgemacht.“ – die Auffrischung vor dem Sprechen nahm immer die erste. Sie behält jetzt die gewählte Formulierung.
+            string current = RaceStatus ? AiRadioSchedule.Compose("status", context, StatusVariant) : RefreshText(context);
             if (string.IsNullOrWhiteSpace(current)) return false;
+            // Mitgesagte Berichte (Rob 23.11.) mit frischen Zahlen und derselben Formulierung wieder anhängen.
+            if (BundleParts != null)
+                foreach (var part in BundleParts)
+                {
+                    string fresh = AiRadioSchedule.Compose(part.Key, context, part.Value);
+                    if (!string.IsNullOrWhiteSpace(fresh) && !current.Contains(fresh)) current += " " + fresh;
+                }
             Text = current;
             if (RefreshGapS != null) SpokenGapS = RefreshGapS(context);
             if (RaceStatus)
@@ -376,7 +389,8 @@ namespace CrewChiefV4.AiTeam
         }
         private readonly Dictionary<string, Car> previousCars = new Dictionary<string, Car>();
         private readonly List<ObservedRaceCall> pending = new List<ObservedRaceCall>();
-        private int stablePosition, candidatePosition, candidateSamples, session = int.MinValue, lastEndLap = -1;
+        private int stablePosition, candidatePosition, candidateSamples, session = int.MinValue, lastEndLap = -1, endLapCompleted = -1;
+        private DateTime endLapArmedUntil = DateTime.MinValue;
         private int lossFrom;
         private DateTime lossStarted;
         private ObservedRaceCall lossCall;
@@ -444,7 +458,7 @@ namespace CrewChiefV4.AiTeam
             recentFrontPit = spokenPitGain = null;
             spokenPitGainUtc = DateTime.MinValue;
             lastCutWarnings = lastCompletedLaps = 0; lastLapValid = false; lastConductIssue = DateTime.MinValue;
-            lastEndLap = -1; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false; startVerdictDone = false;
+            lastEndLap = -1; endLapCompleted = -1; endLapArmedUntil = DateTime.MinValue; session = int.MinValue; lastTick = lastCall = DateTime.MinValue; wasGreen = false; previousInPits = false; startVerdictDone = false;
         }
 
         public void Observe(GameStateData gs, DateTime now, string driverName, int intervalSeconds,
@@ -581,7 +595,9 @@ namespace CrewChiefV4.AiTeam
                             if (names && candidatePass && candidatePassKey != null && gs.OpponentData.TryGetValue(candidatePassKey, out var passedRival) &&
                                 passedRival != null && passedRival.CanUseName)
                             {
-                                text = (text + " " + RaceStory.Passed(RadioPhraseCatalog.SafeRivalName(passedRival.DriverRawName), storyVariant) + " " +
+                                string storyPassedName = RadioPhraseCatalog.SafeRivalName(passedRival.DriverRawName);
+                                storyVariant = PhraseMemory.FreshVariant(storyVariant, 5, alt => RaceStory.Passed(storyPassedName, alt));
+                                text = (text + " " + RaceStory.Passed(storyPassedName, storyVariant) + " " +
                                     RaceStory.AfterGain(candidatePassKey, now, storyVariant)).Trim();
                                 storyVariant++;
                             }
@@ -658,7 +674,9 @@ namespace CrewChiefV4.AiTeam
                         if (names && candidateLossKey != null && gs.OpponentData.TryGetValue(candidateLossKey, out var passer) && passer != null && passer.CanUseName &&
                             passer.ClassPosition == candidatePosition - 1 && !passer.InPits)
                         {
-                            lostText = (RaceStory.PassedBy(RadioPhraseCatalog.SafeRivalName(passer.DriverRawName), storyVariant) + " " + lostText + " " +
+                            string storyPasserName = RadioPhraseCatalog.SafeRivalName(passer.DriverRawName);
+                            storyVariant = PhraseMemory.FreshVariant(storyVariant, 5, alt => RaceStory.PassedBy(storyPasserName, alt));
+                            lostText = (RaceStory.PassedBy(storyPasserName, storyVariant) + " " + lostText + " " +
                                 RaceStory.AfterLoss(candidateLossKey, now, storyVariant)).Trim();
                             storyVariant++;
                         }
@@ -673,10 +691,16 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             ObservePositionLoss(gs, now, green);
-            if (green && wasGreen && !gs.PitData.InPitlane && !s.SessionHasFixedTime && s.SessionNumberOfLaps > 0 &&
+            // AMS2 Spa 23.11.: „Noch 3 Runden“, „Noch 2“ und „Letzte Runde“ kamen je 14 s vor Robs Ziellinie (an der Bus-Stop-
+            // Schikane) – die Restrunden zählt die Sim ab dem Führenden. Die Ansage kommt jetzt, wenn Rob selbst die Linie quert.
+            // Führt Rob selbst, kann die Sim die Restrunden einen Tick nach seiner Rundenzahl umstellen – daher ein kurzes Fenster.
+            if (endLapCompleted >= 0 && s.CompletedLaps > endLapCompleted) endLapArmedUntil = now.AddSeconds(5);
+            endLapCompleted = s.CompletedLaps;
+            if (green && wasGreen && now <= endLapArmedUntil && !gs.PitData.InPitlane && !s.SessionHasFixedTime && s.SessionNumberOfLaps > 0 &&
                 s.SessionLapsRemaining > 0 && s.SessionLapsRemaining <= 3 && s.SessionLapsRemaining != lastEndLap)
             {
                 lastEndLap = s.SessionLapsRemaining;
+                endLapArmedUntil = DateTime.MinValue;
                 string group=lastEndLap==1?"race-last":"race-closing";
                 var cursor=lastEndLap==1?lastLapVariants:closingLapVariants;
                 var catalog=RadioPhraseCatalog.Current;

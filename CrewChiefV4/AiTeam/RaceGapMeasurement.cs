@@ -43,7 +43,8 @@ namespace CrewChiefV4.AiTeam
                 ["hinweis"] = Kind == RaceGapKind.InterpolatedTiming ? "Aus beiden Fahrzeugpassagen am gleichen Streckenpunkt interpoliert; keine garantierte Messgenauigkeit. Gilt fuer den Klassennachbarn, nicht automatisch den naechsten Wagen auf der Strecke." :
                     Kind == RaceGapKind.DerivedTiming ? "Von Crew Chief berechneter Klassenabstand, kein unveraenderter nativer Simulatorwert." : IsEstimated ? "Nur eine Naeherung, kein gemessener Timing-Abstand. Nicht fuer sichere Angriffspunkte oder exakte Prognosen verwenden." :
                     Kind == RaceGapKind.BestLapDifference ? "Zeitenlistenvergleich, keine raeumliche Naehe auf der Strecke." :
-                    Kind == RaceGapKind.SimulatorTiming ? "Abstand aus dem Spieladapter; kann dort berechnet sein. Keine garantierte Messgenauigkeit oder feldweise Aktualitaet." : null
+                    Kind == RaceGapKind.SimulatorTiming ? "Abstand aus dem Spieladapter; kann dort berechnet sein. Keine garantierte Messgenauigkeit oder feldweise Aktualitaet. " +
+                        "Andere Anzeigen rechnen anders; ein Unterschied dazu allein heisst nicht, dass dieser Wert veraltet ist (siehe messalter_s)." : null
             };
         }
     }

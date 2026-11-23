@@ -58,6 +58,10 @@ namespace CrewChiefV4.AiTeam
         internal DiagnosticLimits Limits { get { return limits; } }
         private static readonly HashSet<string> allowed = new HashSet<string>((
             // AC 21.11.: „ac-native“ wurde geschrieben, aber ohne diese Schlüssel blieb jede Zeile leer.
+            // Testkanal B (AMS2 Spa 23.11.): Rohdatentafel und Strategiebild blieben aus demselben Grund leer.
+            "sim fields live slow frozen constant invalid lap plan limit range_laps laps_to_go fuel_checked window_first window_last pace_trend pace_slope " +
+            // Rob 23.11.: Bilanz der eingestellten Funkberichte je Thema (fällig, gesprochen, pünktlich, Gründe).
+            "due_count spoken_count on_time_count max_late_s max_gap_s reasons " +
             "board_session board_phase board_place board_field board_laps_left board_time_left board_penalty board_native_age_s board_conflicts " +
             "reifen_schmutz reifen_kern_c bremsen_c reifen_verschleiss delta_zur_bestzeit_s streckengrip " +
             "stage status reason topic text transcript speaker routing confidence_available model service error_type http_status duration_ms " +
@@ -340,6 +344,7 @@ namespace CrewChiefV4.AiTeam
                 (topic=="position" || topic=="status" || topic=="formation" || topic=="rear-pressure" ||
                     topic=="near-best" || topic=="own-lap" || topic=="field-fastest" || topic=="field-fastest-overall"))
                 DriverMemory.RememberObservation(topic,status,reason,text,CrewChief.currentGameState==null?int.MinValue:CrewChief.currentGameState.SessionData.SessionId);
+            if(status!="detected" && status!="delivered")RoutineLedger.Current.Reason(topic,status+"/"+reason);
             if(Enabled)Emit("decision",Data("topic",topic,"status",status,"reason",reason,"text",text,"event_id",eventId),eventId);
         }
         public static string NoTrend(string topic,string reason) { Decision(topic,"rejected",reason); return null; }

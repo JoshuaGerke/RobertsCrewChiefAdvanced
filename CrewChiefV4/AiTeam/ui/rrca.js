@@ -59,15 +59,12 @@
     $('#rrca-topic-count').textContent = t(topics.length + ' Themen');
     topics.forEach(t => {
       const row = document.createElement('div'); row.className = 'schedule-row'; row.dataset.topic = t.id; row.dataset.recommendedSeconds = t.recommendedSeconds; row.title = I.t(t.hint);
-      row.innerHTML = '<span></span><label class="switch"><input type="checkbox" data-part="on"></label>' +
-        '<input type="number" min="' + t.minimum + '" max="3600" data-part="seconds"><input type="number" min="0" max="300" data-part="minus"><input type="number" min="0" max="300" data-part="plus">';
+      // Rob 23.11.: nur An/Aus; wie oft ein Bericht kommt, bestimmt die Crew selbst.
+      row.innerHTML = '<span></span><label class="switch"><input type="checkbox" data-part="on"></label>';
       row.querySelector('span').textContent = I.t(t.label);
       row.dataset.label=t.label; row.dataset.hint=t.hint;
       row.querySelector('[data-part=on]').checked = t.on;
-      row.querySelector('[data-part=seconds]').value = t.seconds;
-      row.querySelector('[data-part=minus]').value = t.minus;
-      row.querySelector('[data-part=plus]').value = t.plus;
-      const update = () => { const on = row.querySelector('[data-part=on]').checked; row.classList.toggle('inactive', !on); row.querySelectorAll('input[type=number]').forEach(i => { i.disabled = !on; }); };
+      const update = () => { const on = row.querySelector('[data-part=on]').checked; row.classList.toggle('inactive', !on); };
       row.querySelector('[data-part=on]').addEventListener('change', update); update();
       box.appendChild(row);
       I.attach('[data-topic='+t.id+'] > span','schedule');
@@ -269,7 +266,7 @@
   function readTopics() {
     return $$('#rrca-schedule .schedule-row').map(r => ({
       id: r.dataset.topic, on: r.querySelector('[data-part=on]').checked,
-      seconds: Number(r.querySelector('[data-part=seconds]').value), minus: Number(r.querySelector('[data-part=minus]').value), plus: Number(r.querySelector('[data-part=plus]').value)
+      seconds: Number(r.dataset.recommendedSeconds) || 120, minus: 7, plus: 8
     }));
   }
 
@@ -309,14 +306,6 @@
     input.value = ''; send('saveKey', { provider: b.dataset.keySave, key });
   }));
   $$('[data-key-delete]').forEach(b => b.addEventListener('click', () => send('deleteKey', { provider: b.dataset.keyDelete })));
-  $('#rrca-radio-preset').addEventListener('click', () => {
-    $$('#rrca-schedule .schedule-row').forEach(row => {
-      row.querySelector('[data-part=seconds]').value = row.dataset.recommendedSeconds;
-      row.querySelector('[data-part=minus]').value = 7;
-      row.querySelector('[data-part=plus]').value = 8;
-    });
-    notify('Empfohlene Abstände eingesetzt. Deine An-/Auswahl bleibt erhalten. Zum Übernehmen Einstellungen speichern.');
-  });
   $('#rrca-save').addEventListener('click', () => {
     if (!$$('[data-setting]').every(i => i.reportValidity())) return;
     const settings = {}; $$('[data-setting]').forEach(i => { settings[i.dataset.setting] = i.value; });

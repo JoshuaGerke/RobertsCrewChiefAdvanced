@@ -51,7 +51,7 @@ namespace CrewChiefV4.AiTeam
         {
             "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis", "get_race_pace_review",
-            "get_strategy_odds", "get_lmu_native", "get_race_chronicle", "get_field_picture",
+            "get_strategy_picture", "get_raw_sim_fields", "get_strategy_odds", "get_lmu_native", "get_race_chronicle", "get_field_picture",
         };
 
         public static JArray BuildToolDefinitions()
@@ -79,6 +79,8 @@ namespace CrewChiefV4.AiTeam
                 }, ["additionalProperties"] = false }));
             tools.Add(Tool("get_stint_analysis", "Runde-für-Runde-Verlauf dieses Stints: Rundenzeit, Spritverbrauch, Reifenverschleiß, Reifentemperaturspitzen, Abstände. Für Trends und Prognosen."));
             tools.Add(Tool("get_corner_analysis", "Kurve für Kurve: letzte gültige Runde gegen die eigene Bestrunde – Zeitverlust, Bremspunkt, Scheitel- und Ausgangstempo, Vollgaspunkt. Für Fahrercoaching (\"wo verliere ich Zeit\", \"wie fahre ich Kurve X\")."));
+            tools.Add(Tool("get_strategy_picture", "Rennen: Strategie-Gesamtbild an der letzten Ziellinie – Reichweite aus Sprit (mit Gegenprobe), virtueller Energie (LMU) und Reifen, was davon begrenzt, Plan (durchfahren, sparen, Reifen schonen, ein Stopp, zwei Stopps, Pflichtstopp), Boxenfenster in Runden, Spar-Ziel pro Runde und Tempotrend im Stint. Für Fragen nach Strategie, Boxenfenster, ob es reicht und ob das Tempo nachlässt zuerst verwenden."));
+            tools.Add(Tool("get_raw_sim_fields", "Rohdatentafel: jedes Feld, das die Schnittstelle der laufenden Sim liefert, mit Wert, Zustand (live, langsam, eingefroren, konstant, ungültig) und Alter. Für Werte, die kein anderes Werkzeug kennt, z. B. Bremsentemperatur, Energie, Boxenmenü, Schadensfelder. Suchwörter im Feldnamen angeben.", Telemetry.RawSimBoard.ToolParameters()));
             tools.Add(Tool("get_strategy_odds", "Rennen: Wahrscheinlichkeiten für Durchfahren, Stopp jetzt, in einer oder in zwei Runden – reicht der Sprit, kommst du vor dem Hintermann raus (nur mit gemessenem Boxenverlust). Monte Carlo nur aus Messwerten, mit Empfehlung."));
             tools.Add(Tool("get_recent_events", "Was in den letzten Minuten passiert ist (Positionswechsel, Gegner an der Box, Flaggen, Kontakte) und was das Team zuletzt gefunkt hat."));
             tools.Add(new JObject
@@ -120,6 +122,7 @@ namespace CrewChiefV4.AiTeam
         public static JObject Execute(string toolName, RaceDataContext ctx, string arguments)
         {
             if (toolName == "get_race_field" || toolName == "get_opponent") return RaceFieldTools.Read(toolName, ctx, arguments);
+            if (toolName == "get_raw_sim_fields") return Telemetry.RawSimBoard.Tool(arguments, ctx?.NowUtc > DateTime.MinValue ? ctx.NowUtc : DateTime.UtcNow);
             if (toolName == "get_race_reader")
             {
                 try
@@ -178,7 +181,15 @@ namespace CrewChiefV4.AiTeam
                 {
                     case "get_race_reader": data = ctx.Reader?.Read(ctx) ?? new JObject { ["verfuegbar"] = false }; break;
                     case "get_driver_history": data = DriverMemory.HistoricalFacts(ctx); break;
-                    case "get_data_capabilities": data = TelemetryCapabilities.Describe(ctx); break;
+                    case "get_data_capabilities":
+                    {
+                        var cap = TelemetryCapabilities.Describe(ctx);
+                        var raw = Telemetry.RawSimBoard.Current.Summary(ctx.NowUtc > DateTime.MinValue ? ctx.NowUtc : DateTime.UtcNow);
+                        raw["hinweis"] = "Alle lesbaren Felder der Sim-Schnittstelle mit Zustand (live, langsam, eingefroren, konstant, ungueltig). Einzelne Felder über get_raw_sim_fields suchen.";
+                        cap["roh_sim_felder"] = raw;
+                        data = cap;
+                        break;
+                    }
                     case "get_race_state": data = RaceState(ctx, missing); break;
                     case "get_telemetry_values": data = new JObject { ["messwerte"]=TelemetryMeasurementTools.Read(ctx),
                         ["vollstaendig_fuer_alle_simulatorfelder"]=false }; break;
@@ -188,6 +199,11 @@ namespace CrewChiefV4.AiTeam
                     case "get_lap_times": data = LapTimes(ctx, missing); break;
                     case "get_race_pace_review": data = RacePaceReview(ctx); break;
                     case "get_strategy_odds": data = StrategyOddsTool(ctx, missing); break;
+                    case "get_strategy_picture":
+                        data = Strategy.StrategyWatch.Latest(ctx.GameState.SessionData.SessionId, ctx.NowUtc == DateTime.MinValue ? DateTime.UtcNow : ctx.NowUtc)
+                            ?? new JObject { ["berechnet"] = false, ["grund"] = "Strategiebild entsteht im Rennen an der Ziellinie, frühestens nach der ersten gezeiteten Runde." };
+                        break;
+                    case "get_raw_sim_fields": data = Telemetry.RawSimBoard.Current.Describe(null, false, 60, ctx.NowUtc == DateTime.MinValue ? DateTime.UtcNow : ctx.NowUtc); break;
                     case "get_opponents_nearby": data = Opponents(ctx, missing); break;
                     case "get_pit_info": data = Pit(ctx, missing); break;
                     case "get_damage_and_engine": data = Damage(ctx, missing); break;
@@ -279,6 +295,8 @@ namespace CrewChiefV4.AiTeam
             if (dynamics != null) o["fahrdynamik"] = dynamics;
             var raceControl = RaceControlFeed.Latest(s.SessionId, ctx.NowUtc);
             if (raceControl != null) o["rennleitung"] = raceControl;
+            var strategy = s.SessionType == SessionType.Race ? Strategy.StrategyWatch.Latest(s.SessionId, ctx.NowUtc) : null;
+            if (strategy != null) o["strategie"] = strategy;
             int startMode, startPhase;
             if (RaceSituationWatch.RaceRoomStart(gs, ctx.NowUtc, out startMode, out startPhase) && (startMode >= 0 || startPhase >= 0))
                 o["raceroom_startgruppe"] = new JObject {
@@ -455,6 +473,8 @@ namespace CrewChiefV4.AiTeam
                     ["reicht_fuer_runden"] = energy.LapsLeft > 0 ? (JToken)Math.Round(energy.LapsLeft, 1) : null,
                     ["hinweis"] = "LMU-Klassen mit Energie-Limit: Die Reichweite begrenzt, was zuerst leer ist – Energie oder Sprit. Verbrauch nur aus gemessenen sauberen Runden."
                 };
+            if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale)
+                o["verbrauch_scheint_aus"] = "Der Tankinhalt bewegt sich seit über einer Minute Fahrt nicht (z. B. Verbrauch serverseitig aus). Keine Reichweite, kein Boxenfenster und keine Spritwarnung ableiten.";
             if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft < 0 || f.FuelLeft > 10000)
             {
                 missing.Add("tankinhalt");
@@ -1191,11 +1211,75 @@ namespace CrewChiefV4.AiTeam
                 (IncidentWatch.IsSerious(damageNow) || damageNow.WheelDetached != null && damageNow.WheelDetached.Any(w => w)))
                 o["schaden_schwer"] = IncidentWatch.DamageReport(damageNow, true, includeAdvice: false);
             if (s.IsDNF) o["rennen_aufgegeben"] = true;
+            AddLiveVerdicts(o, ctx);
             if (ctx.GameState.FuelData.FuelUseActive && Finite(ctx.GameState.FuelData.FuelLeft) && ctx.GameState.FuelData.FuelLeft > 0 && ctx.GameState.FuelData.FuelLeft <= 10000)
             {
                 o["tankinhalt_l"] = Math.Round(ctx.GameState.FuelData.FuelLeft, 1);
             }
             return o;
+        }
+
+        /// <summary>
+        /// AMS2 Spa 23.11.: „45 s Zeitstrafe?“, „Ist diese Runde gültig?“, „Schau, wo ich bin“ und „Steht da einer?“ endeten mit
+        /// „kann ich nicht prüfen“, obwohl Strafenfeld, Rundengültigkeit, Rundenmeter und Crew Chiefs Stillstandserkennung live da
+        /// waren. Sie gehören in jedes Lagebild, damit auch die schnelle Antwort ohne Werkzeug sie kennt.
+        /// </summary>
+        internal static void AddLiveVerdicts(JObject o, RaceDataContext ctx)
+        {
+            var gs = ctx?.GameState;
+            if (gs == null) return;
+            var s = gs.SessionData;
+            var pen = gs.PenaltiesData;
+            if (pen != null)
+            {
+                var p = new JObject
+                {
+                    ["offene_strafen"] = Math.Max(0, pen.NumOutstandingPenalties),
+                    ["quelle"] = "strafenfeld_des_simulators",
+                };
+                if (pen.PenaltyType != PenatiesData.DetailedPenaltyType.NONE) p["typ"] = pen.PenaltyType.ToString();
+                if (pen.PenaltyCause != PenatiesData.DetailedPenaltyCause.NONE) p["grund"] = pen.PenaltyCause.ToString();
+                if (pen.Warning != PenatiesData.WarningMessage.NONE) p["verwarnung"] = pen.Warning.ToString();
+                if (pen.CutTrackWarnings > 0) p["track_limit_verwarnungen"] = pen.CutTrackWarnings;
+                if (pen.HasDriveThrough) p["durchfahrt"] = true;
+                if (pen.HasStopAndGo) p["stop_and_go"] = true;
+                if (pen.HasTimeDeduction) p["zeitstrafe"] = true;
+                if (pen.HasSlowDown) p["slow_down"] = true;
+                o["strafen"] = p;
+            }
+            if (s.SessionPhase == SessionPhase.Green || s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.FullCourseYellow)
+                o["aktuelle_runde_gueltig"] = s.CurrentLapIsValid;
+            float length = s.TrackDefinition?.trackLength ?? 0, distance = gs.PositionAndMotionData.DistanceRoundTrack;
+            bool located = Finite(length) && length > 500 && Finite(distance) && distance >= 0 && distance <= length;
+            if (located)
+            {
+                var where = new JObject { ["rundenmeter"] = Math.Round(distance), ["streckenlaenge_m"] = Math.Round(length),
+                    ["rundenanteil_prozent"] = Math.Round(100.0 * distance / length) };
+                if (s.SectorNumber > 0) where["sektor"] = s.SectorNumber;
+                o["eigene_streckenposition"] = where;
+            }
+            if (s.SessionPhase != SessionPhase.Green && s.SessionPhase != SessionPhase.FullCourseYellow) return;
+            var stopped = new JArray();
+            foreach (var op in gs.OpponentData.Values)
+            {
+                if (op == null || !op.IsActive || op.InPits) continue;
+                bool crewChief = !string.IsNullOrEmpty(op.stoppedInLandmark);
+                bool still = Finite(op.Speed) && op.Speed >= 0 && op.Speed < 5 && Finite(op.DistanceRoundTrack) && op.DistanceRoundTrack > 0;
+                if (!crewChief && !still) continue;
+                var car = new JObject { ["kmh"] = Math.Round(op.Speed * 3.6), ["streckenmeter"] = Math.Round(op.DistanceRoundTrack),
+                    ["klassenplatz"] = op.ClassPosition };
+                if (ctx.SendDriverNames && !string.IsNullOrEmpty(op.DriverRawName)) car["name"] = op.DriverRawName;
+                if (crewChief) car["crew_chief_kurve"] = op.stoppedInLandmark;
+                if (located)
+                {
+                    float ahead = op.DistanceRoundTrack - distance;
+                    if (ahead < 0) ahead += length;
+                    car["meter_vor_dir"] = Math.Round(ahead);
+                }
+                stopped.Add(car);
+                if (stopped.Count >= 4) break;
+            }
+            o["feld_stehend_oder_sehr_langsam"] = stopped;
         }
 
         // ---------- Hilfsfunktionen ----------

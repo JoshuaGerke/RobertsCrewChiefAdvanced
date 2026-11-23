@@ -6,6 +6,18 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
+> **New: radio commands while driving.** Press push-to-talk and say:
+>
+> | Say | What happens |
+> |---|---|
+> | **"Quiet please"** | No more routine reports, essentials only. |
+> | **"More info"** | More reports, mostly about the cars ahead and behind. |
+> | **"Much more info"** | The full programme. |
+> | **"Radio normal"** | Back to the normal rhythm. |
+> | **"Spotter off"** / **"Spotter on"** | Only Sara's side calls (left, right, clear). She always calls yellows, crashes, slow cars and the safety car. |
+>
+> The radio amount takes effect at once and is saved. In the app it is under **AI & radio** → **Radio amount**. The spotter stays off until you say "spotter on" or restart RRCA. How often the crew reports on its own is up to the crew: it follows the race length and how tense the race is.
+
 RRCA is a free, unofficial extension for [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). It gives you a pit crew of three voices that you can talk to during a race:
 
 - **Ben** watches the race and handles strategy.
@@ -144,6 +156,8 @@ Do all of this while the sim is closed or while you are standing in the pits, ne
 **e) Your name.** Under **AI & radio** → **Your driver profile**, enter your name and, if you like, a short radio name (for example "Rob"). Click **Apply** at the bottom.
 
 **f) Your sim.** On the **Cockpit** page, switch on **Detect game automatically**. RRCA then starts the crew by itself when your sim is running. Alternatively, choose the sim from the list and click **Start**. Make sure telemetry or shared memory is switched on in the sim's own settings; Crew Chief's documentation explains this for each sim.
+
+**g) Radio amount and reports.** Under **AI & radio** you set the **Radio amount**: Quiet, Normal, More info or Much more info. Under **Scheduled radio reports** you now only switch topics on or off. The crew sets the rhythm: in short races up to 15 minutes each technical topic comes once or twice, more often in longer races. The cars ahead and behind come most often, twice as often in a close battle. Calm phases bring tyres, damage, weather and track temperature; in a battle the technical reports wait. Events such as damage, penalties, yellows or best laps always come straight away.
 
 ## 8. Your first test
 

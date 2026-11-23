@@ -263,6 +263,9 @@
     <Compile Include="AiTeam\RaceSummaryWatch.cs" />
     <Compile Include="AiTeam\OpponentStopLog.cs" />
     <Compile Include="AiTeam\GapTrendWatch.cs" />
+    <Compile Include="AiTeam\Crew\PhraseMemory.cs" />
+    <Compile Include="AiTeam\Crew\RaceStorylineWatch.cs" />
+    <Compile Include="AiTeam\Crew\TopSpeedWatch.cs" />
     <Compile Include="AiTeam\RaceMind.cs" />
     <Compile Include="AiTeam\TyreGripWatch.cs" />
     <Compile Include="AiTeam\QualiFuelWatch.cs" />
@@ -346,6 +349,7 @@
     <Compile Include="AiTeam\RadioArbiter.cs" />
     <Compile Include="AiTeam\ThermalWatch.cs" />
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
+    <Compile Include="AiTeam\NativeCarSystems.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />
     <Compile Include="AiTeam\NativeIncidentWatch.cs" />
     <Compile Include="AiTeam\NativeRaceControl.cs" />
@@ -356,6 +360,9 @@
     <Compile Include="AiTeam\RaceChronicle.cs" />
     <Compile Include="AiTeam\RaceControl\RaceControlFeed.cs" />
     <Compile Include="AiTeam\RaceControl\RaceControlRadio.cs" />
+    <Compile Include="AiTeam\Strategy\StrategyPicture.cs" />
+    <Compile Include="AiTeam\Strategy\StrategyWatch.cs" />
+    <Compile Include="AiTeam\Telemetry\RawSimBoard.cs" />
     <Compile Include="AiTeam\InterruptedRadio.cs" />
     <Compile Include="AiTeam\RaceStory.cs" />
     <Compile Include="AiTeam\EndgameBriefWatch.cs" />
@@ -380,6 +387,9 @@
     <Compile Include="AiTeam\TrackAwareness.cs" />
     <Compile Include="AiTeam\TrackSituationWatch.cs" />
     <Compile Include="AiTeam\RaceTrafficWatch.cs" />
+    <Compile Include="AiTeam\RoutineLedger.cs" />
+    <Compile Include="AiTeam\AutoRadioPlan.cs" />
+    <Compile Include="AiTeam\RadioAmountCommand.cs" />
     <Compile Include="AiTeam\QualifyingResultWatch.cs" />
     <Compile Include="AiTeam\RaceGapTracker.cs" />
     <Compile Include="AiTeam\ActiveRaceObserver.cs" />

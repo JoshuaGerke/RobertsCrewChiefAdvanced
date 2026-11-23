@@ -422,7 +422,7 @@ namespace UnitTest.AiTeamTests
         {
             var s=State();s.SessionData.ClassPosition=1;s.SessionData.SessionNumberOfLaps=5;s.SessionData.SessionLapsRemaining=2;
             var observer=new ActiveRaceObserver();observer.Observe(s,T,"Rob",0);
-            s.SessionData.SessionLapsRemaining=1;observer.Observe(s,T.AddMilliseconds(100),"Rob",0);
+            s.SessionData.SessionLapsRemaining=1;s.SessionData.CompletedLaps++;observer.Observe(s,T.AddMilliseconds(100),"Rob",0);
             var call=observer.Take(s,T.AddMilliseconds(100),false,false,false,0,null,"Rob");
             Assert.IsNotNull(call);StringAssert.Contains("Letzte Runde",call.Text);StringAssert.Contains("Du führst",call.Text);
             StringAssert.DoesNotContain("gewonnen",call.Text);
@@ -444,13 +444,14 @@ namespace UnitTest.AiTeamTests
             var observer=new ActiveRaceObserver();
             var s=State();s.SessionData.SessionNumberOfLaps=5;s.SessionData.SessionLapsRemaining=2;
             s.SessionData.ClassPosition=1;s.SessionData.OverallPosition=5;
-            observer.Observe(s,T,"Alex",0);s.SessionData.SessionLapsRemaining=1;
+            // Die Ansage kommt an der eigenen Linie (AMS2 Spa 23.11.): Restrunde und eigene Rundenzahl wechseln gemeinsam.
+            observer.Observe(s,T,"Alex",0);s.SessionData.SessionLapsRemaining=1;s.SessionData.CompletedLaps++;
             observer.Observe(s,T.AddMilliseconds(100),"Alex",0);
             var first=observer.Take(s,T.AddMilliseconds(100),false,false,false,0,null,"Alex");
             Assert.IsNotNull(first);StringAssert.Contains("Du führst in deiner Klasse",first.Text);
             first.MarkPlaybackStarted(T.AddMilliseconds(100));first.MarkPlaybackFinished(T.AddSeconds(1),interrupted);
             observer.Reset();s.SessionData.SessionId++;s.SessionData.SessionLapsRemaining=2;
-            observer.Observe(s,T.AddSeconds(2),"Alex",0);s.SessionData.SessionLapsRemaining=1;
+            observer.Observe(s,T.AddSeconds(2),"Alex",0);s.SessionData.SessionLapsRemaining=1;s.SessionData.CompletedLaps++;
             observer.Observe(s,T.AddSeconds(3),"Alex",0);
             var second=observer.Take(s,T.AddSeconds(3),false,false,false,0,null,"Alex");
             Assert.IsNotNull(second);Assert.AreEqual(interrupted,first.Text==second.Text);

@@ -31,14 +31,25 @@ namespace CrewChiefV4.AiTeam
                     return group.Candidate;
                 int blocked = Math.Min(3, count - 1);
                 while (group.Recent.Count > blocked) group.Recent.Dequeue();
+                // Satzgedächtnis der ganzen Crew: eine Vorlage, deren fester Text gerade erst zu hören war, kommt erst wieder,
+                // wenn alle anderen dran waren (Rob 23.11., Monza: viermal derselbe Überholsatz).
+                DateTime now = PhraseMemory.Clock();
+                Func<int, DateTime> lastHeard = i => {
+                    var catalog = RadioPhraseCatalog.Current;
+                    return catalog != null && catalog.Has(name) && catalog.Count(name) == count ?
+                        PhraseMemory.LastHeardLiterals(catalog.Literals(name, i), now) : DateTime.MinValue;
+                };
+                var notRecent = Enumerable.Range(0, count).Where(i => !group.Recent.Contains(i)).ToList();
+                var fresh = PhraseMemory.Freshest(notRecent.Count > 0 ? notRecent : Enumerable.Range(0, count).ToList(), lastHeard);
+                bool memoryDecides = fresh.Count > 0 && fresh.Count < notRecent.Count;
                 if (count < 5)
                 {
                     int next = Heard % count;
-                    while (group.Recent.Contains(next)) next = (next + 1) % count;
+                    while (group.Recent.Contains(next) || memoryDecides && !fresh.Contains(next)) next = (next + 1) % count;
                     return group.Candidate = next;
                 }
-                if (group.Recent.Count == 0) return group.Candidate = 0;
-                var available = Enumerable.Range(0, count).Where(i => !group.Recent.Contains(i)).ToArray();
+                if (group.Recent.Count == 0 && !memoryDecides) return group.Candidate = 0;
+                var available = (memoryDecides ? fresh : notRecent).ToArray();
                 int pick;
                 lock (random) pick = random.Next(available.Length);
                 return group.Candidate = available[pick];
@@ -233,6 +244,9 @@ namespace CrewChiefV4.AiTeam
         }
 
         public int Count(string group) => groups[group].Length;
+        internal bool Has(string group) => group != null && groups.ContainsKey(group);
+        /// <summary>Die festen Textstellen einer Vorlage ohne Platzhalter (für das Satzgedächtnis).</summary>
+        internal string[] Literals(string group, int variant) => Regex.Split(Template(group, variant) ?? "", @"\{[a-z]+\}").Where(p => p.Trim().Length > 0).ToArray();
         /// <summary>Rohe Vorlage (für Prüfungen des Wortlauts).</summary>
         internal string Template(string group, int variant) => groups[group][(int)((uint)variant % groups[group].Length)];
         public string ReferenceFor(string group, int variant)

@@ -33,6 +33,11 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, int> minus = new Dictionary<string, int>();
         private readonly Dictionary<string, int> plus = new Dictionary<string, int>();
         public AiRadioPreferences() { foreach (var o in Options) { seconds[o.Id]=o.DefaultSeconds; minus[o.Id]=7; plus[o.Id]=8; } }
+        /// <summary>
+        /// Rob 23.11.: Im Cockpit nur noch An/Aus je Thema; wie oft ein Bericht kommt, bestimmt die Crew selbst (<see cref="AutoRadioPlan"/>).
+        /// Die gespeicherten Sekunden zählen dann nur noch als „an“ (größer 0) oder „aus“ (0). Ohne Automatik (nur Tests) gelten sie direkt.
+        /// </summary>
+        public bool Automatic;
         public int Minus(string id) { return minus[id]; }
         public int Plus(string id) { return plus[id]; }
         public void SetTolerance(string id, int earlier, int later)
@@ -60,7 +65,7 @@ namespace CrewChiefV4.AiTeam
         }
         public static AiRadioPreferences Load()
         {
-            var p = new AiRadioPreferences();
+            var p = new AiRadioPreferences { Automatic = true };
             foreach (var o in Options)
                 try {
                     var u=UserSettings.GetUserSettings(); p.Set(o.Id,u.getInt(o.SettingKey));
@@ -86,6 +91,12 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastDeferral=DateTime.MinValue;
         private DateTime lastReport = DateTime.MinValue;
         private ObservedRaceCall outstanding,lastRoutine;
+        /// <summary>Im selben Funkspruch mitgesagte, ebenfalls fällige Berichte desselben Sprechers (Thema, geplanter Zeitpunkt, Text).</summary>
+        private readonly List<Tuple<string, DateTime, string, int>> outstandingBundle = new List<Tuple<string, DateTime, string, int>>();
+        /// <summary>Höchstens so viele Berichte in einem Funkspruch und so lang darf er werden.</summary>
+        internal const int MaxBundle = 3, MaxBundleChars = 240;
+        /// <summary>Ein Bericht, der in dieser Zeit ohnehin fällig wird, darf schon mitgesagt werden.</summary>
+        internal const int BundleAheadSeconds = 20;
         private readonly RadioVariantCursor fuelVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor aheadVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor behindVariants = new RadioVariantCursor();
@@ -114,7 +125,7 @@ namespace CrewChiefV4.AiTeam
         internal int TechnicalSpacingFor(AiRadioPreferences prefs)
         {
             if (TechnicalSpacingSeconds <= 0) return 0;
-            int shortest = prefs == null ? 0 : AiRadioPreferences.Options.Where(o => IsTechnical(o.Id) && prefs[o.Id] > 0).Select(o => prefs[o.Id]).DefaultIfEmpty(0).Min();
+            int shortest = prefs == null ? 0 : AiRadioPreferences.Options.Where(o => IsTechnical(o.Id) && prefs[o.Id] > 0).Select(o => IntervalOf(prefs, o.Id)).DefaultIfEmpty(0).Min();
             if (shortest <= 0) return TechnicalSpacingSeconds;
             return Math.Max(Math.Min(60, TechnicalSpacingSeconds), Math.Min(TechnicalSpacingSeconds, (int)Math.Round(shortest * .75)));
         }
@@ -124,7 +135,14 @@ namespace CrewChiefV4.AiTeam
         /// gemeinsame Technik-Budget. Monza 22.11.: Wetter 7, Stint 7 und Sprit 8½ Minuten zu spät, nie gesprochen.
         /// </summary>
         internal bool OverdueByItsInterval(string topic, DateTime now, AiRadioPreferences prefs) =>
-            prefs != null && prefs[topic] > 0 && due.TryGetValue(topic, out var at) && now - at >= TimeSpan.FromSeconds(Math.Max(60, prefs[topic]));
+            prefs != null && prefs[topic] > 0 && due.TryGetValue(topic, out var at) && now - at >= TimeSpan.FromSeconds(Math.Max(60, IntervalOf(prefs, topic)));
+
+        /// <summary>Planmäßiger Abstand eines Themas ohne Streuung: automatisch nach Renndauer und Funkmenge, sonst wie eingestellt.</summary>
+        internal int IntervalOf(AiRadioPreferences prefs, string topic)
+        {
+            if (prefs == null || prefs[topic] <= 0) return 0;
+            return prefs.Automatic ? AutoRadioPlan.NominalSeconds(Span, topic, Amount) : prefs[topic];
+        }
 
         /// <summary>
         /// Welcher fällige Bericht zuerst? Nicht der zuerst fällige, sondern der dringendste: Verspätung im Verhältnis zum eigenen
@@ -172,7 +190,18 @@ namespace CrewChiefV4.AiTeam
 
         internal bool Guaranteed(string topic, DateTime now) =>
             topic != null && overdueSince.TryGetValue(topic, out var since) && now >= since &&
-            (now - since >= TimeSpan.FromSeconds(GuaranteeLateSeconds) || topic == "status" && firstStatusPending);
+            (now - since >= TimeSpan.FromSeconds(GuaranteeLateFor(topic)) || topic == "status" && firstStatusPending);
+
+        /// <summary>
+        /// Rob 23.11.: In spannenden Phasen (Zweikampf, letzte Runden) wartet die Technik, damit Platz für Zweikampf und Taktik
+        /// bleibt – mit Automatik bis zu zwei Minuten, dann kommt sie trotzdem (gebündelt, wenn möglich). Sonst nach 30 s.
+        /// </summary>
+        internal const int TenseTechnicalGuaranteeSeconds = 120;
+        /// <summary>Automatik: Mindestabstand zwischen zwei Technikberichten, neuer Versuch bei fehlendem Wert, Wetter-Erinnerung.</summary>
+        internal const int AutomaticTechnicalSpacingSeconds = 60, EvidenceRetrySeconds = 60;
+        internal static readonly TimeSpan WeatherReminder = TimeSpan.FromMinutes(15);
+        private bool tenseHold;
+        private int GuaranteeLateFor(string topic) => tenseHold && IsTechnical(topic) ? TenseTechnicalGuaranteeSeconds : GuaranteeLateSeconds;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
         private string lastFuelMeasurement;
@@ -224,13 +253,37 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Startphase des Rennens: keine Routine, bis sich das Feld beruhigt hat (siehe <see cref="RaceRhythm"/>).</summary>
         internal bool StartCalm;
-        /// <summary>Rennlänge; verlängert oder verkürzt die eingestellten Abstände je Thema.</summary>
+        /// <summary>Rennlänge; verlängert oder verkürzt die eingestellten Abstände je Thema (nur ohne Automatik).</summary>
         internal RaceLength Length;
+        /// <summary>Funkmenge aus Cockpit oder Funkbefehl („Ruhe bitte“, „mehr Infos“, „viel mehr Infos“).</summary>
+        internal RadioAmount Amount = RadioAmount.Normal;
+        /// <summary>Renndauer dieser Session, aus dem letzten Spielzustand.</summary>
+        internal RaceSpan Span = RaceSpan.Practice;
+        /// <summary>Anspannung 0–1: aus dem Rennkopf, sonst aus den Abständen nach vorn und hinten.</summary>
+        internal double Tension = .45;
 
         private int Delay(AiRadioPreferences prefs, string topic)
         {
-            int delay = prefs.NextDelaySeconds(topic, random);
-            return AiRadioPreferences.ApplyDriverScale(topic, delay, RaceRhythm.Scale(Length, topic));
+            if (prefs[topic] <= 0) return 0;
+            if (!prefs.Automatic)
+            {
+                int delay = prefs.NextDelaySeconds(topic, random);
+                return AiRadioPreferences.ApplyDriverScale(topic, delay, RaceRhythm.Scale(Length, topic));
+            }
+            int automatic = AutoRadioPlan.Seconds(Span, topic, Amount, Tension, random);
+            return AiRadioPreferences.ApplyDriverScale(topic, automatic, DriverMemory.RoutineIntervalScale(topic));
+        }
+
+        /// <summary>Renndauer und Anspannung nachführen; die Anspannung bevorzugt den Rennkopf, wenn er frisch ist.</summary>
+        private void ObserveRace(GameStateData gs, DateTime now)
+        {
+            Span = AutoRadioPlan.Span(gs);
+            var mind = RaceMind.Latest;
+            if (mind != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(now)) { Tension = mind.Tension; return; }
+            var s = gs.SessionData;
+            float front = s.LapsDeltaFront == 0 ? s.TimeDeltaFront : -1, behind = s.LapsDeltaBehind == 0 ? s.TimeDeltaBehind : -1;
+            Tension = gs.SessionData.SessionType == SessionType.Race
+                ? RadioLoad.RawTension(front, behind, false, RaceAttention.Unknown, RacePhase.Middle, default(DriverMoodState)) : .2;
         }
 
         /// <summary>
@@ -239,11 +292,15 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         internal void StaggerAfterStart(DateTime settled, AiRadioPreferences prefs)
         {
-            string[] order = { "status", "ahead", "behind", "progress", "pace", "fuel", "tyres", "vehicle", "stint", "weather" };
+            // Automatik (Rob 23.11.): Jedes eingeschaltete Thema kommt nach dem Start einmal, auch das Wetter im Sprint
+            // („Wetter einmal am Start“); danach gilt der Abstand nach Renndauer und Spannung.
+            string[] order = prefs.Automatic
+                ? new[] { "status", "ahead", "behind", "weather", "progress", "pace", "fuel", "tyres", "vehicle", "stint" }
+                : new[] { "status", "ahead", "behind", "progress", "pace", "fuel", "tyres", "vehicle", "stint", "weather" };
             DateTime slot = settled + RaceRhythm.FirstRoutineAfterSettle;
             foreach (string topic in order)
             {
-                if (prefs[topic] == 0 || !due.TryGetValue(topic, out var at) || at > slot) continue;
+                if (prefs[topic] == 0 || !due.TryGetValue(topic, out var at) || at > slot && !prefs.Automatic) continue;
                 due[topic] = slot;
                 slot += RaceRhythm.RoutineStep;
             }
@@ -253,10 +310,11 @@ namespace CrewChiefV4.AiTeam
         }
         internal static TeamMember MemberFor(string topic) =>
             topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
-        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
+        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; outstandingBundle.Clear(); lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
+            ObserveRace(gs, now);
             foreach (var option in AiRadioPreferences.Options)
                 if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(Delay(prefs, option.Id));
         }
@@ -265,6 +323,8 @@ namespace CrewChiefV4.AiTeam
         public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true,string busyReason = null)
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
+            if (gs != null) { RoutineLedger.Current.Session(gs.SessionData.SessionId, now); RoutineLedger.Current.Tick(now); }
+            tenseHold = prefs.Automatic && gs != null && gs.SessionData.SessionType == SessionType.Race && RaceRadioDirector.SuppressBackgroundStatistics(ctx);
             if(lastRoutine!=null && lastRoutine.PlaybackInterrupted && !interruptionHandled)
             {
                 due[lastRoutine.Topic]=now.AddSeconds(30);
@@ -282,6 +342,8 @@ namespace CrewChiefV4.AiTeam
                 if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
                 {
                     lastRoutine=outstanding;interruptionHandled=false;
+                    RoutineLedger.Current.Spoken(outstanding.Topic,
+                        overdueSince.TryGetValue(outstanding.Topic, out var plannedUtc) ? plannedUtc : outstandingSince, outstanding.DeliveryStartedUtc);
                     lastReport = outstanding.DeliveryStartedUtc;
                     lastDeliveredText[outstanding.Topic]=outstanding.Text;
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
@@ -291,7 +353,8 @@ namespace CrewChiefV4.AiTeam
                     if (IsTechnical(outstanding.Topic) && TechnicalSpacingSeconds > 0)
                     {
                         lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
-                        int spacing = TechnicalSpacingFor(prefs);
+                        // Automatik: Die Abstände je Thema sind schon lang; eine Minute zwischen zwei Technikberichten genügt gegen Häufung.
+                        int spacing = prefs.Automatic ? AutomaticTechnicalSpacingSeconds : TechnicalSpacingFor(prefs);
                         technicalGapSeconds = spacing + random.Next(0, spacing / 3 + 1);
                     }
                     double next = Delay(prefs, outstanding.Topic);
@@ -300,6 +363,18 @@ namespace CrewChiefV4.AiTeam
                     overdueSince.Remove(outstanding.Topic);
                     Arbiter.Done(outstanding.Topic);
                     if (outstanding.Topic == "status") firstStatusPending = false;
+                    foreach (var b in outstandingBundle)
+                    {
+                        lastDeliveredText[b.Item1] = b.Item3; lastDeliveredUtc[b.Item1] = outstanding.DeliveryStartedUtc;
+                        double bundledNext = Delay(prefs, b.Item1);
+                        if (FightGap(b.Item1) && RaceRadioDirector.SuppressBackgroundStatistics(ctx)) bundledNext = BattleGapDelay(bundledNext);
+                        due[b.Item1] = outstanding.DeliveryStartedUtc.AddSeconds(bundledNext);
+                        overdueSince.Remove(b.Item1); Arbiter.Done(b.Item1);
+                        if (b.Item1 == "status") firstStatusPending = false;
+                        RoutineLedger.Current.Spoken(b.Item1, b.Item2, outstanding.DeliveryStartedUtc);
+                        LiveDiagnostics.Decision(b.Item1, "delivered", "bundled_with_" + outstanding.Topic, b.Item3);
+                    }
+                    outstandingBundle.Clear();
                     outstanding = null;
                 }
                 else if (!outstanding.IsValid(gs, now) || prefs[outstanding.Topic] == 0 ||
@@ -314,11 +389,16 @@ namespace CrewChiefV4.AiTeam
                     // dazwischen lag oft die nächste Bremszone, und er verfiel erneut).
                     due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" || keep ? 5 : 30);
                     if (keep) overdueSince[outstanding.Topic] = outstandingSince; else overdueSince.Remove(outstanding.Topic);
+                    foreach (var b in outstandingBundle) { due[b.Item1] = now.AddSeconds(5); overdueSince[b.Item1] = b.Item2; }
+                    outstandingBundle.Clear();
                     outstanding = null;
                 }
             }
             foreach (var item in due.Where(p => prefs[p.Key] > 0 && p.Value <= now && !overdueSince.ContainsKey(p.Key)).ToArray())
+            {
                 overdueSince[item.Key] = item.Value;
+                RoutineLedger.Current.Due(item.Key, IntervalOf(prefs, item.Key));
+            }
             if (outstanding != null) outstanding.Guaranteed = Guaranteed(outstanding.Topic, now);
             bool race = gs?.SessionData.SessionType == SessionType.Race;
             bool statusOverdue = race && StatusIsOverdue(now, prefs);
@@ -352,7 +432,7 @@ namespace CrewChiefV4.AiTeam
                         ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
                     foreach(var item in due.Where(p=>prefs[p.Key]>0 && p.Value<=now))
                         LiveDiagnostics.Emit("routine.state",LiveDiagnostics.Data("topic",item.Key,"reason",reason,"due_utc",item.Value.ToString("o"),
-                            "late_s",Math.Round((now-item.Value).TotalSeconds,3),"interval_s",prefs[item.Key]));
+                            "late_s",Math.Round((now-item.Value).TotalSeconds,3),"interval_s",IntervalOf(prefs,item.Key)));
                     LiveDiagnostics.Decision("routine","deferred",reason);
                     DriverMemory.RememberObservation("routine","deferred",reason,null,gs==null?int.MinValue:gs.SessionData.SessionId);
                     lastDeferral=now;
@@ -363,7 +443,7 @@ namespace CrewChiefV4.AiTeam
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now && (!statusOverdue || kv.Key == "status") &&
                     (!battleQuiet || Guaranteed(kv.Key, now) || FightGap(kv.Key)))
                 .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
-                .ThenByDescending(kv => Urgency(kv.Key, (now - kv.Value).TotalSeconds, prefs[kv.Key]))
+                .ThenByDescending(kv => Urgency(kv.Key, (now - kv.Value).TotalSeconds, IntervalOf(prefs, kv.Key)))
                 .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
                 // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
@@ -389,8 +469,15 @@ namespace CrewChiefV4.AiTeam
                 int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
                 string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
                 int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : topic == "vehicle" ? vehicleReports++ : gapGroup == null ? NextTurn(topic) : gapVariant;
-                string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
-                if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
+                int composeVariant = gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1);
+                string text = Compose(topic, ctx, composeVariant, out var template);
+                if (string.IsNullOrEmpty(text))
+                {
+                    LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence");
+                    // Automatik: Fehlt der Wert noch (z. B. erst drei saubere Runden), in einer Minute erneut versuchen statt ein ganzes Intervall später.
+                    if (prefs.Automatic) due[topic] = now.AddSeconds(Math.Min(delay, EvidenceRetrySeconds));
+                    continue;
+                }
                 if (topic == "fuel")
                 {
                     // Bathurst 17.11.: „So reicht es nicht bis ins Ziel“ dreimal – das Urteil nur, wenn es sich geändert hat.
@@ -403,16 +490,22 @@ namespace CrewChiefV4.AiTeam
                 if (topic == "weather")
                 {
                     var reading = WeatherReading.From(gs);
-                    if (reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
+                    // Aktiv meldet laut Cockpit auch unveränderte Werte im gewählten Intervall; nur Normal bündelt (AMS2 Spa 23.11.).
+                    // Automatik: Unverändertes Wetter kommt in ruhigen Momenten höchstens alle 15 Minuten als Erinnerung.
+                    bool weatherReminder = prefs.Automatic && (!lastDeliveredUtc.TryGetValue(topic, out var lastWeatherUtc) || now - lastWeatherUtc >= WeatherReminder);
+                    if (filterUnchanged && !weatherReminder && reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
                     {
                         LiveDiagnostics.Decision(topic, "suppressed", "weather_unchanged");
+                        // Automatik: die Erinnerung nach 15 Minuten nicht um ein ganzes Intervall verpassen.
+                        if (prefs.Automatic && lastDeliveredUtc.TryGetValue(topic, out var lastWeatherSaid) && lastWeatherSaid + WeatherReminder < due[topic])
+                            due[topic] = lastWeatherSaid + WeatherReminder;
                         continue;
                     }
                     if (reading != null && lastWeather != null) text = reading.ChangeText(lastWeather, weatherVariant++) ?? text;
                     outstandingWeather = reading;
                 }
                 string fuelMeasurement = topic == "fuel" ? FuelMeasurementKey(ctx) : null;
-                if (fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
+                if (filterUnchanged && fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
                     lastDeliveredUtc.TryGetValue(topic, out var lastFuel) && now - lastFuel < TimeSpan.FromMinutes(10) &&
                     FuelUnchangedAcrossLaps(ctx))
                 {
@@ -428,13 +521,17 @@ namespace CrewChiefV4.AiTeam
                     LiveDiagnostics.Decision(topic, "suppressed", "unchanged_timesheet");
                     continue;
                 }
-                if (filterUnchanged && !timesheet && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
+                // Automatik: Der Abstand nach Renndauer ist schon die Bündelung; ein unveränderter Bericht kommt in seinem Takt (Rob 23.11.:
+                // „Auto in Ordnung“ und Stint fielen sonst jedes zweite Mal weg).
+                if (filterUnchanged && !prefs.Automatic && !timesheet && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
                 {
                     LiveDiagnostics.Decision(topic, "suppressed", "unchanged_routine_since_last_delivery");
                     continue;
                 }
                 string trend = facts.Trend(topic, measurement, now);
                 if (trend != null) text += " " + trend;
+                text = Bundle(topic, text, ctx, prefs, filterUnchanged, memberEnabled, now);
+                var bundleParts = outstandingBundle.Where(b => b.Item4 >= 0).Select(b => new KeyValuePair<string, int>(b.Item1, b.Item4)).ToList();
                 outstandingFacts = measurement;
                 outstandingFuelMeasurement = fuelMeasurement;
                 int overall = gs.SessionData.OverallPosition;
@@ -442,13 +539,13 @@ namespace CrewChiefV4.AiTeam
                 bool overallSpoken = raceStatus && RaceRadioLanguage.SeparateClass(gs.SessionData) &&
                     overall > 0 && overall != gs.SessionData.ClassPosition;
                 outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=raceStatus ? 3 : 1, VariantCursor=cursor,
-                    ReferenceTemplate=template, RaceStatus=raceStatus,
+                    ReferenceTemplate=template, RaceStatus=raceStatus, StatusVariant=composeVariant,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
                     AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !InvalidatesRoutine(live)) &&
                         (!overallSpoken || live.SessionData.OverallPosition == overall),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
                     SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(promisedTopic ? GuaranteedLifetimeSeconds : RoutineLifetimeSeconds),
-                    Guaranteed=promisedTopic };
+                    Guaranteed=promisedTopic, BundleParts=bundleParts.Count == 0 ? null : bundleParts };
                 outstandingSince = since == default(DateTime) ? now : since;
                 Arbiter.Note(topic, RadioArbiter.Tier(topic, 1), outstandingSince, now);
                 if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))
@@ -589,6 +686,83 @@ namespace CrewChiefV4.AiTeam
             return parts.Count>0?string.Join(" ",parts):null;
         }
 
+        /// <summary>Einmalige Meldung, wenn die Sim Verbrauch oder Verschleiß nicht bewegt (z. B. serverseitig ausgeschaltet).</summary>
+        internal static string FrozenNotice(SimChannel c, string litres)
+        {
+            if (c == SimChannel.Fuel)
+                return RadioLanguage.T("Der Tank steht seit über einer Minute Fahrt bei " + litres + " Litern. Verbrauch ist hier offenbar aus, zum Sprit melde ich mich erst wieder, wenn er sich bewegt.",
+                    "Fuel has been stuck at " + litres + " litres for over a minute of driving. Consumption seems to be off here, I'll only report fuel again once it moves.",
+                    "El depósito lleva más de un minuto en " + litres + " litros. El consumo parece desactivado, no volveré a hablar de combustible hasta que se mueva.");
+            return RadioLanguage.T("Die Reifen zeigen keinen Verschleiß. Der ist hier offenbar aus, dazu melde ich mich erst wieder, wenn sich etwas tut.",
+                "The tyres show no wear. It seems to be off here, I'll only report tyres again once something changes.",
+                "Los neumáticos no muestran desgaste. Parece desactivado, no volveré a hablar de ellos hasta que cambie algo.");
+        }
+
+        /// <summary>
+        /// Rob 23.11.: Mit zehn eingeschalteten Berichten (Status, Vorder- und Hintermann und Sprit alle 120 s usw.) wären rund
+        /// 140 Funksprüche in 40 Minuten nötig gewesen – bei mindestens 20 s Abstand passen aber nur 120, dazu kam die Technikpause.
+        /// Berichte fielen deshalb zwangsläufig aus. Wie eine echte Crew sagt jetzt ein Sprecher fällige Berichte in einem Funkspruch:
+        /// „P3. Vorne Kozmy 1,8, hinten JJ 0,9. Nach dieser Runde noch 12.“ Nur derselbe Sprecher, höchstens drei, kurz genug.
+        /// </summary>
+        private string Bundle(string primary, string text, RaceDataContext ctx, AiRadioPreferences prefs, bool filterUnchanged,
+            Func<TeamMember, bool> memberEnabled, DateTime now)
+        {
+            outstandingBundle.Clear();
+            var gs = ctx.GameState;
+            if (gs == null || gs.SessionData.SessionType != SessionType.Race || string.IsNullOrEmpty(text)) return text;
+            var member = MemberFor(primary);
+            var candidates = due.Where(p => p.Key != primary && prefs[p.Key] > 0 && MemberFor(p.Key) == member &&
+                    p.Value <= now.AddSeconds(BundleAheadSeconds) && (memberEnabled == null || memberEnabled(member)) &&
+                    // Normal bündelt unveränderte Technik und Wetter ohnehin; dort keine Technik zusätzlich mitsagen.
+                    !(filterUnchanged && !prefs.Automatic && IsTechnical(p.Key)))
+                .OrderBy(p => p.Value).Select(p => p.Key).ToArray();
+            foreach (string extra in candidates)
+            {
+                if (outstandingBundle.Count >= MaxBundle - 1) break;
+                DateTime planned = overdueSince.TryGetValue(extra, out var since) ? since : due[extra];
+                // Der Rennstatus nennt den Rennfortschritt oft schon mit: dann gilt er als gesagt, ohne Wiederholung.
+                string said = Compose(extra, ctx, 0);
+                if (!string.IsNullOrEmpty(said) && text.Contains(said))
+                {
+                    outstandingBundle.Add(Tuple.Create(extra, planned, said, -1));
+                    due[extra] = now.AddSeconds(Math.Max(30, IntervalOf(prefs, extra) / 2)); overdueSince.Remove(extra);
+                    continue;
+                }
+                int variant = NextTurn(extra);
+                string part = Compose(extra, ctx, variant);
+                if (string.IsNullOrEmpty(part) || text.Length + 1 + part.Length > MaxBundleChars) continue;
+                outstandingBundle.Add(Tuple.Create(extra, planned, part, variant));
+                // Bis zur Wiedergabe nicht erneut einplanen; kommt der Funkspruch nicht, ist der Bericht nach 5 s wieder dran.
+                due[extra] = now.AddSeconds(Math.Max(30, IntervalOf(prefs, extra) / 2));
+                overdueSince.Remove(extra);
+                text += " " + part;
+            }
+            return text;
+        }
+
+        /// <summary>Für Tests: Themen, die im ausstehenden Funkspruch mitgesagt werden.</summary>
+        internal IEnumerable<string> BundledTopics => outstandingBundle.Select(b => b.Item1).ToArray();
+
+        /// <summary>Eines der zehn regelmäßigen Berichtsthemen (Rennstatus, Wetter, Sprit, …).</summary>
+        internal static bool IsRoutineTopic(string topic) => topic != null && Array.Exists(AiRadioPreferences.Options, o => o.Id == topic);
+
+        /// <summary>
+        /// Rob 23.11. (RaceRoom Hockenheim): Der Rennstatus wurde verworfen, weil Ben eben den Platz gesagt hatte – der mitgebündelte
+        /// Abstand zum Vordermann galt trotzdem als gesprochen und fiel stillschweigend weg. Wird ein Routinebericht verworfen,
+        /// bleiben die mitgebündelten Themen fällig und kommen nach 5 s mit frischen Zahlen.
+        /// </summary>
+        internal void ReleaseBundle(ObservedRaceCall call, DateTime now)
+        {
+            if (call == null || !ReferenceEquals(call, outstanding) || outstandingBundle.Count == 0) return;
+            foreach (var b in outstandingBundle)
+            {
+                due[b.Item1] = now.AddSeconds(5);
+                overdueSince[b.Item1] = b.Item2;
+                LiveDiagnostics.Decision(b.Item1, "requeued", "bundle_host_dropped:" + call.Topic, b.Item3);
+            }
+            outstandingBundle.Clear();
+        }
+
         public static string Compose(string topic, RaceDataContext ctx, int variant = 0) => Compose(topic, ctx, variant, out _);
 
         private static string Compose(string topic, RaceDataContext ctx, int variant, out string template)
@@ -651,6 +825,9 @@ namespace CrewChiefV4.AiTeam
             if (topic == "fuel")
             {
                 if (!gs.FuelData.FuelUseActive || !Good(gs.FuelData.FuelLeft, .1, 1000)) return null;
+                // AMS2 Spa 23.11.: Verbrauch serverseitig aus, der Tank stand bei 12,5 l. Einmal kurz sagen, danach nichts mehr zum Sprit.
+                if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale)
+                    return DataTruth.Current.ClaimFrozenNotice(SimChannel.Fuel) ? FrozenNotice(SimChannel.Fuel, Number(gs.FuelData.FuelLeft)) : null;
                 float perLap = ctx.Memory == null ? -1 : ctx.Memory.AverageFuelPerLap();
                 string litres = Number(gs.FuelData.FuelLeft);
                 var catalog = RadioPhraseCatalog.Current;
@@ -674,8 +851,14 @@ namespace CrewChiefV4.AiTeam
             {
                 var t = gs.TyreData; if (!t.TyreWearActive) return null;
                 // Datenwahrheit: eingefrorene (z. B. erst nach dem Stopp aktualisierte) oder nicht gelieferte Werte nicht als aktuell melden.
-                if (!DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear)) return null;
                 float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
+                if (!DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear))
+                {
+                    // Steht der Verschleiß praktisch bei null still, ist er ausgeschaltet (AMS2 Spa 23.11.): einmal sagen. Steht er bei
+                    // einem echten Wert still (Sims, die erst beim Stopp aktualisieren), bleibt es beim Schweigen.
+                    bool off = wear.All(w => !float.IsNaN(w) && w >= 0 && w < 1);
+                    return off && DataTruth.Current.ClaimFrozenNotice(SimChannel.TyreWear) ? FrozenNotice(SimChannel.TyreWear, null) : null;
+                }
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 // Rob 16.11.: abwechselnd technisch und menschlich, mit fundierter Hochrechnung (nur kalibrierte Simulationen).
                 // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten.
@@ -758,12 +941,19 @@ namespace CrewChiefV4.AiTeam
                 }
                 if(!s.SessionHasFixedTime && s.SessionNumberOfLaps>0 && s.SessionLapsRemaining>0 && s.SessionLapsRemaining<10000)
                 {
-                    int n=s.SessionLapsRemaining; bool one=n==1;
+                    // AMS2 Spa 23.11.: Die Restrunden der Sim folgen dem Führenden und zählen die laufende Runde mal mit, mal nicht.
+                    // Gesagt wird, was nach der laufenden Runde noch kommt – aus Robs eigenen Runden, gedeckelt durch die Sim (überrundet).
+                    int n=Math.Min(s.SessionNumberOfLaps-Math.Max(0,s.CompletedLaps)-1, s.SessionLapsRemaining);
+                    if(n<0) return null;
+                    if(n==0) return Of(variant,
+                        RadioLanguage.T("Das ist die letzte Runde.", "This is the last lap.", "Es la última vuelta."),
+                        RadioLanguage.T("Letzte Runde läuft.", "Final lap running.", "Vuelta final en curso."));
+                    bool one=n==1;
                     return Of(variant,
-                        RadioLanguage.T("Noch "+n+(one?" Runde.":" Runden."), n+(one?" lap to go.":" laps to go."), one?"Queda 1 vuelta.":"Quedan "+n+" vueltas."),
-                        RadioLanguage.T(n+(one?" Runde":" Runden")+" bis zur Flagge.", n+(one?" lap":" laps")+" to the flag.", n+(one?" vuelta":" vueltas")+" hasta la bandera."),
-                        RadioLanguage.T("Rundenstand: noch "+n+".", "Lap count: "+n+" remaining.", "Vueltas: quedan "+n+"."),
-                        RadioLanguage.T("Noch "+n+(one?" Runde":" Runden")+" zu fahren.", "Still "+n+(one?" lap":" laps")+" to run.", "Aún "+(one?"queda 1 vuelta":"quedan "+n+" vueltas")+" por rodar."));
+                        RadioLanguage.T("Nach dieser Runde noch "+n+".", "After this one, "+n+" more.", "Después de esta, "+(one?"queda 1.":"quedan "+n+".")),
+                        RadioLanguage.T("Nach dieser noch "+n+(one?" Runde":" Runden")+" bis zur Flagge.", n+(one?" more lap":" more laps")+" after this one to the flag.", (one?"1 vuelta más":n+" vueltas más")+" después de esta hasta la bandera."),
+                        RadioLanguage.T("Rundenstand: diese und noch "+n+".", "Lap count: this one and "+n+" more.", "Vueltas: esta y "+n+" más."),
+                        RadioLanguage.T("Diese Runde, dann noch "+n+(one?" Runde":" Runden")+" zu fahren.", "This lap, then "+n+(one?" lap":" laps")+" still to run.", "Esta vuelta y luego "+(one?"queda 1":"quedan "+n)+" por rodar."));
                 }
                 return null;
             }

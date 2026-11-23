@@ -97,9 +97,19 @@ namespace CrewChiefV4.AiTeam
                     n + ago + " hiciste aquí un " + Time(pb.LapSeconds) + Conditions(pb).Replace(", marcado con ", ", con ") +
                         ". Esa es la referencia. Vigilo tus sectores y te digo dónde pierdes frente a esa vuelta." + (compareToday.Length > 0 ? " " + compareToday : "") + " ¡Vamos!");
             }
-            string opening = ((variant % 2) + 2) % 2 == 0
-                ? RadioLanguage.T(n + "deine Bestzeit hier liegt bei " + Time(pb.LapSeconds), n + "your best here is " + Time(pb.LapSeconds), n + "tu mejor tiempo aquí es " + Time(pb.LapSeconds))
-                : RadioLanguage.T(n + "deine Bestmarke mit diesem Auto hier: " + Time(pb.LapSeconds), n + "your benchmark in this car here: " + Time(pb.LapSeconds), n + "tu referencia con este coche aquí: " + Time(pb.LapSeconds));
+            // Rob 23.11.: Der Vergleich aus der Datenbank am Anfang der Session, immer mit mehreren Formulierungen.
+            string t = Time(pb.LapSeconds);
+            string opening = RadioVariants.Pick("pb-brief-opening",
+                RadioLanguage.T(n + "deine Bestzeit hier liegt bei " + t, n + "your best here is " + t, n + "tu mejor tiempo aquí es " + t),
+                RadioLanguage.T(n + "deine Bestmarke mit diesem Auto hier: " + t, n + "your benchmark in this car here: " + t, n + "tu referencia con este coche aquí: " + t),
+                RadioLanguage.T(n + "aus unserer Datenbank: Deine schnellste Runde hier ist eine " + t, n + "from our database: your fastest lap here is a " + t,
+                    n + "según nuestra base de datos, tu vuelta más rápida aquí es un " + t),
+                RadioLanguage.T(n + "zur Orientierung, deine Referenz auf dieser Strecke ist eine " + t, n + "for reference, your benchmark at this track is a " + t,
+                    n + "como orientación, tu referencia en este circuito es un " + t),
+                RadioLanguage.T(n + "die Messlatte für heute ist deine " + t + " von früher", n + "the bar for today is your " + t + " from before",
+                    n + "el listón para hoy es tu " + t + " de antes"),
+                RadioLanguage.T(n + "in unseren Daten steht für dich hier eine " + t, n + "our data has you at a " + t + " here", n + "en nuestros datos tienes aquí un " + t));
+            if (n.Length == 0) opening = char.ToUpperInvariant(opening[0]) + opening.Substring(1);
             string compare = Compare(pb, fuelNow, trackNow);
             var end = RadioLanguage.Pick(EndDe, EndEn, EndEs);
             return opening + Conditions(pb) + "." + (compare.Length > 0 ? " " + compare : "") + " " + end[((variant % end.Length) + end.Length) % end.Length];

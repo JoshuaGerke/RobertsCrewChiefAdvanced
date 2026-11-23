@@ -88,6 +88,8 @@ namespace CrewChiefV4.AiTeam
             // Bis zur Flagge sind lapsLeft - 1 volle Runden zum Aufholen übrig (die aktuelle läuft schon).
             bool tooLate = lapsLeft > 1 && laps > lapsLeft - 1;
             said.Id = t.Id; said.Lap = s.CompletedLaps;
+            // Rennverlauf: trifft die Hochrechnung ein, sagt Ben später „wie angekündigt“.
+            if (!tooLate) RaceStorylineWatch.Expect(s.SessionId, t.Id, ahead, s.CompletedLaps + laps);
             int v = variant++;
             return ahead ? AheadText(name, rate, laps, tooLate, lapsLeft, gap, v) : BehindText(name, rate, laps, tooLate, v);
         }
