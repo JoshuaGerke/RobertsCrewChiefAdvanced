@@ -422,7 +422,7 @@ namespace UnitTest.AiTeamTests
         {
             var s=State();s.SessionData.ClassPosition=1;s.SessionData.SessionNumberOfLaps=5;s.SessionData.SessionLapsRemaining=2;
             var observer=new ActiveRaceObserver();observer.Observe(s,T,"Rob",0);
-            s.SessionData.SessionLapsRemaining=1;observer.Observe(s,T.AddMilliseconds(100),"Rob",0);
+            s.SessionData.SessionLapsRemaining=1;s.SessionData.CompletedLaps++;observer.Observe(s,T.AddMilliseconds(100),"Rob",0);
             var call=observer.Take(s,T.AddMilliseconds(100),false,false,false,0,null,"Rob");
             Assert.IsNotNull(call);StringAssert.Contains("Letzte Runde",call.Text);StringAssert.Contains("Du führst",call.Text);
             StringAssert.DoesNotContain("gewonnen",call.Text);

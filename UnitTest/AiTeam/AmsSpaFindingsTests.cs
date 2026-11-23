@@ -82,5 +82,38 @@ namespace UnitTest.AiTeamTests
             input.StintLaps = fading.Select((t, k) => new KeyValuePair<int, double>(k + 2, t)).ToList();
             Assert.AreEqual("baut_ab", StrategyPicture.Compute(input).PaceTrend, "ein echter Abbau bleibt einer");
         }
+
+        [Test]
+        public void Closing_lap_call_waits_for_the_own_line_not_the_leaders()
+        {
+            var s = new GameStateData(T.Ticks);
+            s.SessionData.SessionId = 7; s.SessionData.SessionType = SessionType.Race; s.SessionData.SessionPhase = SessionPhase.Green;
+            s.SessionData.ClassPosition = 2; s.SessionData.SessionNumberOfLaps = 10; s.SessionData.SessionLapsRemaining = 4; s.SessionData.CompletedLaps = 6;
+            s.carClass = new CarData.CarClass(); s.PositionAndMotionData.CarSpeed = 60;
+            var observer = new ActiveRaceObserver();
+            ObservedRaceCall Run(double from, double to)
+            {
+                ObservedRaceCall got = null;
+                for (double t = from; t <= to; t += 0.5)
+                {
+                    observer.Observe(s, T.AddSeconds(t), "Rob", 0);
+                    var c = observer.Take(s, T.AddSeconds(t), false, false, false, 0, null, "Rob");
+                    if (c != null && c.Topic == "race-end") got = c;
+                }
+                return got;
+            }
+            Assert.IsNull(Run(0, 2));
+            // Der Führende quert die Linie: Restrunden 3, Rob ist noch 14 s davor.
+            s.SessionData.SessionLapsRemaining = 3;
+            Assert.IsNull(Run(2.5, 16), "nicht schon beim Führenden");
+            s.SessionData.CompletedLaps = 7;
+            Assert.IsNotNull(Run(16.5, 17), "an Robs eigener Linie");
+            // Führt Rob selbst und stellt die Sim die Restrunden einen Tick später um, kommt die Ansage trotzdem.
+            s.SessionData.CompletedLaps = 8;
+            Assert.IsNull(Run(17.5, 18));
+            s.SessionData.SessionLapsRemaining = 2;
+            var next = Run(18.5, 19);
+            Assert.IsNotNull(next); Assert.AreEqual("race-end", next.Topic);
+        }
     }
 }
