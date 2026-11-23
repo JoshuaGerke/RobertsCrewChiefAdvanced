@@ -50,6 +50,10 @@
 #    "preferNameForOrderMessages": if true, will refer the driver name over the car number in order messages (FCY, SC phase, rolling start, formation etc.)
 #}
 #
+# Also SimilarPerformanceClasses which has lists of carClassEnums which should
+# be treated as the same class (from Crew Chief 4.19.5.11). DTM_2013..DTM_2016 and
+# TC1/TC1_2014 are already grouped in CarData.cs and need no entry here.
+#
 # The default values are:
 # {
 #    "brakeType": "Iron_Race"
@@ -1835,5 +1839,9 @@
       "ams2ClassNames": [ "*WRX*" ],
       "allMembersAreRWD": false
     }
+  ],
+  "SimilarPerformanceClasses": [
+    [ "DTM_2002", "DTM_2003", "DTM_2005" ],
+    [ "DTM_2020", "DTM_2026" ]
   ]
 }

@@ -5,6 +5,7 @@ using CrewChiefV4.ACC;
 using CrewChiefV4.Audio;
 using CrewChiefV4.Events;
 using CrewChiefV4.GameState;
+using CrewChiefV4.LMU;
 using CrewChiefV4.R3E;
 
 namespace CrewChiefV4.PitManager
@@ -98,8 +99,20 @@ namespace CrewChiefV4.PitManager
                     Log.Debug(() => "Pit Manager voice command " + cmd.Item2.SpeechRecognitionPhrases[0]);
                     switch (CrewChief.gameDefinition.gameEnum)
                     {
-                        case GameEnum.RF2_64BIT:
                         case GameEnum.LMU:
+                            // Crew Chief 4.19.5.11: ohne LMU-REST-Schnittstelle kommt der Boxenbefehl nicht im Spiel an,
+                            // also „Geht nicht“ statt einer Bestätigung, die nichts bewirkt.
+                            if (RestAPI.enableLmuRestApi)
+                            {
+                                pmh.EventHandler(cmd.Item1, voiceMessage);
+                            }
+                            else
+                            {
+                                Log.Warning("LMU REST API not enabled, cannot change pit menu");
+                                PitManagerResponseHandlers.PMrh_CantDoThat();
+                            }
+                            break;
+                        case GameEnum.RF2_64BIT:
                             pmh.EventHandler(cmd.Item1, voiceMessage);
                             break;
                         case GameEnum.RACE_ROOM:

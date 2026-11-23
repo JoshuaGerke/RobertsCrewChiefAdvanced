@@ -150,6 +150,7 @@ namespace CrewChiefV4.LMU
         {
             if (!UnitTest.UnitTest.LmuLive || !enableLmuRestApi)
             { // No need to send the pit menu to the game if testing offline
+                Log.DontSpam("LMU REST API not enabled, cannot change pit menu").Warning();
                 return true;
             }
 
