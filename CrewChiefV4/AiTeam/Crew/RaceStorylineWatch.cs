@@ -10,10 +10,12 @@ namespace CrewChiefV4.AiTeam
     /// Aus den Rundenabständen zum selben Vorder- und Hintermann, die der Rennkopf ohnehin misst, erkennt Ben Zusammenhänge
     /// über mehrere Runden:
     ///  - Zweikampf: seit drei oder mehr Runden unter einer Sekunde am selben Gegner (nach vorn oder nach hinten);
-    ///  - freigefahren: der Hintermann war eben noch unter einer Sekunde dran und liegt jetzt über zwei Sekunden zurück;
-    ///  - abgesetzt: der Vordermann war eben noch in Reichweite und ist jetzt über zwei Sekunden weg;
     ///  - wie angekündigt: die Hochrechnung „in X Runden bist du dran“ ist eingetroffen.
     /// Hochrechnungen selbst macht weiter der Abstandstrend; hier wird nur festgestellt, was eingetreten ist.
+    ///
+    /// Freigefahren und abgesetzt erkennt Crew Chief selbst („Abstand nach hinten bzw. vorn wächst“). Rob 23.11.: gute
+    /// Erkennungen von Crew Chief behalten, die Crew bewertet nur. Deshalb hängt Ben an genau diese Meldung einen kurzen
+    /// Satz an, wenn der Gegner eben noch im Zweikampf war (<see cref="CommentOnGrowingGap"/>); eine eigene Meldung dazu gibt es nicht.
     ///
     /// Wie am echten Kommandostand bekommt eine solche Meldung manchmal eine ganz kurze Reaktion eines Kollegen (Mik): erst nach
     /// dem tatsächlichen Ende der Meldung, mit kurzer Pause, nur solange die Lage noch dieselbe ist, und ohne neue Zahlen.
@@ -21,7 +23,7 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class RaceStorylineWatch
     {
-        internal const float DuelGap = 1.0f, FreeGap = 2.0f;
+        internal const float DuelGap = 1.0f, FreeGap = 2.0f; // FreeGap: ab hier endet ein Zweikampf
         internal const int DuelLaps = 3, RepeatLaps = 4, ReleaseLaps = 3;
         internal static readonly TimeSpan FollowUpDelay = TimeSpan.FromSeconds(.8), FollowUpLife = TimeSpan.FromSeconds(8);
         internal const double FollowUpChance = .5;
@@ -31,6 +33,14 @@ namespace CrewChiefV4.AiTeam
         private static readonly Random random = new Random();
 
         internal enum Story { DuelFront, DuelRear, Free, Escaped, KeptAhead, KeptBehind }
+
+        /// <summary>Bens Bewertung zu einer Crew-Chief-Abstandsmeldung und was nach ihrem Ende passiert (Reaktion des Kollegen).</summary>
+        internal sealed class StoryComment
+        {
+            public Story Kind;
+            public string Text;
+            public Action<DateTime> PlaybackCompleted;
+        }
 
         private sealed class Side
         {
@@ -117,12 +127,6 @@ namespace CrewChiefV4.AiTeam
 
                 if (close && ExpectationMet(s.SessionId, id, ahead, lap))
                 { story = ahead ? Story.KeptAhead : Story.KeptBehind; rival = car; gap = last; continue; }
-                if (!close && last > FreeGap && side.CloseLaps >= 2 && lap - side.LastCloseLap <= ReleaseLaps)
-                {
-                    story = ahead ? Story.Escaped : Story.Free; rival = car; gap = last; laps = side.CloseLaps;
-                    side.CloseLaps = 0; side.LastCloseLap = -100;
-                    continue;
-                }
                 if (close && side.CloseLaps >= DuelLaps && (side.ToldId != id || lap - side.ToldLap >= RepeatLaps))
                 { story = ahead ? Story.DuelFront : Story.DuelRear; rival = car; gap = last; laps = side.CloseLaps; }
             }
@@ -146,10 +150,35 @@ namespace CrewChiefV4.AiTeam
                 Topic = Topic(kind), Text = text, Evidence = "measured_class_gap_per_lap_same_rival", Member = TeamMember.Ben,
                 Priority = kind == Story.KeptAhead || kind == Story.KeptBehind ? 4 : 3,
                 Position = position, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now,
-                ExpiresUtc = now.AddSeconds(kind == Story.Free || kind == Story.Escaped ? 25 : 15), AdditionalValidity = still
+                ExpiresUtc = now.AddSeconds(15), AdditionalValidity = still
             };
-            call.PlaybackCompleted = ended => PlanFollowUp(kind, ended, still, position, s.SessionId, s.SessionType);
             LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, text, call.EventId);
+        }
+
+        /// <summary>
+        /// Crew Chief meldet, dass der Abstand zum direkten Gegner wächst. War genau dieser Gegner in den letzten Runden noch im
+        /// Zweikampf (mindestens zwei Runden unter einer Sekunde), bewertet Ben das mit einem Satz ohne Zahlen: Den Abstand selbst
+        /// sagt schon die Crew-Chief-Meldung. Sonst null. Jeder Zweikampf wird nur einmal so bewertet.
+        /// </summary>
+        internal StoryComment CommentOnGrowingGap(GameStateData gs, OpponentData op, bool ahead, bool names)
+        {
+            if (gs == null || op == null || gs.SessionData.SessionType != SessionType.Race) return null;
+            var s = gs.SessionData;
+            var side = ahead ? front : rear;
+            string id = OpponentStopLog.Key(op);
+            if (side.Id != id || side.CloseLaps < 2 || side.LastCloseLap < 0 || s.CompletedLaps - side.LastCloseLap > ReleaseLaps) return null;
+            if (ahead && s.ClassPosition <= 1 || LapWatch.LapsLeft(s) == 1) return null;
+            string name = names && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : "";
+            if (name.Length == 0) return null;
+            side.CloseLaps = 0; side.LastCloseLap = -100; side.ToldId = id; side.ToldLap = s.CompletedLaps;
+            var kind = ahead ? Story.Escaped : Story.Free;
+            int position = s.ClassPosition, sessionId = s.SessionId;
+            var type = s.SessionType;
+            Func<GameStateData, bool> still = live => live.SessionData.ClassPosition == position && !live.PitData.InPitlane &&
+                RaceDataTools.Neighbour(live, ahead) is OpponentData n && OpponentStopLog.Key(n) == id;
+            string text = Text(kind, name, 0, 0);
+            LiveDiagnostics.Decision(Topic(kind), "attached", "crew_chief_gap_growing_after_fight", text);
+            return new StoryComment { Kind = kind, Text = text, PlaybackCompleted = ended => PlanFollowUp(kind, ended, still, position, sessionId, type) };
         }
 
         private static bool IsAhead(Story s) => s == Story.DuelFront || s == Story.Escaped || s == Story.KeptAhead;
@@ -215,7 +244,7 @@ namespace CrewChiefV4.AiTeam
 
         internal static string Text(Story story, string name, int laps, float gap)
         {
-            string who = name, Who = Cap(name), n = laps.ToString(RadioLanguage.Culture), g = GermanRadioText.Interval(gap);
+            string who = name, Who = Cap(name), n = laps.ToString(RadioLanguage.Culture);
             switch (story)
             {
                 case Story.DuelFront:
@@ -260,44 +289,44 @@ namespace CrewChiefV4.AiTeam
                             "El duelo con " + who + " dura ya " + n + " vueltas. No regalas nada, bien."));
                 case Story.Free:
                     return RadioVariants.Pick("story-free",
-                        RadioLanguage.T("Du hast dich von " + who + " gelöst, jetzt " + g + " Luft.",
-                            "You've broken free from " + who + ", " + g + " of air now.",
-                            "Te has escapado de " + who + ", ahora " + g + " de margen."),
-                        RadioLanguage.T(Who + " ist abgehängt, " + g + " nach hinten. Gut gemacht.",
-                            Who + " has dropped back, " + g + " behind. Well done.",
-                            Who + " se ha quedado, " + g + " detrás. Bien hecho."),
-                        RadioLanguage.T("Das hat gewirkt: " + g + " Vorsprung auf " + who + ". Jetzt deinen Rhythmus fahren.",
-                            "That worked: " + g + " on " + who + ". Now drive your rhythm.",
-                            "Ha funcionado: " + g + " sobre " + who + ". Ahora tu ritmo."),
-                        RadioLanguage.T("Luft nach hinten: " + who + " liegt " + g + " zurück. Durchatmen und sauber weiter.",
-                            "Breathing room: " + who + " is " + g + " back. Breathe and keep it clean.",
-                            "Aire detrás: " + who + " está a " + g + ". Respira y sigue limpio."),
-                        RadioLanguage.T("Den Druck von " + who + " bist du los, " + g + ". Jetzt gleichmäßig fahren.",
-                            "The pressure from " + who + " is off, " + g + ". Now keep it consistent.",
-                            "Te has quitado la presión de " + who + ", " + g + ". Ahora regular."),
-                        RadioLanguage.T(Cap(g) + " zwischen dir und " + who + ". Der Zweikampf ist erst mal vorbei.",
-                            Cap(g) + " between you and " + who + ". The fight is over for now.",
-                            Cap(g) + " entre tú y " + who + ". El duelo se acabó por ahora."));
+                        RadioLanguage.T("Den Zweikampf mit " + who + " hast du hinter dir. Jetzt deinen Rhythmus fahren.",
+                            "The fight with " + who + " is behind you. Now drive your rhythm.",
+                            "El duelo con " + who + " queda atrás. Ahora tu ritmo."),
+                        RadioLanguage.T(Who + " ist abgeschüttelt. Gut gemacht, durchatmen.",
+                            Who + " is shaken off. Well done, breathe.",
+                            Who + " se ha quedado. Bien hecho, respira."),
+                        RadioLanguage.T("Das Duell mit " + who + " ist entschieden. Gleichmäßig weiter.",
+                            "The duel with " + who + " is settled. Keep it consistent.",
+                            "El duelo con " + who + " está decidido. Sigue regular."),
+                        RadioLanguage.T("Von " + who + " hast du dich gelöst. Sauber weiter, keine Risiken.",
+                            "You've broken away from " + who + ". Clean laps, no risks.",
+                            "Te has escapado de " + who + ". Vueltas limpias, sin riesgos."),
+                        RadioLanguage.T("Der Druck von " + who + " ist weg. Jetzt saubere Runden.",
+                            "The pressure from " + who + " is gone. Now clean laps.",
+                            "Ya no tienes la presión de " + who + ". Ahora vueltas limpias."),
+                        RadioLanguage.T(Who + " kann nicht mehr folgen. Stark verteidigt.",
+                            Who + " can't follow any more. Strong defending.",
+                            Who + " ya no puede seguirte. Gran defensa."));
                 case Story.Escaped:
                     return RadioVariants.Pick("story-escaped",
-                        RadioLanguage.T(Who + " hat sich abgesetzt, " + g + ". Nicht überfahren, deinen Rhythmus finden.",
-                            Who + " has pulled away, " + g + ". Don't overdrive, find your rhythm.",
-                            Who + " se ha escapado, " + g + ". No te pases, busca tu ritmo."),
-                        RadioLanguage.T(Who + " ist weg, " + g + ". Keine Brechstange, sauber fahren.",
-                            Who + " is gone, " + g + ". No forcing it, drive clean.",
-                            Who + " se ha ido, " + g + ". Sin forzar, conduce limpio."),
-                        RadioLanguage.T(Cap(g) + " auf " + who + ". Nicht hinterherhetzen, fahr dein Tempo.",
-                            Cap(g) + " to " + who + ". Don't chase it, drive your pace.",
-                            Cap(g) + " con " + who + ". No lo persigas, tu ritmo."),
-                        RadioLanguage.T("Der Zweikampf mit " + who + " ist erst mal vorbei, " + g + ". Reifen schonen, das zählt später.",
-                            "The fight with " + who + " is off for now, " + g + ". Look after the tyres, it counts later.",
-                            "El duelo con " + who + " se acabó por ahora, " + g + ". Cuida los neumáticos, contará más tarde."),
-                        RadioLanguage.T(Who + " hat " + g + " rausgefahren. Ruhig bleiben, jetzt keine Fehler.",
-                            Who + " has opened " + g + ". Stay calm, no mistakes now.",
-                            Who + " ha abierto " + g + ". Tranquilo, ahora sin errores."),
-                        RadioLanguage.T("Lücke zu " + who + " jetzt " + g + ". Durchatmen, neu ansetzen.",
-                            "Gap to " + who + " is " + g + " now. Breathe, reset.",
-                            "Diferencia con " + who + ": " + g + ". Respira, vuelve a empezar."));
+                        RadioLanguage.T("Nach dem Zweikampf mit " + who + " erst mal neu ansetzen. Nicht überfahren.",
+                            "After the fight with " + who + ", reset first. Don't overdrive.",
+                            "Tras el duelo con " + who + ", primero vuelve a empezar. No te pases."),
+                        RadioLanguage.T(Who + " ist erst mal weg. Keine Brechstange, deinen Rhythmus finden.",
+                            Who + " is gone for now. No forcing it, find your rhythm.",
+                            Who + " se ha ido por ahora. Sin forzar, busca tu ritmo."),
+                        RadioLanguage.T("Bei " + who + " nicht hinterherhetzen, fahr dein Tempo.",
+                            "Don't chase " + who + ", drive your pace.",
+                            "No persigas a " + who + ", tu ritmo."),
+                        RadioLanguage.T("Der Zweikampf mit " + who + " ist vorbei. Reifen schonen, das zählt später.",
+                            "The fight with " + who + " is over. Look after the tyres, it counts later.",
+                            "El duelo con " + who + " ha terminado. Cuida los neumáticos, contará más tarde."),
+                        RadioLanguage.T(Who + " hat sich gelöst. Ruhig bleiben, jetzt keine Fehler.",
+                            Who + " has broken away. Stay calm, no mistakes now.",
+                            Who + " se ha escapado. Tranquilo, ahora sin errores."),
+                        RadioLanguage.T("Durchatmen nach dem Duell mit " + who + ". Neu ansetzen.",
+                            "Breathe after the duel with " + who + ". Reset.",
+                            "Respira tras el duelo con " + who + ". Vuelve a empezar."));
                 case Story.KeptAhead:
                     return RadioVariants.Pick("story-kept-ahead",
                         RadioLanguage.T("Wie angekündigt: du bist an " + who + " dran.",

@@ -699,6 +699,10 @@ namespace CrewChiefV4.AiTeam
             raceSummary.Observe(current,raceMind,() => BuildContext(current),now);
             gapTrend.Observe(current,raceMind,() => BuildContext(current),now);
             storyline.Observe(current,raceMind,() => BuildContext(current),now);
+            if (timingEvents.Commentary == null)
+                timingEvents.Commentary = (live, fact, names) => fact.Relation == NativeTimingRelation.BehindOnTrack ||
+                    !live.OpponentData.TryGetValue(fact.Key, out var rival) ? null :
+                    storyline.CommentOnGrowingGap(live, rival, fact.Relation == NativeTimingRelation.ClassAhead, names);
             battleSector.Observe(current, raceMind, Memory, settings.SendDriverNames, now);
             {
                 var frontCar = RaceDataTools.Neighbour(current, true); var rearCar = RaceDataTools.Neighbour(current, false);

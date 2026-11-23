@@ -151,26 +151,35 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("7 Runden", again.Text);
         }
 
+        private static RaceStorylineWatch AfterFightBehind(GameStateData gs, OpponentData valgo, DateTime now)
+        {
+            var rearGaps = History(valgo);
+            var watch = new RaceStorylineWatch();
+            rearGaps.Gaps.Add(.7f); watch.Evaluate(gs, 7, History(null), rearGaps, true, now);
+            rearGaps.Gaps.Add(.9f); watch.Evaluate(gs, 8, History(null), rearGaps, true, now);
+            rearGaps.Gaps.Add(2.4f); watch.Evaluate(gs, 9, History(null), rearGaps, true, now);
+            return watch;
+        }
+
         [Test]
-        public void Breaking_free_is_noticed_and_a_colleague_may_react_after_it_was_heard()
+        public void Breaking_free_is_not_a_second_detection_but_Bens_comment_on_the_crew_chief_gap_call()
         {
             RadioVariants.Deterministic = true;
             RaceStorylineWatch.FollowUpRoll = () => 0;
             var gs = Race(out var krobber, out var valgo);
-            var frontGaps = History(null); var rearGaps = History(valgo);
-            var watch = new RaceStorylineWatch();
-            rearGaps.Gaps.Add(.7f); watch.Evaluate(gs, 7, frontGaps, rearGaps, true, now);
-            rearGaps.Gaps.Add(.9f); watch.Evaluate(gs, 8, frontGaps, rearGaps, true, now);
-            rearGaps.Gaps.Add(2.4f); watch.Evaluate(gs, 9, frontGaps, rearGaps, true, now);
+            var watch = AfterFightBehind(gs, valgo, now);
             Live(gs, now);
-            var call = watch.Take(gs, now, false, _ => true);
-            Assert.IsNotNull(call);
-            Assert.AreEqual("story-free", call.Topic);
-            StringAssert.Contains("Valgo", call.Text);
-            StringAssert.Contains("2,4", call.Text);
+            Assert.IsNull(watch.Take(gs, now, false, _ => true), "Rob 23.11.: Crew Chief erkennt die wachsende Lücke, keine eigene Meldung");
 
-            call.MarkPlaybackStarted(now);
-            call.MarkPlaybackFinished(now.AddSeconds(3), false);
+            Assert.IsNull(watch.CommentOnGrowingGap(gs, krobber, true, true), "Krobber war nicht im Zweikampf");
+            var comment = watch.CommentOnGrowingGap(gs, valgo, false, true);
+            Assert.IsNotNull(comment);
+            Assert.AreEqual(RaceStorylineWatch.Story.Free, comment.Kind);
+            StringAssert.Contains("Valgo", comment.Text);
+            Assert.IsFalse(comment.Text.Any(char.IsDigit), "den Abstand nennt schon die Crew-Chief-Meldung");
+            Assert.IsNull(watch.CommentOnGrowingGap(gs, valgo, false, true), "jeder Zweikampf wird nur einmal bewertet");
+
+            comment.PlaybackCompleted(now.AddSeconds(3));
             Live(gs, now.AddSeconds(3.5));
             Assert.IsNull(watch.Take(gs, now.AddSeconds(3.5), false, _ => true), "kurze Pause vor der Reaktion");
             Live(gs, now.AddSeconds(4));
@@ -184,20 +193,26 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void No_comment_when_the_fight_is_long_ago_or_the_name_is_not_speakable()
+        {
+            var gs = Race(out var krobber, out var valgo);
+            var watch = AfterFightBehind(gs, valgo, now);
+            gs.SessionData.CompletedLaps = 13;
+            Assert.IsNull(watch.CommentOnGrowingGap(gs, valgo, false, true), "vier Runden nach dem Zweikampf ist es keine Neuigkeit mehr");
+            gs.SessionData.CompletedLaps = 9;
+            valgo.CanUseName = false;
+            Assert.IsNull(watch.CommentOnGrowingGap(gs, valgo, false, true));
+        }
+
+        [Test]
         public void The_reaction_is_dropped_when_the_situation_has_changed()
         {
             RadioVariants.Deterministic = true;
             RaceStorylineWatch.FollowUpRoll = () => 0;
             var gs = Race(out var krobber, out var valgo);
-            var rearGaps = History(valgo);
-            var watch = new RaceStorylineWatch();
-            rearGaps.Gaps.Add(.7f); watch.Evaluate(gs, 7, History(null), rearGaps, true, now);
-            rearGaps.Gaps.Add(.9f); watch.Evaluate(gs, 8, History(null), rearGaps, true, now);
-            rearGaps.Gaps.Add(2.4f); watch.Evaluate(gs, 9, History(null), rearGaps, true, now);
-            Live(gs, now);
-            var call = watch.Take(gs, now, false, _ => true);
-            call.MarkPlaybackStarted(now);
-            call.MarkPlaybackFinished(now.AddSeconds(3), false);
+            var watch = AfterFightBehind(gs, valgo, now);
+            var comment = watch.CommentOnGrowingGap(gs, valgo, false, true);
+            comment.PlaybackCompleted(now.AddSeconds(3));
             gs.SessionData.ClassPosition = 6; valgo.ClassPosition = 5; // Valgo ist doch vorbei
             Live(gs, now.AddSeconds(4));
             Assert.IsNull(watch.Take(gs, now.AddSeconds(4), false, _ => true));
@@ -246,6 +261,27 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Admit, judge("story-free", RaceAttention.Open, RacePhase.Middle));
             Assert.AreEqual(MindVerdict.Hold, judge("story-followup", RaceAttention.Caution, RacePhase.Middle));
             Assert.AreEqual(MindVerdict.Drop, judge("story-duel-rear", RaceAttention.Battle, RacePhase.LastLap));
+        }
+
+        [Test]
+        public void Every_race_control_call_has_at_least_four_wordings()
+        {
+            RadioVariants.Deterministic = false;
+            var gs = Race(out var krobber, out var valgo);
+            string[] codes = { "dq", "start-jump", "start-side", "formation-side", "pitlane-start", "meatball", "red", "slippery", "warning",
+                "cut-giveback", "cut-penalty", "input-lock", "fcy-pits-closed", "fcy-pits-lead-lap", "fcy-pits-open", "fcy-last-lap-next",
+                "fcy-last-lap", "one-to-green", "rival-penalty" };
+            foreach (var language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = language;
+                foreach (string code in codes)
+                {
+                    var e = new RaceControlEvent { Code = code, Value = 5, Remaining = 300, Count = 1, Car = code == "rival-penalty" ? "Krobber" : null };
+                    var seen = Enumerable.Range(0, 60).Select(_ => RaceControlRadio.Call(e, gs).Text).Distinct().Count();
+                    Assert.That(seen, Is.GreaterThanOrEqualTo(4), language + " " + code);
+                }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
         }
 
         [Test]
