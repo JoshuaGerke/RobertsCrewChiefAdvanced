@@ -201,21 +201,32 @@ namespace CrewChiefV4.AiTeam.Strategy
         {
             var laps = i.StintLaps?.Where(l => Finite(l.Value) && l.Value > 10 && l.Value < 3600).OrderBy(l => l.Key).ToList();
             if (laps == null || laps.Count < 4) { p.Missing.Add("pace_trend (mindestens 4 saubere Runden im Stint)"); return; }
+            string trend = Trend(laps, out double slope, out double noise);
+            if (slope != slope) return;
+            p.PaceSlope = slope;
+            p.PaceNoise = noise;
+            p.PaceLaps = laps.Count;
+            // AMS2 Spa 23.11.: „2 Zehntel pro Runde verloren“ hing fast nur an der letzten Runde (139,95 nach 139,0–139,45);
+            // danach folgten zwei Bestzeiten. Ein Trend zählt nur, wenn er auch ohne die jüngste Runde besteht.
+            if (trend != "stabil" && laps.Count >= 5 && Trend(laps.Take(laps.Count - 1).ToList(), out _, out _) != trend) trend = "stabil";
+            p.PaceTrend = trend;
+        }
+
+        private static string Trend(IList<KeyValuePair<int, double>> laps, out double slope, out double noise)
+        {
+            slope = noise = double.NaN;
             var slopes = new List<double>();
             for (int a = 0; a < laps.Count; a++)
                 for (int b = a + 1; b < laps.Count; b++)
                     if (laps[b].Key != laps[a].Key) slopes.Add((laps[b].Value - laps[a].Value) / (laps[b].Key - laps[a].Key));
-            if (slopes.Count == 0) return;
-            double slope = Median(slopes);
-            double intercept = Median(laps.Select(l => l.Value - slope * l.Key).ToList());
-            double noise = Median(laps.Select(l => Math.Abs(l.Value - (intercept + slope * l.Key))).ToList());
-            int span = laps.Last().Key - laps.First().Key;
-            p.PaceSlope = slope;
-            p.PaceNoise = noise;
-            p.PaceLaps = laps.Count;
-            double total = Math.Abs(slope) * span;
+            if (slopes.Count == 0) return "stabil";
+            double m = Median(slopes);
+            double intercept = Median(laps.Select(l => l.Value - m * l.Key).ToList());
+            slope = m;
+            noise = Median(laps.Select(l => Math.Abs(l.Value - (intercept + m * l.Key))).ToList());
+            double total = Math.Abs(m) * (laps[laps.Count - 1].Key - laps[0].Key);
             bool clear = total >= FadeTotal && total >= 1.5 * noise;
-            p.PaceTrend = clear && slope >= FadeSlope ? "baut_ab" : clear && slope <= -FadeSlope ? "wird_schneller" : "stabil";
+            return clear && m >= FadeSlope ? "baut_ab" : clear && m <= -FadeSlope ? "wird_schneller" : "stabil";
         }
 
         internal static double Median(IList<double> values)

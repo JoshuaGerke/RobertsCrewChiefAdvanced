@@ -389,7 +389,8 @@ namespace CrewChiefV4.AiTeam
                 int gapVariant = gapGroup == null ? 0 : cursor.Select(gapGroup, RadioPhraseCatalog.Current.Count(gapGroup));
                 string variantGroup = topic == "fuel" ? FuelGroup(ctx) : gapGroup;
                 int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : topic == "vehicle" ? vehicleReports++ : gapGroup == null ? NextTurn(topic) : gapVariant;
-                string text = Compose(topic, ctx, gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1), out var template);
+                int composeVariant = gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1);
+                string text = Compose(topic, ctx, composeVariant, out var template);
                 if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
                 if (topic == "fuel")
                 {
@@ -442,7 +443,7 @@ namespace CrewChiefV4.AiTeam
                 bool overallSpoken = raceStatus && RaceRadioLanguage.SeparateClass(gs.SessionData) &&
                     overall > 0 && overall != gs.SessionData.ClassPosition;
                 outstanding = new ObservedRaceCall { Topic=topic, Text=text, Evidence="configured_interval_current_measurements", Priority=raceStatus ? 3 : 1, VariantCursor=cursor,
-                    ReferenceTemplate=template, RaceStatus=raceStatus,
+                    ReferenceTemplate=template, RaceStatus=raceStatus, StatusVariant=composeVariant,
                     Member=topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben,
                     AdditionalValidity=live=>(raceStatus ? !live.FlagData.isLocalYellow : !InvalidatesRoutine(live)) &&
                         (!overallSpoken || live.SessionData.OverallPosition == overall),

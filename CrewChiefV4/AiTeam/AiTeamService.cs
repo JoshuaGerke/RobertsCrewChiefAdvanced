@@ -1872,7 +1872,14 @@ namespace CrewChiefV4.AiTeam
                 // AC 20.11.: „Was hat so viel Temperatur gehabt?“ ohne Werkzeug → „aktuellere Reifendaten liegen mir nicht vor“.
                 "temperatur", "heiß", "heiss", "temperature", "hot", "caliente",
                 "weather", "rain", "damage", "engine", "history", "corner", "who is", "leader", "pit",
-                "clima", "lluvia", "daño", "curva", "quién", "boxes" };
+                "clima", "lluvia", "daño", "curva", "quién", "boxes",
+                // AMS2 Spa 23.11.: „45 Sekunden Zeitstrafe?“, „Ist diese Runde gültig?“, „JJ ist plötzlich ganz nah“ und „notieren“
+                // liefen ohne Werkzeug und endeten mit „kann ich nicht verifizieren“, obwohl die Werte live da waren. Auch eine
+                // Gegenrechnung des Fahrers („falsch“, „stimmt nicht“) wird jetzt an den Daten geprüft statt einfach übernommen.
+                "strafe", "verwarn", "gültig", "gueltig", "ungültig", "track limit", "nah", "dran", "rechn", "notier", "speicher",
+                "falsch", "stimmt nicht", "korrig",
+                "penalty", "warning", "valid", "close", "note", "save", "wrong", "correct",
+                "sanción", "sancion", "penaliz", "válid", "cerca", "apunta", "guarda", "incorrect" };
             return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;
         }
 

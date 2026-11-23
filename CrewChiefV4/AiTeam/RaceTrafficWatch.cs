@@ -383,8 +383,12 @@ namespace CrewChiefV4.AiTeam
                 int cell=(int)(s.PlayerDistanceM.Value/100);
                 Reference old;
                 // Retain the last lap, not a same-tick reference which merely duplicates the player speed.
+                // AMS2 Spa 23.11.: Gespeichert war das Tempo beim Einfahren in den 100-m-Abschnitt. In der Bremszone vor
+                // La Source und der Bus-Stop-Schikane ist das der Höchstwert; die Führenden am Ende ihrer Bremsung lagen darunter
+                // bei weniger als der Hälfte und galten jede Runde als „sehr langsam“. Maßstab ist jetzt das eigene Mindesttempo.
                 if (!reference.TryGetValue(cell,out old) || old.Lap<gs.SessionData.CompletedLaps)
                     reference[cell]=new Reference {Speed=(float)s.PlayerSpeedMps.Value,Lap=gs.SessionData.CompletedLaps,Utc=now};
+                else old.Speed=CellReference(old.Speed,(float)s.PlayerSpeedMps.Value);
                 if (reference.Count>2000) reference.Clear();
             }
             RecordMotion(s, now);
@@ -401,7 +405,7 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             var hazard=candidates.FirstOrDefault(c=>c.RouteGapM>0 && !string.IsNullOrWhiteSpace(c.Name) &&
-                (c.SpeedMps<=5 || spinning.Contains(c.Key) || SlowAgainstReference(c,gs,s,now)));
+                (c.SpeedMps<=5 || spinning.Contains(c.Key) || CrewChiefSlow(c,gs)));
             if (hazard!=null)
             {
                 NoteHazard(hazard.Name,s.SessionId,now);
@@ -416,8 +420,10 @@ namespace CrewChiefV4.AiTeam
             {
                 bool rear=car.RouteGapM<0, stopped=!rear && car.SpeedMps<=1, otherClass=MulticlassTraffic.OtherClass(car);
                 bool spin=!rear && !stopped && spinning.Contains(car.Key);
-                bool classAhead=!rear && !stopped && !spin && otherClass && !SlowAgainstReference(car,gs,s,now);
-                string key=car.Id+"|"+(rear?"rear":"hazard"); DateTime previous;
+                bool classAhead=!rear && !stopped && !spin && otherClass && !CrewChiefSlow(car,gs);
+                // AMS2 Spa 23.11.: JJ drehte sich vor Rob, eine Minute nach einer (falschen) „langsam“-Meldung über ihn – die
+                // 60-s-Sperre je Auto schluckte den Dreher. Dreher und stehendes Auto haben jetzt eine eigene Sperre.
+                string key=car.Id+"|"+(rear?"rear":stopped?"stopped":spin?"spin":"hazard"); DateTime previous;
                 // Rob 17.11., Bathurst: ~25 Warnungen „schneller Verkehr von hinten“ beim Überrunden. Jetzt: dasselbe Auto
                 // höchstens alle 5 Minuten, Verkehr von hinten insgesamt höchstens alle 45 s, und nichts, solange die blaue
                 // Flagge weht – die sagt Sara bereits an.
@@ -576,18 +582,24 @@ namespace CrewChiefV4.AiTeam
             if (intercept<.5 || intercept>(rear?10:7)) return false;
             if (rear) return c.ClassComparisonKnown && (!c.SameClass || c.LapOffset>0) && c.SpeedMps>s.PlayerSpeedMps*1.08;
             if (c.SpeedMps<=5) return true;
-            if (SlowAgainstReference(c,gs,s,now)) return true;
+            if (CrewChiefSlow(c,gs)) return true;
             // Langsamere Klasse voraus, noch nicht überrundet (Überrundete meldet BackmarkerWatch).
             return MulticlassTraffic.OtherClass(c) && (c.LapOffset ?? 0) >= 0 && closing >= 4 && intercept <= 6 && c.SpeedMps < s.PlayerSpeedMps;
         }
 
-        private bool SlowAgainstReference(TrackCarPosition c,GameStateData gs,TrackPositionSnapshot s,DateTime now)
-        {
-            Reference normal;
-            return c.LapDistanceM.HasValue && c.SpeedMps.HasValue && s.PlayerSpeedMps.HasValue && reference.TryGetValue((int)(c.LapDistanceM.Value/100),out normal) &&
-                normal.Lap<gs.SessionData.CompletedLaps && now>=normal.Utc && now-normal.Utc<TimeSpan.FromMinutes(10) &&
-                normal.Speed>=15 && c.SpeedMps<normal.Speed*.45 && c.SpeedMps<s.PlayerSpeedMps*.6;
-        }
+        /// <summary>Vergleichstempo eines Abschnitts: das niedrigste eigene Tempo darin während derselben Runde.</summary>
+        internal static float CellReference(float stored, float speed) => speed >= 0 && speed < stored ? speed : stored;
+
+        /// <summary>
+        /// Rob 23.11.: „Gut funktionierende Erkennungen von Crew Chief behalten, die KI kommentiert nur.“ Ein langsames Auto voraus
+        /// ist, was Crew Chief selbst dafür hält: Es vergleicht in jeder Kurve das Tempo des Wagens mit dem Durchschnitt seiner
+        /// Klasse an genau diesem Punkt und meldet ihn erst, wenn er dort deutlich zu langsam bleibt (OpponentData.stoppedInLandmark).
+        /// Die frühere eigene Prüfung gegen Robs Tempo im 100-m-Abschnitt hielt normales Anbremsen für „sehr langsam“ (AMS2 Spa).
+        /// </summary>
+        internal static bool CrewChiefSlow(TrackCarPosition c, GameStateData gs) =>
+            c?.Key != null && gs?.OpponentData != null && gs.OpponentData.TryGetValue(c.Key, out var op) && op != null &&
+            !op.InPits && !string.IsNullOrEmpty(op.stoppedInLandmark);
+
         private bool ValidNow(GameStateData gs,DateTime now,string key,int id,bool stopped,bool group)
         {
             var s=tracks==null?null:tracks.Snapshot;

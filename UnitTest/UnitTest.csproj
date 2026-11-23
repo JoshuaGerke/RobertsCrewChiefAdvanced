@@ -92,6 +92,7 @@
     <Compile Include="AiTeam\FieldRealtimeTests.cs" />
     <Compile Include="AiTeam\StrategyPictureTests.cs" />
     <Compile Include="AiTeam\RawSimBoardTests.cs" />
+    <Compile Include="AiTeam\AmsSpaFindingsTests.cs" />
     <Compile Include="AiTeam\AutoDetectionRegressionTests.cs" />
     <Compile Include="AiTeam\ActiveCrewRegressionTests.cs" />
     <Compile Include="AiTeam\RaceDataAccuracyTests.cs" />

@@ -170,6 +170,8 @@ namespace CrewChiefV4.AiTeam
         public bool AllowLapFinish;
         public bool AllowPitlane;
         internal bool RaceStatus;
+        /// <summary>Gewählte Formulierung des Rennstatus, bleibt beim Auffrischen erhalten.</summary>
+        internal int StatusVariant;
         /// <summary>Eingestellter Bericht, der schon zu lange wartet: kommt in der nächsten freien Lücke, auch im Zweikampf.</summary>
         internal bool Guaranteed;
         internal Func<RaceDataContext, string> RefreshText;
@@ -184,7 +186,9 @@ namespace CrewChiefV4.AiTeam
             if (live == null || context.NowUtc > ExpiresUtc || live.SessionData.SessionId != SessionId ||
                 live.SessionData.SessionType != SessionType || live.SessionData.SessionPhase != SessionPhase.Green ||
                 live.FlagData.isLocalYellow || live.PitData.InPitlane) return false;
-            string current = RaceStatus ? AiRadioSchedule.Compose("status", context) : RefreshText(context);
+            // AMS2 Spa 23.11.: Vier Formulierungen wurden erzeugt, gesprochen wurde viermal „Platz 3. Seit dem Start 1 Platz
+            // gutgemacht.“ – die Auffrischung vor dem Sprechen nahm immer die erste. Sie behält jetzt die gewählte Formulierung.
+            string current = RaceStatus ? AiRadioSchedule.Compose("status", context, StatusVariant) : RefreshText(context);
             if (string.IsNullOrWhiteSpace(current)) return false;
             Text = current;
             if (RefreshGapS != null) SpokenGapS = RefreshGapS(context);

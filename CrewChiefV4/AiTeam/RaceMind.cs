@@ -125,6 +125,8 @@ namespace CrewChiefV4.AiTeam
     {
         /// <summary>„Ruhig“ im Sinne des Rennkopfs: 5 s frei (der Zwischenstand selbst begnügt sich mit 3 s).</summary>
         internal const float MindCalmSeconds = 5f;
+        /// <summary>Höchste Wartezeit einer Hintergrundmeldung im Verkehr (ohne Zweikampf).</summary>
+        internal static readonly TimeSpan TrafficHoldLimit = TimeSpan.FromSeconds(6);
         private static RaceSituation latest;
         /// <summary>Zuletzt veröffentlichte Lage (für Analysewerkzeug und Zwischenresümee); null außerhalb von Rennen.</summary>
         internal static RaceSituation Latest => Volatile.Read(ref latest);
@@ -301,6 +303,11 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Hintergrundwissen über andere Autos, Statistik und Komfortmeldungen – im Zweikampf und in der Schlussphase unwichtig.</summary>
+        /// <summary>Ein Bericht aus den Einstellungen „Regelmäßige Funkberichte“.</summary>
+        internal static bool RoutineReport(ObservedRaceCall call) => call?.Evidence == "configured_interval_current_measurements";
+        /// <summary>Höchste Wartezeit eines eingestellten Berichts im Zweikampf.</summary>
+        internal static readonly TimeSpan RoutineBattleHold = TimeSpan.FromSeconds(8);
+
         internal static bool Background(ObservedRaceCall call)
         {
             string t = call.Topic ?? "";
@@ -330,6 +337,18 @@ namespace CrewChiefV4.AiTeam
             {
                 if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
                 if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit) { reason = "caution_or_pit_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
+            // AMS2 Spa 23.11. (Rob: „zum zigsten Mal“): Der eingestellte Rennstatus galt als Hintergrundmeldung und wartete, solange
+            // irgendein Auto innerhalb von 2,5 s fuhr – mit 14 Autos fast immer; 27-mal zurückgestellt. Ein fälliger Bericht aus
+            // Robs Einstellungen ist kein Hintergrund: Verkehr hält ihn nicht auf, ein Zweikampf höchstens kurz.
+            if (RoutineReport(call))
+            {
+                if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.PreStart)
+                { reason = "caution_or_pit_waits"; return MindVerdict.Hold; }
+                bool battleWaited = call.DetectedUtc != DateTime.MinValue && now >= call.DetectedUtc && now - call.DetectedUtc >= RoutineBattleHold;
+                if (x.Attention == RaceAttention.Battle && !battleWaited) { reason = "routine_waits_for_battle_gap"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
             bool driverBusy = x.Attention == RaceAttention.Battle || x.Attention == RaceAttention.Caution;
@@ -377,7 +396,11 @@ namespace CrewChiefV4.AiTeam
                 // RaceRoom Mantorp 22.11.: Die schnellste Runde eines Gegners wurde dreimal im Verkehr gehalten und verfiel. Verkehr
                 // ist kein Zweikampf: sie kommt dann gleich, nur Zweikampf und Gelb lassen sie warten.
                 bool fastest = t == "field-fastest" || t == "field-fastest-overall";
-                if (driverBusy || x.Attention == RaceAttention.Traffic && !fastest) { reason = "busy_background_waits"; return MindVerdict.Hold; }
+                // AMS2 Spa 23.11.: Mit 14 Autos lag fast immer ein Wagen innerhalb von 2,5 s; Tempovergleich, Stand und
+                // Endphase warteten minutenlang (über 60-mal gehalten), Rob: „Ich höre nichts von euch.“ Verkehr hält eine
+                // Hintergrundmeldung jetzt höchstens 6 s auf (viele verfallen nach 10 s); Zweikampf und Gelb lassen sie weiter warten.
+                bool trafficWaitedEnough = call.DetectedUtc != DateTime.MinValue && now >= call.DetectedUtc && now - call.DetectedUtc >= TrafficHoldLimit;
+                if (driverBusy || x.Attention == RaceAttention.Traffic && !fastest && !trafficWaitedEnough) { reason = "busy_background_waits"; return MindVerdict.Hold; }
                 if (x.Attention == RaceAttention.Pit && t != "pit-stop-time") { reason = "pit_lane"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
@@ -468,7 +491,7 @@ namespace CrewChiefV4.AiTeam
             if (!call.Guaranteed && RepeatsRecentColour(call, now)) { reason = "repeat_within_minutes"; return MindVerdict.Drop; }
             // Funklast: je angespannter und je mehr schon gefunkt wurde, desto wichtiger muss eine Ansage sein.
             // Ein zugesagter Routinebericht hat schon lange genug gewartet; die Funklast hält ihn nicht noch einmal auf.
-            if (!call.Guaranteed && !Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }
+            if (!call.Guaranteed && !RoutineReport(call) && !Load.Allows(t, call.Priority, now, out string loadReason)) { reason = loadReason; return MindVerdict.Hold; }
             // Frustriert: höchstens ein Fahrtechnik-Hinweis je zwei Minuten, die übrigen entfallen.
             if (DriverMood.IsCoaching(t) && latest != null && latest.SessionId == call.SessionId && latest.Fresh(now) && latest.Mood == DriverMoodState.Frustration)
             {
