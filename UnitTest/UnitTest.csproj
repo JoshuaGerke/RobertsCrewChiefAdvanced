@@ -95,6 +95,7 @@
     <Compile Include="AiTeam\RawSimBoardTests.cs" />
     <Compile Include="AiTeam\AmsSpaFindingsTests.cs" />
     <Compile Include="AiTeam\RoutineRaceSimulationTests.cs" />
+    <Compile Include="AiTeam\RadioAmountCommandTests.cs" />
     <Compile Include="AiTeam\AutoDetectionRegressionTests.cs" />
     <Compile Include="AiTeam\ActiveCrewRegressionTests.cs" />
     <Compile Include="AiTeam\RaceDataAccuracyTests.cs" />

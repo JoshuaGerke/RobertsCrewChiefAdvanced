@@ -204,6 +204,34 @@ namespace CrewChiefV4.AiTeam
 
         internal static bool NativeIntakeEnabled => instance.IsValueCreated && instance.Value.settings.Enabled;
 
+        private int radioAmountReplies, spotterReplies;
+        /// <summary>
+        /// Spotter per Funk: schaltet nur Crew Chiefs Nahbereichsspotter (links, rechts, frei) für diese Sitzung. Gefahren, Gelb,
+        /// Unfälle und Safety Car laufen über Rennleitung und Saras Gefahrenmeldungen weiter (wie im Spottermodus Realistisch).
+        /// </summary>
+        internal string ApplySpotterCommand(bool on)
+        {
+            GlobalBehaviourSettings.spotterEnabled = on;
+            LiveDiagnostics.Decision("spotter", on ? "enabled" : "disabled", "driver_command");
+            return SpotterCommand.Reply(on, spotterReplies++);
+        }
+        /// <summary>Funkmenge per Funk setzen: gilt sofort und bleibt wie der Cockpit-Regler gespeichert.</summary>
+        internal string ApplyRadioAmount(RadioAmount amount)
+        {
+            var mode = AutoRadioPlan.ToMode(amount);
+            settings.RadioMode = mode;
+            radioSchedule.Amount = AutoRadioPlan.CurrentAmount = amount;
+            try
+            {
+                var u = UserSettings.GetUserSettings();
+                u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
+                u.saveUserSettings();
+            }
+            catch (Exception e) { Console.WriteLine("[KI-Team] Funkmenge nicht gespeichert: " + e.Message); }
+            LiveDiagnostics.Decision("radio-amount", "changed", "driver_command_" + amount.ToString().ToLowerInvariant());
+            return RadioAmountCommand.Reply(amount, radioAmountReplies++);
+        }
+
         public void ReloadSettings()
         {
             ApplySettings(AiTeamSettings.Load());
@@ -481,7 +509,7 @@ namespace CrewChiefV4.AiTeam
             bool excluded = RaceExclusion.Active(current);
             if (raceRhythm.Observe(current, now)) radioSchedule.StaggerAfterStart(now, settings.RadioPreferences);
             bool startPhase = raceRhythm.InStart(current);
-            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length;
+            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length; radioSchedule.Amount = AutoRadioPlan.CurrentAmount = AutoRadioPlan.FromMode(settings.RadioMode);
             if (lapCompleted || now - lastFuelCheckUtc >= TimeSpan.FromSeconds(1))
             {
                 lastFuelCheckUtc = now;
@@ -919,7 +947,7 @@ namespace CrewChiefV4.AiTeam
                 // Nearby racing alone is not side-by-side. Short configured reports still yield to
                 // actual overlap, braking, focus laps and urgent traffic calls, without perpetual 9s quiet.
                 raceCall = radioSchedule.Take(BuildContext(current),radioPrefs,routineBusy!=null,
-                    settings.IsMemberEnabled,settings.RadioMode!=AiRadioMode.ACTIVE,routineBusy);
+                    settings.IsMemberEnabled,!settings.Talkative,routineBusy);
             }
             if (raceCall != null)
             {
@@ -1360,6 +1388,18 @@ namespace CrewChiefV4.AiTeam
                 }
             }
 
+            // Rob 23.11.: „Spotter aus“ / „Spotter ein“ – nur links, rechts und frei; Gefahren, Gelb und Safety Car bleiben an.
+            var spotter = SpotterCommand.Parse(routed.Question);
+            if (spotter.HasValue)
+            {
+                var spotterVoice = settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : routed.Member;
+                string spotterReply = ApplySpotterCommand(spotter.Value);
+                Stats.AddLocalAnswer();
+                await SpeakAsync(spotterVoice, spotterReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
+                RememberExchange(spotterVoice, routed.Question, spotterReply);
+                return spotterReply;
+            }
+
             // 1. Sara: Sicherheitsfragen ausschließlich lokal
             if (routed.Member == TeamMember.Sara)
             {
@@ -1396,6 +1436,17 @@ namespace CrewChiefV4.AiTeam
                 await SpeakAsync(routed.Member, muteReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 RememberExchange(routed.Member, routed.Question, muteReply);
                 return muteReply;
+            }
+
+            // Rob 23.11.: „Ruhe bitte“, „mehr Infos“, „viel mehr Infos“, „Funk normal“ – sofort, lokal, gespeichert wie der Cockpit-Regler.
+            var amount = routed.Member != TeamMember.Sara ? RadioAmountCommand.Parse(routed.Question) : null;
+            if (amount.HasValue)
+            {
+                string amountReply = ApplyRadioAmount(amount.Value);
+                Stats.AddLocalAnswer();
+                await SpeakAsync(routed.Member, amountReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
+                RememberExchange(routed.Member, routed.Question, amountReply);
+                return amountReply;
             }
 
             // 2. Einfache Standardfragen ohne KI
@@ -1939,8 +1990,8 @@ namespace CrewChiefV4.AiTeam
             {
                 return; // Rest des Budgets für Fragen des Fahrers aufheben
             }
-            int lapInterval = settings.RadioMode == AiRadioMode.ACTIVE ? 1 : 2;
-            double minSeconds = settings.RadioMode == AiRadioMode.ACTIVE ? 40 : 75;
+            int lapInterval = settings.Talkative ? 1 : 2;
+            double minSeconds = settings.RadioMode == AiRadioMode.VERBOSE ? 30 : settings.Talkative ? 40 : 75;
             if (isLapTrigger && (s.CompletedLaps - lastProactiveLap < lapInterval || (now - lastProactiveUtc).TotalSeconds < minSeconds))
             {
                 return;

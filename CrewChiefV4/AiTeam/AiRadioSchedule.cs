@@ -33,6 +33,11 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, int> minus = new Dictionary<string, int>();
         private readonly Dictionary<string, int> plus = new Dictionary<string, int>();
         public AiRadioPreferences() { foreach (var o in Options) { seconds[o.Id]=o.DefaultSeconds; minus[o.Id]=7; plus[o.Id]=8; } }
+        /// <summary>
+        /// Rob 23.11.: Im Cockpit nur noch An/Aus je Thema; wie oft ein Bericht kommt, bestimmt die Crew selbst (<see cref="AutoRadioPlan"/>).
+        /// Die gespeicherten Sekunden zählen dann nur noch als „an“ (größer 0) oder „aus“ (0). Ohne Automatik (nur Tests) gelten sie direkt.
+        /// </summary>
+        public bool Automatic;
         public int Minus(string id) { return minus[id]; }
         public int Plus(string id) { return plus[id]; }
         public void SetTolerance(string id, int earlier, int later)
@@ -60,7 +65,7 @@ namespace CrewChiefV4.AiTeam
         }
         public static AiRadioPreferences Load()
         {
-            var p = new AiRadioPreferences();
+            var p = new AiRadioPreferences { Automatic = true };
             foreach (var o in Options)
                 try {
                     var u=UserSettings.GetUserSettings(); p.Set(o.Id,u.getInt(o.SettingKey));
@@ -120,7 +125,7 @@ namespace CrewChiefV4.AiTeam
         internal int TechnicalSpacingFor(AiRadioPreferences prefs)
         {
             if (TechnicalSpacingSeconds <= 0) return 0;
-            int shortest = prefs == null ? 0 : AiRadioPreferences.Options.Where(o => IsTechnical(o.Id) && prefs[o.Id] > 0).Select(o => prefs[o.Id]).DefaultIfEmpty(0).Min();
+            int shortest = prefs == null ? 0 : AiRadioPreferences.Options.Where(o => IsTechnical(o.Id) && prefs[o.Id] > 0).Select(o => IntervalOf(prefs, o.Id)).DefaultIfEmpty(0).Min();
             if (shortest <= 0) return TechnicalSpacingSeconds;
             return Math.Max(Math.Min(60, TechnicalSpacingSeconds), Math.Min(TechnicalSpacingSeconds, (int)Math.Round(shortest * .75)));
         }
@@ -130,7 +135,14 @@ namespace CrewChiefV4.AiTeam
         /// gemeinsame Technik-Budget. Monza 22.11.: Wetter 7, Stint 7 und Sprit 8½ Minuten zu spät, nie gesprochen.
         /// </summary>
         internal bool OverdueByItsInterval(string topic, DateTime now, AiRadioPreferences prefs) =>
-            prefs != null && prefs[topic] > 0 && due.TryGetValue(topic, out var at) && now - at >= TimeSpan.FromSeconds(Math.Max(60, prefs[topic]));
+            prefs != null && prefs[topic] > 0 && due.TryGetValue(topic, out var at) && now - at >= TimeSpan.FromSeconds(Math.Max(60, IntervalOf(prefs, topic)));
+
+        /// <summary>Planmäßiger Abstand eines Themas ohne Streuung: automatisch nach Renndauer und Funkmenge, sonst wie eingestellt.</summary>
+        internal int IntervalOf(AiRadioPreferences prefs, string topic)
+        {
+            if (prefs == null || prefs[topic] <= 0) return 0;
+            return prefs.Automatic ? AutoRadioPlan.NominalSeconds(Span, topic, Amount) : prefs[topic];
+        }
 
         /// <summary>
         /// Welcher fällige Bericht zuerst? Nicht der zuerst fällige, sondern der dringendste: Verspätung im Verhältnis zum eigenen
@@ -178,7 +190,18 @@ namespace CrewChiefV4.AiTeam
 
         internal bool Guaranteed(string topic, DateTime now) =>
             topic != null && overdueSince.TryGetValue(topic, out var since) && now >= since &&
-            (now - since >= TimeSpan.FromSeconds(GuaranteeLateSeconds) || topic == "status" && firstStatusPending);
+            (now - since >= TimeSpan.FromSeconds(GuaranteeLateFor(topic)) || topic == "status" && firstStatusPending);
+
+        /// <summary>
+        /// Rob 23.11.: In spannenden Phasen (Zweikampf, letzte Runden) wartet die Technik, damit Platz für Zweikampf und Taktik
+        /// bleibt – mit Automatik bis zu zwei Minuten, dann kommt sie trotzdem (gebündelt, wenn möglich). Sonst nach 30 s.
+        /// </summary>
+        internal const int TenseTechnicalGuaranteeSeconds = 120;
+        /// <summary>Automatik: Mindestabstand zwischen zwei Technikberichten, neuer Versuch bei fehlendem Wert, Wetter-Erinnerung.</summary>
+        internal const int AutomaticTechnicalSpacingSeconds = 60, EvidenceRetrySeconds = 60;
+        internal static readonly TimeSpan WeatherReminder = TimeSpan.FromMinutes(15);
+        private bool tenseHold;
+        private int GuaranteeLateFor(string topic) => tenseHold && IsTechnical(topic) ? TenseTechnicalGuaranteeSeconds : GuaranteeLateSeconds;
         private readonly Dictionary<string,string> lastDeliveredText=new Dictionary<string,string>();
         private readonly Dictionary<string,DateTime> lastDeliveredUtc=new Dictionary<string,DateTime>();
         private string lastFuelMeasurement;
@@ -230,13 +253,37 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Startphase des Rennens: keine Routine, bis sich das Feld beruhigt hat (siehe <see cref="RaceRhythm"/>).</summary>
         internal bool StartCalm;
-        /// <summary>Rennlänge; verlängert oder verkürzt die eingestellten Abstände je Thema.</summary>
+        /// <summary>Rennlänge; verlängert oder verkürzt die eingestellten Abstände je Thema (nur ohne Automatik).</summary>
         internal RaceLength Length;
+        /// <summary>Funkmenge aus Cockpit oder Funkbefehl („Ruhe bitte“, „mehr Infos“, „viel mehr Infos“).</summary>
+        internal RadioAmount Amount = RadioAmount.Normal;
+        /// <summary>Renndauer dieser Session, aus dem letzten Spielzustand.</summary>
+        internal RaceSpan Span = RaceSpan.Practice;
+        /// <summary>Anspannung 0–1: aus dem Rennkopf, sonst aus den Abständen nach vorn und hinten.</summary>
+        internal double Tension = .45;
 
         private int Delay(AiRadioPreferences prefs, string topic)
         {
-            int delay = prefs.NextDelaySeconds(topic, random);
-            return AiRadioPreferences.ApplyDriverScale(topic, delay, RaceRhythm.Scale(Length, topic));
+            if (prefs[topic] <= 0) return 0;
+            if (!prefs.Automatic)
+            {
+                int delay = prefs.NextDelaySeconds(topic, random);
+                return AiRadioPreferences.ApplyDriverScale(topic, delay, RaceRhythm.Scale(Length, topic));
+            }
+            int automatic = AutoRadioPlan.Seconds(Span, topic, Amount, Tension, random);
+            return AiRadioPreferences.ApplyDriverScale(topic, automatic, DriverMemory.RoutineIntervalScale(topic));
+        }
+
+        /// <summary>Renndauer und Anspannung nachführen; die Anspannung bevorzugt den Rennkopf, wenn er frisch ist.</summary>
+        private void ObserveRace(GameStateData gs, DateTime now)
+        {
+            Span = AutoRadioPlan.Span(gs);
+            var mind = RaceMind.Latest;
+            if (mind != null && mind.SessionId == gs.SessionData.SessionId && mind.Fresh(now)) { Tension = mind.Tension; return; }
+            var s = gs.SessionData;
+            float front = s.LapsDeltaFront == 0 ? s.TimeDeltaFront : -1, behind = s.LapsDeltaBehind == 0 ? s.TimeDeltaBehind : -1;
+            Tension = gs.SessionData.SessionType == SessionType.Race
+                ? RadioLoad.RawTension(front, behind, false, RaceAttention.Unknown, RacePhase.Middle, default(DriverMoodState)) : .2;
         }
 
         /// <summary>
@@ -245,11 +292,15 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         internal void StaggerAfterStart(DateTime settled, AiRadioPreferences prefs)
         {
-            string[] order = { "status", "ahead", "behind", "progress", "pace", "fuel", "tyres", "vehicle", "stint", "weather" };
+            // Automatik (Rob 23.11.): Jedes eingeschaltete Thema kommt nach dem Start einmal, auch das Wetter im Sprint
+            // („Wetter einmal am Start“); danach gilt der Abstand nach Renndauer und Spannung.
+            string[] order = prefs.Automatic
+                ? new[] { "status", "ahead", "behind", "weather", "progress", "pace", "fuel", "tyres", "vehicle", "stint" }
+                : new[] { "status", "ahead", "behind", "progress", "pace", "fuel", "tyres", "vehicle", "stint", "weather" };
             DateTime slot = settled + RaceRhythm.FirstRoutineAfterSettle;
             foreach (string topic in order)
             {
-                if (prefs[topic] == 0 || !due.TryGetValue(topic, out var at) || at > slot) continue;
+                if (prefs[topic] == 0 || !due.TryGetValue(topic, out var at) || at > slot && !prefs.Automatic) continue;
                 due[topic] = slot;
                 slot += RaceRhythm.RoutineStep;
             }
@@ -263,6 +314,7 @@ namespace CrewChiefV4.AiTeam
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
+            ObserveRace(gs, now);
             foreach (var option in AiRadioPreferences.Options)
                 if (!due.ContainsKey(option.Id)) due[option.Id] = now.AddSeconds(Delay(prefs, option.Id));
         }
@@ -272,6 +324,7 @@ namespace CrewChiefV4.AiTeam
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
             if (gs != null) { RoutineLedger.Current.Session(gs.SessionData.SessionId, now); RoutineLedger.Current.Tick(now); }
+            tenseHold = prefs.Automatic && gs != null && gs.SessionData.SessionType == SessionType.Race && RaceRadioDirector.SuppressBackgroundStatistics(ctx);
             if(lastRoutine!=null && lastRoutine.PlaybackInterrupted && !interruptionHandled)
             {
                 due[lastRoutine.Topic]=now.AddSeconds(30);
@@ -300,7 +353,8 @@ namespace CrewChiefV4.AiTeam
                     if (IsTechnical(outstanding.Topic) && TechnicalSpacingSeconds > 0)
                     {
                         lastTechnicalUtc = outstanding.DeliveryStartedUtc; lastTechnicalTopic = outstanding.Topic;
-                        int spacing = TechnicalSpacingFor(prefs);
+                        // Automatik: Die Abstände je Thema sind schon lang; eine Minute zwischen zwei Technikberichten genügt gegen Häufung.
+                        int spacing = prefs.Automatic ? AutomaticTechnicalSpacingSeconds : TechnicalSpacingFor(prefs);
                         technicalGapSeconds = spacing + random.Next(0, spacing / 3 + 1);
                     }
                     double next = Delay(prefs, outstanding.Topic);
@@ -343,7 +397,7 @@ namespace CrewChiefV4.AiTeam
             foreach (var item in due.Where(p => prefs[p.Key] > 0 && p.Value <= now && !overdueSince.ContainsKey(p.Key)).ToArray())
             {
                 overdueSince[item.Key] = item.Value;
-                RoutineLedger.Current.Due(item.Key, prefs[item.Key]);
+                RoutineLedger.Current.Due(item.Key, IntervalOf(prefs, item.Key));
             }
             if (outstanding != null) outstanding.Guaranteed = Guaranteed(outstanding.Topic, now);
             bool race = gs?.SessionData.SessionType == SessionType.Race;
@@ -378,7 +432,7 @@ namespace CrewChiefV4.AiTeam
                         ctx.TelemetryAgeSeconds<0 || ctx.TelemetryAgeSeconds>1?"telemetry_stale":"phase_pit_or_routine_spacing";
                     foreach(var item in due.Where(p=>prefs[p.Key]>0 && p.Value<=now))
                         LiveDiagnostics.Emit("routine.state",LiveDiagnostics.Data("topic",item.Key,"reason",reason,"due_utc",item.Value.ToString("o"),
-                            "late_s",Math.Round((now-item.Value).TotalSeconds,3),"interval_s",prefs[item.Key]));
+                            "late_s",Math.Round((now-item.Value).TotalSeconds,3),"interval_s",IntervalOf(prefs,item.Key)));
                     LiveDiagnostics.Decision("routine","deferred",reason);
                     DriverMemory.RememberObservation("routine","deferred",reason,null,gs==null?int.MinValue:gs.SessionData.SessionId);
                     lastDeferral=now;
@@ -389,7 +443,7 @@ namespace CrewChiefV4.AiTeam
             foreach (string topic in due.Where(kv => prefs[kv.Key] > 0 && kv.Value <= now && (!statusOverdue || kv.Key == "status") &&
                     (!battleQuiet || Guaranteed(kv.Key, now) || FightGap(kv.Key)))
                 .OrderBy(kv => kv.Key == "status" && gs.SessionData.SessionType == SessionType.Race ? 0 : 1)
-                .ThenByDescending(kv => Urgency(kv.Key, (now - kv.Value).TotalSeconds, prefs[kv.Key]))
+                .ThenByDescending(kv => Urgency(kv.Key, (now - kv.Value).TotalSeconds, IntervalOf(prefs, kv.Key)))
                 .ThenBy(kv => kv.Value).Select(kv => kv.Key).ToArray())
             {
                 // Technik-Budget: das Thema bleibt fällig und kommt, sobald die gemeinsame Pause vorbei ist.
@@ -417,7 +471,13 @@ namespace CrewChiefV4.AiTeam
                 int index = topic == "fuel" ? cursor.Select(variantGroup, RadioPhraseCatalog.Current.Count(variantGroup)) : topic == "tyres" ? tyreReports++ : topic == "progress" ? progressReports++ : topic == "vehicle" ? vehicleReports++ : gapGroup == null ? NextTurn(topic) : gapVariant;
                 int composeVariant = gapGroup == null ? index : gapVariant * 2 + (cursor.Heard & 1);
                 string text = Compose(topic, ctx, composeVariant, out var template);
-                if (string.IsNullOrEmpty(text)) { LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence"); continue; }
+                if (string.IsNullOrEmpty(text))
+                {
+                    LiveDiagnostics.Decision(topic, "suppressed", "insufficient_evidence");
+                    // Automatik: Fehlt der Wert noch (z. B. erst drei saubere Runden), in einer Minute erneut versuchen statt ein ganzes Intervall später.
+                    if (prefs.Automatic) due[topic] = now.AddSeconds(Math.Min(delay, EvidenceRetrySeconds));
+                    continue;
+                }
                 if (topic == "fuel")
                 {
                     // Bathurst 17.11.: „So reicht es nicht bis ins Ziel“ dreimal – das Urteil nur, wenn es sich geändert hat.
@@ -431,9 +491,14 @@ namespace CrewChiefV4.AiTeam
                 {
                     var reading = WeatherReading.From(gs);
                     // Aktiv meldet laut Cockpit auch unveränderte Werte im gewählten Intervall; nur Normal bündelt (AMS2 Spa 23.11.).
-                    if (filterUnchanged && reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
+                    // Automatik: Unverändertes Wetter kommt in ruhigen Momenten höchstens alle 15 Minuten als Erinnerung.
+                    bool weatherReminder = prefs.Automatic && (!lastDeliveredUtc.TryGetValue(topic, out var lastWeatherUtc) || now - lastWeatherUtc >= WeatherReminder);
+                    if (filterUnchanged && !weatherReminder && reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
                     {
                         LiveDiagnostics.Decision(topic, "suppressed", "weather_unchanged");
+                        // Automatik: die Erinnerung nach 15 Minuten nicht um ein ganzes Intervall verpassen.
+                        if (prefs.Automatic && lastDeliveredUtc.TryGetValue(topic, out var lastWeatherSaid) && lastWeatherSaid + WeatherReminder < due[topic])
+                            due[topic] = lastWeatherSaid + WeatherReminder;
                         continue;
                     }
                     if (reading != null && lastWeather != null) text = reading.ChangeText(lastWeather, weatherVariant++) ?? text;
@@ -456,7 +521,9 @@ namespace CrewChiefV4.AiTeam
                     LiveDiagnostics.Decision(topic, "suppressed", "unchanged_timesheet");
                     continue;
                 }
-                if (filterUnchanged && !timesheet && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
+                // Automatik: Der Abstand nach Renndauer ist schon die Bündelung; ein unveränderter Bericht kommt in seinem Takt (Rob 23.11.:
+                // „Auto in Ordnung“ und Stint fielen sonst jedes zweite Mal weg).
+                if (filterUnchanged && !prefs.Automatic && !timesheet && (measurement != null ? facts.Unchanged(topic, measurement, now) : UnchangedRoutine(topic, text, now)))
                 {
                     LiveDiagnostics.Decision(topic, "suppressed", "unchanged_routine_since_last_delivery");
                     continue;
@@ -647,7 +714,7 @@ namespace CrewChiefV4.AiTeam
             var candidates = due.Where(p => p.Key != primary && prefs[p.Key] > 0 && MemberFor(p.Key) == member &&
                     p.Value <= now.AddSeconds(BundleAheadSeconds) && (memberEnabled == null || memberEnabled(member)) &&
                     // Normal bündelt unveränderte Technik und Wetter ohnehin; dort keine Technik zusätzlich mitsagen.
-                    !(filterUnchanged && IsTechnical(p.Key)))
+                    !(filterUnchanged && !prefs.Automatic && IsTechnical(p.Key)))
                 .OrderBy(p => p.Value).Select(p => p.Key).ToArray();
             foreach (string extra in candidates)
             {
@@ -658,7 +725,7 @@ namespace CrewChiefV4.AiTeam
                 if (!string.IsNullOrEmpty(said) && text.Contains(said))
                 {
                     outstandingBundle.Add(Tuple.Create(extra, planned, said, -1));
-                    due[extra] = now.AddSeconds(Math.Max(30, prefs[extra] / 2)); overdueSince.Remove(extra);
+                    due[extra] = now.AddSeconds(Math.Max(30, IntervalOf(prefs, extra) / 2)); overdueSince.Remove(extra);
                     continue;
                 }
                 int variant = NextTurn(extra);
@@ -666,7 +733,7 @@ namespace CrewChiefV4.AiTeam
                 if (string.IsNullOrEmpty(part) || text.Length + 1 + part.Length > MaxBundleChars) continue;
                 outstandingBundle.Add(Tuple.Create(extra, planned, part, variant));
                 // Bis zur Wiedergabe nicht erneut einplanen; kommt der Funkspruch nicht, ist der Bericht nach 5 s wieder dran.
-                due[extra] = now.AddSeconds(Math.Max(30, prefs[extra] / 2));
+                due[extra] = now.AddSeconds(Math.Max(30, IntervalOf(prefs, extra) / 2));
                 overdueSince.Remove(extra);
                 text += " " + part;
             }

@@ -3,7 +3,7 @@ using System;
 namespace CrewChiefV4.AiTeam
 {
     // Reihenfolge muss zu den ui_text-Einträgen *_listprop_value_N passen
-    public enum AiRadioMode { MINIMAL, NORMAL, ACTIVE }
+    public enum AiRadioMode { MINIMAL, NORMAL, ACTIVE, VERBOSE }
 
     public enum AiTtsProvider { OPENAI_COMPATIBLE, WINDOWS, ELEVENLABS }
 
@@ -38,6 +38,8 @@ namespace CrewChiefV4.AiTeam
         public string WindowsVoiceMik = "";
         public string WindowsVoiceSara = "";
         public AiRadioMode RadioMode = AiRadioMode.NORMAL;
+        /// <summary>Mehr Infos oder viel mehr Infos: unveränderte Werte kommen trotzdem, Kommentare häufiger.</summary>
+        public bool Talkative => RadioMode == AiRadioMode.ACTIVE || RadioMode == AiRadioMode.VERBOSE;
         public string DriverName = "Fahrer";
         public string DriverNickname = "";
         // Ohne geladenes Profil Deutsch (Tests, Altprofile); das Profil liefert standardmäßig "auto" = Windows-Sprache

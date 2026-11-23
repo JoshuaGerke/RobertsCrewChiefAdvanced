@@ -387,6 +387,8 @@
     <Compile Include="AiTeam\TrackSituationWatch.cs" />
     <Compile Include="AiTeam\RaceTrafficWatch.cs" />
     <Compile Include="AiTeam\RoutineLedger.cs" />
+    <Compile Include="AiTeam\AutoRadioPlan.cs" />
+    <Compile Include="AiTeam\RadioAmountCommand.cs" />
     <Compile Include="AiTeam\QualifyingResultWatch.cs" />
     <Compile Include="AiTeam\RaceGapTracker.cs" />
     <Compile Include="AiTeam\ActiveRaceObserver.cs" />

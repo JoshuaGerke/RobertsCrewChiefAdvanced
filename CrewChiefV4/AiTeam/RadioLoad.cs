@@ -168,9 +168,10 @@ namespace CrewChiefV4.AiTeam
                 case RadioClass.Data:
                     // Funkdichte des Fahrers („mehr Funk“ / „weniger Funk“): verschiebt nur die Datengrenzen.
                     int density = Density;
-                    double limit = density == 0 ? DataLimit + .1 : density == 2 ? DataLimit - .1 : DataLimit;
-                    double budget = density == 0 ? DataAirtimePerMinute * 1.5 : density == 2 ? DataAirtimePerMinute * .6 : DataAirtimePerMinute;
-                    TimeSpan gap = density == 0 ? TimeSpan.FromSeconds(6) : density == 2 ? TimeSpan.FromSeconds(12) : DataGap;
+                    // -1 = „viel mehr Infos“ (Rob 23.11.).
+                    double limit = density < 0 ? DataLimit + .15 : density == 0 ? DataLimit + .1 : density == 2 ? DataLimit - .1 : DataLimit;
+                    double budget = density < 0 ? DataAirtimePerMinute * 2 : density == 0 ? DataAirtimePerMinute * 1.5 : density == 2 ? DataAirtimePerMinute * .6 : DataAirtimePerMinute;
+                    TimeSpan gap = density < 0 ? TimeSpan.FromSeconds(5) : density == 0 ? TimeSpan.FromSeconds(6) : density == 2 ? TimeSpan.FromSeconds(12) : DataGap;
                     // LMU Bahrain 22.11.: Der Zwischenstand wartete 13-mal auf 8 s Funkstille und kam nur 2 von 16 Mal. Er entsteht
                     // ohnehin nur in einer ruhigen Minute; ein kurzer Atemzug nach der letzten Ansage genügt.
                     if (topic == "race-summary" && gap > SummaryGap) gap = SummaryGap;
@@ -185,7 +186,11 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Funkdichte; in Tests direkt setzbar, sonst aus den gespeicherten Funkwünschen des Fahrers.</summary>
         internal int? DensityOverride;
-        private int Density => DensityOverride ?? DriverMemory.RadioDensity;
+        private int Density => DensityOverride ?? AmountDensity(AutoRadioPlan.CurrentAmount, DriverMemory.RadioDensity);
+
+        /// <summary>Funkmenge aus Cockpit oder Funkbefehl hat Vorrang; bei Normal gilt der ältere gespeicherte Funkwunsch.</summary>
+        internal static int AmountDensity(RadioAmount amount, int saved) =>
+            amount == RadioAmount.MuchMore ? -1 : amount == RadioAmount.More ? 0 : saved;
 
         internal static string Level(double tension) => tension >= .75 ? "hoch" : tension >= .4 ? "mittel" : "niedrig";
     }
