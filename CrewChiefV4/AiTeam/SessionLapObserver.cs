@@ -1158,7 +1158,13 @@ namespace CrewChiefV4.AiTeam
             if (Good(mine) && mine > best + .01f)
             {
                 string gap = RadioLanguage.Num(mine - best, mine - best < 1 ? "0.00" : "0.0");
-                text = RadioLanguage.T("Dir fehlen " + gap + " Sekunden. ", "You're " + gap + " seconds off. ", "Te faltan " + gap + " segundos. ");
+                // Rob 23.11.: Bestzeiten im Feld immer gegen seine eigene beste Runde in diesem Rennen, nie zweimal gleich gesagt.
+                text = RadioVariants.Pick("field-best-vs-own",
+                    RadioLanguage.T("Dir fehlen " + gap + " Sekunden. ", "You're " + gap + " seconds off. ", "Te faltan " + gap + " segundos. "),
+                    RadioLanguage.T("Deine Beste heute liegt " + gap + " dahinter. ", "Your best today is " + gap + " behind that. ", "Tu mejor vuelta de hoy está " + gap + " por detrás. "),
+                    RadioLanguage.T("Das sind " + gap + " auf deine schnellste Runde. ", "That's " + gap + " quicker than your fastest lap. ", "Son " + gap + " menos que tu vuelta más rápida. "),
+                    RadioLanguage.T("Zu deiner eigenen Bestzeit fehlen " + gap + ". ", "Compared with your own best, that's " + gap + " quicker. ", "Respecto a tu mejor tiempo, son " + gap + " menos. "),
+                    RadioLanguage.T("Deine schnellste Runde ist " + gap + " langsamer. ", "Your quickest lap is " + gap + " slower. ", "Tu vuelta más rápida es " + gap + " más lenta. "));
             }
             var push = MotivationPhrases;
             // Unabhängig vom Satzvarianten-Zähler weiterdrehen, damit der Ansporn nicht jedes Mal gleich klingt.
