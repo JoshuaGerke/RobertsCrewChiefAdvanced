@@ -178,6 +178,12 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        /// <summary>
+        /// Bens Bewertung zu einer wachsenden Lücke (Rob 23.11.: Crew Chief erkennt, die Crew bewertet). Liefert einen kurzen Satz,
+        /// der an die Abstandsmeldung angehängt wird, oder null.
+        /// </summary>
+        internal Func<GameStateData, NativeTimingFact, bool, RaceStorylineWatch.StoryComment> Commentary;
+
         public ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool enabled, bool minimal)
         { return Take(new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = gs == null ? DateTime.MinValue :
             gs.SourceTelemetryUtc == DateTime.MinValue ? gs.Now : gs.SourceTelemetryUtc }, busy, enabled, minimal); }
@@ -215,6 +221,10 @@ namespace CrewChiefV4.AiTeam
                         return index = cursor.Select(name, RadioPhraseCatalog.Current.Count(name));
                     });
                     if (text == null) { pending.Remove(entry); continue; }
+                    RaceStorylineWatch.StoryComment comment = null;
+                    if (fact.Trend == NativeTimingTrend.Increasing && Commentary != null) comment = Commentary(gs, fact, entry.Names);
+                    if (comment != null && !string.IsNullOrWhiteSpace(comment.Text)) text = text.TrimEnd() + " " + comment.Text;
+                    else comment = null;
                     TrackAwareness tracks = context.Tracks;
                     entry.Call = new ObservedRaceCall {
                         Topic = fact.Topic, Text = text, Evidence = NativeTimingFact.Source + ";opponent=" + fact.Key + ";relation=" + fact.Relation + ";trend=" + fact.Trend,
@@ -226,6 +236,7 @@ namespace CrewChiefV4.AiTeam
                             MeasurementStillCurrent(fact, measurement, live, when, tracks)
                     };
                     if (group != null) entry.Call.BindVariant(cursor,group,index);
+                    if (comment != null) entry.Call.PlaybackCompleted = comment.PlaybackCompleted;
                 }
                 if (entry.Call.IsValid(gs, now) && entry.Call.TryReserve(now)) return entry.Call;
             }
