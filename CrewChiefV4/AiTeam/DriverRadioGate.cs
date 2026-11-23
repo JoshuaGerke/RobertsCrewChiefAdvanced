@@ -21,6 +21,16 @@ namespace CrewChiefV4.AiTeam
 
         private static long pressedTicks, releasedTicks;
         private static int talking;
+        /// <summary>
+        /// RaceRoom Hockenheim 23.11.: 17 fertig gesprochene Meldungen verfielen in der Warteschlange, gehäuft genau dann, wenn Rob
+        /// funkte oder auf eine Antwort wartete – darunter „Zeit ist um, jetzt kommt die letzte Runde!“ (21:47:30) und Saras Warnung
+        /// vor Miky Favia. Die Zeit, in der Rob spricht oder die Crew ihm antwortet, zählt nicht gegen die Lebensdauer einer
+        /// Meldung: Sie wird gutgeschrieben, höchstens <see cref="MaxCredit"/>.
+        /// </summary>
+        internal static readonly TimeSpan MaxCredit = TimeSpan.FromSeconds(25);
+        private static long heldTicksDone, answerTicksDone, answerSinceTicks;
+        private static int answers;
+        private static readonly object answerGate = new object();
 
         internal static void Pressed(DateTime nowUtc)
         {
@@ -30,8 +40,10 @@ namespace CrewChiefV4.AiTeam
 
         internal static void Released(DateTime nowUtc)
         {
+            long pressed = Interlocked.Read(ref pressedTicks);
+            if (Interlocked.Exchange(ref talking, 0) == 1 && pressed > 0 && nowUtc.Ticks > pressed)
+                Interlocked.Add(ref heldTicksDone, Math.Min(nowUtc.Ticks - pressed, MaxHold.Ticks) + AfterRelease.Ticks);
             Interlocked.Exchange(ref releasedTicks, nowUtc.Ticks);
-            Interlocked.Exchange(ref talking, 0);
         }
 
         internal static void Reset()
@@ -39,6 +51,44 @@ namespace CrewChiefV4.AiTeam
             Interlocked.Exchange(ref talking, 0);
             Interlocked.Exchange(ref pressedTicks, 0);
             Interlocked.Exchange(ref releasedTicks, 0);
+            Interlocked.Exchange(ref heldTicksDone, 0);
+            lock (answerGate) { answers = 0; answerTicksDone = 0; answerSinceTicks = 0; }
+        }
+
+        /// <summary>Eine Antwort an Rob wird vorbereitet (Frage erkannt bis Antwort eingereiht).</summary>
+        internal static void AnswerStarted(DateTime nowUtc)
+        {
+            lock (answerGate) { if (answers++ == 0) answerSinceTicks = nowUtc.Ticks; }
+        }
+
+        internal static void AnswerEnded(DateTime nowUtc)
+        {
+            lock (answerGate)
+            {
+                if (answers == 0) return;
+                if (--answers == 0 && answerSinceTicks > 0 && nowUtc.Ticks > answerSinceTicks) answerTicksDone += nowUtc.Ticks - answerSinceTicks;
+            }
+        }
+
+        /// <summary>Gesamte Zeit (Ticks), in der Rob gefunkt hat oder auf eine Antwort wartete; steigt nur.</summary>
+        internal static long BusyTicks(DateTime nowUtc)
+        {
+            long total = Interlocked.Read(ref heldTicksDone);
+            long pressed = Interlocked.Read(ref pressedTicks);
+            if (Volatile.Read(ref talking) == 1 && pressed > 0 && nowUtc.Ticks > pressed) total += Math.Min(nowUtc.Ticks - pressed, MaxHold.Ticks);
+            lock (answerGate)
+            {
+                total += answerTicksDone;
+                if (answers > 0 && answerSinceTicks > 0 && nowUtc.Ticks > answerSinceTicks) total += nowUtc.Ticks - answerSinceTicks;
+            }
+            return total;
+        }
+
+        /// <summary>Gutschrift für eine Meldung, die bei <paramref name="busyAtStart"/> eingereiht wurde.</summary>
+        internal static TimeSpan Credit(long busyAtStart, DateTime nowUtc)
+        {
+            long d = BusyTicks(nowUtc) - busyAtStart;
+            return d <= 0 ? TimeSpan.Zero : d >= MaxCredit.Ticks ? MaxCredit : TimeSpan.FromTicks(d);
         }
 
         /// <summary>True, solange die Funktaste gedrückt ist (höchstens <see cref="MaxHold"/>) und bis <see cref="AfterRelease"/> danach.</summary>

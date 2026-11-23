@@ -22,7 +22,9 @@ namespace CrewChiefV4.AiTeam
         internal const float ImplausibleDeltaKmh = 40f;
         /// <summary>Nur wenn der Gegner in Reichweite ist; weiter weg ist der Topspeed kein Thema.</summary>
         internal const float MaximumGapSeconds = 2.5f;
-        internal const int RivalEveryLaps = 6, FieldEveryLaps = 10;
+        /// <summary>RaceRoom Hockenheim 23.11.: in neun Runden kam keine einzige Topspeed-Meldung durch (Rob nach dem Ziel). Öfter
+        /// anbieten; die Meldung wartet bis zu 45 s auf eine Gerade.</summary>
+        internal const int RivalEveryLaps = 4, FieldEveryLaps = 6;
         /// <summary>Unterschied zur Klassenspitze, ab dem sie erwähnt wird.</summary>
         internal const float FieldDeltaKmh = 3f;
 
@@ -109,7 +111,11 @@ namespace CrewChiefV4.AiTeam
         internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool enabled)
         {
             if (call == null || busy || !enabled) return null;
-            if (!call.IsValid(gs, now)) { if (now > call.ExpiresUtc) call = null; return null; }
+            if (!call.IsValid(gs, now))
+            {
+                if (now > call.ExpiresUtc) { LiveDiagnostics.Decision(call.Topic, "suppressed", "expired", call.Evidence, call.EventId); call = null; }
+                return null;
+            }
             return call.TryReserve(now) ? call : null;
         }
 
@@ -131,7 +137,7 @@ namespace CrewChiefV4.AiTeam
             {
                 Topic = topic, Text = text, Evidence = evidence, Member = TeamMember.Ben, Priority = priority,
                 Position = position, SessionId = s.SessionId, SessionType = s.SessionType, DetectedUtc = now,
-                ExpiresUtc = now.AddSeconds(20), AdditionalValidity = still
+                ExpiresUtc = now.AddSeconds(45), AdditionalValidity = still
             };
         }
 

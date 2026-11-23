@@ -134,6 +134,8 @@
     <Compile Include="AiTeam\DriverMoodTests.cs" />
     <Compile Include="AiTeam\DiagnosticReplayTests.cs" />
     <Compile Include="AiTeam\RadioLoadTests.cs" />
+    <Compile Include="AiTeam\HockenheimRadioTests.cs" />
+    <Compile Include="AiTeam\BattleVoiceTests.cs" />
     <Compile Include="AiTeam\QualiCoachingTests.cs" />
     <Compile Include="AiTeam\BattleSectorTests.cs" />
     <Compile Include="AiTeam\RaceEventMemoryTests.cs" />

@@ -24,6 +24,7 @@ namespace CrewChiefV4.AiTeam
             public string EventId;
             public string Topic;
             public DateTime CreatedUtc;
+            public long BusyAtPut;
             public Func<bool> IsValid;
             public Action Started;
             public Action BeforeStart;
@@ -39,7 +40,7 @@ namespace CrewChiefV4.AiTeam
             if (wav == null || wav.Length == 0 || wav.Length > 16 * 1024 * 1024) throw new ArgumentException("Ungültiger Audioclip.");
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, Topic = topic, CreatedUtc = DateTime.UtcNow, IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, Topic = topic, CreatedUtc = DateTime.UtcNow, BusyAtPut = DriverRadioGate.BusyTicks(DateTime.UtcNow), IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
             // Bound unplayed audio even if a backend rejects its queue entry without requesting it.
             foreach (var old in clips.OrderBy(kv => kv.Value.CreatedUtc).ToArray())
             {
@@ -50,6 +51,13 @@ namespace CrewChiefV4.AiTeam
         }
 
         internal static string GetEventId(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.EventId : null;
+
+        /// <summary>Gutschrift in Millisekunden für die Wartezeit, in der Rob funkte oder auf eine Antwort wartete (0 ohne KI-Clip).</summary>
+        internal static long PauseCreditMs(string messageName)
+        {
+            return TryMessageId(messageName, false, out string id) && clips.TryGetValue(id, out var entry)
+                ? (long)DriverRadioGate.Credit(entry.BusyAtPut, DateTime.UtcNow).TotalMilliseconds : 0;
+        }
 
         internal static string GetTopic(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.Topic : null;
 

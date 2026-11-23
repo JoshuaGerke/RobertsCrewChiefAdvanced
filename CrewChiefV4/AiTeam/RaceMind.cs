@@ -384,6 +384,23 @@ namespace CrewChiefV4.AiTeam
                 { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
+            // RaceRoom Hockenheim 23.11. (Rob: „Sektorenvergleiche zum Vordermann, Zweikämpfe, näherkommen, weiterwegfahren vom
+            // hinteren“): Im Pulk galt 72 % der Zeit „Zweikampf“; genau die Informationen über den eigenen Kampf warteten dann als
+            // Hintergrund oder Projektion, bis sie verfielen. Im Zweikampf sind sie das Wichtigste – nur Gelb, Box und Start
+            // lassen sie warten; die Funklast und die Fahrerbelastung (Kurve, Bremszone, Auto daneben) entscheiden den Moment.
+            // Rob 23.11.: „Sara muss mir sofort sagen, wenn jemand ausscheidet, an die Box fährt oder rauskommt.“ RaceRoom
+            // Hockenheim: „Luca Berger ist raus“ verfiel mit focus_on_own_fight. Diese Feldnachrichten sind kurz und betreffen
+            // Robs Rennen; nur Gelb, die eigene Box und der Start lassen sie warten, nach der Zielflagge entfallen sie.
+            if (NativeFieldEvents.SaraNews(t))
+            {
+                if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
+                { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
+            if (RadioLoad.FightContext(t) && !lastLaps && x.Attention == RaceAttention.Battle &&
+                x.Phase != RacePhase.Start && x.Phase != RacePhase.PreStart)
+                return MindVerdict.Admit;
             if (Background(call))
             {
                 if (lastLaps || x.Phase == RacePhase.Final) { reason = "final_laps_only_own_race"; return MindVerdict.Drop; }
@@ -451,6 +468,11 @@ namespace CrewChiefV4.AiTeam
 
         private DateTime lastPositionNews = DateTime.MinValue;
 
+        /// <summary>Gründe, aus denen eine Meldung nur wegen des Zweikampfs wartet (nicht wegen Gelb, Box oder Start).</summary>
+        internal static bool BattleWait(string reason) =>
+            reason == "busy_background_waits" || reason == "busy_judgement_waits" || reason == "busy_story_waits" ||
+            reason == "busy_brief_waits" || reason == "busy_projection_waits" || reason == "battle_or_caution";
+
         /// <summary>So lange gilt ein wortgleicher Ansporn als Wiederholung.</summary>
         internal static readonly TimeSpan ColourRepeatWindow = TimeSpan.FromMinutes(5);
 
@@ -473,6 +495,11 @@ namespace CrewChiefV4.AiTeam
         internal MindVerdict Judge(ObservedRaceCall call, DateTime now, out string reason)
         {
             var verdict = Judge(Latest, call, now, out reason);
+            // RaceRoom Hockenheim 23.11.: Im Dauerzweikampf warteten Wetter, Reifen, Lob und Zwischenstand, bis sie verfielen.
+            // Nach einer Funkstille entscheidet die Funklast (mit gesenkter Hürde), ob im Zweikampf Platz dafür ist.
+            if (verdict == MindVerdict.Hold && BattleWait(reason) && call != null && Latest != null && Latest.Fresh(now) &&
+                Latest.Attention == RaceAttention.Battle && Load.SilenceEarned(now))
+            { verdict = MindVerdict.Admit; reason = null; }
             if (verdict != MindVerdict.Admit || call == null || call.SessionType != SessionType.Race) return verdict;
             string t = call.Topic ?? "";
             if (t == "position" && call.Priority <= 2 && now - call.DetectedUtc < TimeSpan.FromSeconds(2.5))

@@ -79,7 +79,7 @@ namespace UnitTest.AiTeamTests
         {
             var mind = new RaceMind();
             mind.Load.Update(.9, T);
-            var data = new ObservedRaceCall { Topic = "gap-trend", Text = "x", Priority = 3, SessionId = 5, SessionType = CrewChiefV4.GameState.SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(20) };
+            var data = new ObservedRaceCall { Topic = "tyre-wear", Text = "x", Priority = 3, SessionId = 5, SessionType = CrewChiefV4.GameState.SessionType.Race, DetectedUtc = T, ExpiresUtc = T.AddSeconds(20) };
             Assert.AreEqual(MindVerdict.Hold, mind.Judge(data, T, out string why));
             StringAssert.StartsWith("load_", why);
             mind.Load.Update(0, T.AddSeconds(40));

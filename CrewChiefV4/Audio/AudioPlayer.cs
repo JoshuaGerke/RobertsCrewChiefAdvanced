@@ -1404,7 +1404,7 @@ namespace CrewChiefV4.Audio
                             }
                         }
 
-                        Boolean messageHasExpired = queuedMessage.expiryTime != 0 && queuedMessage.expiryTime < milliseconds;
+                        Boolean messageHasExpired = queuedMessage.expiryTime != 0 && queuedMessage.expiryTime + AiTeam.AiAudioStore.PauseCreditMs(key) < milliseconds;
                         Boolean messageIsStillValid = queuedMessage.isMessageStillValid(key, CrewChief.currentGameState) &&
                             !(aiTeamSpotterMuted && queuedMessage.metadata.type == SoundType.SPOTTER);
                         Boolean queueTooLongForMessage = queuedMessage.maxPermittedQueueLengthForMessage != 0 && willBePlayedCount > queuedMessage.maxPermittedQueueLengthForMessage;

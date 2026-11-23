@@ -54,8 +54,11 @@ namespace UnitTest.AiTeamTests
                 AutoRadioPlan.NominalSeconds(Span, k, RadioAmount.Normal) + " s"));
         }
 
-        private static bool Battle(double t, double race) => t >= race * .30 && t < race * .45 || t >= race * .70 && t < race * .78;
-        private static bool Calm(double t, double race) => t >= race * .15 && t < race * .30 || t >= race * .55 && t < race * .70;
+        /// <summary>Pulkrennen wie RaceRoom Hockenheim 23.11.: fast durchgehend Zweikampf, nur kurze ruhige Stücke.</summary>
+        [ThreadStatic] internal static bool PackRace;
+        private static bool Battle(double t, double race) => PackRace ? (t % 120) < 87 :
+            t >= race * .30 && t < race * .45 || t >= race * .70 && t < race * .78;
+        private static bool Calm(double t, double race) => !PackRace && (t >= race * .15 && t < race * .30 || t >= race * .55 && t < race * .70);
 
         private static GameStateData Frame(double t, double race, CarData.CarClass cls, SimProfile sim = null)
         {

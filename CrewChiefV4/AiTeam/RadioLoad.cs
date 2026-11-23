@@ -34,10 +34,49 @@ namespace CrewChiefV4.AiTeam
         private readonly object gate = new object();
         private readonly List<KeyValuePair<DateTime, double>> spoken = new List<KeyValuePair<DateTime, double>>();
         private readonly List<KeyValuePair<DateTime, double>> spokenData = new List<KeyValuePair<DateTime, double>>();
-        private DateTime lastSpoken = DateTime.MinValue, lastTension = DateTime.MinValue;
+        private DateTime lastSpoken = DateTime.MinValue, lastTension = DateTime.MinValue, quietSince = DateTime.MinValue;
         private double tension;
 
-        internal void Reset() { lock (gate) { spoken.Clear(); spokenData.Clear(); lastSpoken = lastTension = DateTime.MinValue; tension = 0; } }
+        internal void Reset() { lock (gate) { spoken.Clear(); spokenData.Clear(); lastSpoken = lastTension = quietSince = DateTime.MinValue; tension = 0; } }
+
+        /// <summary>
+        /// RaceRoom Hockenheim 23.11. (25 Autos, 15 Minuten): Rob war 72 % der Zeit im Zweikampf, die Anspannung stand fast
+        /// durchgehend auf 0,8 bis 1. Sektorvergleich, Näherkommen, Wetter, Strecke und Reifen warteten, bis sie verfielen –
+        /// Rob: „Es fehlt mir die eigenständige Entscheidung, was wichtig ist.“ Wie ein Renningenieur am Kommandostand: Je länger
+        /// der Funk still war, desto eher ist auch im Pulk Platz für die nächste Information. Ab einer Funkstille (Funkmenge
+        /// Normal 20 s, Mehr Infos 12 s, Viel mehr Infos 8 s, Ruhig 35 s) sinkt die Hürde um 0,02 je Sekunde, höchstens um 0,5.
+        /// Auto daneben, Kurven und Bremszonen halten die Meldung weiter auf (Fahrerbelastung und Spotter).
+        /// </summary>
+        internal static double SilenceRelief(double silentSeconds, int density)
+        {
+            double start = density < 0 ? 8 : density == 0 ? 12 : density == 2 ? 35 : 20;
+            return Math.Max(0, Math.Min(.5, (silentSeconds - start) * .02));
+        }
+
+        /// <summary>Sekunden seit dem letzten Funkspruch (bzw. seit Beginn der Messung).</summary>
+        internal double SilentSeconds(DateTime now)
+        {
+            lock (gate)
+            {
+                DateTime since = lastSpoken > quietSince ? lastSpoken : quietSince;
+                return since == DateTime.MinValue || now < since ? 0 : (now - since).TotalSeconds;
+            }
+        }
+
+        /// <summary>Die Funkstille ist so lang, dass die Crew auch im Zweikampf etwas sagen darf (Hürde gesenkt).</summary>
+        internal bool SilenceEarned(DateTime now) => SilenceRelief(SilentSeconds(now), Density) > 0;
+
+        /// <summary>
+        /// Informationen über Robs eigenen Kampf (Rob 23.11.: „Sektorenvergleiche zum Vordermann, gute Rennaktionen, Zweikämpfe,
+        /// Näherkommen, Weiterwegfahren vom Hinteren“): Sektorvergleich mit dem direkten Gegner, Abstandsverlauf, Tempovergleich,
+        /// Zielansage, Zweikampf voraus und der Rennverlauf mit Vorder- und Hintermann. Sie sind im Zweikampf das Wichtigste und
+        /// zählen als Rennereignis, nicht als Statistik.
+        /// </summary>
+        internal static bool FightContext(string topic) =>
+            topic == "battle-sector" || topic == "rival-sector-loss" || topic == "gap-trend" || topic == "reader-pace-front" ||
+            topic == "reader-pace-rear" || topic == "insight-target" || topic == "insight-battle-ahead" || topic == "focus-brief" ||
+            topic == "rear-pressure" || topic == "race-rear-pressure" || topic == "rival-topspeed" ||
+            topic == "story-duel-front" || topic == "story-duel-rear" || topic == "story-kept-ahead" || topic == "story-kept-behind";
 
         /// <summary>Anspannung aus einem Lagebild ohne Glättung (0 = ruhig, 1 = höchste Konzentration).</summary>
         internal static double RawTension(float gapAhead, float gapBehind, bool overlap, RaceAttention attention, RacePhase phase, DriverMoodState mood)
@@ -69,6 +108,7 @@ namespace CrewChiefV4.AiTeam
                     decayed = tension * Math.Pow(.5, (now - lastTension).TotalSeconds / HalfLife.TotalSeconds);
                 tension = Math.Max(Math.Max(0, Math.Min(1, raw)), decayed);
                 lastTension = now;
+                if (quietSince == DateTime.MinValue) quietSince = now;
                 return tension;
             }
         }
@@ -147,13 +187,26 @@ namespace CrewChiefV4.AiTeam
         internal static bool OwnFight(string topic) =>
             topic == "start-verdict" || topic == "native-gap-front" || topic == "native-gap-behind" || topic == "ahead" || topic == "behind";
 
+        /// <summary>
+        /// RaceRoom Hockenheim 23.11.: „Neue persönliche Bestzeit 1:45,073“ wartete 11-mal, der Verbrauch der ersten Runde 15-mal
+        /// auf zu hohe Anspannung und verfiel – im Pulk lag die Anspannung fast durchgehend bei 1. Das eigene Rundenergebnis, der
+        /// erste gemessene Verbrauch und die schnellste Runde eines Gegners (Rob: „mit Namen und Zeit“) sind kurze Rennereignisse
+        /// und gehen an der Anspannung vorbei; Seite an Seite warten sie weiter.
+        /// Begrüßung, Startspruch und Rennbilanz gehören ebenfalls dazu: Die Funklast darf sie nie blockieren.
+        /// </summary>
+        internal static bool OwnResult(string topic) =>
+            topic == "own-lap" || topic == "race-lap" || topic == "first-lap-fuel" || topic == "fuel-baseline" ||
+            topic == "field-fastest" || topic == "field-fastest-overall" ||
+            topic == "greeting" || topic == "race-start" || topic == "session-debrief";
+
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)
         {
             reason = null;
             var c = Classify(topic, priority);
-            if (c == RadioClass.Safety || OwnPositionChange(topic) || OwnFight(topic)) return true;
-            double t = Tension;
+            if (c == RadioClass.Safety || OwnPositionChange(topic) || OwnFight(topic) || OwnResult(topic) || NativeFieldEvents.SaraNews(topic)) return true;
+            if (FightContext(topic)) c = RadioClass.Event;
+            double t = Math.Max(0, Tension - SilenceRelief(SilentSeconds(now), Density));
             switch (c)
             {
                 case RadioClass.Event:
