@@ -11,8 +11,10 @@ namespace UnitTest.AiTeamTests
     [TestFixture, Category("AiTeam"), NonParallelizable]
     public class StrategyPictureTests
     {
-        [SetUp] public void Deterministic() { RadioVariants.Deterministic = true; RadioLanguage.Current = "de"; }
-        [TearDown] public void Random() { RadioVariants.Deterministic = false; }
+        private bool wasDeterministic;
+        private string wasLanguage;
+        [SetUp] public void Deterministic() { wasDeterministic = RadioVariants.Deterministic; wasLanguage = RadioLanguage.Current; RadioVariants.Deterministic = true; RadioLanguage.Current = "de"; }
+        [TearDown] public void Restore() { RadioVariants.Deterministic = wasDeterministic; RadioLanguage.Current = wasLanguage; }
 
         private static StrategyInput Fuel(int lap, double toGo, double left, double perLap, double capacity = double.NaN) =>
             new StrategyInput { Lap = lap, LapsToGo = toGo, FuelLeft = left, FuelPerLap = perLap, FuelCapacity = capacity };

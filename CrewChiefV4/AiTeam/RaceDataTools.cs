@@ -51,7 +51,7 @@ namespace CrewChiefV4.AiTeam
         {
             "get_race_reader", "get_driver_history", "get_data_capabilities", "get_telemetry_values", "get_race_state", "get_tyre_status", "get_fuel_status", "get_lap_times", "get_opponents_nearby",
             "get_track_situation", "get_race_field", "get_opponent", "get_pit_info", "get_damage_and_engine", "get_track_conditions", "get_stint_analysis", "get_recent_events", "get_corner_analysis", "get_race_pace_review",
-            "get_strategy_odds", "get_lmu_native", "get_race_chronicle", "get_field_picture",
+            "get_strategy_picture", "get_raw_sim_fields", "get_strategy_odds", "get_lmu_native", "get_race_chronicle", "get_field_picture",
         };
 
         public static JArray BuildToolDefinitions()
