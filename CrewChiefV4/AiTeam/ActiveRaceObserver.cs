@@ -172,6 +172,8 @@ namespace CrewChiefV4.AiTeam
         internal bool RaceStatus;
         /// <summary>Gewählte Formulierung des Rennstatus, bleibt beim Auffrischen erhalten.</summary>
         internal int StatusVariant;
+        /// <summary>Im selben Funkspruch mitgesagte Berichte (Thema, Formulierung), die beim Auffrischen neu berechnet werden.</summary>
+        internal List<KeyValuePair<string, int>> BundleParts;
         /// <summary>Eingestellter Bericht, der schon zu lange wartet: kommt in der nächsten freien Lücke, auch im Zweikampf.</summary>
         internal bool Guaranteed;
         internal Func<RaceDataContext, string> RefreshText;
@@ -190,6 +192,13 @@ namespace CrewChiefV4.AiTeam
             // gutgemacht.“ – die Auffrischung vor dem Sprechen nahm immer die erste. Sie behält jetzt die gewählte Formulierung.
             string current = RaceStatus ? AiRadioSchedule.Compose("status", context, StatusVariant) : RefreshText(context);
             if (string.IsNullOrWhiteSpace(current)) return false;
+            // Mitgesagte Berichte (Rob 23.11.) mit frischen Zahlen und derselben Formulierung wieder anhängen.
+            if (BundleParts != null)
+                foreach (var part in BundleParts)
+                {
+                    string fresh = AiRadioSchedule.Compose(part.Key, context, part.Value);
+                    if (!string.IsNullOrWhiteSpace(fresh) && !current.Contains(fresh)) current += " " + fresh;
+                }
             Text = current;
             if (RefreshGapS != null) SpokenGapS = RefreshGapS(context);
             if (RaceStatus)

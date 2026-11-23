@@ -86,6 +86,12 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastDeferral=DateTime.MinValue;
         private DateTime lastReport = DateTime.MinValue;
         private ObservedRaceCall outstanding,lastRoutine;
+        /// <summary>Im selben Funkspruch mitgesagte, ebenfalls fällige Berichte desselben Sprechers (Thema, geplanter Zeitpunkt, Text).</summary>
+        private readonly List<Tuple<string, DateTime, string, int>> outstandingBundle = new List<Tuple<string, DateTime, string, int>>();
+        /// <summary>Höchstens so viele Berichte in einem Funkspruch und so lang darf er werden.</summary>
+        internal const int MaxBundle = 3, MaxBundleChars = 240;
+        /// <summary>Ein Bericht, der in dieser Zeit ohnehin fällig wird, darf schon mitgesagt werden.</summary>
+        internal const int BundleAheadSeconds = 20;
         private readonly RadioVariantCursor fuelVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor aheadVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor behindVariants = new RadioVariantCursor();
@@ -253,7 +259,7 @@ namespace CrewChiefV4.AiTeam
         }
         internal static TeamMember MemberFor(string topic) =>
             topic == "weather" || topic == "tyres" || topic == "pace" || topic == "vehicle" ? TeamMember.Mik : TeamMember.Ben;
-        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
+        public void Reset() { Arbiter.Reset(); facts.Clear(); outstandingFacts = null; due.Clear(); lastDeliveredText.Clear(); lastDeliveredUtc.Clear(); outstanding = lastRoutine = null; outstandingBundle.Clear(); lastFuelMeasurement = outstandingFuelMeasurement = null; interruptionHandled=false; lastReport = lastDeferral = lastTechnicalUtc = DateTime.MinValue; lastTechnicalTopic = null; technicalGapSeconds = 0; lastWeather = outstandingWeather = null; weatherVariant = 0; session = int.MinValue; lastFuelVerdict = null; overdueSince.Clear(); outstandingSince = DateTime.MinValue; firstStatusPending = false; }
         public void Observe(GameStateData gs, DateTime now, AiRadioPreferences prefs)
         {
             if (session != gs.SessionData.SessionId) { Reset(); session = gs.SessionData.SessionId; }
@@ -265,6 +271,7 @@ namespace CrewChiefV4.AiTeam
         public ObservedRaceCall Take(RaceDataContext ctx, AiRadioPreferences prefs, bool busy, Func<TeamMember,bool> memberEnabled = null, bool filterUnchanged = true,string busyReason = null)
         {
             var gs = ctx.GameState; DateTime now = ctx.NowUtc;
+            if (gs != null) { RoutineLedger.Current.Session(gs.SessionData.SessionId, now); RoutineLedger.Current.Tick(now); }
             if(lastRoutine!=null && lastRoutine.PlaybackInterrupted && !interruptionHandled)
             {
                 due[lastRoutine.Topic]=now.AddSeconds(30);
@@ -282,6 +289,8 @@ namespace CrewChiefV4.AiTeam
                 if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
                 {
                     lastRoutine=outstanding;interruptionHandled=false;
+                    RoutineLedger.Current.Spoken(outstanding.Topic,
+                        overdueSince.TryGetValue(outstanding.Topic, out var plannedUtc) ? plannedUtc : outstandingSince, outstanding.DeliveryStartedUtc);
                     lastReport = outstanding.DeliveryStartedUtc;
                     lastDeliveredText[outstanding.Topic]=outstanding.Text;
                     lastDeliveredUtc[outstanding.Topic]=outstanding.DeliveryStartedUtc;
@@ -300,6 +309,18 @@ namespace CrewChiefV4.AiTeam
                     overdueSince.Remove(outstanding.Topic);
                     Arbiter.Done(outstanding.Topic);
                     if (outstanding.Topic == "status") firstStatusPending = false;
+                    foreach (var b in outstandingBundle)
+                    {
+                        lastDeliveredText[b.Item1] = b.Item3; lastDeliveredUtc[b.Item1] = outstanding.DeliveryStartedUtc;
+                        double bundledNext = Delay(prefs, b.Item1);
+                        if (FightGap(b.Item1) && RaceRadioDirector.SuppressBackgroundStatistics(ctx)) bundledNext = BattleGapDelay(bundledNext);
+                        due[b.Item1] = outstanding.DeliveryStartedUtc.AddSeconds(bundledNext);
+                        overdueSince.Remove(b.Item1); Arbiter.Done(b.Item1);
+                        if (b.Item1 == "status") firstStatusPending = false;
+                        RoutineLedger.Current.Spoken(b.Item1, b.Item2, outstanding.DeliveryStartedUtc);
+                        LiveDiagnostics.Decision(b.Item1, "delivered", "bundled_with_" + outstanding.Topic, b.Item3);
+                    }
+                    outstandingBundle.Clear();
                     outstanding = null;
                 }
                 else if (!outstanding.IsValid(gs, now) || prefs[outstanding.Topic] == 0 ||
@@ -314,11 +335,16 @@ namespace CrewChiefV4.AiTeam
                     // dazwischen lag oft die nächste Bremszone, und er verfiel erneut).
                     due[outstanding.Topic] = now.AddSeconds(outstanding.Topic == "status" || keep ? 5 : 30);
                     if (keep) overdueSince[outstanding.Topic] = outstandingSince; else overdueSince.Remove(outstanding.Topic);
+                    foreach (var b in outstandingBundle) { due[b.Item1] = now.AddSeconds(5); overdueSince[b.Item1] = b.Item2; }
+                    outstandingBundle.Clear();
                     outstanding = null;
                 }
             }
             foreach (var item in due.Where(p => prefs[p.Key] > 0 && p.Value <= now && !overdueSince.ContainsKey(p.Key)).ToArray())
+            {
                 overdueSince[item.Key] = item.Value;
+                RoutineLedger.Current.Due(item.Key, prefs[item.Key]);
+            }
             if (outstanding != null) outstanding.Guaranteed = Guaranteed(outstanding.Topic, now);
             bool race = gs?.SessionData.SessionType == SessionType.Race;
             bool statusOverdue = race && StatusIsOverdue(now, prefs);
@@ -437,6 +463,8 @@ namespace CrewChiefV4.AiTeam
                 }
                 string trend = facts.Trend(topic, measurement, now);
                 if (trend != null) text += " " + trend;
+                text = Bundle(topic, text, ctx, prefs, filterUnchanged, memberEnabled, now);
+                var bundleParts = outstandingBundle.Where(b => b.Item4 >= 0).Select(b => new KeyValuePair<string, int>(b.Item1, b.Item4)).ToList();
                 outstandingFacts = measurement;
                 outstandingFuelMeasurement = fuelMeasurement;
                 int overall = gs.SessionData.OverallPosition;
@@ -450,7 +478,7 @@ namespace CrewChiefV4.AiTeam
                         (!overallSpoken || live.SessionData.OverallPosition == overall),
                     Position=topic == "status" ? gs.SessionData.ClassPosition : -1,
                     SessionId=gs.SessionData.SessionId, SessionType=gs.SessionData.SessionType, DetectedUtc=now, ExpiresUtc=now.AddSeconds(promisedTopic ? GuaranteedLifetimeSeconds : RoutineLifetimeSeconds),
-                    Guaranteed=promisedTopic };
+                    Guaranteed=promisedTopic, BundleParts=bundleParts.Count == 0 ? null : bundleParts };
                 outstandingSince = since == default(DateTime) ? now : since;
                 Arbiter.Note(topic, RadioArbiter.Tier(topic, 1), outstandingSince, now);
                 if (gs.SessionData.SessionType == SessionType.Race && (topic == "ahead" || topic == "behind"))
@@ -602,6 +630,51 @@ namespace CrewChiefV4.AiTeam
                 "The tyres show no wear. It seems to be off here, I'll only report tyres again once something changes.",
                 "Los neumáticos no muestran desgaste. Parece desactivado, no volveré a hablar de ellos hasta que cambie algo.");
         }
+
+        /// <summary>
+        /// Rob 23.11.: Mit zehn eingeschalteten Berichten (Status, Vorder- und Hintermann und Sprit alle 120 s usw.) wären rund
+        /// 140 Funksprüche in 40 Minuten nötig gewesen – bei mindestens 20 s Abstand passen aber nur 120, dazu kam die Technikpause.
+        /// Berichte fielen deshalb zwangsläufig aus. Wie eine echte Crew sagt jetzt ein Sprecher fällige Berichte in einem Funkspruch:
+        /// „P3. Vorne Kozmy 1,8, hinten JJ 0,9. Nach dieser Runde noch 12.“ Nur derselbe Sprecher, höchstens drei, kurz genug.
+        /// </summary>
+        private string Bundle(string primary, string text, RaceDataContext ctx, AiRadioPreferences prefs, bool filterUnchanged,
+            Func<TeamMember, bool> memberEnabled, DateTime now)
+        {
+            outstandingBundle.Clear();
+            var gs = ctx.GameState;
+            if (gs == null || gs.SessionData.SessionType != SessionType.Race || string.IsNullOrEmpty(text)) return text;
+            var member = MemberFor(primary);
+            var candidates = due.Where(p => p.Key != primary && prefs[p.Key] > 0 && MemberFor(p.Key) == member &&
+                    p.Value <= now.AddSeconds(BundleAheadSeconds) && (memberEnabled == null || memberEnabled(member)) &&
+                    // Normal bündelt unveränderte Technik und Wetter ohnehin; dort keine Technik zusätzlich mitsagen.
+                    !(filterUnchanged && IsTechnical(p.Key)))
+                .OrderBy(p => p.Value).Select(p => p.Key).ToArray();
+            foreach (string extra in candidates)
+            {
+                if (outstandingBundle.Count >= MaxBundle - 1) break;
+                DateTime planned = overdueSince.TryGetValue(extra, out var since) ? since : due[extra];
+                // Der Rennstatus nennt den Rennfortschritt oft schon mit: dann gilt er als gesagt, ohne Wiederholung.
+                string said = Compose(extra, ctx, 0);
+                if (!string.IsNullOrEmpty(said) && text.Contains(said))
+                {
+                    outstandingBundle.Add(Tuple.Create(extra, planned, said, -1));
+                    due[extra] = now.AddSeconds(Math.Max(30, prefs[extra] / 2)); overdueSince.Remove(extra);
+                    continue;
+                }
+                int variant = NextTurn(extra);
+                string part = Compose(extra, ctx, variant);
+                if (string.IsNullOrEmpty(part) || text.Length + 1 + part.Length > MaxBundleChars) continue;
+                outstandingBundle.Add(Tuple.Create(extra, planned, part, variant));
+                // Bis zur Wiedergabe nicht erneut einplanen; kommt der Funkspruch nicht, ist der Bericht nach 5 s wieder dran.
+                due[extra] = now.AddSeconds(Math.Max(30, prefs[extra] / 2));
+                overdueSince.Remove(extra);
+                text += " " + part;
+            }
+            return text;
+        }
+
+        /// <summary>Für Tests: Themen, die im ausstehenden Funkspruch mitgesagt werden.</summary>
+        internal IEnumerable<string> BundledTopics => outstandingBundle.Select(b => b.Item1).ToArray();
 
         public static string Compose(string topic, RaceDataContext ctx, int variant = 0) => Compose(topic, ctx, variant, out _);
 
