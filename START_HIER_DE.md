@@ -17,7 +17,7 @@ RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug
 1. Original-Crew-Chief separat sichern. Vollständige ZIP in einen eigenen RRCA-Ordner entpacken. RRCA verwendet eigene Profile und Sounds.
 2. CrewChiefV4.exe aus dem RRCA-Ordner starten. Benötigt werden Windows x64, .NET Framework 4.8 und WebView2. Fehlende Grundsounds über die Soundverwaltung einrichten.
 3. Team & Stimmen > Dienste & Schlüssel: eigene OpenRouter- und ElevenLabs-Schlüssel speichern. Externe Anbieter können Geld kosten.
-4. Stimmenliste laden, drei deutsch geeignete Stimmen wählen und testen. Funkclips vorbereiten, Sara-Pack erzeugen, danach im Stand die App vollständig neu starten.
+4. Stimmenliste laden, drei Stimmen wählen, die deine Funksprache gut sprechen, und testen. Funkclips vorbereiten, Sara-Pack erzeugen, danach im Stand die App vollständig neu starten.
 5. Mikrofon wählen. Im klassischen Crew-Chief-Fenster Controller auswählen, „KI-Team anfunken“ zuordnen und den gewünschten Knopf drücken. Beim Funken gedrückt sprechen und loslassen.
 6. KI & Funk: eigenen Namen/Funknamen eintragen, Modell-Voreinstellungen zunächst beibehalten und im Stand übernehmen.
 7. Cockpit: Spiel wählen/Start oder automatische Erkennung aktivieren; die Sim muss ihre Telemetrie liefern. Messages/Background und Ausgabe am Headset prüfen.
