@@ -343,6 +343,7 @@
     <Compile Include="AiTeam\LiveWarningDispatcher.cs" />
     <Compile Include="AiTeam\CrewVoiceGuard.cs" />
     <Compile Include="AiTeam\SaraFlagPolicy.cs" />
+    <Compile Include="AiTeam\RadioArbiter.cs" />
     <Compile Include="AiTeam\ThermalWatch.cs" />
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />

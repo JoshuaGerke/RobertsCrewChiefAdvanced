@@ -2572,6 +2572,7 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             // Funkregie: eine Stelle entscheidet über jede beobachtete Rennmeldung (senden, später, verwerfen).
+            var tier = RadioArbiter.Tier(call.Topic, call.Priority);
             {
                 var at = DateTime.UtcNow; var live = CrewChief.currentGameState;
                 bool start = raceRhythm.InStart(live);
@@ -2593,6 +2594,18 @@ namespace CrewChiefV4.AiTeam
                     call.HoldBack(at, TimeSpan.FromSeconds(2), why);
                     return;
                 }
+                // Rangfolge (Rob 23.11.): Nachrichten, die zu lange gewartet haben, sind keine mehr – sie entfallen. Routine und die
+                // eingestellten Abstandsberichte werden beim Sprechen frisch gebildet und verfallen hier nicht.
+                if (RadioArbiter.Stale(tier, call.DetectedUtc, at, call.CanRefresh) && !AiRadioSchedule.FightGap(call.Topic))
+                {
+                    call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
+                    radioSchedule.Arbiter.Done(call.Topic);
+                    string stale = "stale_after_" + (int)(at - call.DetectedUtc).TotalSeconds + "s_" + tier.ToString().ToLowerInvariant();
+                    LiveDiagnostics.Decision(call.Topic, "suppressed", stale, call.Text);
+                    eventLog.Note(call, EventStatus.Dropped, at, stale);
+                    return;
+                }
+                radioSchedule.Arbiter.Note(call.Topic, tier, call.DetectedUtc == DateTime.MinValue || call.DetectedUtc > at ? at : call.DetectedUtc, at);
                 if (start) startNames.Note(call.OpponentNameClip, at);
                 if (RadioDirectorPolicy.Classify(call.Topic) == RadioRank.Safety) lastSafetyCallUtc = at;
                 if (call.Topic == "pit-limit") lastPitLimitCallUtc = at;
@@ -2614,7 +2627,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
-                LiveDiagnostics.Decision(call.Topic, "suppressed", "same_call_recently_spoken", call.Text);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "same_call_recently_spoken", call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 return;
             }
             // C1: derselbe Satz aus einem anderen Wächter kurz nach dem ersten – nicht doppelt sprechen.
@@ -2622,7 +2635,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
-                LiveDiagnostics.Decision(call.Topic, "suppressed", "crew_memory_same_sentence", call.Text);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "crew_memory_same_sentence", call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 eventLog.Note(call, EventStatus.Dropped, at, "crew_memory_same_sentence");
                 return;
             }
@@ -2631,7 +2644,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
-                LiveDiagnostics.Decision(call.Topic, "suppressed", sameEvent, call.Text);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", sameEvent, call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 eventLog.Note(call, EventStatus.Dropped, at, sameEvent);
                 return;
             }
@@ -2647,7 +2660,7 @@ namespace CrewChiefV4.AiTeam
             {
                 var at = DateTime.UtcNow;
                 call.MarkPlaybackStarted(at); call.MarkPlaybackFinished(at, false);
-                LiveDiagnostics.Decision(call.Topic, "suppressed", "race_mind:" + mindReason, call.Text);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "race_mind:" + mindReason, call.Text); radioSchedule.Arbiter.Done(call.Topic);
                 eventLog.Note(call, EventStatus.Dropped, at, "race_mind:" + mindReason);
                 return;
             }
@@ -2657,6 +2670,16 @@ namespace CrewChiefV4.AiTeam
                 call.HoldBack(DateTime.UtcNow, TimeSpan.FromSeconds(2), "flying_lap_window");
                 eventLog.Note(call, EventStatus.Deferred, DateTime.UtcNow, "flying_lap_window");
                 return;
+            }
+            // Rangfolge: Wartet eine wichtigere Meldung (oder eine Routine schon lange), lässt diese ihr den nächsten freien Moment.
+            {
+                var at = DateTime.UtcNow;
+                if (radioSchedule.Arbiter.ShouldYield(call.Topic, tier, radioSchedule.Arbiter.WaitingSince(call.Topic, at), at, out string yieldTo))
+                {
+                    call.HoldBack(at, TimeSpan.FromSeconds(2), "yield_to:" + yieldTo);
+                    eventLog.Note(call, EventStatus.Deferred, at, "yield_to:" + yieldTo);
+                    return;
+                }
             }
             if (call.CanRefresh && (currentRequest != null || Spotter().HasOverlap || !AllowsRadioNow(IsShortTactical(call.Topic))))
             {
@@ -2669,6 +2692,7 @@ namespace CrewChiefV4.AiTeam
                 return;
             }
             RememberLocalCall(call, DateTime.UtcNow);
+            radioSchedule.Arbiter.Done(call.Topic);
             bool pitAlreadyClaimed = fieldEvents.HasClaimedPit(call.PitGain, DateTime.UtcNow);
             int renderReleased = 0;
             Action releaseRender = () => {

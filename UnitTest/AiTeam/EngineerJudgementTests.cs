@@ -115,21 +115,22 @@ namespace UnitTest.AiTeamTests
             var gs = Race(); gs.FuelData.FuelUseActive = true; gs.FuelData.FuelLeft = 40; gs.EngineData.EngineWaterTemp = 94;
             var prefs = new AiRadioPreferences();
             foreach (var o in AiRadioPreferences.Options) prefs.Set(o.Id, 0);
-            prefs.Set("fuel", 30); prefs.SetTolerance("fuel", 0, 0); prefs.Set("vehicle", 30); prefs.SetTolerance("vehicle", 0, 0);
+            // Mit den Standard-Intervallen (4 Minuten) bleibt das Budget bei 3–4 Minuten; kürzere Intervalle verkürzen es (Monza 22.11.).
+            prefs.Set("fuel", 240); prefs.SetTolerance("fuel", 0, 0); prefs.Set("vehicle", 240); prefs.SetTolerance("vehicle", 0, 0);
             var schedule = new AiRadioSchedule(1); schedule.Observe(gs, T, prefs);
             Func<double, RaceDataContext> at = sec => new RaceDataContext { GameState = gs, NowUtc = T.AddSeconds(sec), LastTelemetryUtc = T.AddSeconds(sec) };
-            var first = schedule.Take(at(30), prefs, false);
+            var first = schedule.Take(at(240), prefs, false);
             Assert.IsNotNull(first);
             Assert.IsTrue(AiRadioSchedule.IsTechnical(first.Topic));
-            first.MarkPlaybackStarted(T.AddSeconds(30)); first.MarkPlaybackFinished(T.AddSeconds(33), false);
-            schedule.Take(at(34), prefs, false); // verbucht die Zustellung
+            first.MarkPlaybackStarted(T.AddSeconds(240)); first.MarkPlaybackFinished(T.AddSeconds(243), false);
+            schedule.Take(at(244), prefs, false); // verbucht die Zustellung
             string other = first.Topic == "fuel" ? "vehicle" : "fuel";
-            Assert.IsTrue(schedule.TechnicalBudgetBlocks(other, T.AddSeconds(100)), "zweites Technikthema wartet");
-            Assert.IsTrue(schedule.TechnicalBudgetBlocks(other, T.AddSeconds(30 + 179)), "mindestens drei Minuten");
-            Assert.IsFalse(schedule.TechnicalBudgetBlocks(other, T.AddSeconds(30 + 241)), "spätestens nach vier Minuten frei");
-            Assert.IsFalse(schedule.TechnicalBudgetBlocks(first.Topic, T.AddSeconds(100)), "eigener Takt des Themas bleibt");
-            Assert.IsFalse(schedule.TechnicalBudgetBlocks("status", T.AddSeconds(100)), "Rennstatus ist keine Technik");
-            Assert.IsFalse(schedule.TechnicalBudgetBlocks("ahead", T.AddSeconds(100)));
+            Assert.IsTrue(schedule.TechnicalBudgetBlocks(other, T.AddSeconds(310)), "zweites Technikthema wartet");
+            Assert.IsTrue(schedule.TechnicalBudgetBlocks(other, T.AddSeconds(240 + 179)), "mindestens drei Minuten");
+            Assert.IsFalse(schedule.TechnicalBudgetBlocks(other, T.AddSeconds(240 + 241)), "spätestens nach vier Minuten frei");
+            Assert.IsFalse(schedule.TechnicalBudgetBlocks(first.Topic, T.AddSeconds(310)), "eigener Takt des Themas bleibt");
+            Assert.IsFalse(schedule.TechnicalBudgetBlocks("status", T.AddSeconds(310)), "Rennstatus ist keine Technik");
+            Assert.IsFalse(schedule.TechnicalBudgetBlocks("ahead", T.AddSeconds(310)));
         }
 
         [Test]

@@ -80,6 +80,7 @@
     <Compile Include="AiTeam\RadioLanguageTests.cs" />
     <Compile Include="AiTeam\CrewVoiceGuardTests.cs" />
     <Compile Include="AiTeam\MonzaRadioGapsTests.cs" />
+    <Compile Include="AiTeam\RadioArbiterTests.cs" />
     <Compile Include="AiTeam\FastestLapTests.cs" />
     <Compile Include="AiTeam\LiveCrewV06Tests.cs" />
     <Compile Include="AiTeam\VerifiedV06Tests.cs" />
