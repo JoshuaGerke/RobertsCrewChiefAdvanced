@@ -855,9 +855,14 @@ namespace CrewChiefV4
         public class CarClasses
         {
             public List<CarClass> carClasses { get; set; }
+            /// <summary>
+            /// Crew Chief 4.19.5.11: Listen von Klassen (carClassEnum-Namen), die gemeinsam fahren und als eine Klasse gelten.
+            /// </summary>
+            public List<List<string>> SimilarPerformanceClasses { get; set; }
             public CarClasses()
             {
                 this.carClasses = new List<CarClass>();
+                this.SimilarPerformanceClasses = new List<List<string>>();
             }
         }
 
@@ -906,12 +911,43 @@ namespace CrewChiefV4
                 return true;  // Same, unambigous enum values, classes are equal.
             }
 
+            if (IsCarClassSimilar(class1, class2))
+            {
+                return true;
+            }
+
             if (class1.ClassPerformanceIndex != 0 && class1.ClassPerformanceIndex == class2.ClassPerformanceIndex)
             {
                 return true;
             }
 
             // The grouping is processed in the getClassIdentifier method, so we don't need to check for it here
+            return false;
+        }
+
+        /// <summary>
+        /// Crew Chief 4.19.5.11: Sind beide Klassen in derselben Liste „SimilarPerformanceClasses“ aus carClassData.json?
+        /// </summary>
+        public static bool IsCarClassSimilar(CarClass class1, CarClass class2)
+        {
+            List<List<string>> similarLists = CAR_CLASSES?.SimilarPerformanceClasses;
+            if (class1 == null || class2 == null || similarLists == null || similarLists.Count == 0)
+            {
+                return false;
+            }
+            string className1 = class1.getClassIdentifier();
+            string className2 = class2.getClassIdentifier();
+            if (String.IsNullOrEmpty(className1) || String.IsNullOrEmpty(className2))
+            {
+                return false;
+            }
+            foreach (List<string> similarClasses in similarLists)
+            {
+                if (similarClasses != null && similarClasses.Contains(className1) && similarClasses.Contains(className2))
+                {
+                    return true;
+                }
+            }
             return false;
         }
 
@@ -969,6 +1005,18 @@ namespace CrewChiefV4
                 }
             }
             userCarClassData.carClasses.AddRange(classesToAddFromDefault);
+            if (userCarClassData.SimilarPerformanceClasses == null)
+            {
+                userCarClassData.SimilarPerformanceClasses = new List<List<string>>();
+            }
+            if (userCarClassData.SimilarPerformanceClasses.Count > 0)
+            {
+                Console.WriteLine("Also loaded " + userCarClassData.SimilarPerformanceClasses.Count + " user defined similar performance class lists");
+            }
+            if (defaultCarClassData.SimilarPerformanceClasses != null)
+            {
+                userCarClassData.SimilarPerformanceClasses.AddRange(defaultCarClassData.SimilarPerformanceClasses);
+            }
             Console.WriteLine("Loaded " + defaultCarClassData.carClasses.Count + " default car class definitions and " +
                 userCarClassesCount + " user defined car class definitions");
         }

@@ -968,12 +968,78 @@ namespace CrewChiefV4
             }
             else
             {
-                MessageBox.Show($"The following text should be found in {consoleLogFilename}\n"
+                string text = $"The following text should be found in {consoleLogFilename}\n"
                     + "but should have been copied to the clipboard too.\n"
                     + "Please SEND THE LOG FILE which will give more information or paste this report to the Crew Chief team via the forum or Discord."
-                    + "\n\n" + requestInfo + errorReport,
-                    "Fatal error when running",
-                    MessageBoxButtons.OK);
+                    + "\n\n" + requestInfo + errorReport;
+                showErrorWindowWhenGameNotInForeground(text, "Fatal error when running");
+            }
+        }
+
+        /// <summary>
+        /// Crew Chief 4.19.5.11: Das Fehlerfenster nicht öffnen, solange das Spiel vorne ist, denn vielleicht läuft gerade ein Rennen.
+        /// Es erscheint, sobald der Fahrer das Spiel verlässt oder wechselt. Auf dem Fenster-Thread wird nicht gewartet,
+        /// sonst stünde die Oberfläche still; dort übernimmt ein eigener Thread Warten und Anzeige.
+        /// </summary>
+        private static void showErrorWindowWhenGameNotInForeground(string text, string caption)
+        {
+            bool onUiThread = false;
+            try
+            {
+                onUiThread = Application.OpenForms.Count > 0 && !Application.OpenForms[0].InvokeRequired;
+            }
+            catch (Exception)
+            {
+            }
+            if (onUiThread)
+            {
+                Thread errorWindowThread = new Thread(() =>
+                {
+                    waitWhileGameIsInForeground();
+                    MessageBox.Show(text, caption, MessageBoxButtons.OK);
+                });
+                errorWindowThread.Name = "Utilities.errorWindow";
+                errorWindowThread.IsBackground = true;
+                errorWindowThread.SetApartmentState(ApartmentState.STA);
+                errorWindowThread.Start();
+            }
+            else
+            {
+                waitWhileGameIsInForeground();
+                MessageBox.Show(text, caption, MessageBoxButtons.OK);
+            }
+        }
+
+        private static void waitWhileGameIsInForeground()
+        {
+            string gameProcessName = CrewChief.gameDefinition?.processName;
+            if (String.IsNullOrEmpty(gameProcessName))
+            {
+                return;
+            }
+            bool waited = false;
+            while (String.Equals(getForegroundProcessName(), gameProcessName, StringComparison.OrdinalIgnoreCase))
+            {
+                waited = true;
+                Thread.Sleep(250);
+            }
+            if (waited)
+            {
+                Log.Warning($"{gameProcessName} is no longer the foreground process so showing the crash dialog");
+            }
+        }
+
+        private static string getForegroundProcessName()
+        {
+            try
+            {
+                IntPtr foregroundWindow = NativeMethods.GetForegroundWindow();
+                NativeMethods.GetWindowThreadProcessId(foregroundWindow, out uint foregroundProcessId);
+                return foregroundProcessId == 0 ? null : System.Diagnostics.Process.GetProcessById((int)foregroundProcessId).ProcessName;
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 

@@ -115,6 +115,7 @@
     <Compile Include="AiTeam\HazardCallRegressionTests.cs" />
     <Compile Include="AiTeam\RaceLapCommentTests.cs" />
     <Compile Include="AiTeam\CrashReportTests.cs" />
+    <Compile Include="AiTeam\CrewChiefBetaTakeoverTests.cs" />
     <Compile Include="AiTeam\RaceCommentaryTests.cs" />
     <Compile Include="AiTeam\RobDetailFixTests.cs" />
     <Compile Include="AiTeam\RaceChronicleTests.cs" />
