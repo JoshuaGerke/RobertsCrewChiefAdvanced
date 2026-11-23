@@ -82,10 +82,10 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal static class SpotterCommand
     {
-        private static readonly Regex Off = new Regex(@"^(?:(?:sara|ok|okay|bitte|please|por favor)[, ]+)*(?:spotter (?:aus|ausschalten|off|apagado|fuera)|" +
+        private static readonly Regex Off = new Regex(@"^(?:(?:sara|ok|okay|bitte|please|por favor)[, ]+)*(?:spotter (?:aus|ausschalten|off|apagado|desactivado|fuera)|" +
             @"(?:schalte?|mach) (?:den )?spotter aus|kein spotter|no spotter|turn (?:the )?spotter off|switch (?:the )?spotter off|" +
             @"(?:desactiva|apaga|quita) (?:el )?spotter|sin spotter)(?:[, ]+(?:bitte|please|por favor|danke|thanks|gracias))*$");
-        private static readonly Regex On = new Regex(@"^(?:(?:sara|ok|okay|bitte|please|por favor)[, ]+)*(?:spotter (?:ein|an|einschalten|on|encendido|activo)|" +
+        private static readonly Regex On = new Regex(@"^(?:(?:sara|ok|okay|bitte|please|por favor)[, ]+)*(?:spotter (?:ein|an|einschalten|on|encendido|activo|activado)|" +
             @"(?:schalte?|mach) (?:den )?spotter (?:ein|an)|spotter wieder (?:ein|an)|turn (?:the )?spotter (?:back )?on|switch (?:the )?spotter (?:back )?on|spotter back on|" +
             @"(?:activa|enciende|pon) (?:el )?spotter)(?:[, ]+(?:bitte|please|por favor|danke|thanks|gracias))*$");
 

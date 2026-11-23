@@ -6,6 +6,18 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
+> **Neu: Funkbefehle während der Fahrt.** Funktaste drücken und sagen:
+>
+> | Sag | Was passiert |
+> |---|---|
+> | **„Ruhe bitte“** | Keine Routineberichte mehr, nur noch das Nötigste. |
+> | **„Mehr Infos“** | Öfter Berichte, vor allem zu Vorder- und Hintermann. |
+> | **„Viel mehr Infos“** | Volles Programm. |
+> | **„Funk normal“** | Zurück zum normalen Rhythmus. |
+> | **„Spotter aus“** / **„Spotter ein“** | Nur Saras Seitenansagen (links, rechts, frei). Gelb, Unfälle, langsame Autos und Safety Car meldet sie immer. |
+>
+> Die Funkmenge gilt sofort und bleibt gespeichert. Im Programm steht sie unter **KI & Funk** → **Funkmenge**. Der Spotter bleibt aus, bis du „Spotter ein“ sagst oder RRCA neu startest. Wie oft die Crew von sich aus berichtet, bestimmt sie selbst: nach Renndauer und Spannung im Rennen.
+
 RRCA ist eine kostenlose, inoffizielle Erweiterung für [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). Sie gibt dir eine Boxencrew aus drei Stimmen, mit der du im Rennen sprechen kannst:
 
 - **Ben** beobachtet das Rennen und kümmert sich um die Strategie.
@@ -144,6 +156,8 @@ Mach das alles bei geschlossenem Spiel oder wenn du in der Box stehst, nie währ
 **e) Dein Name.** Unter **KI & Funk** → **Dein Fahrerprofil** deinen Namen und, wenn du willst, einen kurzen Funknamen eintragen (zum Beispiel „Rob“). Unten auf **Übernehmen** klicken.
 
 **f) Deine Simulation.** Auf der Seite **Cockpit** schaltest du **Spiel automatisch erkennen** ein. RRCA startet die Crew dann selbst, sobald dein Spiel läuft. Alternativ das Spiel aus der Liste wählen und auf **Start** klicken. In den Einstellungen des Spiels muss die Telemetrie bzw. Shared Memory eingeschaltet sein; die Crew-Chief-Dokumentation erklärt das für jedes Spiel.
+
+**g) Funkmenge und Funkberichte.** Unter **KI & Funk** stellst du die **Funkmenge** ein: Ruhig, Normal, Mehr Infos oder Viel mehr Infos. Unter **Regelmäßige Funkberichte** schaltest du Themen nur noch an oder aus. Den Takt bestimmt die Crew: In kurzen Rennen bis 15 Minuten kommt jedes Technikthema ein- bis zweimal, in längeren Rennen öfter. Vorder- und Hintermann kommen am häufigsten, im Zweikampf doppelt so oft. In ruhigen Phasen kommen Reifen, Schaden, Wetter und Streckentemperatur; im Zweikampf wartet die Technik. Ereignisse wie Schaden, Strafe, Gelb oder Bestzeit kommen immer sofort.
 
 ## 8. Der erste Test
 

@@ -38,7 +38,8 @@ namespace UnitTest.AiTeamTests
         [TestCase("Spotter aus", false), TestCase("Sara, Spotter aus bitte", false), TestCase("Spotter off", false), TestCase("turn the spotter off", false),
          TestCase("kein Spotter", false), TestCase("desactiva el spotter", false), TestCase("spotter apagado", false),
          TestCase("Spotter ein", true), TestCase("Spotter an", true), TestCase("Spotter wieder an", true), TestCase("spotter on", true),
-         TestCase("turn the spotter back on", true), TestCase("activa el spotter", true), TestCase("spotter encendido", true)]
+         TestCase("turn the spotter back on", true), TestCase("activa el spotter", true), TestCase("spotter encendido", true),
+         TestCase("Spotter activado", true), TestCase("spotter desactivado", false)]
         public void Spotter_commands_are_recognised_in_three_languages(string said, bool on)
         {
             Assert.AreEqual(on, SpotterCommand.Parse(said));

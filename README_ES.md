@@ -6,6 +6,18 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
+> **Nuevo: órdenes por radio mientras conduces.** Pulsa el botón de radio y di:
+>
+> | Di | Qué pasa |
+> |---|---|
+> | **«Silencio, por favor»** | Sin informes de rutina, solo lo esencial. |
+> | **«Más información»** | Más informes, sobre todo del coche de delante y el de detrás. |
+> | **«Mucha más información»** | Programa completo. |
+> | **«Radio normal»** | Vuelta al ritmo normal. |
+> | **«Spotter apagado»** / **«Spotter activado»** | Solo los avisos laterales de Sara (izquierda, derecha, libre). Amarillas, accidentes, coches lentos y safety car los avisa siempre. |
+>
+> La cantidad de radio se aplica al momento y queda guardada. En el programa está en **IA y radio** → **Cantidad de radio**. El spotter sigue apagado hasta que digas «spotter activado» o reinicies RRCA. Con qué frecuencia informa el equipo por su cuenta lo decide él mismo: según la duración de la carrera y la tensión.
+
 RRCA es una extensión gratuita y no oficial para [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). Te da un equipo de boxes con tres voces con el que puedes hablar durante la carrera:
 
 - **Ben** observa la carrera y se ocupa de la estrategia.
@@ -144,6 +156,8 @@ Haz todo esto con el simulador cerrado o parado en boxes, nunca conduciendo.
 **e) Tu nombre.** En **IA y radio** → **Tu perfil de piloto**, escribe tu nombre y, si quieres, un nombre corto para la radio. Pulsa **Aplicar** abajo.
 
 **f) Tu simulador.** En la página **Cockpit**, activa **Detectar simulador automáticamente**. RRCA pondrá en marcha el equipo cuando tu simulador esté abierto. También puedes elegir el simulador de la lista y pulsar **Iniciar**. En los ajustes del simulador tiene que estar activada la telemetría o la memoria compartida (shared memory); la documentación de Crew Chief lo explica para cada simulador.
+
+**g) Cantidad de radio e informes.** En **IA y radio** eliges la **Cantidad de radio**: Tranquila, Normal, Más información o Mucha más información. En **Informes periódicos por radio** ahora solo activas o desactivas temas. El ritmo lo pone el equipo: en carreras cortas de hasta 15 minutos cada tema técnico llega una o dos veces, en carreras más largas más a menudo. El coche de delante y el de detrás llegan más a menudo, el doble en un duelo cerrado. En fases tranquilas llegan neumáticos, daños, tiempo y temperatura de pista; en un duelo lo técnico espera. Eventos como daños, sanciones, amarillas o mejores vueltas llegan siempre al momento.
 
 ## 8. Tu primera prueba
 
