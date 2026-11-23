@@ -206,8 +206,9 @@ namespace UnitTest.AiTeamTests
                 schedule.Observe(gs, now, prefs);
                 var call = schedule.Take(new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = now }, prefs, false, null, !active);
                 if (call == null) continue;
+                var bundled = schedule.BundledTopics.ToArray();
                 call.MarkPlaybackStarted(now); call.MarkPlaybackFinished(now.AddSeconds(3), false);
-                heard[call.Topic] = (heard.TryGetValue(call.Topic, out int n) ? n : 0) + 1;
+                foreach (var topic in new[] { call.Topic }.Concat(bundled)) heard[topic] = (heard.TryGetValue(topic, out int n) ? n : 0) + 1;
             }
             int Heard(string topic) => heard.TryGetValue(topic, out int n) ? n : 0;
             Assert.GreaterOrEqual(Heard("status"), 9, "Rennstatus alle 113–128 s");

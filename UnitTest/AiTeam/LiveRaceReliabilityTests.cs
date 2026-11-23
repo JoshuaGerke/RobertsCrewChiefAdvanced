@@ -521,7 +521,7 @@ namespace UnitTest.AiTeamTests
             {
                 context.NowUtc=context.LastTelemetryUtc=T.AddSeconds(i);
                 var call=scheduler.Take(context,prefs,false,filterUnchanged:false);
-                if(call!=null){seen.Add(call.Topic);call.MarkPlaybackStarted(context.NowUtc);}
+                if(call!=null){seen.Add(call.Topic);foreach(var b in scheduler.BundledTopics)seen.Add(b);call.MarkPlaybackStarted(context.NowUtc);}
             }
             CollectionAssert.AreEquivalent(AiRadioPreferences.Options.Select(o=>o.Id),seen);
         }
