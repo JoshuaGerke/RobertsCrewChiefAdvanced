@@ -404,7 +404,8 @@ namespace CrewChiefV4.AiTeam
                 if (topic == "weather")
                 {
                     var reading = WeatherReading.From(gs);
-                    if (reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
+                    // Aktiv meldet laut Cockpit auch unveränderte Werte im gewählten Intervall; nur Normal bündelt (AMS2 Spa 23.11.).
+                    if (filterUnchanged && reading != null && lastWeather != null && !reading.ChangedFrom(lastWeather))
                     {
                         LiveDiagnostics.Decision(topic, "suppressed", "weather_unchanged");
                         continue;
@@ -413,7 +414,7 @@ namespace CrewChiefV4.AiTeam
                     outstandingWeather = reading;
                 }
                 string fuelMeasurement = topic == "fuel" ? FuelMeasurementKey(ctx) : null;
-                if (fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
+                if (filterUnchanged && fuelMeasurement != null && fuelMeasurement == lastFuelMeasurement &&
                     lastDeliveredUtc.TryGetValue(topic, out var lastFuel) && now - lastFuel < TimeSpan.FromMinutes(10) &&
                     FuelUnchangedAcrossLaps(ctx))
                 {
@@ -780,12 +781,19 @@ namespace CrewChiefV4.AiTeam
                 }
                 if(!s.SessionHasFixedTime && s.SessionNumberOfLaps>0 && s.SessionLapsRemaining>0 && s.SessionLapsRemaining<10000)
                 {
-                    int n=s.SessionLapsRemaining; bool one=n==1;
+                    // AMS2 Spa 23.11.: Die Restrunden der Sim folgen dem Führenden und zählen die laufende Runde mal mit, mal nicht.
+                    // Gesagt wird, was nach der laufenden Runde noch kommt – aus Robs eigenen Runden, gedeckelt durch die Sim (überrundet).
+                    int n=Math.Min(s.SessionNumberOfLaps-Math.Max(0,s.CompletedLaps)-1, s.SessionLapsRemaining);
+                    if(n<0) return null;
+                    if(n==0) return Of(variant,
+                        RadioLanguage.T("Das ist die letzte Runde.", "This is the last lap.", "Es la última vuelta."),
+                        RadioLanguage.T("Letzte Runde läuft.", "Final lap running.", "Vuelta final en curso."));
+                    bool one=n==1;
                     return Of(variant,
-                        RadioLanguage.T("Noch "+n+(one?" Runde.":" Runden."), n+(one?" lap to go.":" laps to go."), one?"Queda 1 vuelta.":"Quedan "+n+" vueltas."),
-                        RadioLanguage.T(n+(one?" Runde":" Runden")+" bis zur Flagge.", n+(one?" lap":" laps")+" to the flag.", n+(one?" vuelta":" vueltas")+" hasta la bandera."),
-                        RadioLanguage.T("Rundenstand: noch "+n+".", "Lap count: "+n+" remaining.", "Vueltas: quedan "+n+"."),
-                        RadioLanguage.T("Noch "+n+(one?" Runde":" Runden")+" zu fahren.", "Still "+n+(one?" lap":" laps")+" to run.", "Aún "+(one?"queda 1 vuelta":"quedan "+n+" vueltas")+" por rodar."));
+                        RadioLanguage.T("Nach dieser Runde noch "+n+".", "After this one, "+n+" more.", "Después de esta, "+(one?"queda 1.":"quedan "+n+".")),
+                        RadioLanguage.T("Nach dieser noch "+n+(one?" Runde":" Runden")+" bis zur Flagge.", n+(one?" more lap":" more laps")+" after this one to the flag.", (one?"1 vuelta más":n+" vueltas más")+" después de esta hasta la bandera."),
+                        RadioLanguage.T("Rundenstand: diese und noch "+n+".", "Lap count: this one and "+n+" more.", "Vueltas: esta y "+n+" más."),
+                        RadioLanguage.T("Diese Runde, dann noch "+n+(one?" Runde":" Runden")+" zu fahren.", "This lap, then "+n+(one?" lap":" laps")+" still to run.", "Esta vuelta y luego "+(one?"queda 1":"quedan "+n)+" por rodar."));
                 }
                 return null;
             }

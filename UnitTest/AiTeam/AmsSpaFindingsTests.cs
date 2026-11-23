@@ -165,5 +165,54 @@ namespace UnitTest.AiTeamTests
             }
             finally { DataTruth.Use(new DataTruth()); RadioVariants.Deterministic = wasDeterministic; }
         }
+
+        [Test]
+        public void Configured_reports_are_not_dropped_as_the_same_sentence()
+        {
+            var memory = new CrewMemory();
+            ObservedRaceCall Report(string topic, string text, int stated = 0) => new ObservedRaceCall { Topic = topic, Text = text, Priority = 1,
+                Member = TeamMember.Ben, SessionId = 5, StatedPosition = stated, Evidence = "configured_interval_current_measurements",
+                DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) };
+            var status = Report("status", "Platz 3. Seit dem Start 1 Platz gutgemacht.", 3);
+            memory.Remember(status, T);
+            Assert.IsFalse(memory.SaidRecently(Report("status", "Platz 3. Seit dem Start 1 Platz gutgemacht.", 3), T.AddSeconds(120)), "Rennstatus alle 120 s");
+            Assert.IsFalse(memory.NothingNew(Report("status", "P3, weiter so.", 3), T.AddSeconds(60), out _), "gleicher Platz im Bericht");
+            memory.Remember(Report("vehicle", "Auto in Ordnung, keine Schäden."), T);
+            Assert.IsFalse(memory.SaidRecently(Report("vehicle", "Auto in Ordnung, keine Schäden."), T.AddSeconds(200)));
+            // Ein anderer Wächter mit demselben Satz bleibt gesperrt.
+            Assert.IsTrue(memory.SaidRecently(new ObservedRaceCall { Topic = "race-status", Text = "Platz 3. Seit dem Start 1 Platz gutgemacht.", Priority = 2,
+                Member = TeamMember.Ben, SessionId = 5, DetectedUtc = T, ExpiresUtc = T.AddSeconds(30) }, T.AddSeconds(30)));
+        }
+
+        [TestCase(true), TestCase(false)]
+        public void Configured_reports_come_at_roberts_intervals_in_a_steady_race(bool active)
+        {
+            // Robs Cockpit 23.11.: Rennstatus 120 s, Wetter 300 s, Rennfortschritt 180 s, je −7/+8 s.
+            var prefs = new AiRadioPreferences();
+            foreach (var o in AiRadioPreferences.Options) prefs.Set(o.Id, 0);
+            prefs.Set("status", 120); prefs.Set("weather", 300); prefs.Set("progress", 180);
+            foreach (var id in new[] { "status", "weather", "progress" }) prefs.SetTolerance(id, 7, 8);
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionId = 5; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+            gs.SessionData.ClassPosition = 3; gs.SessionData.SessionNumberOfLaps = 30; gs.SessionData.SessionLapsRemaining = 20; gs.SessionData.CompletedLaps = 10;
+            gs.carClass = new CarData.CarClass(); gs.PositionAndMotionData.CarSpeed = 60;
+            gs.Conditions.UpdateLiveSample(T, 10, 1, 18, 24, 0, 0, 0, 0, 0, false, CrewChiefV4.Events.ConditionsMonitor.TrackStatus.UNKNOWN);
+            var schedule = new AiRadioSchedule(3);
+            var heard = new Dictionary<string, int>();
+            for (int t = 0; t <= 1200; t++)
+            {
+                var now = T.AddSeconds(t);
+                schedule.Observe(gs, now, prefs);
+                var call = schedule.Take(new RaceDataContext { GameState = gs, NowUtc = now, LastTelemetryUtc = now }, prefs, false, null, !active);
+                if (call == null) continue;
+                call.MarkPlaybackStarted(now); call.MarkPlaybackFinished(now.AddSeconds(3), false);
+                heard[call.Topic] = (heard.TryGetValue(call.Topic, out int n) ? n : 0) + 1;
+            }
+            int Heard(string topic) => heard.TryGetValue(topic, out int n) ? n : 0;
+            Assert.GreaterOrEqual(Heard("status"), 9, "Rennstatus alle 113–128 s");
+            Assert.GreaterOrEqual(Heard("progress"), 6, "Rennfortschritt alle 173–188 s");
+            if (active) Assert.GreaterOrEqual(Heard("weather"), 3, "Aktiv: Wetter auch unverändert alle 293–308 s");
+            else Assert.LessOrEqual(Heard("weather"), 1, "Normal: unverändertes Wetter wird gebündelt");
+        }
     }
 }

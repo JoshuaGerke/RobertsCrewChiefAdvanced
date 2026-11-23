@@ -33,9 +33,13 @@ namespace CrewChiefV4.AiTeam
             return n.Length < 8 ? null : n; // sehr kurze Sätze („Gelb.“) nicht unterdrücken
         }
 
-        /// <summary>Sicherheit, Warnungen, Flaggen und Spotter laufen nie über das Gedächtnis.</summary>
+        /// <summary>
+        /// Sicherheit, Warnungen, Flaggen und Spotter laufen nie über das Gedächtnis. Die im Cockpit eingestellten Funkberichte auch
+        /// nicht (AMS2 Spa 23.11.: Rennstatus alle 120 s kam fast nie, „Auto in Ordnung“ und Rennfortschritt fielen als „derselbe
+        /// Satz“ weg). Ob ein unveränderter Bericht im Modus Normal gebündelt wird, entscheidet allein der Funkplan.
+        /// </summary>
         internal static bool Exempt(ObservedRaceCall call) =>
-            call == null || call.Priority >= 6 || call.Member == TeamMember.Sara ||
+            call == null || call.Priority >= 6 || call.Member == TeamMember.Sara || RaceMind.RoutineReport(call) ||
             (call.Topic ?? "").StartsWith("warning-", StringComparison.Ordinal) || (call.Topic ?? "").StartsWith("race-hazard", StringComparison.Ordinal) ||
             (call.Topic ?? "").StartsWith("flag", StringComparison.Ordinal) || (call.Topic ?? "").StartsWith("spotter", StringComparison.Ordinal);
 
