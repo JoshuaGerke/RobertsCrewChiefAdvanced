@@ -473,6 +473,8 @@ namespace CrewChiefV4.AiTeam
                     ["reicht_fuer_runden"] = energy.LapsLeft > 0 ? (JToken)Math.Round(energy.LapsLeft, 1) : null,
                     ["hinweis"] = "LMU-Klassen mit Energie-Limit: Die Reichweite begrenzt, was zuerst leer ist – Energie oder Sprit. Verbrauch nur aus gemessenen sauberen Runden."
                 };
+            if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale)
+                o["verbrauch_scheint_aus"] = "Der Tankinhalt bewegt sich seit über einer Minute Fahrt nicht (z. B. Verbrauch serverseitig aus). Keine Reichweite, kein Boxenfenster und keine Spritwarnung ableiten.";
             if (!f.FuelUseActive || !Finite(f.FuelLeft) || f.FuelLeft < 0 || f.FuelLeft > 10000)
             {
                 missing.Add("tankinhalt");

@@ -85,6 +85,8 @@ namespace CrewChiefV4.AiTeam
             provisional = false;
             fullLaps = 0;
             if (memory == null) return -1;
+            // Verbrauch ausgeschaltet (AMS2 Spa 23.11.): auch keinen Verbrauch aus Training oder Quali mitnehmen.
+            if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale) return -1;
             float average = memory.AverageFuelPerLap(out fullLaps);
             if (fullLaps > 0) return average;
             float estimate = memory.ProvisionalFuelPerLap(state);
@@ -101,6 +103,8 @@ namespace CrewChiefV4.AiTeam
             if (ctx == null || ctx.GameState == null || ctx.Memory == null) return null;
             var gs=ctx.GameState; var s=gs.SessionData;
             if (!gs.FuelData.FuelUseActive || !Finite(gs.FuelData.FuelLeft) || gs.FuelData.FuelLeft < 0 || s.SessionType!=SessionType.Race) return null;
+            // Verbrauch ausgeschaltet (Tank steht still): keine Reichweite und kein Boxenfenster aus Training oder Quali hochrechnen.
+            if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale) return null;
             float perLap = Consumption(ctx.Memory, gs, out bool provisional, out int sampleCount);
             if ((!provisional && sampleCount < minimumMeasuredLaps) || !Finite(perLap) || perLap <= 0) return null;
 

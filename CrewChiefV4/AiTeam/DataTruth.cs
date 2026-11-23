@@ -83,6 +83,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         private readonly Dictionary<SimChannel, Track> tracks = new Dictionary<SimChannel, Track>();
+        private readonly HashSet<SimChannel> noticed = new HashSet<SimChannel>();
         private readonly object gate = new object();
         private int session = int.MinValue;
         private DateTime lastObserved = DateTime.MinValue;
@@ -92,7 +93,7 @@ namespace CrewChiefV4.AiTeam
 
         internal void Reset()
         {
-            lock (gate) { foreach (SimChannel c in tracks.Keys.ToList()) tracks[c] = new Track(); lastObserved = DateTime.MinValue; session = int.MinValue; }
+            lock (gate) { foreach (SimChannel c in tracks.Keys.ToList()) tracks[c] = new Track(); noticed.Clear(); lastObserved = DateTime.MinValue; session = int.MinValue; }
         }
 
         private static string Round(float v, float step) => float.IsNaN(v) || float.IsInfinity(v) ? "x" : Math.Round(v / step).ToString(CultureInfo.InvariantCulture);
@@ -166,6 +167,7 @@ namespace CrewChiefV4.AiTeam
                 if (gs.SessionData.SessionId != session || Game.gameType != game)
                 {
                     foreach (SimChannel c in tracks.Keys.ToList()) tracks[c] = new Track();
+                    noticed.Clear();
                     session = gs.SessionData.SessionId; game = Game.gameType; lastObserved = DateTime.MinValue;
                 }
                 double dt = lastObserved == DateTime.MinValue ? 0 : (now - lastObserved).TotalSeconds;
@@ -201,6 +203,16 @@ namespace CrewChiefV4.AiTeam
                 if (limit != TimeSpan.MaxValue && t.DrivenSinceChange >= limit.TotalSeconds) return ChannelState.Stale;
                 return t.Changes > 0 ? ChannelState.Live : ChannelState.Unknown;
             }
+        }
+
+        /// <summary>
+        /// AMS2 Spa 23.11.: Verbrauch und Verschleiß waren serverseitig aus; Tank und Reifen standen still. Die Crew sagt das einmal
+        /// pro Session kurz und schweigt danach zu diesem Kanal. true nur beim ersten Aufruf, solange der Kanal eingefroren ist.
+        /// </summary>
+        internal bool ClaimFrozenNotice(SimChannel c)
+        {
+            if (State(c) != ChannelState.Stale) return false;
+            lock (gate) return noticed.Add(c);
         }
 
         /// <summary>Darf die Crew Werte dieses Kanals als aktuell nennen? Unbekannt zählt als ja (Bestandsschutz).</summary>

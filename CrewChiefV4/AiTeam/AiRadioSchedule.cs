@@ -590,6 +590,18 @@ namespace CrewChiefV4.AiTeam
             return parts.Count>0?string.Join(" ",parts):null;
         }
 
+        /// <summary>Einmalige Meldung, wenn die Sim Verbrauch oder Verschleiß nicht bewegt (z. B. serverseitig ausgeschaltet).</summary>
+        internal static string FrozenNotice(SimChannel c, string litres)
+        {
+            if (c == SimChannel.Fuel)
+                return RadioLanguage.T("Der Tank steht seit über einer Minute Fahrt bei " + litres + " Litern. Verbrauch ist hier offenbar aus, zum Sprit melde ich mich erst wieder, wenn er sich bewegt.",
+                    "Fuel has been stuck at " + litres + " litres for over a minute of driving. Consumption seems to be off here, I'll only report fuel again once it moves.",
+                    "El depósito lleva más de un minuto en " + litres + " litros. El consumo parece desactivado, no volveré a hablar de combustible hasta que se mueva.");
+            return RadioLanguage.T("Die Reifen zeigen keinen Verschleiß. Der ist hier offenbar aus, dazu melde ich mich erst wieder, wenn sich etwas tut.",
+                "The tyres show no wear. It seems to be off here, I'll only report tyres again once something changes.",
+                "Los neumáticos no muestran desgaste. Parece desactivado, no volveré a hablar de ellos hasta que cambie algo.");
+        }
+
         public static string Compose(string topic, RaceDataContext ctx, int variant = 0) => Compose(topic, ctx, variant, out _);
 
         private static string Compose(string topic, RaceDataContext ctx, int variant, out string template)
@@ -652,6 +664,9 @@ namespace CrewChiefV4.AiTeam
             if (topic == "fuel")
             {
                 if (!gs.FuelData.FuelUseActive || !Good(gs.FuelData.FuelLeft, .1, 1000)) return null;
+                // AMS2 Spa 23.11.: Verbrauch serverseitig aus, der Tank stand bei 12,5 l. Einmal kurz sagen, danach nichts mehr zum Sprit.
+                if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale)
+                    return DataTruth.Current.ClaimFrozenNotice(SimChannel.Fuel) ? FrozenNotice(SimChannel.Fuel, Number(gs.FuelData.FuelLeft)) : null;
                 float perLap = ctx.Memory == null ? -1 : ctx.Memory.AverageFuelPerLap();
                 string litres = Number(gs.FuelData.FuelLeft);
                 var catalog = RadioPhraseCatalog.Current;
@@ -675,8 +690,14 @@ namespace CrewChiefV4.AiTeam
             {
                 var t = gs.TyreData; if (!t.TyreWearActive) return null;
                 // Datenwahrheit: eingefrorene (z. B. erst nach dem Stopp aktualisierte) oder nicht gelieferte Werte nicht als aktuell melden.
-                if (!DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear)) return null;
                 float[] wear = { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear };
+                if (!DataTruth.Current.MaySpeakAsCurrent(SimChannel.TyreWear))
+                {
+                    // Steht der Verschleiß praktisch bei null still, ist er ausgeschaltet (AMS2 Spa 23.11.): einmal sagen. Steht er bei
+                    // einem echten Wert still (Sims, die erst beim Stopp aktualisieren), bleibt es beim Schweigen.
+                    bool off = wear.All(w => !float.IsNaN(w) && w >= 0 && w < 1);
+                    return off && DataTruth.Current.ClaimFrozenNotice(SimChannel.TyreWear) ? FrozenNotice(SimChannel.TyreWear, null) : null;
+                }
                 if (!wear.All(w => Good(w, 0, 100))) return null;
                 // Rob 16.11.: abwechselnd technisch und menschlich, mit fundierter Hochrechnung (nur kalibrierte Simulationen).
                 // Ohne messbaren Verschleiß (manche Sims melden dauerhaft 0) gibt es nichts zu berichten.

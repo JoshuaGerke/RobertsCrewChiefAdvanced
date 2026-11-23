@@ -137,5 +137,33 @@ namespace UnitTest.AiTeamTests
             var next = Run(18.5, 19);
             Assert.IsNotNull(next); Assert.AreEqual("race-end", next.Topic);
         }
+
+        [Test]
+        public void Switched_off_fuel_and_wear_are_said_once_then_silence()
+        {
+            var truth = new DataTruth();
+            bool wasDeterministic = RadioVariants.Deterministic;
+            try
+            {
+                DataTruth.Use(truth);
+                var gs = new GameStateData(T.Ticks);
+                gs.SessionData.SessionId = 9; gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green;
+                gs.PositionAndMotionData.CarSpeed = 60;
+                gs.FuelData.FuelUseActive = true; gs.FuelData.FuelLeft = 12.5f;
+                var t = gs.TyreData; t.TyreWearActive = true;
+                t.FrontLeftPercentWear = t.FrontRightPercentWear = t.RearLeftPercentWear = t.RearRightPercentWear = 0.00041f;
+                for (int i = 0; i <= 200; i++) truth.Observe(gs, T.AddSeconds(i));
+                Assert.AreEqual(ChannelState.Stale, truth.State(SimChannel.Fuel));
+                Assert.IsTrue(truth.ClaimFrozenNotice(SimChannel.Fuel), "einmal sagen");
+                Assert.IsFalse(truth.ClaimFrozenNotice(SimChannel.Fuel), "danach still");
+                Assert.AreEqual(-1f, FuelEstimate.Consumption(new AiRaceMemory(), gs, out _, out _), "kein Verbrauch aus Training oder Quali");
+                StringAssert.Contains("12,5", AiRadioSchedule.FrozenNotice(SimChannel.Fuel, "12,5"));
+                Assert.IsTrue(truth.ClaimFrozenNotice(SimChannel.TyreWear));
+                // Neue Session: die Notiz darf wieder einmal kommen.
+                gs.SessionData.SessionId = 10; truth.Observe(gs, T.AddSeconds(201));
+                Assert.AreNotEqual(ChannelState.Stale, truth.State(SimChannel.Fuel));
+            }
+            finally { DataTruth.Use(new DataTruth()); RadioVariants.Deterministic = wasDeterministic; }
+        }
     }
 }
