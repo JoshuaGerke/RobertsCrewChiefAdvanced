@@ -348,6 +348,7 @@
     <Compile Include="AiTeam\RadioArbiter.cs" />
     <Compile Include="AiTeam\ThermalWatch.cs" />
     <Compile Include="AiTeam\NumericDamageWatch.cs" />
+    <Compile Include="AiTeam\NativeCarSystems.cs" />
     <Compile Include="AiTeam\NativeFieldEvents.cs" />
     <Compile Include="AiTeam\NativeIncidentWatch.cs" />
     <Compile Include="AiTeam\NativeRaceControl.cs" />

@@ -36,6 +36,7 @@ namespace CrewChiefV4.AiTeam
         private readonly InterruptedRadio interruptedRadio = new InterruptedRadio();
         private readonly QualifyingResultWatch qualifyingResults = new QualifyingResultWatch();
         private readonly LiveWarningDispatcher liveWarnings = new LiveWarningDispatcher();
+        private readonly NativeCarSystemEvents carSystems = new NativeCarSystemEvents();
         private readonly ChronicleRecorder chronicleRecorder = new ChronicleRecorder();
         private DateTime lastAcNativeEmit = DateTime.MinValue;
         private readonly NativeFieldEvents fieldEvents = new NativeFieldEvents();
@@ -257,6 +258,9 @@ namespace CrewChiefV4.AiTeam
                         catch(Exception e){CaptureFailed("live_warning",m,e);}
                         try{fieldEvents.Capture(m.NativeFieldEvent);}
                         catch(Exception e){CaptureFailed("field_event",m,e);}
+                        // Rob 23.11.: DRS, Push-to-Pass, Fahrerwechsel und Batterie erkennt Crew Chief, die Crew sagt es.
+                        try{carSystems.Capture(m.messageFolders,m.messageName,CrewChief.currentGameState,DateTime.UtcNow);}
+                        catch(Exception e){CaptureFailed("car_systems",m,e);}
                     }
                     return allowed;
                 })
@@ -388,6 +392,7 @@ namespace CrewChiefV4.AiTeam
                 raceTraffic.Reset();
                 qualifyingResults.Reset();
                 liveWarnings.Reset();
+                carSystems.Reset();
                 fieldEvents.Reset();
                 timingEvents.Reset();pendingTimingDelivery=null;
                 Interlocked.Exchange(ref pendingDamageAdvice, null);
@@ -770,6 +775,7 @@ namespace CrewChiefV4.AiTeam
             else if(pendingTimingDelivery!=null && !pendingTimingDelivery.IsValid(current,now))pendingTimingDelivery=null;
             liveWarnings.IncidentName = settings.SendDriverNames ? (Func<GameStateData, DateTime, string>)FlagWatch.IncidentName : null;
             liveWarnings.Observe(current,now);
+            carSystems.Observe(current,now);
             // Rennleitung aller Sims (Startvergehen, Abkürzen mit Frist, Verwarnung, Box zu/offen …): Chronik, Lagebild, Pflichtfunk.
             raceControlFeed.Observe(current, now, liveWarnings);
             // Rohdatentafel: jedes Feld der Sim-Schnittstelle mit Zustand und Alter, höchstens alle 500 ms.
@@ -803,6 +809,8 @@ namespace CrewChiefV4.AiTeam
                     live => !live.PitData.InPitlane && live.SessionData.CompletedLaps == limitLap, "lmu_native_track_limit_steps=" + lmuNative.TrackLimitsSteps, limitLap);
             }
             var raceCall = liveWarnings.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled);
+            // Box zum Fahrerwechsel, Batterie leer: so dringend wie eine Warnung. Der Rest der Fahrzeugsysteme wartet weiter unten auf freien Funk.
+            if (raceCall == null) raceCall = carSystems.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,true,settings.IsMemberEnabled);
             if (raceCall == null) raceCall = pitLaneWatch.Take(current,now,pitBusy,7);
             if (raceCall == null) raceCall = pitDamage.Take(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy, settings.IsMemberEnabled);
             if (raceCall == null) raceCall = incidentPoints.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,settings.IsMemberEnabled(TeamMember.Mik));
@@ -810,6 +818,8 @@ namespace CrewChiefV4.AiTeam
             // Rob 16.11.: Reifen-Grip (heiß, im Fenster, dreckig) – Mik, sobald der Funk frei ist.
             if (raceCall == null) raceCall = tyreWear.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Mik));
             if (raceCall == null) raceCall = tyreGrip.Take(current,now,Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled(TeamMember.Mik));
+            if (raceCall == null) raceCall = carSystems.Take(current,now,Spotter().HasOverlap || radioRenderGate.UrgentBusy,
+                Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,settings.IsMemberEnabled);
             var damageAdvice = Interlocked.Exchange(ref pendingDamageAdvice, null);
             if (damageAdvice != null && damageAdvice.IsValid(current, now)) activeRace.Enqueue(damageAdvice);
             bool ownLapBusy = settings.RadioMode == AiRadioMode.MINIMAL ||
