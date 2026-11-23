@@ -264,6 +264,27 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Every_race_control_call_has_at_least_four_wordings()
+        {
+            RadioVariants.Deterministic = false;
+            var gs = Race(out var krobber, out var valgo);
+            string[] codes = { "dq", "start-jump", "start-side", "formation-side", "pitlane-start", "meatball", "red", "slippery", "warning",
+                "cut-giveback", "cut-penalty", "input-lock", "fcy-pits-closed", "fcy-pits-lead-lap", "fcy-pits-open", "fcy-last-lap-next",
+                "fcy-last-lap", "one-to-green", "rival-penalty" };
+            foreach (var language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = language;
+                foreach (string code in codes)
+                {
+                    var e = new RaceControlEvent { Code = code, Value = 5, Remaining = 300, Count = 1, Car = code == "rival-penalty" ? "Krobber" : null };
+                    var seen = Enumerable.Range(0, 60).Select(_ => RaceControlRadio.Call(e, gs).Text).Distinct().Count();
+                    Assert.That(seen, Is.GreaterThanOrEqualTo(4), language + " " + code);
+                }
+            }
+            RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        [Test]
         public void Every_story_has_four_to_six_wordings_in_every_language()
         {
             RadioVariants.Deterministic = false;
