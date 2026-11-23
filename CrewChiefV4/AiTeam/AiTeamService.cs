@@ -1566,6 +1566,7 @@ namespace CrewChiefV4.AiTeam
                         "\nvorherige_sitzung_referenz enthält historische eigene Messungen. Nenne ihre Herkunft und leite daraus keine aktuelle Reichweite ab." +
                         "\nBei Rückfragen zu einem Manöver werte bestaetigte_ereignisse_seit_45s in ihrer Reihenfolge aus; die aktuelle Position widerlegt einen früheren Platzgewinn nicht. " +
                         "Für die Rennrundenzahl gilt runden_absolviert; vergleichbare Runden sind eine Teilmenge. Nenne nur ausgewiesene Pace-Deltas." +
+                        LiveAnswerRules +
                         "\n\nAktuelle Lage (Live-Daten mit Reifen, Sprit, direkten Gegnern und Box). Reicht sie für die Antwort, antworte direkt " +
                         "ohne Werkzeug. Werkzeuge nur für Details, die hier fehlen (Stintverlauf, Rundenzeiten, Schäden/Motor, Wetter, Ereignisse):\n" +
                         liveFacts.ToString(Newtonsoft.Json.Formatting.None) +
@@ -1582,6 +1583,18 @@ namespace CrewChiefV4.AiTeam
             return await RunToolLoopAsync(client, model, OpenAiCompatibleClient.RadioReasoningEffort(settings.ReasoningEffort, longAllowed && NeedsDeepModel(routed.Question)), messages, longAllowed ? 600 : 250, longAllowed ? 600 : 260,
                 () => BuildContext(CrewChief.currentGameState), () => Interlocked.Increment(ref callsThisSession), Log, ct, remaining, singleShot).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// AMS2 Spa 23.11.: Die KI widerrief eine richtige Rechnung (139,001 − 137,226 = 1,8 s), sobald Rob widersprach, und erklärte
+        /// ihre Live-Abstände für „veraltet“, als er SimHub-Werte nannte. Strafe, Rundengültigkeit und Standort beantwortete sie mit
+        /// „kann ich nicht prüfen“, obwohl die Werte im Lagebild standen.
+        /// </summary>
+        internal const string LiveAnswerRules =
+            "\nWiderspricht der Fahrer einer Zahl, rechne sie mit den Live-Daten nach. Stimmt deine Zahl, bleib freundlich dabei und nenne kurz die Rechnung; " +
+            "gib nur nach, wenn die Daten ihm recht geben. Nennt er Werte aus einer anderen Anzeige, erkläre den Unterschied über die Messart, " +
+            "nicht über veraltete Daten, solange messalter_s klein ist." +
+            "\nStrafen (strafen), Gültigkeit der laufenden Runde (aktuelle_runde_gueltig), eigener Standort (eigene_streckenposition) und stehende Autos " +
+            "(feld_stehend_oder_sehr_langsam) stehen im Lagebild. Antworte damit direkt statt mit „kann ich nicht prüfen“.";
 
         internal static string RaceTone(DriverWorkloadMode mode, bool lastLap)
         {
@@ -1873,13 +1886,12 @@ namespace CrewChiefV4.AiTeam
                 "temperatur", "heiß", "heiss", "temperature", "hot", "caliente",
                 "weather", "rain", "damage", "engine", "history", "corner", "who is", "leader", "pit",
                 "clima", "lluvia", "daño", "curva", "quién", "boxes",
-                // AMS2 Spa 23.11.: „45 Sekunden Zeitstrafe?“, „Ist diese Runde gültig?“, „JJ ist plötzlich ganz nah“ und „notieren“
-                // liefen ohne Werkzeug und endeten mit „kann ich nicht verifizieren“, obwohl die Werte live da waren. Auch eine
-                // Gegenrechnung des Fahrers („falsch“, „stimmt nicht“) wird jetzt an den Daten geprüft statt einfach übernommen.
-                "strafe", "verwarn", "gültig", "gueltig", "ungültig", "track limit", "nah", "dran", "rechn", "notier", "speicher",
-                "falsch", "stimmt nicht", "korrig",
-                "penalty", "warning", "valid", "close", "note", "save", "wrong", "correct",
-                "sanción", "sancion", "penaliz", "válid", "cerca", "apunta", "guarda", "incorrect" };
+                // AMS2 Spa 23.11.: Strafe, Rundengültigkeit, Standort und Abstand stehen jetzt im Lagebild (schnelle Antwort genügt).
+                // Notizen und Wünsche („notieren“, „das muss automatisch kommen“) brauchen save_note, und eine Gegenrechnung des
+                // Fahrers („falsch“, „stimmt nicht“) wird mit den Rundenzeiten geprüft statt einfach übernommen.
+                "rechn", "notier", "speicher", "falsch", "stimmt nicht", "korrig", "automatisch", "öfter", "oefter", "häufiger", "einbau",
+                "note", "save", "wrong", "correct", "automatic", "more often",
+                "apunta", "guarda", "incorrect", "automátic", "más a menudo" };
             return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;
         }
 

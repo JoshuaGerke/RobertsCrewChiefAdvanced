@@ -1209,11 +1209,75 @@ namespace CrewChiefV4.AiTeam
                 (IncidentWatch.IsSerious(damageNow) || damageNow.WheelDetached != null && damageNow.WheelDetached.Any(w => w)))
                 o["schaden_schwer"] = IncidentWatch.DamageReport(damageNow, true, includeAdvice: false);
             if (s.IsDNF) o["rennen_aufgegeben"] = true;
+            AddLiveVerdicts(o, ctx);
             if (ctx.GameState.FuelData.FuelUseActive && Finite(ctx.GameState.FuelData.FuelLeft) && ctx.GameState.FuelData.FuelLeft > 0 && ctx.GameState.FuelData.FuelLeft <= 10000)
             {
                 o["tankinhalt_l"] = Math.Round(ctx.GameState.FuelData.FuelLeft, 1);
             }
             return o;
+        }
+
+        /// <summary>
+        /// AMS2 Spa 23.11.: „45 s Zeitstrafe?“, „Ist diese Runde gültig?“, „Schau, wo ich bin“ und „Steht da einer?“ endeten mit
+        /// „kann ich nicht prüfen“, obwohl Strafenfeld, Rundengültigkeit, Rundenmeter und Crew Chiefs Stillstandserkennung live da
+        /// waren. Sie gehören in jedes Lagebild, damit auch die schnelle Antwort ohne Werkzeug sie kennt.
+        /// </summary>
+        internal static void AddLiveVerdicts(JObject o, RaceDataContext ctx)
+        {
+            var gs = ctx?.GameState;
+            if (gs == null) return;
+            var s = gs.SessionData;
+            var pen = gs.PenaltiesData;
+            if (pen != null)
+            {
+                var p = new JObject
+                {
+                    ["offene_strafen"] = Math.Max(0, pen.NumOutstandingPenalties),
+                    ["quelle"] = "strafenfeld_des_simulators",
+                };
+                if (pen.PenaltyType != PenatiesData.DetailedPenaltyType.NONE) p["typ"] = pen.PenaltyType.ToString();
+                if (pen.PenaltyCause != PenatiesData.DetailedPenaltyCause.NONE) p["grund"] = pen.PenaltyCause.ToString();
+                if (pen.Warning != PenatiesData.WarningMessage.NONE) p["verwarnung"] = pen.Warning.ToString();
+                if (pen.CutTrackWarnings > 0) p["track_limit_verwarnungen"] = pen.CutTrackWarnings;
+                if (pen.HasDriveThrough) p["durchfahrt"] = true;
+                if (pen.HasStopAndGo) p["stop_and_go"] = true;
+                if (pen.HasTimeDeduction) p["zeitstrafe"] = true;
+                if (pen.HasSlowDown) p["slow_down"] = true;
+                o["strafen"] = p;
+            }
+            if (s.SessionPhase == SessionPhase.Green || s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.FullCourseYellow)
+                o["aktuelle_runde_gueltig"] = s.CurrentLapIsValid;
+            float length = s.TrackDefinition?.trackLength ?? 0, distance = gs.PositionAndMotionData.DistanceRoundTrack;
+            bool located = Finite(length) && length > 500 && Finite(distance) && distance >= 0 && distance <= length;
+            if (located)
+            {
+                var where = new JObject { ["rundenmeter"] = Math.Round(distance), ["streckenlaenge_m"] = Math.Round(length),
+                    ["rundenanteil_prozent"] = Math.Round(100.0 * distance / length) };
+                if (s.SectorNumber > 0) where["sektor"] = s.SectorNumber;
+                o["eigene_streckenposition"] = where;
+            }
+            if (s.SessionPhase != SessionPhase.Green && s.SessionPhase != SessionPhase.FullCourseYellow) return;
+            var stopped = new JArray();
+            foreach (var op in gs.OpponentData.Values)
+            {
+                if (op == null || !op.IsActive || op.InPits) continue;
+                bool crewChief = !string.IsNullOrEmpty(op.stoppedInLandmark);
+                bool still = Finite(op.Speed) && op.Speed >= 0 && op.Speed < 5 && Finite(op.DistanceRoundTrack) && op.DistanceRoundTrack > 0;
+                if (!crewChief && !still) continue;
+                var car = new JObject { ["kmh"] = Math.Round(op.Speed * 3.6), ["streckenmeter"] = Math.Round(op.DistanceRoundTrack),
+                    ["klassenplatz"] = op.ClassPosition };
+                if (ctx.SendDriverNames && !string.IsNullOrEmpty(op.DriverRawName)) car["name"] = op.DriverRawName;
+                if (crewChief) car["crew_chief_kurve"] = op.stoppedInLandmark;
+                if (located)
+                {
+                    float ahead = op.DistanceRoundTrack - distance;
+                    if (ahead < 0) ahead += length;
+                    car["meter_vor_dir"] = Math.Round(ahead);
+                }
+                stopped.Add(car);
+                if (stopped.Count >= 4) break;
+            }
+            o["feld_stehend_oder_sehr_langsam"] = stopped;
         }
 
         // ---------- Hilfsfunktionen ----------

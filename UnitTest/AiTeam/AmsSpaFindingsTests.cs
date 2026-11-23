@@ -64,11 +64,33 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Questions_about_penalties_validity_closeness_and_corrections_use_the_data()
         {
-            foreach (var q in new[] { "45 Sekunden Zeitstrafe?", "Ist diese Runde gültig?", "JJ ist plötzlich ganz nah, vorne.", "Dann notieren, sehr genau rechnen.",
-                "Das ist falsch, Kozmy fährt 2:17 und ich 2:19.", "Do I have a penalty?", "¿Tengo una sanción?" })
+            foreach (var q in new[] { "Dann notieren, sehr genau rechnen.", "Das ist falsch, Kozmy fährt 2:17 und ich 2:19.",
+                "Das müsste automatisch kommen.", "Gute Ansage, öfter bitte." })
                 Assert.IsTrue(AiTeamService.NeedsTools(q, null), q);
-            foreach (var q in new[] { "Wie viel Sprit habe ich noch?", "Wie groß ist der Abstand nach vorne?", "Welche Position?", "Völlig okay so?", "Noch mal bitte?" })
+            // Diese Werte stehen im Lagebild: die schnelle Antwort ohne Werkzeugrunde reicht.
+            foreach (var q in new[] { "45 Sekunden Zeitstrafe?", "Ist diese Runde gültig?", "JJ ist plötzlich ganz nah, vorne.", "Wie viel Sprit habe ich noch?",
+                "Wie groß ist der Abstand nach vorne?", "Welche Position?", "Völlig okay so?", "Noch mal bitte?" })
                 Assert.IsFalse(AiTeamService.NeedsTools(q, null), q);
+            StringAssert.Contains("gib nur nach", AiTeamService.LiveAnswerRules);
+        }
+
+        [Test]
+        public void Briefing_carries_penalty_lap_validity_location_and_stopped_cars()
+        {
+            var gs = new GameStateData(T.Ticks);
+            gs.SessionData.SessionType = SessionType.Race; gs.SessionData.SessionPhase = SessionPhase.Green; gs.SessionData.CurrentLapIsValid = true;
+            gs.SessionData.TrackDefinition = new TrackDefinition("Spa", 7004f);
+            gs.PositionAndMotionData.DistanceRoundTrack = 6700;
+            gs.OpponentData["jj"] = new OpponentData { DriverRawName = "JJ", Speed = 2f, DistanceRoundTrack = 6900, ClassPosition = 2 };
+            gs.OpponentData["k"] = new OpponentData { DriverRawName = "Kozmy", Speed = 60f, DistanceRoundTrack = 1200, ClassPosition = 1 };
+            var o = new Newtonsoft.Json.Linq.JObject();
+            RaceDataTools.AddLiveVerdicts(o, new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T });
+            Assert.AreEqual(0, (int)o["strafen"]["offene_strafen"]);
+            Assert.IsTrue((bool)o["aktuelle_runde_gueltig"]);
+            Assert.AreEqual(6700, (int)o["eigene_streckenposition"]["rundenmeter"]);
+            var stopped = (Newtonsoft.Json.Linq.JArray)o["feld_stehend_oder_sehr_langsam"];
+            Assert.AreEqual(1, stopped.Count);
+            Assert.AreEqual(200, (int)stopped[0]["meter_vor_dir"]);
         }
 
         [Test]
