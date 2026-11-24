@@ -6,7 +6,18 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.37: best laps, top speed and clear roles.**
+> **New in Alpha 0.38: bug fixes after the LMU race at Algarve.**
+>
+> - **Sara comes first.** Yellow flags, accidents, stopped and slow cars cut Ben and Mik off at once. She only cuts an answer to your question for a real hazard.
+> - **Two tiers for all calls.** Important calls come at once, everything else queues and comes as soon as the radio is free. Time spent waiting behind running radio does not count as age, and a call is only dropped when its content is really out of date.
+> - **Yellow with names**: "Yellow, there's an accident ahead", "Yellow, a car is stopped ahead" or "Yellow, a slow car ahead", each with the driver's name. Sara no longer reports other drivers' contacts that have no consequences.
+> - **Retirements** are reported by Sara under yellow too.
+> - **Sector bests in the race** are compared by Ben with the sector of the fastest lap in your class, with the name. Implausible gains from the start lap are dropped.
+> - **Top speed really comes twice.** If the call is lost, it comes back later. Only cars that are still running and have a name are named.
+> - **Ben's big summary**: once in races up to 30 minutes, twice up to 60 minutes, three times in longer races.
+> - **The fights stay the core**: car ahead, car behind, gap to the leader and best lap comparisons come as before.
+>
+> **Since Alpha 0.37: best laps, top speed and clear roles.**
 >
 > - **Every best lap in the field is called**, with the name and the gap to your best, in practice, qualifying and the race, also on the start lap and the last lap. The call waits for a gap on the radio and only lapses once someone is faster. If you have no counted race lap yet, Ben compares with your best today or your last lap.
 > - **Top speed twice per race**: in the first third and the last quarter Ben names the three fastest on the straight and your figure with your rank.

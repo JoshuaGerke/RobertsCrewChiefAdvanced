@@ -6,7 +6,18 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.37: Bestzeiten, Topspeed und klare Zuständigkeiten.**
+> **Neu in Alpha 0.38: Fehlerbehebungen nach dem LMU-Rennen in Algarve.**
+>
+> - **Sara hat Vorrang.** Gelb, Unfälle, stehende und langsame Wagen unterbrechen Ben und Mik sofort. Antworten auf deine Fragen unterbricht sie nur bei echter Gefahr.
+> - **Zwei Stufen für alle Ansagen.** Wichtige Meldungen kommen sofort, alles andere stellt sich an und kommt, sobald Luft ist. Die Wartezeit hinter laufendem Funk zählt nicht als Alter, eine Meldung entfällt nur, wenn ihr Inhalt wirklich veraltet ist.
+> - **Gelb mit Namen**: „Gelb, vorne ist ein Unfall“, „Gelb, vorne steht ein Wagen“ oder „Gelb, vorne ist ein langsames Fahrzeug“, jeweils mit dem Fahrernamen. Kontakte anderer Fahrer ohne Folgen meldet Sara nicht mehr.
+> - **Ausfälle** meldet Sara auch unter Gelb.
+> - **Sektor-Bestzeiten im Rennen** vergleicht Ben mit dem Sektor der schnellsten Runde deiner Klasse, mit Namen. Unplausible Gewinne aus der Startrunde fallen weg.
+> - **Topspeed kommt wirklich zweimal.** Fällt die Meldung aus, kommt sie später wieder. Genannt werden nur Wagen, die noch fahren und einen Namen haben.
+> - **Bens große Zusammenfassung**: einmal in Rennen bis 30 Minuten, zweimal bis 60 Minuten, dreimal in längeren Rennen.
+> - **Die Kämpfe bleiben der Kern**: Vordermann, Hintermann, Abstand zur Spitze und Bestzeitvergleiche kommen wie bisher.
+>
+> **Seit Alpha 0.37: Bestzeiten, Topspeed und klare Zuständigkeiten.**
 >
 > - **Jede Bestzeit im Feld wird angesagt**, mit Namen und dem Abstand zu deiner Bestzeit, im Training, im Qualifying und im Rennen, auch in der Startrunde und in der letzten Runde. Die Meldung wartet, bis Luft ist, und verfällt erst, wenn jemand schneller war. Hast du im Rennen noch keine gewertete Runde, vergleicht Ben mit deiner Bestzeit von heute oder deiner letzten Runde.
 > - **Topspeed zweimal im Rennen**: im ersten Drittel und im letzten Viertel nennt Ben die drei Schnellsten auf der Geraden und deinen Wert mit Platz.
