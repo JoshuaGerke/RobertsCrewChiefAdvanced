@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CrewChiefV4;
@@ -100,6 +100,10 @@ namespace UnitTest.AiTeamTests
             // Jeder Lauf beginnt mit leerem Satzgedächtnis und fester Formulierungswahl. Sonst hängt das Ergebnis davon ab,
             // welche Tests vorher liefen und welche Formulierung der Zufall wählte (CI 24.11.: einmal iRacing, einmal AC EVO knapp drüber).
             PhraseMemory.Clear(); RadioVariants.Seed(7);
+            // Das Fahrergedächtnis lädt im Hintergrund gespeicherte Funkwünsche („Abstände häufiger/seltener“). Je nachdem, ob es
+            // schon fertig war, änderte sich der Takt von Vorder- und Hintermann (CI 24.11.: „ahead Lücke bei 3734,5 s“ nur manchmal).
+            bool memoryWas = DriverMemory.Enabled;
+            DriverMemory.Configure(false);
             var truth = new DataTruth(); DataTruth.Use(truth);
             var tracks = sim.DerivedGaps ? new TrackAwareness() : null;
             double race = minutes * 60.0;
@@ -145,7 +149,7 @@ namespace UnitTest.AiTeamTests
                     foreach (var b in bundled) run.Spoken[b].Add(t);
                 }
             }
-            finally { RaceMind.Publish(null); DataTruth.Use(new DataTruth()); }
+            finally { RaceMind.Publish(null); DataTruth.Use(new DataTruth()); if (memoryWas) DriverMemory.Configure(true); }
             return run;
         }
 
