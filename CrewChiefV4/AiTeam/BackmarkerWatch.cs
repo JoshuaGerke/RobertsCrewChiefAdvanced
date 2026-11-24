@@ -20,7 +20,7 @@ namespace CrewChiefV4.AiTeam
         // RaceRoom Salzburg 24.11.: Alvaro Garcia (zwei Runden zurück) fuhr neun Minuten lang konstant 5 bis 7 s vor Rob und wurde
         // sechsmal „in etwa 10 Sekunden bist du dran“ angesagt: Die Momentan-Annäherung in einer Bremszone reichte. Jetzt zählt die
         // gemessene Annäherung über mehrere Sekunden.
-        private readonly Dictionary<string, List<KeyValuePair<DateTime, float>>> gaps = new Dictionary<string, List<KeyValuePair<DateTime, float>>>(StringComparer.Ordinal);
+        private readonly Dictionary<string, List<KeyValuePair<DateTime, double>>> gaps = new Dictionary<string, List<KeyValuePair<DateTime, double>>>(StringComparer.Ordinal);
         internal static readonly TimeSpan ClosingWindow = TimeSpan.FromSeconds(6);
         internal static readonly TimeSpan RepeatPerCar = TimeSpan.FromSeconds(150);
         internal const float MinimumClosingMps = 3f;
@@ -28,10 +28,10 @@ namespace CrewChiefV4.AiTeam
         internal void Reset() { session = int.MinValue; reported.Clear(); gaps.Clear(); lastCall = DateTime.MinValue; call = null; }
 
         /// <summary>Gemessene mittlere Annäherung (m/s) an einen Wagen über das Fenster; null, wenn noch zu wenig Verlauf.</summary>
-        internal double? SustainedClosing(string key, float gapNow, DateTime now)
+        internal double? SustainedClosing(string key, double gapNow, DateTime now)
         {
-            if (!gaps.TryGetValue(key, out var list)) gaps[key] = list = new List<KeyValuePair<DateTime, float>>();
-            list.Add(new KeyValuePair<DateTime, float>(now, gapNow));
+            if (!gaps.TryGetValue(key, out var list)) gaps[key] = list = new List<KeyValuePair<DateTime, double>>();
+            list.Add(new KeyValuePair<DateTime, double>(now, gapNow));
             list.RemoveAll(p => now - p.Key > ClosingWindow + TimeSpan.FromSeconds(2) || p.Key > now);
             var first = list[0];
             double span = (now - first.Key).TotalSeconds;
