@@ -41,7 +41,8 @@ namespace UnitTest.AiTeamTests
             var gs = new GameStateData(T.Ticks);
             var s = gs.SessionData;
             s.SessionId = 9; s.SessionType = SessionType.Race; s.SessionPhase = SessionPhase.Green;
-            s.ClassPosition = 5; s.OverallPosition = 5; s.CompletedLaps = 6;
+            // Rennmitte: kein fester Topspeed-Termin offen, nur der Vergleich mit dem direkten Gegner.
+            s.ClassPosition = 5; s.OverallPosition = 5; s.CompletedLaps = 10; s.SessionNumberOfLaps = 20;
             s.TrackDefinition = new TrackDefinition("Monza", 5793f);
             gs.carClass = new CarData.CarClass { carClassEnum = CarData.CarClassEnum.GT3 };
             front = new OpponentData { DriverRawName = "Krobber", CarNumber = "12", IsActive = true, ClassPosition = 4, OverallPosition = 4, CarClass = gs.carClass };
@@ -110,7 +111,7 @@ namespace UnitTest.AiTeamTests
             watch.Evaluate(gs, View(281, 283, 281), true, T);
             Assert.IsNull(watch.Take(gs, T, false, true), "2 km/h sind kein Thema, weder beim Gegner noch an der Klassenspitze");
 
-            gs.SessionData.CompletedLaps = 7;
+            gs.SessionData.CompletedLaps = 11;
             watch = new TopSpeedWatch();
             watch.Evaluate(gs, View(281, 287, 271), true, T);
             var call = watch.Take(gs, T, false, true);
@@ -128,15 +129,18 @@ namespace UnitTest.AiTeamTests
             Assert.IsNull(watch.Take(gs, T, false, true), "ohne Namen kein Satz");
 
             gs.SessionData.CompletedLaps = 2;
+            watch = new TopSpeedWatch();
             watch.Evaluate(gs, View(281, 290, 281), true, T);
-            Assert.IsNull(watch.Take(gs, T, false, true), "am Start zählt der Windschatten im Pulk");
+            var early = watch.Take(gs, T, false, true);
+            Assert.IsTrue(early == null || early.Topic != "rival-topspeed", "am Start zählt der Windschatten im Pulk");
 
-            gs.SessionData.CompletedLaps = 6;
+            gs.SessionData.CompletedLaps = 10;
+            watch = new TopSpeedWatch();
             watch.Evaluate(gs, View(281, 290, 281), true, T);
             var call = watch.Take(gs, T, false, true);
             Assert.IsNotNull(call);
             call.MarkPlaybackStarted(T);
-            gs.SessionData.CompletedLaps = 8;
+            gs.SessionData.CompletedLaps = 12;
             watch.Evaluate(gs, View(281, 290, 281), true, T.AddMinutes(3));
             var again = watch.Take(gs, T.AddMinutes(3), false, true);
             Assert.IsTrue(again == null || again.Topic != "rival-topspeed", "derselbe Vergleich erst nach " + TopSpeedWatch.RivalEveryLaps + " Runden");
@@ -146,6 +150,7 @@ namespace UnitTest.AiTeamTests
         public void Now_and_then_the_class_top_speed_is_named()
         {
             var gs = Race(out _, out _);
+            gs.SessionData.CompletedLaps = 4;
             gs.OpponentData["lead"] = new OpponentData { DriverRawName = "Lead", IsActive = true, ClassPosition = 1, CarClass = gs.carClass };
             var watch = new TopSpeedWatch();
             watch.Evaluate(gs, View(281, 283, 280, 292), true, T);
@@ -161,6 +166,87 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(own);
             StringAssert.Contains("295", own.Text);
             StringAssert.DoesNotContain("Lead", own.Text);
+        }
+
+        [TestCase(2, 20, 0)]
+        [TestCase(6, 20, 0)]
+        [TestCase(7, 20, 0)]
+        [TestCase(9, 20, -1)]
+        [TestCase(14, 20, -1)]
+        [TestCase(15, 20, 1)]
+        [TestCase(19, 20, 1)]
+        [TestCase(1, 20, -1)]
+        public void Top_speed_comparison_has_a_slot_in_the_first_third_and_the_last_quarter(int completed, int total, int slot)
+        {
+            var s = new SessionData { CompletedLaps = completed, SessionNumberOfLaps = total };
+            Assert.AreEqual(slot, TopSpeedWatch.FieldSlot(s));
+        }
+
+        [Test]
+        public void Timed_race_uses_the_clock_for_the_slots()
+        {
+            var s = new SessionData { CompletedLaps = 2, SessionHasFixedTime = true, SessionTotalRunTime = 900, SessionTimeRemaining = 690 };
+            Assert.AreEqual(0, TopSpeedWatch.FieldSlot(s), "Salzburg: 15 Minuten, Runde 2 nach 3:30");
+            s.CompletedLaps = 8; s.SessionTimeRemaining = 160;
+            Assert.AreEqual(1, TopSpeedWatch.FieldSlot(s), "Salzburg: Runde 8, noch 2:40");
+            s.CompletedLaps = 5; s.SessionTimeRemaining = 420;
+            Assert.AreEqual(-1, TopSpeedWatch.FieldSlot(s));
+        }
+
+        [Test]
+        public void Salzburg_top_three_and_own_value_are_called_twice_and_do_not_expire_quickly()
+        {
+            // RaceRoom Salzburg 24.11.: Jargon 249, Rob 240 auf Rang 24. Rob: „wenigstens 2 x im Rennen vergleichen“.
+            var gs = Race(out _, out _);
+            gs.SessionData.CompletedLaps = 2;
+            gs.OpponentData["lead"] = new OpponentData { DriverRawName = "Lead", IsActive = true, ClassPosition = 1, CarClass = gs.carClass };
+            var watch = new TopSpeedWatch();
+            watch.Evaluate(gs, View(240, 247, 238, 249), true, T);
+            var first = watch.Take(gs, T, false, true);
+            Assert.IsNotNull(first);
+            Assert.AreEqual("field-topspeed", first.Topic);
+            StringAssert.Contains("Lead 249", first.Text);
+            StringAssert.Contains("Krobber 247", first.Text);
+            StringAssert.Contains("240", first.Text, "Robs eigener Wert");
+            StringAssert.Contains("first_third", first.Evidence);
+            Assert.GreaterOrEqual((first.ExpiresUtc - first.DetectedUtc).TotalSeconds, 200, "wartet bis zur Rennmitte statt nach 45 s zu verfallen");
+            first.MarkPlaybackStarted(T);
+
+            gs.SessionData.CompletedLaps = 5;
+            watch.Evaluate(gs, View(240, 247, 238, 249), true, T.AddMinutes(4));
+            var middle = watch.Take(gs, T.AddMinutes(4), false, true);
+            Assert.IsTrue(middle == null || middle.Topic != "field-topspeed", "in der Mitte kein fester Termin");
+
+            gs.SessionData.CompletedLaps = 16;
+            watch.Evaluate(gs, View(241, 247, 238, 249), true, T.AddMinutes(20));
+            var last = watch.Take(gs, T.AddMinutes(20), false, true);
+            Assert.IsNotNull(last);
+            Assert.AreEqual("field-topspeed", last.Topic);
+            StringAssert.Contains("last_quarter", last.Evidence);
+            StringAssert.Contains("241", last.Text);
+        }
+
+        [Test]
+        public void Top_three_list_names_rob_as_you_and_has_six_wordings()
+        {
+            RadioVariants.Deterministic = false;
+            var top = new[]
+            {
+                new TopSpeedWatch.TopSpeedEntry { Name = "Jargon", Kmh = "249" },
+                new TopSpeedWatch.TopSpeedEntry { IsPlayer = true, Kmh = "247" },
+                new TopSpeedWatch.TopSpeedEntry { Name = null, Kmh = "246" },
+            };
+            foreach (var language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+            {
+                RadioLanguage.Current = language;
+                StringAssert.Contains(RadioLanguage.T("Jargon 249, du 247 und 246 km/h", "Jargon 249, you 247 and 246 km/h", "Jargon 249, tú 247 y 246 km/h"), TopSpeedWatch.TopList(top));
+                foreach (int rank in new[] { 1, 2, 24 })
+                {
+                    var seen = Enumerable.Range(0, 120).Select(_ => TopSpeedWatch.TopThreeText(top, "247", rank, 27, "2")).Distinct().ToList();
+                    Assert.AreEqual(6, seen.Count, language + " rank " + rank);
+                    Assert.IsTrue(seen.All(t => !char.IsDigit(t[0])), "Satzanfang nie mit einer Ziffer");
+                }
+            }
         }
 
         [Test]

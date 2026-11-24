@@ -307,6 +307,8 @@ namespace CrewChiefV4.AiTeam
         internal static bool RoutineReport(ObservedRaceCall call) => call?.Evidence == "configured_interval_current_measurements";
         /// <summary>Höchste Wartezeit eines eingestellten Berichts im Zweikampf.</summary>
         internal static readonly TimeSpan RoutineBattleHold = TimeSpan.FromSeconds(8);
+        /// <summary>Höchste Wartezeit des festen Topspeed-Vergleichs im Zweikampf.</summary>
+        internal static readonly TimeSpan TopSpeedBattleHold = TimeSpan.FromSeconds(20);
 
         internal static bool Background(ObservedRaceCall call)
         {
@@ -377,10 +379,13 @@ namespace CrewChiefV4.AiTeam
             // 19-mal und verfielen. Rob: „Immer dann, wenn jemand eine Bestzeit fährt.“ Sie kommt jetzt auch im Zweikampf und in der
             // Schlussphase; nur Gelb, Box und Start lassen sie kurz warten, in der letzten Runde entfällt sie. Seite an Seite wartet
             // sie wie jede Meldung auf eine Lücke.
+            // RaceRoom Salzburg 24.11.: Rethemeiers Bestzeit kam in Robs Startrunde, wartete dort und verfiel. Rob: „Kommt eine
+            // Bestzeit von einem Fahrer, muss ich die hören.“ Sie kommt auch in der Startrunde und in der Schlussphase; nur Gelb und
+            // die eigene Box lassen sie warten, nach der Zielflagge entfällt sie.
             if (t == "field-fastest" || t == "field-fastest-overall")
             {
-                if (lastLaps) { reason = "last_lap_only_essentials"; return MindVerdict.Drop; }
-                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
+                if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.PreStart)
                 { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
@@ -391,6 +396,18 @@ namespace CrewChiefV4.AiTeam
             // Rob 23.11.: „Sara muss mir sofort sagen, wenn jemand ausscheidet, an die Box fährt oder rauskommt.“ RaceRoom
             // Hockenheim: „Luca Berger ist raus“ verfiel mit focus_on_own_fight. Diese Feldnachrichten sind kurz und betreffen
             // Robs Rennen; nur Gelb, die eigene Box und der Start lassen sie warten, nach der Zielflagge entfallen sie.
+            // RaceRoom Salzburg 24.11.: Der Topspeed-Vergleich wartete zweimal hinter anderem Funk und verfiel, in den letzten Runden
+            // war er als Hintergrund gesperrt. Rob will ihn zweimal je Rennen hören; nur Gelb, Box und Start lassen ihn warten,
+            // ein Zweikampf höchstens kurz.
+            if (t == "field-topspeed")
+            {
+                if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
+                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
+                { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
+                bool waited = call.DetectedUtc != DateTime.MinValue && now >= call.DetectedUtc && now - call.DetectedUtc >= TopSpeedBattleHold;
+                if (x.Attention == RaceAttention.Battle && !waited) { reason = "busy_background_waits"; return MindVerdict.Hold; }
+                return MindVerdict.Admit;
+            }
             if (NativeFieldEvents.SaraNews(t))
             {
                 if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
