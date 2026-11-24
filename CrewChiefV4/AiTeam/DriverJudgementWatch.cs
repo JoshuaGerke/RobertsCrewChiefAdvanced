@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CrewChiefV4.GameState;
@@ -365,6 +365,9 @@ namespace CrewChiefV4.AiTeam
         // RRCA 2.0 (4.2) Rivalengeschichte: wer uns zuletzt überholt hat. Holt Rob sich den Platz gegen denselben Gegner zurück,
         // ist das eine Geschichte („den hast du dir zurückgeholt“), nicht nur ein weiteres Überholen.
         internal static readonly TimeSpan RetakeWindow = TimeSpan.FromMinutes(10);
+        /// <summary>So lange muss ein Platz verloren gewesen sein, damit das Zurückerobern als „zurückgeholt“ zählt.</summary>
+        internal static readonly TimeSpan RetakeMinimumLost = TimeSpan.FromSeconds(5);
+        private string lastBehindIdentity;
         private readonly Dictionary<string, DateTime> passedBy = new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
         internal DriverJudgementWatch(int? seed = null) { random = seed.HasValue ? new Random(seed.Value) : new Random(); }
@@ -372,7 +375,7 @@ namespace CrewChiefV4.AiTeam
         internal void Reset()
         {
             session = int.MinValue; lastPosition = -1; lastConsistencyLap = lastSlideLap = lastDefenceLap = -100; overtakeCount = spokenCount = 0;
-            defendedAttacker = null; overtake = null; passedBy.Clear(); impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
+            defendedAttacker = null; overtake = null; passedBy.Clear(); lastBehindIdentity = null; impactUtc = DateTime.MinValue; impactRepeated = false; lastIncidents = -1; damage.Clear();
             lastImpactTime = -1; impactBaseline = false; impactCandidateUtc = DateTime.MinValue; speeds.Clear();
             lastPraise = lastAny = lastImpact = lastImpactCall = DateTime.MinValue; lastVariant.Clear(); call = null;
             positions.Clear(); incidentHistory.Clear(); frustratedLap = -100; lastGrade = null; lastGradeLap = -100;
@@ -704,6 +707,10 @@ namespace CrewChiefV4.AiTeam
             int pos = s.ClassPosition;
             if (pos <= 0) { lastPosition = -1; return; }
             int before = lastPosition; lastPosition = pos;
+            string behindBefore = lastBehindIdentity;
+            var behindNow = RaceDataTools.Neighbour(gs, false);
+            var behindKey = behindNow == null ? null : gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, behindNow)).Key;
+            lastBehindIdentity = behindKey == null ? null : RaceReader.Identity(behindKey, behindNow);
             if (before <= 0) return;
             if (overtake != null && pos > overtake.Position)
             {
@@ -720,7 +727,8 @@ namespace CrewChiefV4.AiTeam
                 // Ein Platz verloren: Wer steht jetzt direkt vor uns? Nur ein Gegner auf der Strecke (kein eigener Stopp).
                 var by = RaceDataTools.Neighbour(gs, true);
                 var byKey = by == null ? null : gs.OpponentData.FirstOrDefault(p => ReferenceEquals(p.Value, by)).Key;
-                if (by != null && !by.InPits && byKey != null)
+                // Wer uns überholt, war vorher direkt hinter uns. Sonst ist es ein Sprung der Zeitnahme, kein verlorener Zweikampf.
+                if (by != null && !by.InPits && byKey != null && behindBefore != null && RaceReader.Identity(byKey, by) == behindBefore)
                 {
                     if (passedBy.Count > 32) passedBy.Clear();
                     passedBy[RaceReader.Identity(byKey, by)] = now;
@@ -742,7 +750,10 @@ namespace CrewChiefV4.AiTeam
                 PassedIdentity = key == null ? null : RaceReader.Identity(key, passed),
                 Stronger = passed.CurrentBestLapTime > 0 && mine > 0 && passed.CurrentBestLapTime < mine - .1f
             };
-            if (overtake.PassedIdentity != null && passedBy.TryGetValue(overtake.PassedIdentity, out var lostAt) && now >= lostAt && now - lostAt < RetakeWindow)
+            // LMU Sebring 24.11.: „Den Platz gegen Agostini hast du dir zurückgeholt“ – Agostini lag nie hinter Rob. Ein Platz, der nur
+            // für einen Augenblick wechselt (Zeitnahme an der Linie, Seite an Seite), ist kein verlorener Platz.
+            if (overtake.PassedIdentity != null && passedBy.TryGetValue(overtake.PassedIdentity, out var lostAt) && now >= lostAt &&
+                now - lostAt >= RetakeMinimumLost && now - lostAt < RetakeWindow)
                 overtake.Retake = true;
             // Kontakt kurz vor dem Platzwechsel gehört zum Manöver: statt Mitgefühl später ein Satz zum Überholen.
             if (lastImpact != DateTime.MinValue && now >= lastImpact && now - lastImpact < TimeSpan.FromSeconds(5) && !IncidentWatch.IsSerious(gs.CarDamageData))

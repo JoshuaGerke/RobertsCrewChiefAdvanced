@@ -230,6 +230,8 @@ namespace CrewChiefV4.AiTeam
             MarkPlaybackFinished(now, false);
         }
         private bool consumedOnly;
+        /// <summary>Verworfen statt gesprochen (<see cref="MarkConsumed"/>): gilt als erledigt, wurde aber nie gehört.</summary>
+        internal bool ConsumedOnly => consumedOnly;
 
         public void MarkPlaybackFinished(DateTime now,bool interrupted)
         {
@@ -781,6 +783,9 @@ namespace CrewChiefV4.AiTeam
             };
         }
 
+        /// <summary>So viel darf der Hintermann zwischen Erkennen und Sprechen wieder zurückfallen, bevor „schließt auf“ nicht mehr stimmt.</summary>
+        internal const float RearPressureReopenS = .2f;
+
         internal void ObserveRearPressure(RaceDataContext context, RaceGapMeasurement gap)
         {
             var state = context.GameState;
@@ -839,7 +844,12 @@ namespace CrewChiefV4.AiTeam
                 RaceReader.Identity(live.SessionData.OpponentKeyBehind, current) == identity;
             RaceGapMeasurement ReadCurrent(RaceDataContext ctx) =>
                 RaceDataTools.ReadGap(ctx, RaceDataTools.Neighbour(ctx.GameState, false), false);
-            bool HasThreat(RaceGapMeasurement fresh) => fresh.Kind == gap.Kind && fresh.Seconds > .05f && fresh.Seconds <= 3f;
+            // LMU Sebring 24.11.: „Castellacci schließt auf, 1,4“ kam, als der Abstand längst wieder wuchs (0,9 → 1,8 s). Die Meldung
+            // wartete im Zweikampf und wurde nur mit der neuen Zahl gesprochen. Ist er beim Sprechen wieder weiter weg als beim
+            // Erkennen, schließt er nicht mehr auf – dann entfällt sie.
+            float detectedGap = gap.Seconds;
+            bool HasThreat(RaceGapMeasurement fresh) => fresh.Kind == gap.Kind && fresh.Seconds > .05f && fresh.Seconds <= 3f &&
+                fresh.Seconds <= detectedGap + RearPressureReopenS;
             warning.TimedValidity = (live, at) => HasThreat(ReadCurrent(new RaceDataContext { GameState=live, NowUtc=at,
                 Tracks=context.Tracks, LastTelemetryUtc=live.SourceTelemetryUtc != DateTime.MinValue ? live.SourceTelemetryUtc :
                     context.Tracks != null ? live.Now : context.LastTelemetryUtc }));

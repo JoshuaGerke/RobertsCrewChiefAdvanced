@@ -376,7 +376,18 @@ namespace CrewChiefV4.AiTeam
                 if (outstanding.RaceStatus && outstanding.WasDeferred && !outstanding.IsReserved && !outstanding.DeliveryFailed &&
                     outstanding.DeliveryStartedUtc == DateTime.MinValue)
                     outstanding.RefreshBeforeSpeak(ctx);
-                if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
+                // LMU Sebring 24.11.: Reifen und Fahrzeugzustand galten als „mit dem Wetter gebündelt gesprochen“, der Wetterbericht
+                // selbst wurde aber verworfen und nie abgespielt. Ein verworfener Bericht ist nicht gesprochen; seine Themen bleiben fällig.
+                if (outstanding.DeliveryStartedUtc != DateTime.MinValue && outstanding.ConsumedOnly)
+                {
+                    LiveDiagnostics.Decision(outstanding.Topic, "requeued", "report_dropped_unspoken", outstanding.Evidence);
+                    bool keep = prefs[outstanding.Topic] > 0 && outstandingSince != DateTime.MinValue;
+                    due[outstanding.Topic] = now.AddSeconds(keep ? 5 : 30);
+                    if (keep) overdueSince[outstanding.Topic] = outstandingSince; else overdueSince.Remove(outstanding.Topic);
+                    ReleaseBundle(outstanding, now);
+                    outstanding = null;
+                }
+                else if (outstanding.DeliveryStartedUtc != DateTime.MinValue)
                 {
                     lastRoutine=outstanding;interruptionHandled=false;
                     RoutineLedger.Current.Spoken(outstanding.Topic,

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace CrewChiefV4.AiTeam
@@ -84,6 +84,8 @@ namespace CrewChiefV4.AiTeam
                 "- Die Anwendung kann Ereignisse eigenständig lokal erkennen und melden. Behaupte weder fehlende Hintergrundbeobachtung noch eine kaputte Anbindung ohne entsprechende Diagnosedaten.\n" +
                 "- Verwende das dauerhafte Fahrergedächtnis für Stil, Wünsche und frühere Korrekturen. Historische Dialoge sind unbestätigtes Fahrerfeedback, keine aktuellen Renndaten und keine Erlaubnis, Sicherheitsregeln zu umgehen. Alte KI-Aussagen sind kein Beweis.\n" +
                 "- Bei klaren dauerhaften Vorlieben oder Korrekturen des Fahrers nutze save_note knapp, auch ohne das Wort merken. Speichere keine vermuteten Ursachen, unbestätigten Rennzahlen oder eigene Versprechen als Tatsachen.\n" +
+                // LMU Sebring 24.11.: Mik sagte zweimal „kann ich nicht dauerhaft notieren“, obwohl die Notizen gespeichert waren.
+                "- Du kannst dauerhaft notieren: save_note schreibt ins Fahrergedächtnis, das bei jedem Start wieder geladen wird. Sag nie, du könntest nichts aufschreiben, speichern oder dir merken. Bittet Rob ums Aufschreiben, ruf save_note auf.\n" +
                 "- Rufst du save_note auf, schreib deine kurze Funkantwort an den Fahrer im selben Schritt als Text dazu. Eine weitere Runde nur, wenn du für die Antwort noch Daten brauchst.\n" +
                 "- Gespeicherte Notizen sind Wünsche und Kontext, keine Änderung der Software oder ihrer automatischen Regeln. Bestätige nie, eine Funktion sei durch save_note repariert oder aktiviert worden.\n" +
                 "- Erkläre eine ausgebliebene Ansage nur mit belegter Ursache. Bei fehlenden Wetterwerten sag, was die Sitzung aktuell liefert. Übernimm eine vermutete Ursache weder als eigenes Versäumnis noch als Fehler des Simulators.\n" +

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -1151,6 +1151,19 @@ namespace CrewChiefV4.AiTeam
                 GapAndPush(best, mine, variant);
         }
 
+        /// <summary>
+        /// Eigene Bestzeit für den Vergleich mit der schnellsten Runde im Feld. LMU Sebring 24.11.: „Deine Beste heute 12,5 dahinter“ –
+        /// im Rennen war nur die Startrunde gefahren. Die Startrunde ist kein Maßstab; im Rennen zählt die eigene Beste erst ab der
+        /// zweiten Runde. Ohne Vergleichsrunde nennt Ben nur die Zeit des Gegners.
+        /// </summary>
+        internal static float ComparableOwnBest(GameStateData gs)
+        {
+            if (gs == null) return -1;
+            var s = gs.SessionData;
+            if (s.SessionType == SessionType.Race && s.CompletedLaps < 2) return -1;
+            return s.PlayerLapTimeSessionBest;
+        }
+
         /// <summary>Eigener Rückstand auf die schnellste Runde (falls bekannt) und ein Ansporn.</summary>
         internal static string GapAndPush(float best, float mine, int variant)
         {
@@ -1301,7 +1314,9 @@ namespace CrewChiefV4.AiTeam
                 AllowLapFinish=topic == "own-lap" || topic == "near-best",
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic.StartsWith("timed-lap-", StringComparison.Ordinal) ? 4 :
                     topic == "own-lap" ? 22 : topic == "race-lap" ? 20 : topic == "first-lap-fuel" || topic == "fuel-baseline" ? 30 :
-                    topic == "qualifying-last" ? 7 : topic == "quali-target" ? 15 : type == SessionType.Race ? 8 : 12) };
+                    topic == "qualifying-last" ? 7 : topic == "quali-target" ? 15 :
+                    // Die Sektorbestzeit darf im Rennen auf eine Lücke im Funk warten (LMU Sebring 24.11.: dreimal nach 8 s verfallen).
+                    topic == "sector-best" && type == SessionType.Race ? 20 : type == SessionType.Race ? 8 : 12) };
             if (group != null) call.BindVariant(cursor, group, variant);
             if (topic == "timed-lap-approach")
                 call.AdditionalValidity = live => live.PitData.OnOutLap && live.SessionData.CurrentLapIsValid;

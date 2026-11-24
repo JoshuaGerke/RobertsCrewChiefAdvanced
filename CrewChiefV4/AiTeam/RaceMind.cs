@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -462,6 +462,10 @@ namespace CrewChiefV4.AiTeam
                 if (driverBusy || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start) { reason = "busy_judgement_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
+            // LMU Sebring 24.11. (Rob zweimal: „Wo bleiben Sektoren und Bestzeit?“): Im Rennen war fast immer Zweikampf, alle drei
+            // Sektorbestzeiten warteten und verfielen. Die eigene Sektorverbesserung ist eine kurze Zahl über sein eigenes Tempo und
+            // kommt auch im Zweikampf; nur unter Gelb wartet sie. Seite an Seite hält sie der Funk ohnehin zurück.
+            if (t == "sector-best" && x.Attention != RaceAttention.Caution) return MindVerdict.Admit;
             if (OwnPace(t) && driverBusy) { reason = "battle_or_caution"; return MindVerdict.Hold; }
             return MindVerdict.Admit;
         }

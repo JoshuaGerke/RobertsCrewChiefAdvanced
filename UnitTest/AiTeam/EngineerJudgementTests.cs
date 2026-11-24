@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CrewChiefV4;
@@ -584,6 +584,26 @@ namespace UnitTest.AiTeamTests
                 }
             }
             RadioLanguage.Current = RadioLanguage.German;
+        }
+
+        /// <summary>LMU Sebring 24.11.: „Den Platz gegen Agostini zurückgeholt“ – Agostini lag nie hinter Rob.</summary>
+        [Test]
+        public void Passing_a_car_that_was_never_behind_is_no_retake()
+        {
+            var gs = Race(4); gs.SessionData.PlayerLapTimeSessionBest = 89f;
+            var aggi = Rival(gs, "aggi", "Agostini", 3, 89.5f);
+            var other = Rival(gs, "other", "Castellacci", 5, 89.5f);
+            var watch = new DriverJudgementWatch(1);
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T);
+            // Die Zeitnahme springt: Rob kurz P5, Agostini P4 – Castellacci (dahinter) war es nicht, Agostini lag vorn.
+            gs.SessionData.ClassPosition = 5; gs.SessionData.OverallPosition = 5; aggi.ClassPosition = 4; aggi.OverallPosition = 4;
+            other.ClassPosition = 6; other.OverallPosition = 6;
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(1));
+            gs.SessionData.ClassPosition = 4; gs.SessionData.OverallPosition = 4; aggi.ClassPosition = 5; aggi.OverallPosition = 5;
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(40));
+            watch.Observe(gs, Laps(90, 90, 90, 90), false, "Rob", true, T.AddSeconds(56));
+            var call = watch.Take(gs, T.AddSeconds(56), false, true);
+            Assert.IsTrue(call == null || call.Topic != "judge-retake", call?.Text);
         }
 
         [Test]

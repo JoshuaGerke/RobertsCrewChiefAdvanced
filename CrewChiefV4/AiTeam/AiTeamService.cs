@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -2014,7 +2014,7 @@ namespace CrewChiefV4.AiTeam
                 // AMS2 Spa 23.11.: Strafe, Rundengültigkeit, Standort und Abstand stehen jetzt im Lagebild (schnelle Antwort genügt).
                 // Notizen und Wünsche („notieren“, „das muss automatisch kommen“) brauchen save_note, und eine Gegenrechnung des
                 // Fahrers („falsch“, „stimmt nicht“) wird mit den Rundenzeiten geprüft statt einfach übernommen.
-                "rechn", "notier", "speicher", "falsch", "stimmt nicht", "korrig", "automatisch", "öfter", "oefter", "häufiger", "einbau",
+                "rechn", "notier", "speicher", "aufschreib", "schreib das auf", "schreib auf", "schreibs auf", "write down", "write that down", "anót", "anota", "falsch", "stimmt nicht", "korrig", "automatisch", "öfter", "oefter", "häufiger", "einbau",
                 "note", "save", "wrong", "correct", "automatic", "more often",
                 "apunta", "guarda", "incorrect", "automátic", "más a menudo",
                 // RaceRoom Hockenheim 23.11.: „Hinter mir hat sich jemand gedreht. Habt ihr das wahrgenommen?“ – Antwort ohne Blick ins
@@ -2908,7 +2908,10 @@ namespace CrewChiefV4.AiTeam
                 call.ReleaseForRetry(DateTime.UtcNow, "member_disabled_or_channel_busy");
                 return;
             }
-            RememberLocalCall(call, DateTime.UtcNow);
+            DateTime rememberedAt = DateTime.UtcNow;
+            RememberLocalCall(call, rememberedAt);
+            // Nicht abgespielt heißt nicht gesagt: Beim nächsten Anlauf darf derselbe Satz wieder kommen (LMU Sebring 24.11.).
+            void Unheard() { if (call.DeliveryStartedUtc == DateTime.MinValue || call.PlaybackInterrupted) crewMemory.Forget(call, rememberedAt); }
             radioSchedule.Arbiter.Done(call.Topic);
             if (call.Guaranteed && AiRadioSchedule.IsRoutineTopic(call.Topic) && call.EventId != null)
             {
@@ -2931,7 +2934,7 @@ namespace CrewChiefV4.AiTeam
                         call.Topic == "stint-consistency" || call.Topic == "reader-pace-front" || call.Topic == "reader-pace-rear";
                     var context = call.ConfirmedPass || call.PitGain != null || call.CanRefresh || backgroundStatistics ?
                         BuildContext(initialState) : null;
-                    if (!call.RefreshBeforeSpeak(context)) { call.ReleaseForRetry(DateTime.UtcNow, "tactical_facts_no_longer_current"); return; }
+                    if (!call.RefreshBeforeSpeak(context)) { Unheard(); call.ReleaseForRetry(DateTime.UtcNow, "tactical_facts_no_longer_current"); return; }
                     float spokenGap = call.SpokenGapS;
                     string text = call.ComposeForDelivery(context, out var detailIsCurrent, pitAlreadyClaimed);
                     bool detailUsesNames = detailIsCurrent != null && context?.SendDriverNames == true;
@@ -2990,6 +2993,7 @@ namespace CrewChiefV4.AiTeam
                     };
                     void DeferOrRelease(string reason)
                     {
+                        Unheard();
                         var live = CrewChief.currentGameState;
                         var now = DateTime.UtcNow;
                         if (call.CanRefresh && generation == Volatile.Read(ref sessionGeneration) && live != null &&
@@ -2999,7 +3003,7 @@ namespace CrewChiefV4.AiTeam
                             call.DeferDelivery(now, "refresh_tactical_facts_after_delay");
                         else call.ReleaseForRetry(now, reason);
                     }
-                    if (!valid(text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid:" + invalidReason); return; }
+                    if (!valid(text)) { Unheard(); call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid:" + invalidReason); return; }
                     invalidReason = null;
                     // Kein bezahltes Neu-Erzeugen ohne Ende und kein Sekundentakt bei ausgefallener Stimme (RaceRoom Mantorp 22.11.).
                     bool paid = PaidVoiceNeeded(call.Member, baseText);
@@ -3040,6 +3044,7 @@ namespace CrewChiefV4.AiTeam
                             PaidDone(false);
                             var finishedUtc = DateTime.UtcNow;
                             call.MarkPlaybackFinished(finishedUtc, interrupted);
+                            if (interrupted) Unheard();
                             if (interrupted || generation != Volatile.Read(ref sessionGeneration) || !TelemetryFresh()) return;
                             var live = CrewChief.currentGameState;
                             if (call.ChaseOpponentIdentity != null)
@@ -3065,7 +3070,7 @@ namespace CrewChiefV4.AiTeam
                         else DeferOrRelease(invalidReason == null ? "speech_not_queued" : "speech_not_queued:" + invalidReason);
                     }
                 }
-                catch (Exception e) { call.ReleaseForRetry(DateTime.UtcNow, "delivery_exception"); Log("Lokaler Rennfunk: " + e.Message); }
+                catch (Exception e) { Unheard(); call.ReleaseForRetry(DateTime.UtcNow, "delivery_exception"); Log("Lokaler Rennfunk: " + e.Message); }
                 finally { releaseRender(); }
             });
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,6 +21,8 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, DateTime> events = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         private int reportedPosition, reportedPositionSession = int.MinValue;
         private DateTime reportedPositionUtc = DateTime.MinValue;
+        private int previousPosition, previousPositionSession = int.MinValue;
+        private DateTime previousPositionUtc = DateTime.MinValue;
         private readonly object gate = new object();
 
         internal static string Normalize(string text)
@@ -94,7 +96,8 @@ namespace CrewChiefV4.AiTeam
                         events[call.SemanticKey] = now;
                     }
                     if (call.StatedPosition > 0)
-                    { reportedPosition = call.StatedPosition; reportedPositionSession = call.SessionId; reportedPositionUtc = now; }
+                    { previousPosition = reportedPosition; previousPositionSession = reportedPositionSession; previousPositionUtc = reportedPositionUtc;
+                      reportedPosition = call.StatedPosition; reportedPositionSession = call.SessionId; reportedPositionUtc = now; }
                 }
             string key = call == null ? null : Normalize(call.Text);
             if (key == null) return;
@@ -106,6 +109,25 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        internal void Clear() { lock (gate) { said.Clear(); events.Clear(); reportedPosition = 0; reportedPositionSession = int.MinValue; reportedPositionUtc = DateTime.MinValue; } }
+        /// <summary>
+        /// LMU Sebring 24.11.: Eine Meldung wurde vorgemerkt, kam aber nie bei Rob an (Funk belegt, Fakten geändert, Spotter
+        /// daneben). Beim nächsten Anlauf galt sie als „derselbe Satz“ und fiel weg. Was nicht abgespielt wurde, gilt nicht als gesagt.
+        /// Nur der Eintrag dieses Anlaufs wird entfernt; wurde derselbe Satz inzwischen anders gesprochen, bleibt er.
+        /// </summary>
+        internal void Forget(ObservedRaceCall call, DateTime rememberedAt)
+        {
+            if (call == null) return;
+            string key = Normalize(call.Text);
+            lock (gate)
+            {
+                if (key != null && said.TryGetValue(key, out var when) && when == rememberedAt) said.Remove(key);
+                if (call.SemanticKey != null && events.TryGetValue(call.SemanticKey, out var ev) && ev == rememberedAt) events.Remove(call.SemanticKey);
+                if (call.StatedPosition > 0 && reportedPositionUtc == rememberedAt && reportedPosition == call.StatedPosition)
+                { reportedPosition = previousPosition; reportedPositionSession = previousPositionSession; reportedPositionUtc = previousPositionUtc; }
+            }
+        }
+
+        internal void Clear() { lock (gate) { said.Clear(); events.Clear(); reportedPosition = 0; reportedPositionSession = int.MinValue; reportedPositionUtc = DateTime.MinValue;
+            previousPosition = 0; previousPositionSession = int.MinValue; previousPositionUtc = DateTime.MinValue; } }
     }
 }
