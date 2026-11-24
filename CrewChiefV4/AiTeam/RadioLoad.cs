@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -197,7 +197,9 @@ namespace CrewChiefV4.AiTeam
         internal static bool OwnResult(string topic) =>
             topic == "own-lap" || topic == "race-lap" || topic == "first-lap-fuel" || topic == "fuel-baseline" ||
             topic == "field-fastest" || topic == "field-fastest-overall" ||
-            topic == "greeting" || topic == "race-start" || topic == "session-debrief" || topic == "time-left";
+            topic == "greeting" || topic == "race-start" || topic == "session-debrief" || topic == "time-left" ||
+            // LMU Sebring 24.11.: Die eigene Sektorbestzeit wartete als „Lob“ auf weniger Anspannung und verfiel.
+            topic == "sector-best";
 
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)
@@ -241,7 +243,7 @@ namespace CrewChiefV4.AiTeam
         internal int? DensityOverride;
         private int Density => DensityOverride ?? AmountDensity(AutoRadioPlan.CurrentAmount, DriverMemory.RadioDensity);
 
-        /// <summary>Funkmenge aus Cockpit oder Funkbefehl hat Vorrang; bei Normal gilt der ältere gespeicherte Funkwunsch.</summary>
+        /// <summary>Funkdichte aus Funkmenge und Funkwunsch; seit Rob 24.11. beides fest normal.</summary>
         internal static int AmountDensity(RadioAmount amount, int saved) =>
             amount == RadioAmount.MuchMore ? -1 : amount == RadioAmount.More ? 0 : saved;
 

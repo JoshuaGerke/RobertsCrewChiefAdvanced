@@ -3,7 +3,7 @@ using CrewChiefV4.GameState;
 
 namespace CrewChiefV4.AiTeam
 {
-    /// <summary>Wie viel die Crew von sich aus funkt. Cockpit-Regler und Funkbefehle („Ruhe bitte“, „mehr Infos“, „viel mehr Infos“).</summary>
+    /// <summary>Wie viel die Crew von sich aus funkt. Seit Rob 24.11. immer Normal; die Stufen gibt es nur noch für Tests des Plans.</summary>
     public enum RadioAmount { Quiet, Normal, More, MuchMore }
 
     /// <summary>Wie lang das Rennen ist; danach richtet sich, wie oft ein Bericht kommt.</summary>
@@ -17,7 +17,6 @@ namespace CrewChiefV4.AiTeam
     /// Hilfreichste“). Im Zweikampf halbiert der Funkplan diesen Abstand zusätzlich.</item>
     /// <item><b>Spannung</b>: Aus der Anspannung des Rennkopfs (0–1). Ruhig: Technik, Reifen, Schaden und Wetter kommen etwas
     /// öfter. Spannend: Technik wartet, damit Platz für Zweikampf und Taktik bleibt.</item>
-    /// <item><b>Funkmenge</b>: Ruhig hält die Routine an, Mehr und Viel mehr verkürzen alle Abstände.</item>
     /// </list>
     /// Sicherheit, Sara, Crew-Chief-Meldungen und Antworten laufen nicht über diesen Plan und bleiben unberührt.
     /// </summary>

@@ -4,14 +4,9 @@
 
 | Deutsch | English | Español | Was passiert |
 |---|---|---|---|
-| **„Ruhe bitte“** | **"Quiet please"** | **«Silencio, por favor»** | Nur Routineberichte ruhen; Platzwechsel, Zweikampf, Restzeit und Warnungen kommen weiter |
-| **„Weniger Infos“** | **"Less info"** | **«Menos información»** | Eine Stufe weniger / one step down / un nivel menos |
-| **„Mehr Infos“** | **"More info"** | **«Más información»** | Öfter Berichte, vor allem vorn und hinten / more reports / más informes |
-| **„Viel mehr Infos“ / „Volle Infos“** | **"Much more info" / "Full info"** | **«Mucha más información» / «Toda la información»** | Volles Programm / full programme / programa completo |
-| **„Funk normal“** | **"Radio normal"** | **«Radio normal»** | Zurück zum normalen Rhythmus / back to normal / ritmo normal |
-| **„Spotter aus“ / „Spotter ein“** | **"Spotter off" / "Spotter on"** | **«Spotter apagado» / «Spotter activado»** | Nur links, rechts, frei. Gelb, Unfälle und Safety Car bleiben immer an. |
+| **„Spotter aus“ / „Spotter ein“** | **"Spotter off" / "Spotter on"** | **«Spotter apagado» / «Spotter activado»** | Nur links, rechts, frei. Gelb, Unfälle und Safety Car bleiben immer an. Gilt bis zum Neustart, auch im Rennen. |
 
-Die Funkmenge bleibt gespeichert (KI & Funk → Funkmenge). Den Takt der Berichte bestimmt die Crew selbst nach Renndauer und Spannung; im Programm schaltest du Themen nur an oder aus.
+Eine Funkmenge gibt es nicht: Die Crew funkt immer nach Lage, Ereignisse sofort, Vorder- und Hintermann am häufigsten. Im Programm schaltest du Berichtsthemen nur an oder aus.
 
 RRCA ist eine erweiterte Crew-Chief-Anwendung mit Ben (Strategie), Mik (Fahrzeug) und Sara (lokaler Spotter). Das klassische Crew-Chief-Fenster läuft in derselben Instanz minimiert weiter. Alpha: Fehler und ausbleibende Ansagen sind möglich.
 

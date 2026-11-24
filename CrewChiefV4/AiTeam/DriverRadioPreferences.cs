@@ -45,7 +45,9 @@ namespace CrewChiefV4.AiTeam
         public double IntervalScale(string topic)
         {
             var current=Volatile.Read(ref values);
-            return Scale(current.Routine)*((topic=="ahead" || topic=="behind")?GapScale(current.Gaps):1);
+            // Rob 24.11.: Keine Funkstufen mehr. Ein früher gespeichertes „Routineberichte seltener“ dämpft nichts mehr; nur der
+            // gezielte Wunsch „Abstände häufiger/seltener“ (Monza 22.11.) gilt weiter.
+            return (topic=="ahead" || topic=="behind")?GapScale(current.Gaps):1;
         }
         private static string Label(int level) => level==2?"seltener":level==0?"häufiger":"normal";
         public bool QualifyingSectors => Volatile.Read(ref values).QualifyingSectors;
@@ -56,17 +58,10 @@ namespace CrewChiefV4.AiTeam
         {
             var current=Volatile.Read(ref values);
             return invalid?"Funkwünsche-Datei nicht lesbar; Standardintervalle aktiv.":
-                "Routineberichte "+Label(current.Routine)+". Abstände "+Label(current.Gaps)+
+                "Abstände "+Label(current.Gaps)+
                 ". Sektorvergleiche im Quali "+(current.QualifyingSectors?"an.":"aus.") +
-                " Schneller Verkehr von hinten ab etwa " + current.RearTrafficSeconds + " Sekunden." +
-                " Funkdichte " + (current.Density == 0 ? "mehr Infos." : current.Density == 2 ? "weniger Infos." : "normal.");
+                " Schneller Verkehr von hinten ab etwa " + current.RearTrafficSeconds + " Sekunden.";
         }
-        internal static string DensityReply(int density) => density == 0
-            ? RadioLanguage.T("Verstanden, ab jetzt mehr Daten am Funk, wenn Luft ist.", "Copy, more data on the radio from now on when there's room.", "Entendido, a partir de ahora más datos por radio cuando haya hueco.")
-            : density == 2
-            ? RadioLanguage.T("Verstanden, ich halte mich mit Daten zurück. Wichtiges kommt trotzdem.", "Copy, I'll hold back on data. Anything important still comes through.", "Entendido, me guardo los datos. Lo importante sigue llegando.")
-            : RadioLanguage.T("Verstanden, Funk wieder normal.", "Copy, radio back to normal.", "Entendido, radio otra vez normal.");
-
         internal static string Normalize(string question) => Regex.Replace((question??"").ToLowerInvariant()
             .Replace("ä","ae").Replace("ö","oe").Replace("ü","ue").Replace("ß","ss").Replace("á","a").Trim().TrimEnd('.','!','?'),@"\s+"," ");
         internal static bool IsCommand(string question) => Parse(question).Success;
@@ -101,7 +96,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         private const string CommandPattern =
-            @"^(?:(?:bitte|ab jetzt|kuenftig|merke dir[:,]?) )*(?:(?:(?:melde(?: mir)?|ich moechte) )?(?<topic>routinefunk|routineberichte|abstandsmeldungen|abstandsberichte|abstaende) (?:bitte )?(?<level>seltener|haeufiger|normal)(?: hoeren)?|(?:sektorvergleiche|sektoransagen) im qual(?:i|ifying) (?<sectors>an|aus)|ich moechte im qual(?:i|ifying) (?:(?<no>keine) )?(?:sektorvergleiche|sektoransagen) hoeren|(?:schneller verkehr von hinten|schnellere (?:autos|gegner) von hinten) (?:bitte )?(?:erst )?bei (?<rear>[2-6]|zwei|drei|vier|fuenf|sechs) sekunden|(?<density>mehr funk|weniger funk|funk normal|mehr infos|weniger infos|infos normal|more radio|less radio|radio normal|mas radio|menos radio|radio normal)|(?<reset>funkwuensche zuruecksetzen)|(?<query>welche funkwuensche sind gespeichert|funkwuensche anzeigen))$";
+            @"^(?:(?:bitte|ab jetzt|kuenftig|merke dir[:,]?) )*(?:(?:(?:melde(?: mir)?|ich moechte) )?(?<topic>abstandsmeldungen|abstandsberichte|abstaende) (?:bitte )?(?<level>seltener|haeufiger|normal)(?: hoeren)?|(?:sektorvergleiche|sektoransagen) im qual(?:i|ifying) (?<sectors>an|aus)|ich moechte im qual(?:i|ifying) (?:(?<no>keine) )?(?:sektorvergleiche|sektoransagen) hoeren|(?:schneller verkehr von hinten|schnellere (?:autos|gegner) von hinten) (?:bitte )?(?:erst )?bei (?<rear>[2-6]|zwei|drei|vier|fuenf|sechs) sekunden|(?<reset>funkwuensche zuruecksetzen)|(?<query>welche funkwuensche sind gespeichert|funkwuensche anzeigen))$";
         public bool TryCommand(string question,out string reply)
         {
             reply=null; var match=Parse(question); if(!match.Success)return false;
@@ -111,14 +106,8 @@ namespace CrewChiefV4.AiTeam
                 var old=Volatile.Read(ref values);
                 var next=new Values {Routine=old.Routine,Gaps=old.Gaps,QualifyingSectors=old.QualifyingSectors,RearTrafficSeconds=old.RearTrafficSeconds,Density=old.Density};
                 bool rearPreference = match.Groups["rear"].Success;
-                bool densityPreference = match.Groups["density"].Success;
-                bool sectorPreference = !rearPreference && !densityPreference && !match.Groups["topic"].Success && !match.Groups["reset"].Success;
+                bool sectorPreference = !rearPreference && !match.Groups["topic"].Success && !match.Groups["reset"].Success;
                 if(match.Groups["reset"].Success)next=new Values();
-                else if(densityPreference)
-                {
-                    string d = match.Groups["density"].Value;
-                    next.Density = d.StartsWith("mehr") || d.StartsWith("more") || d.StartsWith("mas") ? 0 : d.StartsWith("weniger") || d.StartsWith("less") || d.StartsWith("menos") ? 2 : 1;
-                }
                 else if(rearPreference)
                 {
                     string value = match.Groups["rear"].Value;
@@ -129,7 +118,7 @@ namespace CrewChiefV4.AiTeam
                 else {
                     string level=match.Groups["level"].Value;
                     int value=level=="seltener"?2:level=="haeufiger"?0:1;
-                    if(match.Groups["topic"].Value.StartsWith("routine"))next.Routine=value;else next.Gaps=value;
+                    next.Gaps=value;
                 }
                 try {
                     Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -143,7 +132,7 @@ namespace CrewChiefV4.AiTeam
                     } else File.Move(temporary,path);
                     Volatile.Write(ref values,next);
                     invalid=false;
-                    reply=densityPreference ? DensityReply(next.Density) : rearPreference ? "Gespeichert. Schnelleren Verkehr von hinten melde ich bei etwa " +
+                    reply=rearPreference ? "Gespeichert. Schnelleren Verkehr von hinten melde ich bei etwa " +
                         next.RearTrafficSeconds + " Sekunden oder näher." : sectorPreference?"Gespeichert. Sektorvergleiche im Quali "+(next.QualifyingSectors?"an.":"aus."):
                         "Gespeichert, ab dem nächsten neu geplanten Intervall. "+Describe();
                 } catch(Exception e) when(e is IOException || e is UnauthorizedAccessException) { reply="Ich konnte den Funkwunsch nicht speichern. Die bisherigen Intervalle bleiben aktiv."; }

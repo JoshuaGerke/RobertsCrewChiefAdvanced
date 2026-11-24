@@ -6,20 +6,26 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.32: the crew lives the race.** Ben comments on overtakes and battles with feeling and with the history of the duel, differently every time (if the AI line does not arrive within 2.5 seconds he uses the fixed sentence). Sara reports pit stops, retirements and disqualifications across the whole grid, several in one sentence, and spins and crashes behind you. In timed races Ben calls the time left at 15, 10, 5 and 2 minutes with your position. After the flag Mik also names your pit stops.
+> **New in Alpha 0.35: the crew calls the radio by the situation.**
+>
+> - **No more radio levels.** Ben, Mik and Sara decide themselves when information comes: events at once, the cars ahead and behind most often, technical reports when there is room.
+> - **Spotter by radio.** "Spotter on" and "spotter off" work at once and last until restart, also when qualifying turns into the race.
+> - **Nothing gets lost.** A call you never heard does not count as said and comes on the next attempt. Tyres and car condition no longer vanish with a dropped report.
+> - **Sector bests in the race**, even in the middle of a battle.
+> - **More honest calls.** "Closing in" only when the car behind really gets closer; "took it back" only after a real lost place. In the race a faster lap is your "best race lap", and the start lap is no longer the benchmark.
+> - **Lap calls first.** "Two laps to go" and "last lap" come before the lap time.
+> - **Mik takes notes on request** ("write that down").
+> - **Stable.** A quick stop and restart between qualifying and the race no longer crashes Crew Chief, and the spotter mode is saved.
+>
+> **Since Alpha 0.32: the crew lives the race.** Ben comments on overtakes and battles with feeling and with the history of the duel, differently every time (if the AI line does not arrive within 2.5 seconds he uses the fixed sentence). Sara reports pit stops, retirements and disqualifications across the whole grid, several in one sentence, and spins and crashes behind you. In timed races Ben calls the time left at 15, 10, 5 and 2 minutes with your position. After the flag Mik also names your pit stops.
 >
 > **Radio commands while driving.** Press push-to-talk and say:
 >
 > | Say | What happens |
 > |---|---|
-> | **"Quiet please"** | No more routine reports and analyses. Position changes, battles, time left, field news, warnings and answers still come. |
-| **"Less info"** | One step down (Much more to More, More to Normal, Normal to Quiet). |
-> | **"More info"** | More reports, mostly about the cars ahead and behind. |
-> | **"Much more info"** / **"Full info"** | The full programme. |
-> | **"Radio normal"** / **"Radio back on"** | Back to the normal rhythm. If you ask in Quiet why nothing comes, the crew switches to Normal by itself. |
 > | **"Spotter off"** / **"Spotter on"** | Only Sara's side calls (left, right, clear). She always calls yellows, crashes, slow cars and the safety car. |
 >
-> The radio amount takes effect at once and is saved. In the app it is under **AI & radio** → **Radio amount**. The spotter stays off until you say "spotter on" or restart RRCA. How often the crew reports on its own is up to the crew: it follows the race length and how tense the race is.
+> This takes effect at once and holds until you restart RRCA, also from qualifying into the race and in realistic spotter mode. There is no radio amount any more: the crew always talks as the race requires. Events come at once, the cars ahead and behind most often, even more in a battle, and technical reports when there is room.
 
 RRCA is a free, unofficial extension for [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). It gives you a pit crew of three voices that you can talk to during a race:
 
@@ -93,7 +99,7 @@ Prices as of **November 2026**. Prices change, so please check the providers' we
 - **Starter:** about 6 USD per month (the first month was 1 USD at the time of writing), about 75,000 characters per month. **Recommended to start with.**
 - Higher plans exist if you race a lot.
 - Once, during setup, RRCA prepares the crew's standard calls and Sara's spotter calls. That uses roughly 15,000 to 25,000 characters one time.
-- After that, a typical race uses roughly 3,000 to 10,000 characters, depending on how chatty you set the radio.
+- After that, a typical race uses roughly 3,000 to 10,000 characters, depending on how much you talk to the crew and how much happens in the race.
 
 **Tips to keep costs under control**
 - Set a **spending limit** on each key (explained below).
@@ -160,7 +166,7 @@ Do all of this while the sim is closed or while you are standing in the pits, ne
 
 **f) Your sim.** On the **Cockpit** page, switch on **Detect game automatically**. RRCA then starts the crew by itself when your sim is running. Alternatively, choose the sim from the list and click **Start**. Make sure telemetry or shared memory is switched on in the sim's own settings; Crew Chief's documentation explains this for each sim.
 
-**g) Radio amount and reports.** Under **AI & radio** you set the **Radio amount**: Quiet, Normal, More info or Much more info. Under **Scheduled radio reports** you now only switch topics on or off. The crew sets the rhythm: in short races up to 15 minutes each technical topic comes once or twice, more often in longer races. The cars ahead and behind come most often, twice as often in a close battle. Calm phases bring tyres, damage, weather and track temperature; in a battle the technical reports wait. Events such as damage, penalties, yellows or best laps always come straight away.
+**g) Radio reports.** There is no radio amount to set; the crew always talks as the race requires. Under **AI & radio** → **Scheduled radio reports** you only switch topics on or off. The crew sets the rhythm: in short races up to 15 minutes each technical topic comes once or twice, more often in longer races. The cars ahead and behind come most often, twice as often in a close battle. Calm phases bring tyres, damage, weather and track temperature; in a battle the technical reports wait. Events such as damage, penalties, yellows or best laps always come straight away.
 
 ## 8. Your first test
 

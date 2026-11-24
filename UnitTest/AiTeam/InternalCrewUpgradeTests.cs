@@ -33,7 +33,7 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("Quali aus", answer);
             preferences = new DriverRadioPreferences(folder);
             Assert.IsFalse(preferences.QualifyingSectors);
-            Assert.AreEqual(2, preferences.IntervalScale("fuel"));
+            Assert.AreEqual(1, preferences.IntervalScale("fuel"), "Rob 24.11.: ein altes „Routine seltener“ dämpft nichts mehr");
             Assert.IsFalse(preferences.TryCommand("Sektorvergleiche im Quali nicht aus", out _));
             Assert.IsTrue(preferences.TryCommand("Funkwünsche zurücksetzen", out _));
             Assert.IsTrue(new DriverRadioPreferences(folder).QualifyingSectors);
@@ -194,11 +194,12 @@ namespace UnitTest.AiTeamTests
         {
             string folder=Folder(), reply;
             var prefs=new DriverRadioPreferences(folder);
-            Assert.IsTrue(prefs.TryCommand("Merke dir: Routinefunk seltener.",out reply));
-            Assert.AreEqual(2,prefs.IntervalScale("fuel"));
-            var reopened=new DriverRadioPreferences(folder);Assert.AreEqual(2,reopened.IntervalScale("fuel"));
-            Assert.IsTrue(reopened.TryCommand("Abstandsmeldungen häufiger",out reply));
-            Assert.AreEqual(1,reopened.IntervalScale("ahead"));Assert.AreEqual(2,reopened.IntervalScale("fuel")); // seltener × häufiger
+            // Rob 24.11.: „Routinefunk seltener“ war eine Funkstufe und ist entfernt; der gezielte Abstandswunsch bleibt.
+            Assert.IsFalse(prefs.TryCommand("Merke dir: Routinefunk seltener.",out reply));
+            Assert.AreEqual(1,prefs.IntervalScale("fuel"));
+            Assert.IsTrue(prefs.TryCommand("Abstandsmeldungen häufiger",out reply));
+            var reopened=new DriverRadioPreferences(folder);
+            Assert.AreEqual(.5,reopened.IntervalScale("ahead"));Assert.AreEqual(1,reopened.IntervalScale("fuel"));
             Assert.IsTrue(reopened.TryCommand("Welche Funkwünsche sind gespeichert?",out reply));StringAssert.Contains("häufiger",reply);
             Assert.IsTrue(reopened.TryCommand("Funkwünsche zurücksetzen",out reply));
             Assert.AreEqual(1,new DriverRadioPreferences(folder).IntervalScale("ahead"));
@@ -236,8 +237,8 @@ namespace UnitTest.AiTeamTests
         {
             string folder=Folder(), path=Path.Combine(folder,"funkwuensche.json"), reply;
             File.WriteAllText(path,"{broken");var prefs=new DriverRadioPreferences(folder);
-            Assert.IsTrue(prefs.TryCommand("Routinefunk seltener",out reply));
-            Assert.AreEqual(1,prefs.IntervalScale("fuel"));Assert.AreEqual("{broken",File.ReadAllText(path));
+            Assert.IsTrue(prefs.TryCommand("Abstände seltener",out reply));
+            Assert.AreEqual(1,prefs.IntervalScale("ahead"));Assert.AreEqual("{broken",File.ReadAllText(path));
             StringAssert.DoesNotContain("Gespeichert",reply);
         }
         [Test]
@@ -258,8 +259,8 @@ namespace UnitTest.AiTeamTests
             var backups=Directory.GetFiles(folder,"*.corrupt.*.bak");Assert.AreEqual(1,backups.Length);
             Assert.AreEqual("{broken",File.ReadAllText(backups[0]));
             var reopened=new DriverRadioPreferences(folder);
-            Assert.IsTrue(reopened.TryCommand("Routinefunk seltener",out reply));
-            Assert.AreEqual(2,new DriverRadioPreferences(folder).IntervalScale("fuel"));
+            Assert.IsTrue(reopened.TryCommand("Abstände seltener",out reply));
+            Assert.AreEqual(2,new DriverRadioPreferences(folder).IntervalScale("ahead"));
         }
         [TestCase("{\"schema\":1,\"routine\":1.5,\"gaps\":1}")]
         [TestCase("{\"schema\":1,\"routine\":\"2\",\"gaps\":1}")]
@@ -270,7 +271,7 @@ namespace UnitTest.AiTeamTests
             File.WriteAllText(Path.Combine(folder,"funkwuensche.json"),json);
             var prefs=new DriverRadioPreferences(folder);
             Assert.AreEqual(1,prefs.IntervalScale("fuel"));
-            prefs.TryCommand("Routinefunk seltener",out reply);
+            prefs.TryCommand("Abstände seltener",out reply);
             StringAssert.DoesNotContain("Gespeichert",reply);
         }
         [Test]

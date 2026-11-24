@@ -6,20 +6,26 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.32: el equipo vive la carrera.** Ben comenta adelantamientos y duelos con emoción y con la historia del duelo, cada vez distinto (si la frase de la IA no llega en 2,5 segundos, usa la frase fija). Sara avisa de paradas, abandonos y descalificaciones de toda la parrilla, varias en una frase, y de trompos y accidentes detrás de ti. En carreras por tiempo Ben avisa a 15, 10, 5 y 2 minutos del final con tu posición. Tras la bandera Mik también nombra tus paradas.
+> **Novedades de Alpha 0.35: el equipo habla según la situación.**
+>
+> - **Sin niveles de radio.** Ben, Mik y Sara deciden cuándo llega cada información: los eventos al momento, el coche de delante y el de detrás más a menudo, lo técnico cuando hay hueco.
+> - **Spotter por radio.** «Spotter activado» y «spotter apagado» funcionan al momento y duran hasta reiniciar, también al pasar de la clasificación a la carrera.
+> - **No se pierde nada.** Un mensaje que nunca oíste no cuenta como dicho y llega en el siguiente intento. Neumáticos y estado del coche ya no desaparecen con un informe descartado.
+> - **Mejores sectores en carrera**, también en pleno duelo.
+> - **Avisos más honestos.** «Se acerca» solo cuando el de detrás de verdad se acerca; «la has recuperado» solo tras perder de verdad la posición. En carrera una vuelta más rápida es tu «mejor vuelta de carrera», y la vuelta de salida ya no sirve de referencia.
+> - **Primero las vueltas.** «Quedan dos vueltas» y «última vuelta» llegan antes del tiempo de vuelta.
+> - **Mik toma notas cuando se lo pides** («apúntalo»).
+> - **Estable.** Parar y reiniciar rápido entre clasificación y carrera ya no hace caer Crew Chief, y el modo del spotter se guarda.
+>
+> **Desde Alpha 0.32: el equipo vive la carrera.** Ben comenta adelantamientos y duelos con emoción y con la historia del duelo, cada vez distinto (si la frase de la IA no llega en 2,5 segundos, usa la frase fija). Sara avisa de paradas, abandonos y descalificaciones de toda la parrilla, varias en una frase, y de trompos y accidentes detrás de ti. En carreras por tiempo Ben avisa a 15, 10, 5 y 2 minutos del final con tu posición. Tras la bandera Mik también nombra tus paradas.
 >
 > **Órdenes por radio mientras conduces.** Pulsa el botón de radio y di:
 >
 > | Di | Qué pasa |
 > |---|---|
-> | **«Silencio, por favor»** | Sin informes de rutina ni análisis. Cambios de posición, duelos, tiempo restante, noticias de la parrilla, avisos y respuestas siguen llegando. |
-| **«Menos información»** | Un nivel menos (de Mucha más a Más, de Más a Normal, de Normal a Tranquila). |
-> | **«Más información»** | Más informes, sobre todo del coche de delante y el de detrás. |
-> | **«Mucha más información»** / **«Toda la información»** | Programa completo. |
-> | **«Radio normal»** | Vuelta al ritmo normal. Si en Tranquila preguntas por qué no llega nada, el equipo vuelve solo a Normal. |
 > | **«Spotter apagado»** / **«Spotter activado»** | Solo los avisos laterales de Sara (izquierda, derecha, libre). Amarillas, accidentes, coches lentos y safety car los avisa siempre. |
 >
-> La cantidad de radio se aplica al momento y queda guardada. En el programa está en **IA y radio** → **Cantidad de radio**. El spotter sigue apagado hasta que digas «spotter activado» o reinicies RRCA. Con qué frecuencia informa el equipo por su cuenta lo decide él mismo: según la duración de la carrera y la tensión.
+> Se aplica al momento y dura hasta que reinicies RRCA, también al pasar de la clasificación a la carrera y en el modo de spotter realista. Ya no hay cantidad de radio: el equipo habla siempre según la carrera. Los eventos llegan al momento, el coche de delante y el de detrás más a menudo, aún más en un duelo, y lo técnico cuando hay hueco.
 
 RRCA es una extensión gratuita y no oficial para [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). Te da un equipo de boxes con tres voces con el que puedes hablar durante la carrera:
 
@@ -93,7 +99,7 @@ Precios de **noviembre de 2026**. Los precios cambian; compruébalos en las webs
 - **Starter:** unos 6 USD al mes (el primer mes costaba 1 USD al escribir esto), unos 75.000 caracteres al mes. **Recomendado para empezar.**
 - Hay planes mayores si corres mucho.
 - Una sola vez, durante la configuración, RRCA prepara los mensajes estándar del equipo y los avisos de Sara. Eso usa una vez entre 15.000 y 25.000 caracteres aproximadamente.
-- Después, una carrera típica usa entre 3.000 y 10.000 caracteres, según lo hablador que configures la radio.
+- Después, una carrera típica usa entre 3.000 y 10.000 caracteres, según cuánto hables con el equipo y cuánto pase en la carrera.
 
 **Consejos para controlar el gasto**
 - Pon un **límite de gasto** en cada clave (se explica abajo).
@@ -160,7 +166,7 @@ Haz todo esto con el simulador cerrado o parado en boxes, nunca conduciendo.
 
 **f) Tu simulador.** En la página **Cockpit**, activa **Detectar simulador automáticamente**. RRCA pondrá en marcha el equipo cuando tu simulador esté abierto. También puedes elegir el simulador de la lista y pulsar **Iniciar**. En los ajustes del simulador tiene que estar activada la telemetría o la memoria compartida (shared memory); la documentación de Crew Chief lo explica para cada simulador.
 
-**g) Cantidad de radio e informes.** En **IA y radio** eliges la **Cantidad de radio**: Tranquila, Normal, Más información o Mucha más información. En **Informes periódicos por radio** ahora solo activas o desactivas temas. El ritmo lo pone el equipo: en carreras cortas de hasta 15 minutos cada tema técnico llega una o dos veces, en carreras más largas más a menudo. El coche de delante y el de detrás llegan más a menudo, el doble en un duelo cerrado. En fases tranquilas llegan neumáticos, daños, tiempo y temperatura de pista; en un duelo lo técnico espera. Eventos como daños, sanciones, amarillas o mejores vueltas llegan siempre al momento.
+**g) Informes por radio.** No hay cantidad de radio que ajustar; el equipo habla siempre según la carrera. En **IA y radio** → **Informes periódicos por radio** solo activas o desactivas temas. El ritmo lo pone el equipo: en carreras cortas de hasta 15 minutos cada tema técnico llega una o dos veces, en carreras más largas más a menudo. El coche de delante y el de detrás llegan más a menudo, el doble en un duelo cerrado. En fases tranquilas llegan neumáticos, daños, tiempo y temperatura de pista; en un duelo lo técnico espera. Eventos como daños, sanciones, amarillas o mejores vueltas llegan siempre al momento.
 
 ## 8. Tu primera prueba
 

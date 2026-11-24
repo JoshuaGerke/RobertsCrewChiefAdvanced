@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
@@ -360,7 +360,9 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Admit, Judge(final, "gap-trend"), "Hochrechnung zählt gerade am Ende");
             Assert.AreEqual(MindVerdict.Drop, Judge(lastLap, "gap-trend"));
 
-            Assert.AreEqual(MindVerdict.Hold, Judge(battle, "sector-best"));
+            Assert.AreEqual(MindVerdict.Admit, Judge(battle, "sector-best"), "LMU Sebring 24.11.: eigene Sektorbestzeit auch im Zweikampf");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "sector-best"), "unter Gelb wartet sie");
+            Assert.AreEqual(MindVerdict.Hold, Judge(battle, "near-best"), "anderes Lob wartet im Zweikampf weiter");
             Assert.AreEqual(MindVerdict.Admit, Judge(lastLap, "sector-best"), "Sektorbestzeit in der letzten Runde passt");
         }
 

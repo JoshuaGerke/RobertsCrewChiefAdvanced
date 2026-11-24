@@ -3421,15 +3421,6 @@ ai_team_windows_voice_sara = KI-Team Windows-Stimme Sara
 ai_team_windows_voice_sara_help = Teil des Namens einer installierten Windows-Stimme (z. B. "Hedda" oder "Katja"). Leer = automatisch.
 ai_team_windows_voice_sara_category = AI_TEAM
 ai_team_windows_voice_sara_metadata = RESTART_REQUIRED
-ai_team_radio_mode_listprop = KI-Team Funkmenge
-ai_team_radio_mode_listprop_help = Ruhig: Routineberichte und Analysen ruhen; Platzwechsel, Zweikampf, Restzeit und Feldnachrichten kommen weiter. Normal: die Crew wählt den Takt nach Renndauer und Spannung. Mehr Infos: Berichte etwa ein Viertel öfter. Viel mehr Infos: fast doppelt so oft. Per Funk umschaltbar: „Ruhe bitte“, „Weniger Infos“, „Mehr Infos“, „Viel mehr Infos“, „Volle Infos“, „Funk normal“. Sara und Warnungen bleiben immer an.
-ai_team_radio_mode_listprop_category = AI_TEAM
-ai_team_radio_mode_listprop_type = CrewChiefV4.AiTeam.AiRadioMode
-ai_team_radio_mode_listprop_value_0 = Ruhig
-ai_team_radio_mode_listprop_value_1 = Normal
-ai_team_radio_mode_listprop_value_2 = Mehr Infos
-ai_team_radio_mode_listprop_value_3 = Viel mehr Infos
-ai_team_radio_mode_listprop_metadata = RESTART_REQUIRED
 ai_team_driver_name = KI-Team vollständiger Fahrername
 ai_team_driver_name_help = Dein vollständiger Name. Ohne Spitznamen wird dieser auch am Funk verwendet.
 ai_team_driver_name_category = AI_TEAM

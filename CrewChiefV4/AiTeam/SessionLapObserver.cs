@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -314,7 +314,9 @@ namespace CrewChiefV4.AiTeam
                         string group = first ? "lap-first-valid" : "lap-best";
                         var variants = first ? firstValidVariants : improvements;
                         int heard = SelectVariant(group, variants);
-                        string text = RadioPhraseCatalog.Current.Format(group, heard, formatted) +
+                        // LMU Sebring 24.11.: Im Rennen hieß jede schnellere Runde „neue persönliche Bestzeit“, obwohl Robs Quali-Runde
+                        // (2:04,297) schneller war. Im Rennen ist es die beste Rennrunde.
+                        string text = (race && !first ? RaceBestLine(formatted, heard) : RadioPhraseCatalog.Current.Format(group, heard, formatted)) +
                             (classRecord ? RadioVariants.Pick("class-best-suffix",
                                 RadioLanguage.T(" Klassenbestzeit an der Linie.", " That's the class best!", " ¡Es el mejor tiempo de la clase!"),
                                 RadioLanguage.T(" Damit hast du die Klassenbestzeit!", " That's the fastest in class!", " ¡Con eso tienes el mejor tiempo de la clase!"),
@@ -1151,6 +1153,19 @@ namespace CrewChiefV4.AiTeam
                 GapAndPush(best, mine, variant);
         }
 
+        /// <summary>
+        /// Eigene Bestzeit für den Vergleich mit der schnellsten Runde im Feld. LMU Sebring 24.11.: „Deine Beste heute 12,5 dahinter“ –
+        /// im Rennen war nur die Startrunde gefahren. Die Startrunde ist kein Maßstab; im Rennen zählt die eigene Beste erst ab der
+        /// zweiten Runde. Ohne Vergleichsrunde nennt Ben nur die Zeit des Gegners.
+        /// </summary>
+        internal static float ComparableOwnBest(GameStateData gs)
+        {
+            if (gs == null) return -1;
+            var s = gs.SessionData;
+            if (s.SessionType == SessionType.Race && s.CompletedLaps < 2) return -1;
+            return s.PlayerLapTimeSessionBest;
+        }
+
         /// <summary>Eigener Rückstand auf die schnellste Runde (falls bekannt) und ein Ansporn.</summary>
         internal static string GapAndPush(float best, float mine, int variant)
         {
@@ -1290,6 +1305,19 @@ namespace CrewChiefV4.AiTeam
             string line = set[((variant % set.Length) + set.Length) % set.Length];
             return line.Replace("{0}", a ?? "").Replace("{1}", b ?? "");
         }
+        /// <summary>Verbesserung im Rennen: beste Rennrunde, nicht „persönliche Bestzeit“ (die kann aus Training oder Quali stammen).</summary>
+        internal static string RaceBestLine(string time, int variant)
+        {
+            string[] de = { "Beste Rennrunde bisher: {0}.", "{0}, deine schnellste Runde in diesem Rennen.", "Schneller geworden, {0}. Beste Runde im Rennen.",
+                "Da ist deine beste Rennrunde: {0}.", "{0}. So schnell warst du in diesem Rennen noch nicht.", "Verbessert auf {0}, Rennbestzeit." };
+            string[] en = { "Best race lap so far: {0}.", "{0}, your fastest lap of this race.", "Quicker again, {0}. Best lap of the race.",
+                "There's your best race lap: {0}.", "{0}. Your quickest yet in this race.", "Improved to {0}, your race best." };
+            string[] es = { "Mejor vuelta de carrera hasta ahora: {0}.", "{0}, tu vuelta más rápida en esta carrera.", "Más rápido otra vez, {0}. Mejor vuelta de la carrera.",
+                "Ahí está tu mejor vuelta de carrera: {0}.", "{0}. Nunca habías ido tan rápido en esta carrera.", "Mejoras a {0}, tu mejor de carrera." };
+            string[] set = RadioLanguage.Current == RadioLanguage.English ? en : RadioLanguage.Current == RadioLanguage.Spanish ? es : de;
+            return set[((variant % set.Length) + set.Length) % set.Length].Replace("{0}", time);
+        }
+
         private static bool IdentityMatches(string key, OpponentData before, OpponentData current) =>
             before != null && RaceReader.Identity(key, before) == RaceReader.Identity(key, current);
         private ObservedRaceCall Add(GameStateData gs, DateTime now, string topic, string text, string evidence, int priority,
@@ -1301,7 +1329,9 @@ namespace CrewChiefV4.AiTeam
                 AllowLapFinish=topic == "own-lap" || topic == "near-best",
                 DetectedUtc=now, ExpiresUtc=now.AddSeconds(topic.StartsWith("timed-lap-", StringComparison.Ordinal) ? 4 :
                     topic == "own-lap" ? 22 : topic == "race-lap" ? 20 : topic == "first-lap-fuel" || topic == "fuel-baseline" ? 30 :
-                    topic == "qualifying-last" ? 7 : topic == "quali-target" ? 15 : type == SessionType.Race ? 8 : 12) };
+                    topic == "qualifying-last" ? 7 : topic == "quali-target" ? 15 :
+                    // Die Sektorbestzeit darf im Rennen auf eine Lücke im Funk warten (LMU Sebring 24.11.: dreimal nach 8 s verfallen).
+                    topic == "sector-best" && type == SessionType.Race ? 20 : type == SessionType.Race ? 8 : 12) };
             if (group != null) call.BindVariant(cursor, group, variant);
             if (topic == "timed-lap-approach")
                 call.AdditionalValidity = live => live.PitData.OnOutLap && live.SessionData.CurrentLapIsValid;

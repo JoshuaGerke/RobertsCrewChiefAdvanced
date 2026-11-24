@@ -268,10 +268,15 @@ namespace CrewChiefV4.AiTeam
                     break;
                 case "setSpotterMode":
                     bool realistic = (bool)m["realistic"];
-                    SaveProperty("realistic_mode", realistic);
-                    if (UserSettings.GetUserSettings().getBoolean("realistic_mode") == realistic)
+                    // LMU 24.11.: Die Auswahl zeigte „Normal“, gespeichert blieb „Realistisch“, weil SaveProperty bei laufendem
+                    // Crew Chief nichts speichert. Der Spottermodus gilt laut Hilfe sofort, also auch während der Fahrt speichern.
+                    UserSettings.GetUserSettings().setProperty("realistic_mode", realistic);
+                    UserSettings.GetUserSettings().saveUserSettings();
+                    if (UserSettings.GetUserSettings().getBoolean("realistic_mode") != realistic) { Post(BuildInit()); break; }
                     {
                         GlobalBehaviourSettings.realisticMode = realistic;
+                        // Eine neue Wahl im Cockpit ersetzt ein früheres „Spotter ein/aus“ per Funk.
+                        GlobalBehaviourSettings.driverSpotterChoice = null;
                         // Sofort wirksam: auf Rundstrecken Sara an (Normal) oder aus (Realistisch); auf Ovalen bleibt sie immer an.
                         if (!GlobalBehaviourSettings.useOvalLogic)
                             GlobalBehaviourSettings.spotterEnabled = !realistic && GlobalBehaviourSettings.spotterEnabledInitialState;
@@ -333,6 +338,10 @@ namespace CrewChiefV4.AiTeam
                     Post(BuildInit());
                     break;
                 case "toggleRun":
+                    // LMU 24.11.: Stopp und sofort Start im Cockpit startete einen zweiten Durchlauf, während der alte noch aufräumte.
+                    // Der Startknopf im Hauptfenster ist bis zum Ende des Aufräumens gesperrt; das Cockpit hält sich jetzt daran.
+                    if (MainWindow.instance != null && !MainWindow.instance.startApplicationButton.Enabled)
+                    { Notice("Crew Chief stoppt oder startet noch. Bitte einen Moment warten."); Post(BuildInit()); break; }
                     if (MainWindow.instance != null) MainWindow.instance.startApplicationButton_Click(this, EventArgs.Empty);
                     break;
                 case "setGame":
@@ -457,7 +466,6 @@ namespace CrewChiefV4.AiTeam
                 },
                 ["settings"] = new JObject
                 {
-                    ["radioMode"] = s.RadioMode.ToString(),
                     ["radioLanguage"] = s.RadioLanguageSetting,
                     ["fastModel"] = s.FastModel,
                     ["deepModel"] = s.DeepModel,
@@ -658,7 +666,6 @@ namespace CrewChiefV4.AiTeam
                 prefs.Set(id, (bool)t["on"] ? Int(t["seconds"], 120) : 0);
                 prefs.SetTolerance(id, Int(t["minus"], 7), Int(t["plus"], 8));
             }
-            AiRadioMode mode;
             var u = UserSettings.GetUserSettings();
             u.setProperty("ai_team_fast_model", fast);
             u.setProperty("ai_team_deep_model", deep);
@@ -667,7 +674,6 @@ namespace CrewChiefV4.AiTeam
             u.setProperty("ai_team_reasoning_effort", ((string)v["reasoning"] ?? "none").Trim());
             u.setProperty("ai_team_max_calls_per_session", Math.Max(0, Int(v["callLimit"], 300)));
             u.setProperty("ai_team_timeout_seconds", Math.Max(3, Math.Min(60, Int(v["timeout"], 12))));
-            if (Enum.TryParse((string)v["radioMode"], out mode)) u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
             string radioLanguage = ((string)v["radioLanguage"] ?? RadioLanguage.Auto).Trim().ToLowerInvariant();
             if (radioLanguage == RadioLanguage.Auto || radioLanguage == RadioLanguage.German || radioLanguage == RadioLanguage.English || radioLanguage == RadioLanguage.Spanish)
                 u.setProperty("ai_team_radio_language", radioLanguage);
@@ -824,7 +830,12 @@ namespace CrewChiefV4.AiTeam
         {
             var main = MainWindow.instance;
             if (main != null && main.crewChief != null && main.crewChief.running)
-            { Notice("Crew Chief zuerst stoppen. Audio- und Mikrofoneinstellungen gelten ab der nächsten Fahrt."); return; }
+            {
+                Notice("Crew Chief zuerst stoppen. Audio- und Mikrofoneinstellungen gelten ab der nächsten Fahrt.");
+                // Die Auswahl im Cockpit darf nicht etwas anzeigen, das nicht gespeichert wurde.
+                Post(BuildInit());
+                return;
+            }
             UserSettings.GetUserSettings().setProperty(name, value);
             UserSettings.GetUserSettings().saveUserSettings();
             service.ReloadSettings();

@@ -26,45 +26,23 @@ namespace UnitTest.AiTeamTests
         [TearDown]
         public void TearDown() { RadioLanguage.Current = wasLanguage; }
 
+        /// <summary>
+        /// Rob 24.11.: Die Funkstufen sind entfernt. Die Sätze aus Sebring werden noch erkannt, ändern aber nichts mehr; eine
+        /// gespeicherte Stufe „Ruhig“ dämpft nicht mehr. Beschwerden („kommt von dir nichts mehr?“) sind normale Fragen.
+        /// </summary>
         [TestCase("Volle Informationen."), TestCase("Volle Informationen, insbesondere Hintermann."), TestCase("Ich möchte volle Informationen."),
          TestCase("Alle Informationen bitte"), TestCase("Wieder alles"), TestCase("Volles Programm"), TestCase("full info please"),
-         TestCase("toda la información")]
-        public void Full_information_is_understood(string said)
+         TestCase("toda la información"), TestCase("Weniger Infos bitte."), TestCase("Infos wieder an")]
+        public void Sebring_radio_level_sentences_are_understood_and_change_nothing(string said)
         {
-            Assert.AreEqual(RadioAmount.MuchMore, RadioAmountCommand.Parse(said));
+            Assert.IsTrue(RadioAmountCommand.IsAmountWish(said));
+            Assert.AreEqual(AiRadioMode.NORMAL, new AiTeamSettings().RadioMode);
         }
 
-        [TestCase("Infos wieder an"), TestCase("Funk wieder an"), TestCase("Wieder Infos bitte"), TestCase("radio back on")]
-        public void Radio_back_on_is_normal(string said)
+        [TestCase("Ben, kommt von dir nichts mehr?"), TestCase("Keine Reaktion auf meine Überholmanöver"), TestCase("Wie weit ist der Vordermann?")]
+        public void Complaints_and_questions_go_to_the_crew_as_questions(string said)
         {
-            Assert.AreEqual(RadioAmount.Normal, RadioAmountCommand.Parse(said));
-        }
-
-        [Test]
-        public void Less_info_is_one_step_down_not_silence()
-        {
-            Assert.AreEqual(RadioAmount.More, RadioAmountCommand.Parse("Weniger Infos bitte.", RadioAmount.MuchMore), "Sebring 22:35: aus Viel mehr Infos");
-            Assert.AreEqual(RadioAmount.Normal, RadioAmountCommand.Parse("Weniger Infos bitte.", RadioAmount.More));
-            Assert.AreEqual(RadioAmount.Quiet, RadioAmountCommand.Parse("Weniger Infos bitte.", RadioAmount.Normal));
-            Assert.AreEqual(RadioAmount.Quiet, RadioAmountCommand.Parse("Ruhe bitte", RadioAmount.MuchMore), "Ruhe bleibt Ruhe");
-            Assert.AreEqual(RadioAmount.Normal, RadioAmountCommand.Parse("less radio", RadioAmount.More));
-        }
-
-        [TestCase("Ben, kommt von dir nichts mehr?"), TestCase("Keine Reaktion auf meine Überholmanöver"),
-         TestCase("Keine Ansagen mehr über die Rennzeit, das ist schlecht"), TestCase("Warum hast du mir nicht gesagt, dass ich auf der letzten Runde bin?"),
-         TestCase("Why didn't you tell me it was the last lap?"), TestCase("¿Por qué no me avisas?")]
-        public void Complaints_about_silence_bring_the_radio_back_when_quiet(string said)
-        {
-            Assert.IsTrue(RadioAmountCommand.ComplainsAboutSilence(said, RadioAmount.Quiet));
-            Assert.IsFalse(RadioAmountCommand.ComplainsAboutSilence(said, RadioAmount.Normal), "bei normalem Funk ist es eine Frage, kein Befehl");
-            Assert.GreaterOrEqual(Enumerable.Range(0, 4).Select(RadioAmountCommand.SilenceReply).Distinct().Count(), 4);
-        }
-
-        [Test]
-        public void Ordinary_questions_are_no_complaint()
-        {
-            foreach (var q in new[] { "Wie weit ist der Vordermann?", "Wer ist hinter mir?", "Wie viel Sprit habe ich noch?" })
-                Assert.IsFalse(RadioAmountCommand.ComplainsAboutSilence(q, RadioAmount.Quiet), q);
+            Assert.IsFalse(RadioAmountCommand.IsAmountWish(said));
         }
 
         private static GameStateData TimedRace(float totalSeconds, float leftSeconds, int position = 6)
@@ -173,6 +151,33 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual("running", SpotterStartCheck.Changed("running"));
             Assert.IsNull(SpotterStartCheck.Changed("running"), "nur Änderungen ins Protokoll");
             SpotterStartCheck.Reset();
+        }
+
+        [Test]
+        public void A_faulty_game_tick_is_logged_and_crew_chief_keeps_running()
+        {
+            TickGuard.Reset();
+            var gs = TimedRace(1200, 600);
+            gs.SessionData.TrackDefinition = null;
+            Exception boom;
+            try { object o = null; o.ToString(); boom = null; } catch (Exception e) { boom = e; }
+            for (int i = 0; i < 1000; i++) Assert.IsTrue(TickGuard.Survive(boom, gs, null));
+            Assert.AreEqual(1000, TickGuard.Consecutive);
+            TickGuard.Ok();
+            Assert.AreEqual(0, TickGuard.Consecutive);
+            string nulls = TickGuard.NullFields(gs, null);
+            StringAssert.Contains("current.SessionData.TrackDefinition", nulls);
+            StringAssert.Contains("previous", nulls);
+            StringAssert.Contains("Race/Green", nulls);
+            TickGuard.Reset();
+        }
+
+        [Test]
+        public void An_older_game_loop_ends_when_a_new_start_begins()
+        {
+            Assert.IsTrue(CrewChief.LoopIsCurrent(true, 3, 3));
+            Assert.IsFalse(CrewChief.LoopIsCurrent(true, 2, 3), "LMU 24.11.: alter Zyklus nach automatischem Neustart");
+            Assert.IsFalse(CrewChief.LoopIsCurrent(false, 3, 3));
         }
 
         [Test]

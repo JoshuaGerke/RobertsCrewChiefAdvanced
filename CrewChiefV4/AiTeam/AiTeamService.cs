@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -89,6 +89,8 @@ namespace CrewChiefV4.AiTeam
         private bool cornersFromSampler;
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
+        /// <summary>Bis dahin hat die Rundenansage (noch 2, letzte Runde, Ziel) Vorrang vor Miks Rundenzeit.</summary>
+        private long lapCountdownUntilTicks;
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
         private readonly DriverWorkload workload = new DriverWorkload();
@@ -214,25 +216,9 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         internal string ApplySpotterCommand(bool on)
         {
-            GlobalBehaviourSettings.spotterEnabled = on;
+            SpotterCommand.Apply(on);
             LiveDiagnostics.Decision("spotter", on ? "enabled" : "disabled", "driver_command");
             return SpotterCommand.Reply(on, spotterReplies++);
-        }
-        /// <summary>Funkmenge per Funk setzen: gilt sofort und bleibt wie der Cockpit-Regler gespeichert.</summary>
-        internal string ApplyRadioAmount(RadioAmount amount)
-        {
-            var mode = AutoRadioPlan.ToMode(amount);
-            settings.RadioMode = mode;
-            radioSchedule.Amount = AutoRadioPlan.CurrentAmount = amount;
-            try
-            {
-                var u = UserSettings.GetUserSettings();
-                u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
-                u.saveUserSettings();
-            }
-            catch (Exception e) { Console.WriteLine("[KI-Team] Funkmenge nicht gespeichert: " + e.Message); }
-            LiveDiagnostics.Decision("radio-amount", "changed", "driver_command_" + amount.ToString().ToLowerInvariant());
-            return RadioAmountCommand.Reply(amount, radioAmountReplies++);
         }
 
         public void ReloadSettings()
@@ -514,7 +500,7 @@ namespace CrewChiefV4.AiTeam
             bool excluded = RaceExclusion.Active(current);
             if (raceRhythm.Observe(current, now)) radioSchedule.StaggerAfterStart(now, settings.RadioPreferences);
             bool startPhase = raceRhythm.InStart(current);
-            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length; radioSchedule.Amount = AutoRadioPlan.CurrentAmount = AutoRadioPlan.FromMode(settings.RadioMode);
+            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length; radioSchedule.Amount = AutoRadioPlan.CurrentAmount = RadioAmount.Normal;
             if (lapCompleted || now - lastFuelCheckUtc >= TimeSpan.FromSeconds(1))
             {
                 lastFuelCheckUtc = now;
@@ -614,8 +600,13 @@ namespace CrewChiefV4.AiTeam
                     Math.Abs(live.SessionData.TimeDeltaFront - measuredFront.Seconds) <= .5f);
                 radioSchedule.NoteRadio(now);
                 string referenceTemplate = lapWatch.ReferenceTemplate;
-                Action onPlayed = referenceTemplate == null ? (Action)null :
-                    () => LiveDiagnostics.Decision("last-lap", "template_played", referenceTemplate);
+                // LMU Sebring 24.11.: „Vorletzte Runde“ und „Letzte Runde“ kamen 7 bis 10 s nach der Linie, weil Miks Rundenzeit
+                // davor stand. Die Rundenansage geht jetzt zuerst; die Rundenzeit wartet höchstens 6 s auf sie.
+                Volatile.Write(ref lapCountdownUntilTicks, now.AddSeconds(6).Ticks);
+                Action onPlayed = () => {
+                    Volatile.Write(ref lapCountdownUntilTicks, 0);
+                    if (referenceTemplate != null) LiveDiagnostics.Decision("last-lap", "template_played", referenceTemplate);
+                };
                 bool paceReviewNames = settings.SendDriverNames;
                 var paceReview = current.SessionData.SessionPhase == SessionPhase.Finished &&
                     current.SessionData.SessionType == SessionType.Race && !current.SessionData.IsDNF &&
@@ -887,7 +878,7 @@ namespace CrewChiefV4.AiTeam
                 radioRenderGate.UrgentBusy || radioRenderGate.ResultBusy;
             if (raceCall == null && settings.IsMemberEnabled(TeamMember.Mik))
                 raceCall = lapWatch.TakeDisqualification(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy, settings.RadioName);
-            if (raceCall == null) raceCall = sessionLaps.Take(current, now, ownLapBusy, ownLapOnly: true);
+            if (raceCall == null) raceCall = sessionLaps.Take(current, now, ownLapBusy || now.Ticks < Volatile.Read(ref lapCountdownUntilTicks), ownLapOnly: true);
             if (raceCall == null) raceCall = TakePitFinish(current, now);
             if (raceCall == null) raceCall = personalBest.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,
                 settings.IsMemberEnabled(TeamMember.Mik));
@@ -1499,22 +1490,13 @@ namespace CrewChiefV4.AiTeam
                 return muteReply;
             }
 
-            // Rob 23.11.: „Ruhe bitte“, „mehr Infos“, „viel mehr Infos“, „Funk normal“ – sofort, lokal, gespeichert wie der Cockpit-Regler.
-            var amount = routed.Member != TeamMember.Sara ? RadioAmountCommand.Parse(routed.Question, AutoRadioPlan.CurrentAmount) : null;
-            // LMU Sebring 23.11.: Beschwerden über Stille bei „Ruhig“ holen den normalen Funk zurück, mit ehrlichem Grund.
-            if (!amount.HasValue && RadioAmountCommand.ComplainsAboutSilence(routed.Question, AutoRadioPlan.CurrentAmount))
+            // Rob 24.11.: Funkstufen gibt es nicht mehr. Alte Befehle („Ruhe bitte“, „mehr Infos“, „Funk normal“) ändern nichts; die
+            // Crew sagt das kurz und ehrlich, statt dass das Sprachmodell eine Umstellung bestätigt, die es nicht gibt.
+            bool amountWish = routed.Member != TeamMember.Sara && RadioAmountCommand.IsAmountWish(routed.Question);
+            if (amountWish)
             {
-                ApplyRadioAmount(RadioAmount.Normal);
-                string silenceReply = RadioAmountCommand.SilenceReply(radioAmountReplies++);
-                LiveDiagnostics.Decision("radio-amount", "changed", "driver_complained_about_silence_in_quiet_mode", routed.Question);
-                Stats.AddLocalAnswer();
-                await SpeakAsync(routed.Member, silenceReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
-                RememberExchange(routed.Member, routed.Question, silenceReply);
-                return silenceReply;
-            }
-            if (amount.HasValue)
-            {
-                string amountReply = ApplyRadioAmount(amount.Value);
+                string amountReply = RadioAmountCommand.NoLevelsReply(radioAmountReplies++);
+                LiveDiagnostics.Decision("radio-amount", "unchanged", "levels_removed", routed.Question);
                 Stats.AddLocalAnswer();
                 await SpeakAsync(routed.Member, amountReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 RememberExchange(routed.Member, routed.Question, amountReply);
@@ -1863,7 +1845,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         private static readonly System.Text.RegularExpressions.Regex MemoryVerb = new System.Text.RegularExpressions.Regex(
-            @"\b(merk|speicher|notier|vergiss nicht|behalt|remember|save|note|keep in mind|guarda|recuerda|apunta|anota)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            @"\b(merk|speicher|notier|aufschreib|schreib\w* (das |es )?auf|vergiss nicht|behalt|remember|save|note|write (that |it )?down|keep in mind|guarda|recuerda|apunta|apúnta|anota|anóta)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         private static readonly System.Text.RegularExpressions.Regex QuestionWord = new System.Text.RegularExpressions.Regex(
             @"\?|\b(wie|was|wann|wo|warum|wieso|welche[rsnm]?|wieviel|how|what|when|where|why|which|qué|cómo|cuándo|dónde|por qué|cuánto)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
@@ -2039,9 +2021,9 @@ namespace CrewChiefV4.AiTeam
                 // AMS2 Spa 23.11.: Strafe, Rundengültigkeit, Standort und Abstand stehen jetzt im Lagebild (schnelle Antwort genügt).
                 // Notizen und Wünsche („notieren“, „das muss automatisch kommen“) brauchen save_note, und eine Gegenrechnung des
                 // Fahrers („falsch“, „stimmt nicht“) wird mit den Rundenzeiten geprüft statt einfach übernommen.
-                "rechn", "notier", "speicher", "falsch", "stimmt nicht", "korrig", "automatisch", "öfter", "oefter", "häufiger", "einbau",
+                "rechn", "notier", "speicher", "aufschreib", "schreib das auf", "schreib auf", "schreibs auf", "write down", "write that down", "anót", "anota", "falsch", "stimmt nicht", "korrig", "automatisch", "öfter", "oefter", "häufiger", "einbau",
                 "note", "save", "wrong", "correct", "automatic", "more often",
-                "apunta", "guarda", "incorrect", "automátic", "más a menudo",
+                "apunta", "apúnta", "guarda", "incorrect", "automátic", "más a menudo",
                 // RaceRoom Hockenheim 23.11.: „Hinter mir hat sich jemand gedreht. Habt ihr das wahrgenommen?“ – Antwort ohne Blick ins
                 // Lagebild („kann ich nicht bestätigen“), obwohl dort „Iban Garcia, gedreht, 80 m hinter dir“ stand. Vorfälle und
                 // Sektorvergleiche brauchen das Lagebild.
@@ -2933,7 +2915,10 @@ namespace CrewChiefV4.AiTeam
                 call.ReleaseForRetry(DateTime.UtcNow, "member_disabled_or_channel_busy");
                 return;
             }
-            RememberLocalCall(call, DateTime.UtcNow);
+            DateTime rememberedAt = DateTime.UtcNow;
+            RememberLocalCall(call, rememberedAt);
+            // Nicht abgespielt heißt nicht gesagt: Beim nächsten Anlauf darf derselbe Satz wieder kommen (LMU Sebring 24.11.).
+            void Unheard() { if (call.DeliveryStartedUtc == DateTime.MinValue || call.PlaybackInterrupted) crewMemory.Forget(call, rememberedAt); }
             radioSchedule.Arbiter.Done(call.Topic);
             if (call.Guaranteed && AiRadioSchedule.IsRoutineTopic(call.Topic) && call.EventId != null)
             {
@@ -2956,7 +2941,7 @@ namespace CrewChiefV4.AiTeam
                         call.Topic == "stint-consistency" || call.Topic == "reader-pace-front" || call.Topic == "reader-pace-rear";
                     var context = call.ConfirmedPass || call.PitGain != null || call.CanRefresh || backgroundStatistics ?
                         BuildContext(initialState) : null;
-                    if (!call.RefreshBeforeSpeak(context)) { call.ReleaseForRetry(DateTime.UtcNow, "tactical_facts_no_longer_current"); return; }
+                    if (!call.RefreshBeforeSpeak(context)) { Unheard(); call.ReleaseForRetry(DateTime.UtcNow, "tactical_facts_no_longer_current"); return; }
                     float spokenGap = call.SpokenGapS;
                     string text = call.ComposeForDelivery(context, out var detailIsCurrent, pitAlreadyClaimed);
                     bool detailUsesNames = detailIsCurrent != null && context?.SendDriverNames == true;
@@ -3015,6 +3000,7 @@ namespace CrewChiefV4.AiTeam
                     };
                     void DeferOrRelease(string reason)
                     {
+                        Unheard();
                         var live = CrewChief.currentGameState;
                         var now = DateTime.UtcNow;
                         if (call.CanRefresh && generation == Volatile.Read(ref sessionGeneration) && live != null &&
@@ -3024,7 +3010,7 @@ namespace CrewChiefV4.AiTeam
                             call.DeferDelivery(now, "refresh_tactical_facts_after_delay");
                         else call.ReleaseForRetry(now, reason);
                     }
-                    if (!valid(text)) { call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid:" + invalidReason); return; }
+                    if (!valid(text)) { Unheard(); call.ReleaseForRetry(DateTime.UtcNow, "event_no_longer_valid:" + invalidReason); return; }
                     invalidReason = null;
                     // Kein bezahltes Neu-Erzeugen ohne Ende und kein Sekundentakt bei ausgefallener Stimme (RaceRoom Mantorp 22.11.).
                     bool paid = PaidVoiceNeeded(call.Member, baseText);
@@ -3065,6 +3051,7 @@ namespace CrewChiefV4.AiTeam
                             PaidDone(false);
                             var finishedUtc = DateTime.UtcNow;
                             call.MarkPlaybackFinished(finishedUtc, interrupted);
+                            if (interrupted) Unheard();
                             if (interrupted || generation != Volatile.Read(ref sessionGeneration) || !TelemetryFresh()) return;
                             var live = CrewChief.currentGameState;
                             if (call.ChaseOpponentIdentity != null)
@@ -3090,7 +3077,7 @@ namespace CrewChiefV4.AiTeam
                         else DeferOrRelease(invalidReason == null ? "speech_not_queued" : "speech_not_queued:" + invalidReason);
                     }
                 }
-                catch (Exception e) { call.ReleaseForRetry(DateTime.UtcNow, "delivery_exception"); Log("Lokaler Rennfunk: " + e.Message); }
+                catch (Exception e) { Unheard(); call.ReleaseForRetry(DateTime.UtcNow, "delivery_exception"); Log("Lokaler Rennfunk: " + e.Message); }
                 finally { releaseRender(); }
             });
         }

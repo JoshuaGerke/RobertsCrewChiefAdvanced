@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.GameState;
@@ -307,6 +307,32 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("2,0 Sekunden", call.Text);
             rival.r3eSlotId = 991;
             Assert.IsFalse(call.IsValid(state, context.NowUtc));
+        }
+
+        /// <summary>LMU Sebring 24.11.: „Castellacci schließt auf“, obwohl der Abstand inzwischen wieder wuchs.</summary>
+        [Test]
+        public void Rear_pressure_is_dropped_when_the_rival_falls_back_before_it_is_spoken()
+        {
+            var state = State();
+            state.SessionData.CompletedLaps = 3;
+            state.SessionData.OpponentKeyBehind = "castellacci";
+            state.SessionData.LapsDeltaBehind = 0;
+            state.OpponentData.Add("castellacci", new OpponentData { DriverRawName = "Mattia Castellacci", IsActive = true, ClassPosition = 4,
+                CompletedLaps = 3, CarClass = state.carClass });
+            var observer = new ActiveRaceObserver();
+            observer.Observe(state, T, "Rob", 0);
+            state.SessionData.TimeDeltaBehind = 1.6f;
+            observer.ObserveRearPressure(Context(state, T), new RaceGapMeasurement(1.6f, RaceGapKind.SimulatorTiming));
+            var at = T.AddSeconds(3);
+            state.SessionData.TimeDeltaBehind = 0.9f;
+            observer.ObserveRearPressure(Context(state, at), new RaceGapMeasurement(0.9f, RaceGapKind.SimulatorTiming));
+            var call = observer.Take(state, at, false, false, false, 0, null, "Rob");
+            Assert.IsNotNull(call);
+            Assert.AreEqual("rear-pressure", call.Topic);
+            state.SessionData.TimeDeltaBehind = 1.0f;
+            Assert.IsTrue(call.IsValid(state, at.AddMilliseconds(500)), "kleine Schwankung: er ist noch dran");
+            state.SessionData.TimeDeltaBehind = 1.4f;
+            Assert.IsFalse(call.IsValid(state, at.AddMilliseconds(600)), "wieder 0,5 s weiter weg: er schließt nicht mehr auf");
         }
 
         [TestCase(SessionType.Practice)] [TestCase(SessionType.Qualify)] [TestCase(SessionType.PrivateQualify)]

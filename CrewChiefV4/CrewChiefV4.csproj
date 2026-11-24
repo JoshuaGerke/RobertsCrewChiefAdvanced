@@ -267,6 +267,7 @@
     <Compile Include="AiTeam\Crew\BattleVoice.cs" />
     <Compile Include="AiTeam\Crew\RaceStorylineWatch.cs" />
     <Compile Include="AiTeam\Crew\SpotterStartCheck.cs" />
+    <Compile Include="AiTeam\TickGuard.cs" />
     <Compile Include="AiTeam\Crew\TimeLeftWatch.cs" />
     <Compile Include="AiTeam\Crew\TopSpeedWatch.cs" />
     <Compile Include="AiTeam\RaceMind.cs" />
