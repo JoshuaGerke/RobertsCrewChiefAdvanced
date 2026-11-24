@@ -6,7 +6,16 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.35: el equipo habla según la situación.**
+> **Novedades de Alpha 0.36: correcciones.**
+>
+> - **Clase correcta en carreras multiclase** (LMU, AMS2, iRacing). El resumen de carrera nombra al ganador de tu clase en lugar del ganador absoluto. La posición de clase y la velocidad punta de la clase son correctas.
+> - **FCY e interrupción en LMU.** Con FCY o bandera roja ya no cuenta medio pelotón como «lento» o «parado».
+> - **Combustible con su origen.** Si preguntas cuánto combustible necesitas para una distancia sin dar una cifra, el equipo dice de dónde sale el consumo: medido, proyectado o estimado de entrenamientos y clasificación. Solo tu propia cifra se llama «tu valor».
+> - **Ben no cambia cifras.** Una frase libre en un duelo ya no puede convertir «12 segundos» en «2 segundos».
+> - **No se pierde ningún nombre.** Si el aviso conjunto de Sara sobre paradas o abandonos no llega, los nombres vuelven a sonar. Con muchísimos avisos se descarta primero el menos importante, nunca un abandono.
+> - **Diagnóstico.** El tiempo de respuesta a tus preguntas mide solo la respuesta, no otro aviso intermedio.
+>
+> **Desde Alpha 0.35: el equipo habla según la situación.**
 >
 > - **Sin niveles de radio.** Ben, Mik y Sara deciden cuándo llega cada información: los eventos al momento, el coche de delante y el de detrás más a menudo, lo técnico cuando hay hueco.
 > - **Spotter por radio.** «Spotter activado» y «spotter apagado» funcionan al momento y duran hasta reiniciar, también al pasar de la clasificación a la carrera.

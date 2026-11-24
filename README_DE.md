@@ -6,7 +6,16 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.35: Die Crew funkt nach Lage.**
+> **Neu in Alpha 0.36: Fehlerbehebungen.**
+>
+> - **Richtige Klasse im Multiclass-Rennen** (LMU, AMS2, iRacing). Die Rennbilanz nennt den Sieger deiner Klasse statt des Gesamtsiegers. Klassenplatz und Topspeed der Klassenspitze stimmen.
+> - **FCY und Rennunterbrechung in LMU.** Unter FCY oder bei Rennunterbrechung gilt nicht mehr das halbe Feld als „langsam“ oder „steht“.
+> - **Sprit ehrlich benannt.** Fragst du nach dem Sprit für eine Distanz ohne eigene Literangabe, sagt die Crew, woher der Verbrauch stammt: gemessen, hochgerechnet oder aus Training und Quali geschätzt. Nur deine eigene Zahl heißt „dein Wert“.
+> - **Ben verändert keine Zahlen.** Eine frei formulierte Zweikampfansage kann aus „12 Sekunden“ nicht mehr „2 Sekunden“ machen.
+> - **Kein Name geht verloren.** Kommt Saras Sammelansage für Boxenstopps oder Ausfälle nicht durch, kommen die Namen noch einmal. Bei sehr vielen Meldungen fällt zuerst die unwichtigste weg, nie ein Ausfall.
+> - **Diagnose.** Die Antwortzeit auf deine Fragen misst nur noch die Antwort selbst, nicht eine andere Meldung dazwischen.
+>
+> **Seit Alpha 0.35: Die Crew funkt nach Lage.**
 >
 > - **Keine Funkstufen mehr.** Ben, Mik und Sara entscheiden selbst, wann eine Info kommt: Ereignisse sofort, Vorder- und Hintermann am häufigsten, Technik, wenn Luft ist.
 > - **Spotter per Funk.** „Spotter ein“ und „Spotter aus“ wirken sofort und gelten bis zum Neustart, auch beim Wechsel vom Qualifying ins Rennen.

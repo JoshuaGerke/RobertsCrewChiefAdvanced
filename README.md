@@ -6,7 +6,16 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.35: the crew calls the radio by the situation.**
+> **New in Alpha 0.36: bug fixes.**
+>
+> - **Correct class in multiclass races** (LMU, AMS2, iRacing). The race summary names the winner of your class instead of the overall winner. Class position and the class top speed are right.
+> - **FCY and red flag in LMU.** Under FCY or a race stoppage, half the field no longer counts as "slow" or "stopped".
+> - **Fuel sources named honestly.** If you ask how much fuel a distance needs without giving a figure, the crew says where the consumption comes from: measured, projected, or estimated from practice and qualifying. Only your own figure is called "your figure".
+> - **Ben does not change numbers.** A freely worded battle call can no longer turn "12 seconds" into "2 seconds".
+> - **No name gets lost.** If Sara's combined call for pit stops or retirements does not get through, the names come again. With very many calls the least important one is dropped first, never a retirement.
+> - **Diagnostics.** The answer time to your questions now measures only the answer itself, not another call in between.
+>
+> **Since Alpha 0.35: the crew calls the radio by the situation.**
 >
 > - **No more radio levels.** Ben, Mik and Sara decide themselves when information comes: events at once, the cars ahead and behind most often, technical reports when there is room.
 > - **Spotter by radio.** "Spotter on" and "spotter off" work at once and last until restart, also when qualifying turns into the race.
