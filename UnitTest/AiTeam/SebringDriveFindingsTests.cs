@@ -108,6 +108,34 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(125.796f, SessionLapObserver.ComparableOwnBest(gs), .001f, "in Training und Quali zählt jede gezeitete Runde");
         }
 
+        [Test]
+        public void A_faster_race_lap_is_the_best_race_lap_not_a_personal_best()
+        {
+            string was = RadioLanguage.Current;
+            try
+            {
+                foreach (var language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
+                {
+                    RadioLanguage.Current = language;
+                    var lines = Enumerable.Range(0, 6).Select(v => SessionLapObserver.RaceBestLine("2:04,760", v)).ToList();
+                    Assert.GreaterOrEqual(lines.Distinct().Count(), 4, language);
+                    foreach (var line in lines)
+                    {
+                        StringAssert.Contains("2:04,760", line);
+                        StringAssert.DoesNotContain("persönlich", line);
+                        StringAssert.DoesNotContain("personal", line);
+                    }
+                }
+            }
+            finally { RadioLanguage.Current = was; }
+        }
+
+        [Test]
+        public void Corner_names_are_spoken_as_corners()
+        {
+            StringAssert.Contains("Kurvennamen aus den Daten sind Orte, keine Fahrer", AiPersonas.SystemPrompt(TeamMember.Sara, "Rob", false));
+        }
+
         [TestCase("Aufschreiben und melden."), TestCase("Schreib das auf, die Reifen kommen in Echtzeit."), TestCase("Write that down please.")]
         public void Asking_to_write_something_down_uses_the_notes_tool(string said)
         {

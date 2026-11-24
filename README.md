@@ -6,7 +6,9 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.32: the crew lives the race.** Ben comments on overtakes and battles with feeling and with the history of the duel, differently every time (if the AI line does not arrive within 2.5 seconds he uses the fixed sentence). Sara reports pit stops, retirements and disqualifications across the whole grid, several in one sentence, and spins and crashes behind you. In timed races Ben calls the time left at 15, 10, 5 and 2 minutes with your position. After the flag Mik also names your pit stops.
+> **New in Alpha 0.35: the crew calls the radio by the situation.** There are no radio levels any more: Ben, Mik and Sara decide themselves when information comes. "Spotter on" and "spotter off" work at once and last until restart, also when the session changes to the race. Calls you never heard no longer count as said and come on the next attempt. Sector bests come in the race even during a battle, and tyres and car condition are no longer lost with a dropped report. Ben only says "closing in" when the car behind really gets closer, and "took it back" only after a real lost place. In the race a faster lap is your "best race lap", and the start lap is no longer the benchmark. "Two laps to go" and "last lap" come before the lap time. Mik takes notes on request ("write that down"). A quick stop and restart between qualifying and the race no longer crashes Crew Chief, and the spotter mode is saved.
+>
+> **Since Alpha 0.32: the crew lives the race.** Ben comments on overtakes and battles with feeling and with the history of the duel, differently every time (if the AI line does not arrive within 2.5 seconds he uses the fixed sentence). Sara reports pit stops, retirements and disqualifications across the whole grid, several in one sentence, and spins and crashes behind you. In timed races Ben calls the time left at 15, 10, 5 and 2 minutes with your position. After the flag Mik also names your pit stops.
 >
 > **Radio commands while driving.** Press push-to-talk and say:
 >

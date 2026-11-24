@@ -6,7 +6,9 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.32: el equipo vive la carrera.** Ben comenta adelantamientos y duelos con emoción y con la historia del duelo, cada vez distinto (si la frase de la IA no llega en 2,5 segundos, usa la frase fija). Sara avisa de paradas, abandonos y descalificaciones de toda la parrilla, varias en una frase, y de trompos y accidentes detrás de ti. En carreras por tiempo Ben avisa a 15, 10, 5 y 2 minutos del final con tu posición. Tras la bandera Mik también nombra tus paradas.
+> **Novedades de Alpha 0.35: el equipo habla según la situación.** Ya no hay niveles de radio: Ben, Mik y Sara deciden cuándo llega cada información. «Spotter activado» y «spotter apagado» funcionan al momento y duran hasta reiniciar, también al pasar a la carrera. Los mensajes que nunca oíste ya no cuentan como dichos y llegan en el siguiente intento. Los mejores sectores llegan en carrera también en pleno duelo, y neumáticos y estado del coche ya no se pierden con un informe descartado. Ben solo dice «se acerca» cuando el de detrás de verdad se acerca, y «la has recuperado» solo tras perder de verdad la posición. En carrera una vuelta más rápida es tu «mejor vuelta de carrera», y la vuelta de salida ya no sirve de referencia. «Quedan dos vueltas» y «última vuelta» llegan antes del tiempo de vuelta. Mik toma notas cuando se lo pides («apúntalo»). Parar y reiniciar rápido entre clasificación y carrera ya no hace caer Crew Chief, y el modo del spotter se guarda.
+>
+> **Desde Alpha 0.32: el equipo vive la carrera.** Ben comenta adelantamientos y duelos con emoción y con la historia del duelo, cada vez distinto (si la frase de la IA no llega en 2,5 segundos, usa la frase fija). Sara avisa de paradas, abandonos y descalificaciones de toda la parrilla, varias en una frase, y de trompos y accidentes detrás de ti. En carreras por tiempo Ben avisa a 15, 10, 5 y 2 minutos del final con tu posición. Tras la bandera Mik también nombra tus paradas.
 >
 > **Órdenes por radio mientras conduces.** Pulsa el botón de radio y di:
 >

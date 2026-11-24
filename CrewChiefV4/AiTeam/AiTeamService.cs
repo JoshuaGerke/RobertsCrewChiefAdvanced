@@ -89,6 +89,8 @@ namespace CrewChiefV4.AiTeam
         private bool cornersFromSampler;
         private static string GameName => CrewChief.gameDefinition == null ? null : CrewChief.gameDefinition.friendlyName;
         private readonly LapWatch lapWatch = new LapWatch();
+        /// <summary>Bis dahin hat die Rundenansage (noch 2, letzte Runde, Ziel) Vorrang vor Miks Rundenzeit.</summary>
+        private long lapCountdownUntilTicks;
         private readonly SessionLapObserver sessionLaps = new SessionLapObserver();
         private readonly Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>> recentLocalCalls = new Dictionary<string, KeyValuePair<DateTime, ObservedRaceCall>>();
         private readonly DriverWorkload workload = new DriverWorkload();
@@ -598,8 +600,13 @@ namespace CrewChiefV4.AiTeam
                     Math.Abs(live.SessionData.TimeDeltaFront - measuredFront.Seconds) <= .5f);
                 radioSchedule.NoteRadio(now);
                 string referenceTemplate = lapWatch.ReferenceTemplate;
-                Action onPlayed = referenceTemplate == null ? (Action)null :
-                    () => LiveDiagnostics.Decision("last-lap", "template_played", referenceTemplate);
+                // LMU Sebring 24.11.: „Vorletzte Runde“ und „Letzte Runde“ kamen 7 bis 10 s nach der Linie, weil Miks Rundenzeit
+                // davor stand. Die Rundenansage geht jetzt zuerst; die Rundenzeit wartet höchstens 6 s auf sie.
+                Volatile.Write(ref lapCountdownUntilTicks, now.AddSeconds(6).Ticks);
+                Action onPlayed = () => {
+                    Volatile.Write(ref lapCountdownUntilTicks, 0);
+                    if (referenceTemplate != null) LiveDiagnostics.Decision("last-lap", "template_played", referenceTemplate);
+                };
                 bool paceReviewNames = settings.SendDriverNames;
                 var paceReview = current.SessionData.SessionPhase == SessionPhase.Finished &&
                     current.SessionData.SessionType == SessionType.Race && !current.SessionData.IsDNF &&
@@ -871,7 +878,7 @@ namespace CrewChiefV4.AiTeam
                 radioRenderGate.UrgentBusy || radioRenderGate.ResultBusy;
             if (raceCall == null && settings.IsMemberEnabled(TeamMember.Mik))
                 raceCall = lapWatch.TakeDisqualification(current, now, Spotter().HasOverlap || radioRenderGate.UrgentBusy, settings.RadioName);
-            if (raceCall == null) raceCall = sessionLaps.Take(current, now, ownLapBusy, ownLapOnly: true);
+            if (raceCall == null) raceCall = sessionLaps.Take(current, now, ownLapBusy || now.Ticks < Volatile.Read(ref lapCountdownUntilTicks), ownLapOnly: true);
             if (raceCall == null) raceCall = TakePitFinish(current, now);
             if (raceCall == null) raceCall = personalBest.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,
                 settings.IsMemberEnabled(TeamMember.Mik));

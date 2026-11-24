@@ -6,7 +6,9 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.32: Die Crew fiebert mit.** Ben kommentiert Überholmanöver und Zweikämpfe mit Gefühl und der Vorgeschichte des Duells, jedes Mal anders (kommt die KI-Antwort nicht binnen 2,5 Sekunden, spricht er den festen Satz). Sara meldet Boxenstopps, Ausfälle und Disqualifikationen im ganzen Feld, mehrere in einem Satz, auch Dreher und Unfälle hinter dir. Ben sagt im Zeitrennen 15, 10, 5 und 2 Minuten vor Schluss die Restzeit mit deinem Platz an. Nach der Zielflagge nennt Mik auch deine Boxenstopps.
+> **Neu in Alpha 0.35: Die Crew funkt nach Lage.** Es gibt keine Funkstufen mehr: Ben, Mik und Sara entscheiden selbst, wann eine Info kommt. „Spotter ein“ und „Spotter aus“ wirken sofort und bleiben bis zum Neustart, auch beim Wechsel ins Rennen. Meldungen, die du nie gehört hast, gelten nicht mehr als gesagt und kommen beim nächsten Anlauf. Sektorbestzeiten kommen im Rennen auch im Zweikampf, Reifen und Fahrzeugzustand gehen mit einem verworfenen Bericht nicht mehr verloren. „Schließt auf“ sagt Ben nur, wenn der Hintermann wirklich näher kommt, und „zurückgeholt“ nur nach einem echten Platzverlust. Im Rennen heißt eine schnellere Runde „beste Rennrunde“, die Startrunde ist kein Maßstab mehr. „Noch 2 Runden“ und „Letzte Runde“ kommen vor der Rundenzeit. Mik notiert auf Zuruf („aufschreiben“). Ein schneller Stopp und Neustart zwischen Quali und Rennen bringt Crew Chief nicht mehr zum Absturz, der Spottermodus wird gespeichert.
+>
+> **Seit Alpha 0.32: Die Crew fiebert mit.** Ben kommentiert Überholmanöver und Zweikämpfe mit Gefühl und der Vorgeschichte des Duells, jedes Mal anders (kommt die KI-Antwort nicht binnen 2,5 Sekunden, spricht er den festen Satz). Sara meldet Boxenstopps, Ausfälle und Disqualifikationen im ganzen Feld, mehrere in einem Satz, auch Dreher und Unfälle hinter dir. Ben sagt im Zeitrennen 15, 10, 5 und 2 Minuten vor Schluss die Restzeit mit deinem Platz an. Nach der Zielflagge nennt Mik auch deine Boxenstopps.
 >
 > **Funkbefehle während der Fahrt.** Funktaste drücken und sagen:
 >
