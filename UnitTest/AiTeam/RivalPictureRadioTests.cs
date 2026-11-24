@@ -213,11 +213,13 @@ namespace UnitTest.AiTeamTests
             first.MarkPlaybackStarted(T);
 
             gs.SessionData.CompletedLaps = 5;
+            gs.Now = gs.SourceTelemetryUtc = T.AddMinutes(4);
             watch.Evaluate(gs, View(240, 247, 238, 249), true, T.AddMinutes(4));
             var middle = watch.Take(gs, T.AddMinutes(4), false, true);
             Assert.IsTrue(middle == null || middle.Topic != "field-topspeed", "in der Mitte kein fester Termin");
 
             gs.SessionData.CompletedLaps = 16;
+            gs.Now = gs.SourceTelemetryUtc = T.AddMinutes(20);
             watch.Evaluate(gs, View(241, 247, 238, 249), true, T.AddMinutes(20));
             var last = watch.Take(gs, T.AddMinutes(20), false, true);
             Assert.IsNotNull(last);
