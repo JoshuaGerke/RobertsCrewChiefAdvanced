@@ -75,13 +75,25 @@ namespace CrewChiefV4.AiTeam
             return -1;
         }
 
+        /// <summary>Herkunft des Verbrauchs für den Funksatz: gemessen, hochgerechnet oder aus Training und Quali geschätzt.</summary>
+        internal static string BasisText(FuelEstimate.Basis source)
+        {
+            switch (source)
+            {
+                case FuelEstimate.Basis.Measured: return RadioLanguage.T("gemessen", "measured", "medido");
+                case FuelEstimate.Basis.Projected: return RadioLanguage.T("hochgerechnet, noch keine volle Runde", "projected, no full lap yet", "proyectado, aún sin vuelta completa");
+                default: return RadioLanguage.T("geschätzt aus Training und Quali", "estimated from practice and qualifying", "estimado de entrenamientos y clasificación");
+            }
+        }
+
         internal static string Answer(string question, GameStateData gs, AiRaceMemory memory)
         {
             Distance(question, out double seconds, out int lapCount);
             if (seconds <= 0 && lapCount <= 0) return null;
-            float measured = FuelEstimate.Consumption(memory, gs, out bool provisional, out _);
+            float measured = FuelEstimate.Consumption(memory, gs, out bool provisional, out _, out var source);
             float stated = StatedPerLap(question);
-            float perLap = measured > 0 && !provisional ? measured : stated > 0 ? stated : measured;
+            bool useMeasured = measured > 0 && !provisional, useStated = !useMeasured && stated > 0;
+            float perLap = useMeasured ? measured : useStated ? stated : measured;
             float lap = LapTimeBasis(memory, gs);
             // LMU Sebring 23.11.: Zu Rennbeginn fehlte die Rundenzeit der neuen Sitzung, die schnelle Antwort sagte „Mir fehlt noch eine
             // Rundenzeit“, obwohl Training und Quali Verbrauch und Zeiten hatten. Ohne eigene Grundlage antwortet jetzt das Sprachmodell
@@ -89,7 +101,8 @@ namespace CrewChiefV4.AiTeam
             if (!Compute(seconds, lapCount, lap, perLap, out int raceLaps, out double needed, out double reserve))
                 return null;
             string pl = RadioLanguage.Num(perLap, "0.0"), n = RadioLanguage.Num(needed, "0"), r = RadioLanguage.Num(reserve, "0");
-            string basis = measured > 0 && !provisional && perLap == measured ? RadioLanguage.T("gemessen", "measured", "medido") : RadioLanguage.T("dein Wert", "your figure", "tu valor");
+            // Review 24.11.: Eine Schätzung der Crew hieß bisher „dein Wert“, obwohl Rob keine Zahl genannt hatte (Prüfliste 9).
+            string basis = useStated ? RadioLanguage.T("dein Wert", "your figure", "tu valor") : BasisText(source);
             if (lapCount > 0)
                 return RadioLanguage.T(raceLaps + " Runden mit " + pl + " Litern (" + basis + ") sind " + n + " Liter. Mit einer Runde Reserve nimm " + r + " Liter mit.",
                     raceLaps + " laps at " + pl + " litres (" + basis + ") is " + n + " litres. With one lap in reserve, take " + r + " litres.",
