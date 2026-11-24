@@ -353,6 +353,7 @@ namespace CrewChiefV4.AiTeam
             if (current.RequiresNativeSourceClock && current.SourceTelemetryUtc == DateTime.MinValue &&
                 (current.SessionData.SessionPhase == SessionPhase.Green || current.SessionData.SessionPhase == SessionPhase.FullCourseYellow))
                 return;
+            SessionGreenTracker.Observe(current);
             int session = current.SessionData.SessionId;
             bool newSession = session != Memory.SessionId || (previous != null && previous.SessionData.SessionType != current.SessionData.SessionType) ||
                 (current.SessionData.IsNewSession && previous != null && !previous.SessionData.IsNewSession);
@@ -2841,7 +2842,7 @@ namespace CrewChiefV4.AiTeam
             eventLog.Note(call, EventStatus.Detected, DateTime.UtcNow);
             int generation = Volatile.Read(ref sessionGeneration);
             bool ownResult = call.Topic == "own-lap" || call.Topic == "qualifying-last" ||
-                call.Topic == "first-lap-fuel" || call.Topic == "fuel-baseline";
+                call.Topic == "first-lap-fuel" || call.Topic == "fuel-baseline" || call.Topic == "fuel-early";
             bool urgentPit=RadioRenderGate.IsUrgentPit(call) || call.Priority>=7 &&
                 (call.Topic=="race-hazard-ahead" || call.Topic=="race-traffic-rear" || call.Topic=="race-class-ahead" || call.Topic=="race-disqualified" ||
                 (call.Topic??"").StartsWith("warning-",StringComparison.Ordinal) && call.Topic!="warning-numeric-damage");

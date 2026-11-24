@@ -36,6 +36,96 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Salzburg_first_field_time_in_practice_is_called_by_ben_with_the_gap_to_robs_best()
+        {
+            // RaceRoom Salzburg 24.11. (Training): Rethemeiers 1:28,207 war die erste Zeit der Session und blieb still.
+            SessionLapObserver.ResetTodayBest();
+            var gs = State(SessionType.Practice);
+            gs.SessionData.TrackDefinition = new TrackDefinition("Salzburgring", 4196f);
+            gs.SessionData.PlayerLapTimeSessionBest = 89.508f;
+            var rival = gs.OpponentData["a"]; rival.CurrentBestLapTime = -1; rival.LastLapTime = -1;
+            var o = new SessionLapObserver(); o.Observe(gs, null, T, true);
+            rival.CurrentBestLapTime = rival.LastLapTime = 88.207f;
+            o.Observe(gs, null, T.AddSeconds(1), true);
+            var call = o.Take(gs, T.AddSeconds(1), false);
+            Assert.IsNotNull(call, "auch die erste Zeit der Session zählt, wenn sie gerade gefahren wurde");
+            Assert.AreEqual("rival-best", call.Topic);
+            Assert.AreEqual(TeamMember.Ben, call.Member);
+            StringAssert.Contains("John Reilly", call.Text);
+            StringAssert.Contains(LocalAnswers.LapTime(88.207f), call.Text);
+            StringAssert.Contains("1,3", call.Text, "Abstand zu Robs Bestzeit");
+            Assert.GreaterOrEqual((call.ExpiresUtc - call.DetectedUtc).TotalSeconds, 60, "verfällt nicht nach wenigen Sekunden");
+        }
+
+        [Test]
+        public void First_field_time_loaded_on_join_stays_quiet()
+        {
+            var gs = State(SessionType.Practice);
+            var rival = gs.OpponentData["a"]; rival.CurrentBestLapTime = -1; rival.LastLapTime = -1;
+            var o = new SessionLapObserver(); o.Observe(gs, null, T, true);
+            rival.CurrentBestLapTime = 88.207f; rival.LastLapTime = 91.5f;
+            o.Observe(gs, null, T.AddSeconds(1), true);
+            Assert.IsNull(o.Take(gs, T.AddSeconds(1), false), "nachgeladene Zeit, nicht gerade gefahren");
+        }
+
+        [Test]
+        public void Salzburg_hotlap_best_that_the_sim_counts_is_announced()
+        {
+            // RaceRoom Salzburg 24.11. (Hotlap): Die Sim übernahm Robs 1:29,508 als Bestzeit, Crew Chief führte die Runde als ungültig.
+            var gs = State(SessionType.HotLap);
+            gs.OpponentData.Clear();
+            gs.SessionData.PlayerLapTimeSessionBest = 90.973f;
+            gs.SessionData.PlayerClassSessionBestLapTime = 90.973f;
+            var o = new SessionLapObserver(); o.Observe(gs, null, T, true);
+            gs.SessionData.PlayerClassSessionBestLapTime = 89.508f;
+            gs.SessionData.CompletedLaps = 4;
+            var lap = new LapRecord { LapNumber = 4, LapTime = 89.508f, Valid = false, Green = true };
+            o.Observe(gs, lap, T.AddSeconds(1), true);
+            var call = o.Take(gs, T.AddSeconds(1), false);
+            Assert.IsNotNull(call);
+            Assert.AreEqual("own-lap", call.Topic);
+            StringAssert.Contains(LocalAnswers.LapTime(89.508f), call.Text);
+            Assert.IsFalse(lap.Valid, "die gemeinsame Rundenaufzeichnung bleibt unverändert");
+        }
+
+        [Test]
+        public void Invalid_lap_that_is_not_the_sims_best_stays_invalid()
+        {
+            var gs = State(SessionType.HotLap);
+            gs.OpponentData.Clear();
+            gs.SessionData.PlayerLapTimeSessionBest = 90.973f;
+            gs.SessionData.PlayerClassSessionBestLapTime = 90.973f;
+            var o = new SessionLapObserver(); o.Observe(gs, null, T, true);
+            gs.SessionData.CompletedLaps = 4;
+            o.Observe(gs, new LapRecord { LapNumber = 4, LapTime = 89.508f, Valid = false, Green = true }, T.AddSeconds(1), true);
+            var call = o.Take(gs, T.AddSeconds(1), false);
+            Assert.IsTrue(call == null || call.Topic != "own-lap");
+        }
+
+        [Test]
+        public void Race_best_without_a_valid_own_lap_is_compared_with_todays_best()
+        {
+            // RaceRoom Salzburg 24.11.: Robs erste Rennrunden waren gestrichen, die Bestzeit kam ohne Vergleich.
+            SessionLapObserver.ResetTodayBest();
+            var practice = State(SessionType.Practice);
+            practice.SessionData.TrackDefinition = new TrackDefinition("Salzburgring", 4196f);
+            var o = new SessionLapObserver(); o.Observe(practice, null, T, true);
+            practice.SessionData.CompletedLaps = 4;
+            o.Observe(practice, new LapRecord { LapNumber = 4, LapTime = 89.508f, Valid = true, Green = true }, T.AddSeconds(1), true);
+            Assert.AreEqual(89.508f, SessionLapObserver.TodayBest(practice), .001f);
+
+            var race = State(SessionType.Race);
+            race.SessionData.TrackDefinition = new TrackDefinition("Salzburgring", 4196f);
+            race.SessionData.PlayerLapTimeSessionBest = -1; race.SessionData.CompletedLaps = 2; race.SessionData.LapTimePrevious = 91.696f;
+            string text = SessionLapObserver.GapToOwnAndPush(87.740f, race, 0);
+            StringAssert.Contains("1,8", text, "1:29,508 gegen 1:27,740");
+            StringAssert.Contains("heute", text, "Vergleich mit der Bestzeit von heute");
+            SessionLapObserver.ResetTodayBest();
+            text = SessionLapObserver.GapToOwnAndPush(87.740f, race, 0);
+            StringAssert.Contains("4,0", text, "ohne Bestzeit von heute die letzte Runde (1:31,696)");
+        }
+
+        [Test]
         public void Historic_best_appearing_after_join_stays_quiet()
         {
             var gs = State(SessionType.Race);

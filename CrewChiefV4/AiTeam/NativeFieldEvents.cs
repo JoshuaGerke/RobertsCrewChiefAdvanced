@@ -65,8 +65,10 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
         private DateTime lastRadio=DateTime.MinValue;
         private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
-        /// <summary>Schnellste Runde eines Gegners: darf einen kurzen Zweikampf abwarten (LMU 22.11.).</summary>
-        internal const int FastestLapSeconds = 25;
+        /// <summary>Schnellste Runde eines Gegners: darf einen Zweikampf, Gelb oder die Startrunde abwarten. RaceRoom Salzburg 24.11.:
+        /// Rethemeiers erste Bestzeit wartete in der Startrunde und verfiel nach 25 s (Rob: „wieder eine Bestzeit und ihr meldet sie
+        /// nicht“). Sie bleibt jetzt gültig, bis jemand schneller ist.</summary>
+        internal const int FastestLapSeconds = 120;
         private readonly RadioVariantCursor fastestVariants = new RadioVariantCursor();
         private int fastestAnnounced;
         /// <summary>Funkname des Fahrers; Gegner-Bestzeiten sprechen ihn im Wechsel persönlich an.</summary>
@@ -377,7 +379,7 @@ namespace CrewChiefV4.AiTeam
                 if (fastest) variant = (variant + fastestAnnounced++) % RadioPhraseCatalog.Current.Count(group);
                 string text = Text(f, names, variant);
                 if(text==null)continue;
-                if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapAndPush((float)f.Seconds,SessionLapObserver.ComparableOwnBest(gs),variant);
+                if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapToOwnAndPush((float)f.Seconds,gs,variant);
                 if(fastest && fastestAnnounced%2==0)text=RadioPhraseCatalog.Address(text,AiPersonas.CleanForRadio(RadioName??"",30,false));
                 if(memory!=null)memory.AddObservation(text,now,"field-"+f.Kind,f.Key,f.Source);
                 // Existing SessionLapObserver already owns non-race class records.

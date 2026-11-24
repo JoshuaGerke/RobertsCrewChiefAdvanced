@@ -98,7 +98,7 @@ namespace CrewChiefV4.AiTeam
 
         private static readonly HashSet<string> RoutineTopics = new HashSet<string>(StringComparer.Ordinal)
             { "status", "weather", "fuel", "tyres", "pace", "stint", "vehicle", "progress", "race-summary", "focus-brief", "endgame-brief",
-              "quali-fuel", "qualifying-result", "first-lap-fuel", "fuel-baseline" };
+              "quali-fuel", "qualifying-result", "first-lap-fuel", "fuel-baseline", "fuel-early" };
 
         private static readonly HashSet<string> OwnPace = new HashSet<string>(StringComparer.Ordinal)
             { "lap-on-pace", "own-best-pace", "sector-best", "personal-best-sector", "personal-best-record", "near-best", "personal-best-near" };
