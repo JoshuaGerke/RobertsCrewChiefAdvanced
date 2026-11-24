@@ -199,7 +199,9 @@ namespace CrewChiefV4.AiTeam
             topic == "field-fastest" || topic == "field-fastest-overall" || topic == "rival-best" || topic == "field-topspeed" ||
             topic == "greeting" || topic == "race-start" || topic == "session-debrief" || topic == "time-left" ||
             // LMU Sebring 24.11.: Die eigene Sektorbestzeit wartete als „Lob“ auf weniger Anspannung und verfiel.
-            topic == "sector-best";
+            topic == "sector-best" ||
+            // LMU Algarve 24.11.: „Dein bester Wert auf dieser Strecke überhaupt“ wartete 14-mal als Lob und kam nie.
+            topic == "personal-best-record";
 
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)

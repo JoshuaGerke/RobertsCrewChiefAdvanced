@@ -117,6 +117,7 @@ namespace CrewChiefV4.AiTeam
             }
             LiveDiagnostics.Decision("race-control-" + e.Code, "detected", e.Source, e.ToJson(now).ToString(Newtonsoft.Json.Formatting.None));
             Chronicle(e, gs, now);
+            if (e.Code == "rival-contact") FieldImpacts.Note(e.Car, e.Value, e.Reason == "objekt", now);
             if (warnings == null) return;
             var call = RaceControlRadio.Call(e, gs);
             if (call == null) return;

@@ -408,11 +408,13 @@ namespace CrewChiefV4.AiTeam
                 if (x.Attention == RaceAttention.Battle && !waited) { reason = "busy_background_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
+            // LMU Algarve 24.11.: „Noah Preston hat aufgegeben“ wartete 22-mal unter Gelb. Unter Gelb sind Ausfälle gerade die
+            // Nachricht (wer steht, wer ist raus). Saras Feldnachrichten warten nur noch in der eigenen Box und beim Start.
             if (NativeFieldEvents.SaraNews(t))
             {
                 if (x.Phase == RacePhase.Finished) { reason = "race_finished"; return MindVerdict.Drop; }
-                if (x.Attention == RaceAttention.Caution || x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
-                { reason = "caution_pit_or_start_waits"; return MindVerdict.Hold; }
+                if (x.Attention == RaceAttention.Pit || x.Phase == RacePhase.Start || x.Phase == RacePhase.PreStart)
+                { reason = "pit_or_start_waits"; return MindVerdict.Hold; }
                 return MindVerdict.Admit;
             }
             if (RadioLoad.FightContext(t) && !lastLaps && x.Attention == RaceAttention.Battle &&

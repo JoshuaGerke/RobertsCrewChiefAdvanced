@@ -42,11 +42,19 @@ namespace CrewChiefV4.AiTeam
         private int session = -1, lastLap = -1, rivalAheadLap = -99, rivalBehindLap = -99;
         private readonly bool[] fieldSlotDone = new bool[2];
         private ObservedRaceCall call, fieldCall;
+        /// <summary>
+        /// LMU Algarve 24.11.: Der Vergleich im ersten Drittel wurde zweimal vor dem Abspielen verworfen und war danach verloren.
+        /// Ein nicht gesprochener Termin wird mit frischen Werten neu gebildet (höchstens <see cref="FieldRetries"/>-mal),
+        /// der erste auch nach seinem Abschnitt, solange das letzte Viertel noch nicht begonnen hat.
+        /// </summary>
+        internal const int FieldRetries = 3;
+        private int fieldCallSlot = -1, retrySlot = -1;
+        private readonly int[] fieldTries = new int[2];
 
         internal void Reset()
         {
             session = -1; lastLap = -1; rivalAheadLap = -99; rivalBehindLap = -99; call = null; fieldCall = null;
-            fieldSlotDone[0] = fieldSlotDone[1] = false;
+            fieldSlotDone[0] = fieldSlotDone[1] = false; fieldCallSlot = retrySlot = -1; fieldTries[0] = fieldTries[1] = 0;
         }
 
         /// <summary>Anteil des Rennens (0..1) nach Uhr oder Runden; -1 = unbekannt.</summary>
@@ -128,14 +136,24 @@ namespace CrewChiefV4.AiTeam
         private void EvaluateField(GameStateData gs, FieldView view, bool names, DateTime now)
         {
             var s = gs.SessionData;
-            if (fieldCall != null && (fieldCall.DeliveryStartedUtc != DateTime.MinValue || fieldCall.DeliveryFailed)) fieldCall = null;
+            if (fieldCall != null && fieldCall.DeliveryStartedUtc != DateTime.MinValue) { fieldCall = null; retrySlot = -1; }
+            if (fieldCall != null && fieldCall.DeliveryFailed)
+            {
+                if (fieldCallSlot >= 0 && fieldTries[fieldCallSlot] < FieldRetries) { fieldSlotDone[fieldCallSlot] = false; retrySlot = fieldCallSlot; }
+                LiveDiagnostics.Decision("field-topspeed", "retry", "not_spoken;slot=" + fieldCallSlot + ";tries=" + (fieldCallSlot >= 0 ? fieldTries[fieldCallSlot] : 0));
+                fieldCall = null;
+            }
             if (fieldCall != null || s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green ||
                 view == null || view.Player == null || view.Cars == null) return;
             int slot = FieldSlot(s);
+            if (slot < 0 && retrySlot == 0 && s.CompletedLaps >= FieldStartLap && Progress(s) >= 0 && Progress(s) < LastWindowStart) slot = 0;
             if (slot < 0 || fieldSlotDone[slot]) return;
             float mine = view.Player.TopSpeed * 3.6f;
             if (float.IsNaN(mine) || mine < 60) return;
+            // LMU Algarve 24.11.: „Speedtrap: 269, Ike … 268“ – der Schnellste war ein ausgeschiedener Wagen ohne Namen. Gezählt
+            // werden nur Autos, die noch fahren und (mit Namen) zugeordnet werden können.
             var ranked = view.Cars.Where(c => c != null && c.ClassId == view.Player.ClassId && !float.IsNaN(c.TopSpeed) &&
+                    c.Motion != CarMotion.Retired && (c.IsPlayer || !names || SpeakableName(gs, c.Name, true) != null) &&
                     c.TopSpeed * 3.6f >= 60 && c.TopSpeed * 3.6f - mine <= ImplausibleDeltaKmh)
                 .OrderByDescending(c => c.TopSpeed).ToList();
             if (ranked.Count < 2) return;
@@ -148,6 +166,7 @@ namespace CrewChiefV4.AiTeam
                 Kmh = Kmh(c.TopSpeed * 3.6f)
             }).ToList();
             fieldSlotDone[slot] = true;
+            fieldCallSlot = slot; fieldTries[slot]++;
             float best = ranked[0].TopSpeed * 3.6f;
             string text = TopThreeText(top, Kmh(mine), rank, ranked.Count, Kmh(Math.Max(0, best - mine)));
             fieldCall = Build(gs, now, "field-topspeed", text, 4, null,

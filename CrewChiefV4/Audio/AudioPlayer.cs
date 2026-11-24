@@ -909,6 +909,7 @@ namespace CrewChiefV4.Audio
         public AudioPlayer()
         {
             GlobalResources.audioPlayer = this;
+            SoundCache.CrewCutterWaiting = (priority, topic) => CrewCutterWaiting(priority, topic, null, CrewCutterFreshness);
             this.mainThreadContext = SynchronizationContext.Current;
             deviceEnum = new MMDeviceEnumerator();
             notificationClient = new NotificationClientImplementation(this, UserSettings.GetUserSettings().getBoolean("use_naudio"), UserSettings.GetUserSettings().getBoolean("use_naudio_for_speech_recognition"));
@@ -1363,6 +1364,31 @@ namespace CrewChiefV4.Audio
             }
         }
 
+        /// <summary>So frisch muss ein Sara-Clip sein, der einen eben gestarteten Clip noch ablöst.</summary>
+        internal static readonly TimeSpan CrewCutterFreshness = TimeSpan.FromSeconds(3);
+
+        /// <summary>
+        /// LMU Algarve 24.11.: Die Sofort-Warteschlange spielte einen einmal zusammengestellten Block bis zum Ende. Saras Warnung
+        /// (Stufe 7) kam 0,1 s nach Blockbeginn und wartete 25 s hinter Bens Zwischenstand (Stufe 2), bis sie verfallen war.
+        /// Wartet ein Sara-Clip (nicht im laufenden Block), der einen KI-Clip dieser Stufe und dieses Themas ablösen darf?
+        /// </summary>
+        private bool CrewCutterWaiting(int currentPriority, string currentTopic, ICollection<string> known, TimeSpan maxAge)
+        {
+            DateTime now = DateTime.UtcNow;
+            lock (immediateClips)
+            {
+                foreach (DictionaryEntry entry in immediateClips)
+                {
+                    string key = entry.Key as string;
+                    var message = entry.Value as QueuedMessage;
+                    if (key == null || message == null || message.metadata == null || known != null && known.Contains(key)) continue;
+                    if (!AiTeam.AiAudioStore.CutsCrew(key, maxAge, now)) continue;
+                    if (AiTeam.CrewSpeechPolicy.CanSaraCut(true, false, false, currentPriority, currentTopic, message.metadata.priority)) return true;
+                }
+            }
+            return false;
+        }
+
         private void playQueueContents(OrderedDictionary queueToPlay, Boolean isImmediateMessages)
         {
             long milliseconds = GameStateData.CurrentTime.Ticks / TimeSpan.TicksPerMillisecond;
@@ -1544,7 +1570,9 @@ namespace CrewChiefV4.Audio
 
                 // Keep the existing native/Sara path. AI-only queues open at the actual backend start.
                 if (keysToPlay.Any(k => !AiTeam.AiAudioStore.IsMessage(k))) openRadioChannelInternal();
-                soundsProcessed.AddRange(playSounds(keysToPlay, isImmediateMessages, out wasInterrupted));
+                HashSet<string> known;
+                lock (queueToPlay) known = new HashSet<string>(queueToPlay.Keys.Cast<string>());
+                soundsProcessed.AddRange(playSounds(keysToPlay, isImmediateMessages, out wasInterrupted, known));
             }
             else
             {
@@ -1603,7 +1631,7 @@ namespace CrewChiefV4.Audio
             }
         }
 
-        private List<String> playSounds(List<String> eventNames, Boolean isImmediateMessages, out Boolean wasInterrupted)
+        private List<String> playSounds(List<String> eventNames, Boolean isImmediateMessages, out Boolean wasInterrupted, ICollection<string> knownAtStart = null)
         {
             var _events = String.Join(", ", eventNames);
             if (_events.StartsWith("spotter_"))
@@ -1632,6 +1660,15 @@ namespace CrewChiefV4.Audio
                     if (thisQueue.Contains(eventName))
                     {
                         QueuedMessage thisMessage = (QueuedMessage)thisQueue[eventName];
+                        // Ein neuer Sara-Clip mit Vorrang beendet den Block vor dem nächsten Clip von Ben oder Mik; der Rest bleibt in
+                        // der Warteschlange und wird gleich neu nach Stufe sortiert (Sara zuerst).
+                        if (isImmediateMessages && thisMessage.metadata != null && AiTeam.AiAudioStore.IsMessage(eventName) &&
+                            CrewCutterWaiting(thisMessage.metadata.priority, AiTeam.AiAudioStore.TopicOf(eventName), knownAtStart, TimeSpan.Zero))
+                        {
+                            AiTeam.LiveDiagnostics.Queue("yielded", eventName, thisMessage.metadata.priority, thisQueue.Count, "sara_precedence");
+                            wasInterrupted = true;
+                            break;
+                        }
                         if (AiTeam.AiAudioStore.IsMessage(eventName) &&
                             !AiTeam.AiAudioStore.PrepareRadio(eventName,
                                 thisMessage.metadata.priority >= 7 ? (Action)(() => openRadioChannelInternal(false)) : openRadioChannelInternal))

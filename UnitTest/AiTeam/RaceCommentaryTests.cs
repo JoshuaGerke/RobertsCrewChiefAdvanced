@@ -45,7 +45,7 @@ namespace UnitTest.AiTeamTests
         public void A_summary_waiting_too_long_for_a_quiet_minute_needs_only_one_second_of_air()
         {
             var gs = Race(13); var s = gs.SessionData;
-            s.SessionHasFixedTime = true; s.SessionTotalRunTime = 2100; s.SessionRunningTime = 30;
+            s.SessionHasFixedTime = true; s.SessionTotalRunTime = 5400; s.SessionRunningTime = 30; // langes Rennen: erstes Fazit nach einem Viertel
             Rival(gs, "pack", "Pablo", 12, 1080); // 80 m vor uns: kein ruhiger Moment mit 3 s, aber kein Zweikampf unter 1 s
             var watch = new RaceSummaryWatch(3);
             var ctx = new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T, Memory = new AiRaceMemory(), DriverName = "Rob" };

@@ -815,8 +815,17 @@ namespace CrewChiefV4.AiTeam
             string time = seconds.ToString("0.000", RadioLanguage.Culture);
             string text = catalog.Format("own-sector-best", variant, (sector + 1).ToString(CultureInfo.InvariantCulture), time);
             // Rob 20.11. (LMU-Rennen): „Wenn ich mich im Sektor verbessert habe, musst du mir auch sagen, um wie viel.“
-            string gained = SectorGainText(gain);
+            // LMU Algarve 24.11.: „8,483 Sekunden Gewinn auf deine alte persönliche Bestmarke“ – die alte Marke war der Sektor aus der
+            // stehenden Startrunde. Ein Gewinn über 1,5 s (bzw. 5 % des Sektors) ist kein Vergleich zweier fliegender Sektoren.
+            string gained = PlausibleSectorGain(gain, seconds) ? SectorGainText(gain) : null;
             if (gained != null) text += " " + gained;
+            // Rob 24.11.: „Die Sektorenbestzeiten werden nicht mal mit der Bestzeit verglichen.“ Im Rennen kommt dazu der Vergleich
+            // mit demselben Sektor auf der schnellsten Runde der Klasse.
+            if (state.SessionData.SessionType == SessionType.Race)
+            {
+                string classBest = ClassBestSectorText(state, sector, seconds, SendNames);
+                if (classBest != null) text += " " + classBest;
+            }
             sectorBestCount++;
             // Rob 16.11.: menschlich und persönlich – aber nicht jedes Mal, nur wenn es passt.
             if (sectorBestCount % 2 == 1 && !string.IsNullOrWhiteSpace(sectorDriverName))
@@ -828,6 +837,66 @@ namespace CrewChiefV4.AiTeam
 
         private int sectorBestCount;
         private string sectorDriverName = "Rob";
+
+        /// <summary>Gewinn aus zwei fliegenden Sektoren: höchstens 1,5 s bzw. 5 % des Sektors.</summary>
+        internal static bool PlausibleSectorGain(float gain, float sectorSeconds) =>
+            gain >= .01f && sectorSeconds > 0 && gain <= Math.Max(1.5f, sectorSeconds * .05f);
+
+        /// <summary>Namen von Gegnern im Sektorvergleich nennen (Einstellung „Fahrernamen senden“).</summary>
+        internal bool SendNames = true;
+
+        /// <summary>
+        /// Derselbe Sektor auf der schnellsten gültigen Runde der Klasse (nur Gegner mit gespeicherten Sektorzeiten): „Auf der
+        /// schnellsten Runde der Klasse hatte Mendez hier 22,433. Dir fehlen 0,164.“ Null ohne belastbare Vergleichsrunde.
+        /// </summary>
+        internal static string ClassBestSectorText(GameStateData state, int sector, float own, bool names)
+        {
+            if (state?.OpponentData == null || sector < 0 || !(own > 0)) return null;
+            OpponentData holder = null; LapData best = null;
+            foreach (var o in state.OpponentData.Values)
+            {
+                if (o == null || o.OpponentLapData == null) continue;
+                if (state.carClass != null && o.CarClass != null && !CarData.IsCarClassEqual(state.carClass, o.CarClass)) continue;
+                foreach (var lap in o.OpponentLapData)
+                {
+                    if (lap == null || !lap.IsValid || lap.InLap || lap.OutLap || !Good(lap.LapTime) || lap.SectorTimes == null ||
+                        sector >= lap.SectorTimes.Length || !TrackAwareness.InRange(lap.SectorTimes[sector], 1, 3600).HasValue) continue;
+                    if (best == null || lap.LapTime < best.LapTime) { best = lap; holder = o; }
+                }
+            }
+            if (best == null) return null;
+            float reference = best.SectorTimes[sector];
+            double delta = own - reference;
+            if (Math.Abs(delta) > Math.Max(3, reference * .1)) return null;
+            string name = names && holder.CanUseName ? RadioPhraseCatalog.SafeRivalName(holder.DriverRawName) : null;
+            return ClassBestSectorPhrase(name, reference, delta);
+        }
+
+        internal static string ClassBestSectorPhrase(string name, float reference, double delta)
+        {
+            string r = RadioLanguage.Num(reference, "0.000"), d = RadioLanguage.Num(Math.Abs(delta), "0.000");
+            bool named = !string.IsNullOrWhiteSpace(name);
+            string who = named ? name : RadioLanguage.T("der Schnellste deiner Klasse", "the class fastest", "el más rápido de tu clase");
+            if (Math.Abs(delta) < .0005)
+                return RadioVariants.Pick("sector-class-equal",
+                    RadioLanguage.T("Genau so schnell wie " + who + " auf der schnellsten Runde der Klasse.", "Exactly as quick as " + who + " on the fastest lap of the class.", "Igual de rápido que " + who + " en la vuelta más rápida de la clase."),
+                    RadioLanguage.T("Gleichauf mit " + who + " auf seiner Bestrunde.", "Level with " + who + " on their best lap.", "Empatado con " + who + " en su mejor vuelta."),
+                    RadioLanguage.T("Auf die Tausendstel wie " + who + " auf der Klassenbestzeit.", "To the thousandth like " + who + " on the class best.", "Al milésimo como " + who + " en el mejor tiempo de la clase."),
+                    RadioLanguage.T("Das ist exakt die Zeit von " + who + " auf der Klassenbestzeit.", "That's exactly " + who + "'s time on the class best.", "Es exactamente el tiempo de " + who + " en el mejor de la clase."));
+            if (delta < 0)
+                return RadioVariants.Pick("sector-class-faster",
+                    RadioLanguage.T("Schneller als " + who + " auf der schnellsten Runde der Klasse, " + d + " besser.", "Quicker than " + who + " on the fastest lap of the class, " + d + " better.", "Más rápido que " + who + " en la vuelta más rápida de la clase, " + d + " mejor."),
+                    RadioLanguage.T("Das schlägt " + who + " auf der Klassenbestzeit um " + d + ".", "That beats " + who + " on the class best by " + d + ".", "Eso supera a " + who + " en el mejor de la clase por " + d + "."),
+                    RadioLanguage.T("Hier bist du " + d + " schneller als " + who + " auf seiner Bestrunde.", "Here you're " + d + " quicker than " + who + " on their best lap.", "Aquí eres " + d + " más rápido que " + who + " en su mejor vuelta."),
+                    RadioLanguage.T("Klassenbestzeit hier geschlagen: " + d + " vor " + who + ".", "Class best beaten here: " + d + " ahead of " + who + ".", "Mejor de la clase batido aquí: " + d + " por delante de " + who + "."),
+                    RadioLanguage.T("Besser als " + who + " auf der schnellsten Runde, um " + d + ".", "Better than " + who + " on the fastest lap, by " + d + ".", "Mejor que " + who + " en la vuelta más rápida, por " + d + "."));
+            return RadioVariants.Pick("sector-class-slower",
+                RadioLanguage.T("Auf der schnellsten Runde der Klasse hatte " + who + " hier " + r + ". Dir fehlen " + d + ".", "On the fastest lap of the class " + who + " had " + r + " here. You're " + d + " off.", "En la vuelta más rápida de la clase " + who + " hizo " + r + " aquí. Te faltan " + d + "."),
+                RadioLanguage.T("Zur Klassenbestzeit fehlen hier noch " + d + ", " + who + " hatte " + r + ".", "To the class best you're still " + d + " off here, " + who + " did " + r + ".", "Al mejor de la clase te faltan " + d + " aquí, " + who + " hizo " + r + "."),
+                RadioLanguage.T("Vergleich mit " + who + " auf seiner Bestrunde: " + d + " langsamer.", "Compared with " + who + " on their best lap: " + d + " slower.", "Comparado con " + who + " en su mejor vuelta: " + d + " más lento."),
+                RadioLanguage.T("Mit der Klassenbestzeit hatte " + who + " hier " + r + ", das sind noch " + d + " für dich.", "On the class best " + who + " had " + r + " here, that's " + d + " still to find.", "Con el mejor de la clase " + who + " marcó " + r + " aquí, te quedan " + d + "."),
+                RadioLanguage.T("Noch " + d + " hinter " + who + " auf der schnellsten Runde der Klasse.", "Still " + d + " behind " + who + " on the class fastest lap.", "Aún " + d + " detrás de " + who + " en la vuelta más rápida de la clase."));
+        }
 
         /// <summary>Gewinn gegenüber der bisherigen eigenen Sektorbestzeit, null ohne belegten Gewinn.</summary>
         internal static string SectorGainText(float gain)
@@ -1017,7 +1086,7 @@ namespace CrewChiefV4.AiTeam
             string name = names && leader.Value.CanUseName ? RadioPhraseCatalog.SafeRivalName(leader.Value.DriverRawName) : "";
             string formatted = RadioLanguage.Num(Math.Abs(delta), "0.000");
             string reference = name.Length == 0 ? RadioLanguage.T("auf der Bestzeit des Klassenführenden", "the class leader's best lap", "la mejor vuelta del líder de la clase") :
-                RadioLanguage.T(name + " auf seiner Bestzeit", name + " on his best lap", name + " en su mejor vuelta");
+                RadioLanguage.T(name + " auf seiner Bestzeit", name + " on their best lap", name + " en su mejor vuelta");
             int variant = SelectVariant("quali-sector-comparison", sectorVariants);
             string text = RadioPhraseCatalog.Current.Format("quali-sector-comparison", variant, (sector + 1).ToString(CultureInfo.InvariantCulture),
                 RadioLanguage.Num(own, "0.000"), formatted, delta < 0 ? RadioLanguage.T("schneller", "faster", "más rápido") : RadioLanguage.T("langsamer", "slower", "más lento"), reference);
