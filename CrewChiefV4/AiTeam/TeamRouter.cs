@@ -29,17 +29,29 @@ namespace CrewChiefV4.AiTeam
             { TeamMember.Sara, new[] { "sara", "sarah", "zara", "zarah", "sahra", "sarra" } },
         };
 
-        private static readonly string[] saraTopics = { "links", "rechts", "frei", "neben mir", "neben uns", "überlapp", "gelb", "unfall", "wrack", "steht auf der strecke" };
-        private static readonly string[] mikTopics = { "box", "stopp", "stop ", "strategie", "sprit", "benzin", "kraftstoff", "tank", "undercut", "overcut",
-            "gegner", "vor mir", "hinter mir", "abstand", "position", "platz", "führend", "leader", "runden noch", "wie lange noch", "restzeit", "pace der",
-            " pit", "strategy", "fuel", "opponent", "ahead of me", "behind me", "in front of me", " gap", "laps left", "laps to go", "how long", "time left", "pace of",
-            "parada", "estrategia", "combustible", "gasolina", "delante de m", "detrás de m", "detras de m", "distancia", "posición", "posicion", "puesto",
-            "líder", "lider", "vueltas quedan", "vueltas faltan", "cuánto queda", "cuanto queda", "tiempo queda", "ritmo de" };
-        private static readonly string[] benTopics = { "reifen", "druck", "temperatur", "bremse", "setup", "untersteuer", "übersteuer", "schieb", "traktion",
-            "balance", "fahr", "kurve", "schaden", "motor", "getriebe", "abtrieb", "aero", "differential", "stabi", "feder", "dämpfer", "verliere ich",
-            "tyre", "tire", "pressure", "brake", "understeer", "oversteer", "traction", "driving", "corner", "damage", "engine", "gearbox", "downforce",
-            "anti-roll", "springs", "damper", "losing time", "neumátic", "neumatic", "goma", "presión", "presion", "freno", "subviraje", "sobreviraje",
-            "tracción", "traccion", "equilibrio", "conducc", "curva", "daño", "caja de cambios", "carga aerodin", "diferencial", "muelle", "amortiguador", "pierdo" };
+        // Vorfallpunkte und Tracklimits beantwortet Sara (RaceRoom Salzburg 24.11.: Rob: „Sehr gute Ansage“).
+        private static readonly string[] saraTopics = { "vorfallpunkt", "vorfälle", "incident", "track limit", "tracklimit", "incidente", "límites de pista", "limites de pista" };
+        // Rob 24.11. (RaceRoom Salzburg): „Mik: Sprit, Reifen, Technik, Verbräuche und Schaden. Nur ansagen, nicht viel diskutieren.“
+        // Mik fühlte sich bei Restzeit, Abständen und Bestzeiten angesprochen, weil er zuletzt gesprochen hatte, und antwortete
+        // ausweichend. Nur diese Themen gehen an Mik; alles andere beantwortet Ben, auch Anschlussfragen ohne Thema.
+        private static readonly string[] mikTopics = {
+            "sprit", "benzin", "kraftstoff", "tank", "verbrauch", "liter", "reifen", "gummi", "verschleiß", "verschleiss", "reifendruck", "luftdruck",
+            "drücke", "temperatur", " öl", "wasser", "kühl", "motor", "getriebe", "schaden", "schäden", "kaputt", "beschädigt", "bremse", "bremsen",
+            "bremstemp", "setup", "untersteuer", "übersteuer", "schieb", "traktion", "balance", "abtrieb", "aero", "flügel", "differential", "stabilisator",
+            "feder", "dämpfer", "telemetrie", "technik", "vorne links", "vorne rechts", "hinten links", "hinten rechts",
+            "fuel", "consumption", "litre", "liter", "tyre", " tire", " tires", " wear", "tyre pressure", "tire pressure", "pressures", "temperature", " oil", "water", "engine", "gearbox", "damage",
+            "brake", "setup", "understeer", "oversteer", "traction", "downforce", " wing", "anti-roll", "springs", "damper", "telemetry",
+            "front left", "front right", "rear left", "rear right",
+            "combustible", "gasolina", "consumo", "litro", "neumátic", "neumatic", "goma", "desgaste", "presión de", "presion de", "temperatura",
+            "aceite", "motor", "caja de cambios", "daño", "freno", "subviraje", "sobreviraje", "tracción", "traccion",
+            "carga aerodin", "alerón", "aleron", "diferencial", "muelle", "amortiguador", "telemetría", "telemetria" };
+
+        /// <summary>Gehört die Frage zu Miks Themen (Sprit, Verbrauch, Reifen, Technik, Schaden)?</summary>
+        internal static bool MikTopic(string text)
+        {
+            string lower = " " + (text ?? "").ToLowerInvariant() + " ";
+            return mikTopics.Any(t => lower.Contains(t));
+        }
 
         public static RoutedRequest Route(string transcript, TeamMember? lastMember)
         {
@@ -76,20 +88,10 @@ namespace CrewChiefV4.AiTeam
                 return new RoutedRequest { Member = TeamMember.Ben, Question = text, AddressedByName = false };
 
             string lower = " " + text.ToLowerInvariant() + " ";
-            TeamMember? byTopic = null;
-            if (IsSideQuestion(lower))
-            {
-                byTopic = TeamMember.Sara;
-            }
-            else if (mikTopics.Any(t => lower.Contains(t)))
-            {
-                byTopic = TeamMember.Ben;
-            }
-            else if (benTopics.Any(t => lower.Contains(t)))
-            {
-                byTopic = TeamMember.Mik;
-            }
-            TeamMember member = byTopic ?? lastMember ?? TeamMember.Mik;
+            TeamMember member;
+            if (IsSideQuestion(lower) || saraTopics.Any(t => lower.Contains(t))) member = TeamMember.Sara;
+            else if (MikTopic(lower)) member = TeamMember.Mik;
+            else member = TeamMember.Ben;
             return new RoutedRequest { Member = member, Question = text, AddressedByName = false };
         }
 
