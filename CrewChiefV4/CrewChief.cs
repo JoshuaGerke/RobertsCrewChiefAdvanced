@@ -694,6 +694,27 @@ namespace CrewChiefV4
         /// gameDefinition.gameStartEnabledProperty) but failed</returns>
         public Boolean Run(String filenameToRun, Boolean dumpToFile)
         {
+            int generation = Interlocked.Increment(ref loopGeneration);
+            bool entered = runGate.Wait(TimeSpan.FromSeconds(15));
+            if (!entered)
+            {
+                Console.WriteLine("RRCA: Vorheriger Durchlauf nach 15 s nicht beendet, starte trotzdem");
+            }
+            try
+            {
+                return runExclusive(filenameToRun, dumpToFile, generation);
+            }
+            finally
+            {
+                if (entered)
+                {
+                    runGate.Release();
+                }
+            }
+        }
+
+        private Boolean runExclusive(String filenameToRun, Boolean dumpToFile, int generation)
+        {
             GameOrVoipVolume.SetVolumes();
             clearAndReloadEvents();
             reloadSettings();
@@ -803,7 +824,7 @@ namespace CrewChiefV4
                     Console.WriteLine("Polling for shared data every " + timeInterval + "ms");
                 }
 
-                if (!runGame(filenameToRun, dumpToFile, traceGameStateMapper, gameStateMapper, useTelemetryIntervalWhereApplicable))
+                if (!runGame(filenameToRun, dumpToFile, traceGameStateMapper, gameStateMapper, useTelemetryIntervalWhereApplicable, generation))
                 {
                     return false;
                 }
@@ -846,19 +867,30 @@ namespace CrewChiefV4
         /// <returns>True: Game ran and closed down
         /// False: CC attempted to run game itself (because
         /// gameDefinition.gameStartEnabledProperty) but failed</returns>
+        // RRCA (LMU 24.11.): Beim automatischen Neustart zwischen Quali und Rennen lief der alte Durchlauf noch, als der neue
+        // startete. Sein Aufräumen stoppte dann Audio und Spotter des neuen, und zwei Spielzyklen auf demselben Zustand führten
+        // zum Absturz; danach kamen keine Spieldaten mehr. Jeder Start bekommt eine Nummer, ein älterer Spielzyklus endet beim
+        // nächsten Durchlauf, und der neue Start wartet, bis der alte samt Aufräumen fertig ist.
+        private int loopGeneration;
+        private readonly SemaphoreSlim runGate = new SemaphoreSlim(1, 1);
+
+        /// <summary>RRCA: Läuft nur, solange dieser Start der neueste ist.</summary>
+        internal static bool LoopIsCurrent(bool running, int generation, int latestGeneration) => running && generation == latestGeneration;
+
         private bool runGame(
             string filenameToRun,
-            bool dumpToFile, 
+            bool dumpToFile,
             GameStateMapper traceGameStateMapper,
             GameStateMapper gameStateMapper,
-            bool useTelemetryIntervalWhereApplicable)
+            bool useTelemetryIntervalWhereApplicable,
+            int generation)
         {
             Boolean attemptedToRunGame = false;
             Boolean sessionFinished = false;
             Boolean playedSessionFinished = false;
             GameStateEventDetector gameStateEventDetector = new GameStateEventDetector(null);
 
-            while (running)
+            while (LoopIsCurrent(running, generation, Volatile.Read(ref loopGeneration)))
             {
                 DateTime now = DateTime.UtcNow;
                 //GameStateData.CurrentTime = now;

@@ -268,8 +268,11 @@ namespace CrewChiefV4.AiTeam
                     break;
                 case "setSpotterMode":
                     bool realistic = (bool)m["realistic"];
-                    SaveProperty("realistic_mode", realistic);
-                    if (UserSettings.GetUserSettings().getBoolean("realistic_mode") == realistic)
+                    // LMU 24.11.: Die Auswahl zeigte „Normal“, gespeichert blieb „Realistisch“, weil SaveProperty bei laufendem
+                    // Crew Chief nichts speichert. Der Spottermodus gilt laut Hilfe sofort, also auch während der Fahrt speichern.
+                    UserSettings.GetUserSettings().setProperty("realistic_mode", realistic);
+                    UserSettings.GetUserSettings().saveUserSettings();
+                    if (UserSettings.GetUserSettings().getBoolean("realistic_mode") != realistic) { Post(BuildInit()); break; }
                     {
                         GlobalBehaviourSettings.realisticMode = realistic;
                         // Sofort wirksam: auf Rundstrecken Sara an (Normal) oder aus (Realistisch); auf Ovalen bleibt sie immer an.
@@ -824,7 +827,12 @@ namespace CrewChiefV4.AiTeam
         {
             var main = MainWindow.instance;
             if (main != null && main.crewChief != null && main.crewChief.running)
-            { Notice("Crew Chief zuerst stoppen. Audio- und Mikrofoneinstellungen gelten ab der nächsten Fahrt."); return; }
+            {
+                Notice("Crew Chief zuerst stoppen. Audio- und Mikrofoneinstellungen gelten ab der nächsten Fahrt.");
+                // Die Auswahl im Cockpit darf nicht etwas anzeigen, das nicht gespeichert wurde.
+                Post(BuildInit());
+                return;
+            }
             UserSettings.GetUserSettings().setProperty(name, value);
             UserSettings.GetUserSettings().saveUserSettings();
             service.ReloadSettings();

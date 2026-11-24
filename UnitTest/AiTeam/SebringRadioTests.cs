@@ -195,6 +195,14 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void An_older_game_loop_ends_when_a_new_start_begins()
+        {
+            Assert.IsTrue(CrewChief.LoopIsCurrent(true, 3, 3));
+            Assert.IsFalse(CrewChief.LoopIsCurrent(true, 2, 3), "LMU 24.11.: alter Zyklus nach automatischem Neustart");
+            Assert.IsFalse(CrewChief.LoopIsCurrent(false, 3, 3));
+        }
+
+        [Test]
         public void Race_debrief_names_the_pit_stop()
         {
             var player = new FieldCarView { Name = "Rob", IsPlayer = true, PlaceClass = 6, Place = 6, ClassId = 1, CompletedLaps = 18 };
