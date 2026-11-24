@@ -209,7 +209,8 @@ namespace CrewChiefV4.AiTeam.Field
                 double pct = At(map, b, "CarIdxLapDistPct", i);
                 int surface = (int)At(map, b, "CarIdxTrackSurface", i);
                 if (!info.Names.TryGetValue(i, out string name) || double.IsNaN(pct) || pct < 0 && surface < 0 && i != player) continue;
-                var c = new FieldCarFrame { Slot = i, Name = name, ClassId = -1, IsPlayer = i == player };
+                double carClass = At(map, b, "CarIdxClass", i);
+                var c = new FieldCarFrame { Slot = i, Name = name, ClassId = !double.IsNaN(carClass) && carClass >= 0 ? (int)carClass : -1, IsPlayer = i == player };
                 c.LapDistance = pct >= 0 && pct <= 1.001 && !float.IsNaN(f.TrackLength) ? (float)(pct * f.TrackLength) : float.NaN;
                 c.CompletedLaps = (int)Math.Max(0, At(map, b, "CarIdxLapCompleted", i));
                 int pos = (int)At(map, b, "CarIdxPosition", i); c.Place = pos > 0 ? pos : 0;

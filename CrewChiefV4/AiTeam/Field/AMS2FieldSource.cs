@@ -89,7 +89,7 @@ namespace CrewChiefV4.AiTeam.Field
             oRemaining = Off("mEventTimeRemaining"), oDuration = Off("mSessionDuration"), oAir = Off("mAmbientTemperature"), oTrackTemp = Off("mTrackTemperature"),
             oFast1 = Off("mFastestSector1Times"), oFast2 = Off("mFastestSector2Times"), oFast3 = Off("mFastestSector3Times"),
             oFastLap = Off("mFastestLapTimes"), oLastLap = Off("mLastLapTimes"), oInvalid = Off("mLapsInvalidated"), oRaceStates = Off("mRaceStates"),
-            oPitModes = Off("mPitModes"), oSpeeds = Off("mSpeeds");
+            oPitModes = Off("mPitModes"), oSpeeds = Off("mSpeeds"), oClassNames = Off("mCarClassNames");
         internal static readonly int pActive = POff("mIsActive"), pName = POff("mName"), pPos = POff("mWorldPosition"), pDist = POff("mCurrentLapDistance"),
             pPlace = POff("mRacePosition"), pLaps = POff("mLapsCompleted");
         private const int MaxParticipants = 64;
@@ -157,10 +157,11 @@ namespace CrewChiefV4.AiTeam.Field
                 int o = oParts + i * PartSize;
                 if (b[o + pActive] == 0) continue;
                 var c = f.Cars[k] ?? (f.Cars[k] = new FieldCarFrame());
-                c.Slot = i; c.Name = MappedFieldSource.Utf8(b, o + pName, 64); c.ClassId = -1;
+                c.Slot = i; c.Name = MappedFieldSource.Utf8(b, o + pName, 64);
+                c.ClassId = FieldClasses.IdOf(MappedFieldSource.Utf8(b, oClassNames + i * 64, 64)); // Klassenname je Teilnehmer (64 Zeichen)
                 c.X = F(b, o + pPos); c.Y = F(b, o + pPos + 4); c.Z = F(b, o + pPos + 8);
                 float d = F(b, o + pDist); c.LapDistance = d >= 0 && d < 100000 ? d : float.NaN;
-                c.Place = (int)U(b, o + pPlace); c.PlaceClass = c.Place; c.CompletedLaps = (int)U(b, o + pLaps);
+                c.Place = (int)U(b, o + pPlace); c.CompletedLaps = (int)U(b, o + pLaps);
                 float v = F(b, oSpeeds + 4 * i); c.Speed = v >= 0 && v < 200 ? v : float.NaN;
                 c.CurrentLapValid = b[oInvalid + i] == 0;
                 c.LapTimeCurrent = float.NaN;
@@ -178,6 +179,7 @@ namespace CrewChiefV4.AiTeam.Field
                 if (c.IsPlayer) { f.PlayerIndex = k; f.PlayerInGarage = pit == (uint)ePitMode.PIT_MODE_IN_GARAGE; }
                 k++;
             }
+            FieldClasses.RankWithinClass(f.Cars);
             return true;
         }
     }

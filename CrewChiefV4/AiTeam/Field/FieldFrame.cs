@@ -9,6 +9,41 @@ namespace CrewChiefV4.AiTeam.Field
     internal enum FieldPhase { Unknown, Garage, Gridwalk, Formation, Countdown, Green, Checkered }
 
     /// <summary>
+    /// Klassen für Sims, die je Fahrer nur den Klassennamen liefern (LMU, AMS2). Gleicher Name = gleiche Klasse; den Klassenplatz
+    /// zählen wir aus dem Gesamtplatz. Ohne Klassennamen bleibt alles wie bisher (eine Klasse, Klassenplatz = Gesamtplatz).
+    /// </summary>
+    internal static class FieldClasses
+    {
+        /// <summary>Feste Nummer für einen Klassennamen (Groß-/Kleinschreibung egal); -1 ohne Namen.</summary>
+        internal static int IdOf(string className)
+        {
+            string n = className?.Trim();
+            if (string.IsNullOrEmpty(n)) return -1;
+            unchecked
+            {
+                uint h = 2166136261;
+                foreach (char ch in n.ToUpperInvariant()) { h ^= ch; h *= 16777619; }
+                return (int)(h & 0x7FFFFFFF);
+            }
+        }
+
+        /// <summary>Klassenplatz = 1 + Wagen derselben Klasse mit besserem Gesamtplatz. Wagen ohne Klasse behalten den Gesamtplatz.</summary>
+        internal static void RankWithinClass(FieldCarFrame[] cars)
+        {
+            if (cars == null) return;
+            foreach (var c in cars)
+            {
+                if (c == null) continue;
+                if (c.ClassId < 0 || c.Place <= 0) { c.PlaceClass = c.Place; continue; }
+                int ahead = 0;
+                foreach (var o in cars)
+                    if (o != null && !ReferenceEquals(o, c) && o.ClassId == c.ClassId && o.Place > 0 && o.Place < c.Place) ahead++;
+                c.PlaceClass = ahead + 1;
+            }
+        }
+    }
+
+    /// <summary>
     /// Ein Fahrer in einem Rohbild direkt aus dem Speicher der Sim (nicht aus Crew Chiefs Spielzustand).
     /// Zeiten in Sekunden, Strecken in Metern, Tempo in m/s. Unbekannt = NaN bzw. -1.
     /// </summary>
