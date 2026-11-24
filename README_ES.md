@@ -6,7 +6,16 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.35: el equipo habla según la situación.** Ya no hay niveles de radio: Ben, Mik y Sara deciden cuándo llega cada información. «Spotter activado» y «spotter apagado» funcionan al momento y duran hasta reiniciar, también al pasar a la carrera. Los mensajes que nunca oíste ya no cuentan como dichos y llegan en el siguiente intento. Los mejores sectores llegan en carrera también en pleno duelo, y neumáticos y estado del coche ya no se pierden con un informe descartado. Ben solo dice «se acerca» cuando el de detrás de verdad se acerca, y «la has recuperado» solo tras perder de verdad la posición. En carrera una vuelta más rápida es tu «mejor vuelta de carrera», y la vuelta de salida ya no sirve de referencia. «Quedan dos vueltas» y «última vuelta» llegan antes del tiempo de vuelta. Mik toma notas cuando se lo pides («apúntalo»). Parar y reiniciar rápido entre clasificación y carrera ya no hace caer Crew Chief, y el modo del spotter se guarda.
+> **Novedades de Alpha 0.35: el equipo habla según la situación.**
+>
+> - **Sin niveles de radio.** Ben, Mik y Sara deciden cuándo llega cada información: los eventos al momento, el coche de delante y el de detrás más a menudo, lo técnico cuando hay hueco.
+> - **Spotter por radio.** «Spotter activado» y «spotter apagado» funcionan al momento y duran hasta reiniciar, también al pasar de la clasificación a la carrera.
+> - **No se pierde nada.** Un mensaje que nunca oíste no cuenta como dicho y llega en el siguiente intento. Neumáticos y estado del coche ya no desaparecen con un informe descartado.
+> - **Mejores sectores en carrera**, también en pleno duelo.
+> - **Avisos más honestos.** «Se acerca» solo cuando el de detrás de verdad se acerca; «la has recuperado» solo tras perder de verdad la posición. En carrera una vuelta más rápida es tu «mejor vuelta de carrera», y la vuelta de salida ya no sirve de referencia.
+> - **Primero las vueltas.** «Quedan dos vueltas» y «última vuelta» llegan antes del tiempo de vuelta.
+> - **Mik toma notas cuando se lo pides** («apúntalo»).
+> - **Estable.** Parar y reiniciar rápido entre clasificación y carrera ya no hace caer Crew Chief, y el modo del spotter se guarda.
 >
 > **Desde Alpha 0.32: el equipo vive la carrera.** Ben comenta adelantamientos y duelos con emoción y con la historia del duelo, cada vez distinto (si la frase de la IA no llega en 2,5 segundos, usa la frase fija). Sara avisa de paradas, abandonos y descalificaciones de toda la parrilla, varias en una frase, y de trompos y accidentes detrás de ti. En carreras por tiempo Ben avisa a 15, 10, 5 y 2 minutos del final con tu posición. Tras la bandera Mik también nombra tus paradas.
 >
@@ -90,7 +99,7 @@ Precios de **noviembre de 2026**. Los precios cambian; compruébalos en las webs
 - **Starter:** unos 6 USD al mes (el primer mes costaba 1 USD al escribir esto), unos 75.000 caracteres al mes. **Recomendado para empezar.**
 - Hay planes mayores si corres mucho.
 - Una sola vez, durante la configuración, RRCA prepara los mensajes estándar del equipo y los avisos de Sara. Eso usa una vez entre 15.000 y 25.000 caracteres aproximadamente.
-- Después, una carrera típica usa entre 3.000 y 10.000 caracteres, según lo hablador que configures la radio.
+- Después, una carrera típica usa entre 3.000 y 10.000 caracteres, según cuánto hables con el equipo y cuánto pase en la carrera.
 
 **Consejos para controlar el gasto**
 - Pon un **límite de gasto** en cada clave (se explica abajo).

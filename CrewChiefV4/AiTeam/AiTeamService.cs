@@ -1845,7 +1845,7 @@ namespace CrewChiefV4.AiTeam
         }
 
         private static readonly System.Text.RegularExpressions.Regex MemoryVerb = new System.Text.RegularExpressions.Regex(
-            @"\b(merk|speicher|notier|vergiss nicht|behalt|remember|save|note|keep in mind|guarda|recuerda|apunta|anota)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            @"\b(merk|speicher|notier|aufschreib|schreib\w* (das |es )?auf|vergiss nicht|behalt|remember|save|note|write (that |it )?down|keep in mind|guarda|recuerda|apunta|apúnta|anota|anóta)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         private static readonly System.Text.RegularExpressions.Regex QuestionWord = new System.Text.RegularExpressions.Regex(
             @"\?|\b(wie|was|wann|wo|warum|wieso|welche[rsnm]?|wieviel|how|what|when|where|why|which|qué|cómo|cuándo|dónde|por qué|cuánto)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
@@ -2023,7 +2023,7 @@ namespace CrewChiefV4.AiTeam
                 // Fahrers („falsch“, „stimmt nicht“) wird mit den Rundenzeiten geprüft statt einfach übernommen.
                 "rechn", "notier", "speicher", "aufschreib", "schreib das auf", "schreib auf", "schreibs auf", "write down", "write that down", "anót", "anota", "falsch", "stimmt nicht", "korrig", "automatisch", "öfter", "oefter", "häufiger", "einbau",
                 "note", "save", "wrong", "correct", "automatic", "more often",
-                "apunta", "guarda", "incorrect", "automátic", "más a menudo",
+                "apunta", "apúnta", "guarda", "incorrect", "automátic", "más a menudo",
                 // RaceRoom Hockenheim 23.11.: „Hinter mir hat sich jemand gedreht. Habt ihr das wahrgenommen?“ – Antwort ohne Blick ins
                 // Lagebild („kann ich nicht bestätigen“), obwohl dort „Iban Garcia, gedreht, 80 m hinter dir“ stand. Vorfälle und
                 // Sektorvergleiche brauchen das Lagebild.

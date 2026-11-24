@@ -136,7 +136,7 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("Kurvennamen aus den Daten sind Orte, keine Fahrer", AiPersonas.SystemPrompt(TeamMember.Sara, "Rob", false));
         }
 
-        [TestCase("Aufschreiben und melden."), TestCase("Schreib das auf, die Reifen kommen in Echtzeit."), TestCase("Write that down please.")]
+        [TestCase("Aufschreiben und melden."), TestCase("Schreib das auf, die Reifen kommen in Echtzeit."), TestCase("Write that down please."), TestCase("Apúntalo, por favor.")]
         public void Asking_to_write_something_down_uses_the_notes_tool(string said)
         {
             Assert.IsTrue(AiTeamService.NeedsTools(said, null), said);

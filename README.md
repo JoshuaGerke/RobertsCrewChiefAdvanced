@@ -6,7 +6,16 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.35: the crew calls the radio by the situation.** There are no radio levels any more: Ben, Mik and Sara decide themselves when information comes. "Spotter on" and "spotter off" work at once and last until restart, also when the session changes to the race. Calls you never heard no longer count as said and come on the next attempt. Sector bests come in the race even during a battle, and tyres and car condition are no longer lost with a dropped report. Ben only says "closing in" when the car behind really gets closer, and "took it back" only after a real lost place. In the race a faster lap is your "best race lap", and the start lap is no longer the benchmark. "Two laps to go" and "last lap" come before the lap time. Mik takes notes on request ("write that down"). A quick stop and restart between qualifying and the race no longer crashes Crew Chief, and the spotter mode is saved.
+> **New in Alpha 0.35: the crew calls the radio by the situation.**
+>
+> - **No more radio levels.** Ben, Mik and Sara decide themselves when information comes: events at once, the cars ahead and behind most often, technical reports when there is room.
+> - **Spotter by radio.** "Spotter on" and "spotter off" work at once and last until restart, also when qualifying turns into the race.
+> - **Nothing gets lost.** A call you never heard does not count as said and comes on the next attempt. Tyres and car condition no longer vanish with a dropped report.
+> - **Sector bests in the race**, even in the middle of a battle.
+> - **More honest calls.** "Closing in" only when the car behind really gets closer; "took it back" only after a real lost place. In the race a faster lap is your "best race lap", and the start lap is no longer the benchmark.
+> - **Lap calls first.** "Two laps to go" and "last lap" come before the lap time.
+> - **Mik takes notes on request** ("write that down").
+> - **Stable.** A quick stop and restart between qualifying and the race no longer crashes Crew Chief, and the spotter mode is saved.
 >
 > **Since Alpha 0.32: the crew lives the race.** Ben comments on overtakes and battles with feeling and with the history of the duel, differently every time (if the AI line does not arrive within 2.5 seconds he uses the fixed sentence). Sara reports pit stops, retirements and disqualifications across the whole grid, several in one sentence, and spins and crashes behind you. In timed races Ben calls the time left at 15, 10, 5 and 2 minutes with your position. After the flag Mik also names your pit stops.
 >
@@ -90,7 +99,7 @@ Prices as of **November 2026**. Prices change, so please check the providers' we
 - **Starter:** about 6 USD per month (the first month was 1 USD at the time of writing), about 75,000 characters per month. **Recommended to start with.**
 - Higher plans exist if you race a lot.
 - Once, during setup, RRCA prepares the crew's standard calls and Sara's spotter calls. That uses roughly 15,000 to 25,000 characters one time.
-- After that, a typical race uses roughly 3,000 to 10,000 characters, depending on how chatty you set the radio.
+- After that, a typical race uses roughly 3,000 to 10,000 characters, depending on how much you talk to the crew and how much happens in the race.
 
 **Tips to keep costs under control**
 - Set a **spending limit** on each key (explained below).
