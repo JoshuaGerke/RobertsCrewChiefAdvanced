@@ -176,6 +176,25 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void A_faulty_game_tick_is_logged_and_crew_chief_keeps_running()
+        {
+            TickGuard.Reset();
+            var gs = TimedRace(1200, 600);
+            gs.SessionData.TrackDefinition = null;
+            Exception boom;
+            try { object o = null; o.ToString(); boom = null; } catch (Exception e) { boom = e; }
+            for (int i = 0; i < 1000; i++) Assert.IsTrue(TickGuard.Survive(boom, gs, null));
+            Assert.AreEqual(1000, TickGuard.Consecutive);
+            TickGuard.Ok();
+            Assert.AreEqual(0, TickGuard.Consecutive);
+            string nulls = TickGuard.NullFields(gs, null);
+            StringAssert.Contains("current.SessionData.TrackDefinition", nulls);
+            StringAssert.Contains("previous", nulls);
+            StringAssert.Contains("Race/Green", nulls);
+            TickGuard.Reset();
+        }
+
+        [Test]
         public void Race_debrief_names_the_pit_stop()
         {
             var player = new FieldCarView { Name = "Rob", IsPlayer = true, PlaceClass = 6, Place = 6, ClassId = 1, CompletedLaps = 18 };

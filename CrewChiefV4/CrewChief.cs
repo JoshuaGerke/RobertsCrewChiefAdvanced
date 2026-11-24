@@ -1061,319 +1061,328 @@ namespace CrewChiefV4
                     }
                     // if we're paused or viewing another car, the mapper will just return the previous game state so we don't lose all the
                     // persistent state information. If this is the case, don't process any stuff
-                    if (nextGameState != null && (nextGameState.SessionData.AbruptSessionEndDetected || nextGameState != currentGameState))
+                    // RRCA (LMU Sebring 24.11.): Ein einzelner fehlerhafter Tick beendete Crew Chief mit „Fatal error when running“.
+                    // Jetzt wird der Fehler mit Abschnitt und Stack protokolliert und der nächste Tick versucht; erst eine lange Serie bricht ab.
+                    try
                     {
-                        previousGameState = currentGameState;
-                        currentGameState = nextGameState;
-                        if (AiTeam.LiveDiagnostics.Enabled) AiTeam.LiveDiagnostics.Sample(previousGameState, currentGameState);
-                        if (currentGameState.SessionData.SessionType == SessionType.Race)
+                        if (nextGameState != null && (nextGameState.SessionData.AbruptSessionEndDetected || nextGameState != currentGameState))
                         {
-                            gameStateMapper.populateDerivedRaceSessionData(currentGameState);
-                            // tell the utils class that we've had a race session - used when debugging traces to check expectations
-                            Utilities.includesRaceSession = true;
-                        }
-                        else
-                        {
-                            gameStateMapper.populateDerivedNonRaceSessionData(currentGameState);
-                        }
-                        // SessionFinished and all other flags must describe this tick, not the previous session.
-                        // Der Abschluss läuft einen Tick nach der Erkennung: previousGameState ist dann der Tick im Ziel,
-                        // und Meldungen aus diesem Tick werden noch vom purgeQueues erfasst.
-                        bool finishedOnLastTick = GameEventBool.SessionFinished && !currentGameState.SessionData.IsNewSession;
-                        if (!Game.F1_20S)
-                        {
-                            gameStateEventDetector.UpdateMappedState(previousGameState, currentGameState);
-                        }
-                        if (!sessionFinished && finishedOnLastTick)
-                        {
-                            string positionMsg;
-                            if (currentGameState.SessionData.IsDisqualified)
+                            previousGameState = currentGameState;
+                            currentGameState = nextGameState;
+                            if (AiTeam.LiveDiagnostics.Enabled) AiTeam.LiveDiagnostics.Sample(previousGameState, currentGameState);
+                            if (currentGameState.SessionData.SessionType == SessionType.Race)
                             {
-                                positionMsg = "Disqualified";
-                            }
-                            else if (currentGameState.SessionData.IsDNF)
-                            {
-                                positionMsg = "DNF";
+                                gameStateMapper.populateDerivedRaceSessionData(currentGameState);
+                                // tell the utils class that we've had a race session - used when debugging traces to check expectations
+                                Utilities.includesRaceSession = true;
                             }
                             else
                             {
-                                positionMsg = currentGameState.SessionData.ClassPosition.ToString();
+                                gameStateMapper.populateDerivedNonRaceSessionData(currentGameState);
                             }
-                            Console.WriteLine("Session finished, position = " + positionMsg);
-                            audioPlayer.purgeQueues();
-                            if (displaySessionLapTimes)
+                            // SessionFinished and all other flags must describe this tick, not the previous session.
+                            // Der Abschluss läuft einen Tick nach der Erkennung: previousGameState ist dann der Tick im Ziel,
+                            // und Meldungen aus diesem Tick werden noch vom purgeQueues erfasst.
+                            bool finishedOnLastTick = GameEventBool.SessionFinished && !currentGameState.SessionData.IsNewSession;
+                            if (!Game.F1_20S)
                             {
-                                if (currentGameState.SessionData.formattedPlayerLapTimes.Count > 0)
+                                gameStateEventDetector.UpdateMappedState(previousGameState, currentGameState);
+                            }
+                            if (!sessionFinished && finishedOnLastTick)
+                            {
+                                string positionMsg;
+                                if (currentGameState.SessionData.IsDisqualified)
                                 {
-                                    Console.WriteLine("Session lap times:");
-                                    Console.WriteLine(String.Join(";    ", currentGameState.SessionData.formattedPlayerLapTimes));
+                                    positionMsg = "Disqualified";
+                                }
+                                else if (currentGameState.SessionData.IsDNF)
+                                {
+                                    positionMsg = "DNF";
                                 }
                                 else
                                 {
-                                    Console.WriteLine("No valid lap times were set.");
+                                    positionMsg = currentGameState.SessionData.ClassPosition.ToString();
                                 }
-                            }
-
-                            try
-                            {
-                                if (previousGameState != null &&
-                                    previousGameState.SessionData != null)
-                                {
-                                    var classPosition = previousGameState.SessionData.ClassPosition;
-                                    if (Game.IRACING)
-                                    {
-                                        // workaround: in iRacing the position is often wrong prior to crossing the line
-                                        classPosition = currentGameState.SessionData.ClassPosition;
-                                    }
-                                    sessionEndMessages.trigger(previousGameState.SessionData.SessionRunningTime, previousGameState.SessionData.SessionType, currentGameState.SessionData.SessionPhase,
-                                        previousGameState.SessionData.SessionStartClassPosition, classPosition,
-                                        previousGameState.SessionData.NumCarsInPlayerClassAtStartOfSession, previousGameState.SessionData.CompletedLaps, currentGameState.SessionData.expectedFinishingPosition,
-                                        currentGameState.SessionData.IsDisqualified, currentGameState.SessionData.IsDNF, currentGameState.Now);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Error($"Error triggering session end messages 'Object reference not set to an instance of an object'?\n{ex.Message}");
-                            }
-
-                            audioPlayer.holdChannelOpen = false;    // clear the 'hold open' state here before waking the monitor
-                            audioPlayer.wakeMonitorThreadForRegularMessages(currentGameState.Now);
-                            sessionFinished = true;
-                            audioPlayer.disablePearlsOfWisdom = false;
-
-                            if (loadDataFromFile)
-                            {
-                                Utilities.InterruptedSleep(2000 /*totalWaitMillis*/, 500 /*waitWindowMillis*/, () => running /*keepWaitingPredicate*/);
-                            }
-                        }
-
-                        // this is a hack because it doesn't fit anywhere else. In iRacing there is a point after the race when
-                        // the session officially ends. It is useful to know when this is because people will tend to
-                        // continue grinding for safety points. It is typically indicated by the session counter jumping
-                        // but on some tracks the timer jumps to the magical value 604800 as soon as the player crosses the line
-                        // (which we also see in the gridwalk).
-                        //
-                        // We don't have a dedicated voice message for this, so we just repeat the session end message.
-                        if (Game.IRACING && sessionFinished && previousGameState != null
-                            && !playedSessionFinished
-                            && !currentGameState.SessionData.IsNewSession
-                            && currentGameState.SessionData.SessionType == SessionType.Race
-                            && sessionEndMessages.enableSessionEndMessages
-                            && ((previousGameState.SessionData.CarsStillToFinish != 0 && currentGameState.SessionData.CarsStillToFinish == 0)
-                                || previousGameState.SessionData.SessionTimeRemaining < currentGameState.SessionData.SessionTimeRemaining))
-                        {
-                            playedSessionFinished = true;
-                            Log.Debug("looks like the session is over");
-                            audioPlayer.playMessage(new QueuedMessage("session_over", 0, messageFragments: AbstractEvent.MessageContents(SessionEndMessages.folderEndOfSession), priority: 10));
-                        }
-
-                        // not used float prevTime = previousGameState == null ? 0 : previousGameState.SessionData.SessionRunningTime;
-                        if (currentGameState.SessionData.IsNewSession)
-                        {
-                            Console.WriteLine("New session");
-                            PlaybackModerator.ClearVerbosityData();
-                            PlaybackModerator.lastBlockedMessageId = -1;
-                            audioPlayer.disablePearlsOfWisdom = false;
-                            displayNewSessionInfo(currentGameState);
-                            sessionFinished = false;
-                            playedSessionFinished = false;
-                            TopicWindowBrakes.SessionConstants(currentGameState);
-                            TopicWindowTyres.SessionConstants(currentGameState);
-                            if (!stateCleared)
-                            {
-                                Console.WriteLine("Clearing game state...");
+                                Console.WriteLine("Session finished, position = " + positionMsg);
                                 audioPlayer.purgeQueues();
-
-                                var _eventsList = eventsList;
-                                foreach (KeyValuePair<String, AbstractEvent> entry in _eventsList)
+                                if (displaySessionLapTimes)
                                 {
-                                    entry.Value.clearState();
-                                }
-                                spotter?.clearState();
-                                faultingEvents.Clear();
-                                faultingEventsCount.Clear();
-                                sessionHasFailingEvent = false;
-                                stateCleared = true;
-                                PCarsGameStateMapper.FIRST_VIEWED_PARTICIPANT_NAME = null;
-                                PCarsGameStateMapper.WARNED_ABOUT_MISSING_STEAM_ID = false;
-                                PCarsGameStateMapper.FIRST_VIEWED_PARTICIPANT_INDEX = -1;
-                            }
-                            if (enableDriverNames)
-                            {
-                                List<String> rawDriverNames = currentGameState.getRawDriverNames();
-                                if (currentGameState.SessionData.DriverRawName != null && currentGameState.SessionData.DriverRawName.Length > 0 &&
-                                    !rawDriverNames.Contains(currentGameState.SessionData.DriverRawName))
-                                {
-                                    rawDriverNames.Add(currentGameState.SessionData.DriverRawName);
-                                }
-                                if (rawDriverNames.Count > 0)
-                                {
-                                    // load all the sound files for this set of driver names. Note this will recreate all their cleaned up and
-                                    // mapped versions, and sounds which previously failed to match won't be in this set (we won't attempt to
-                                    // match them again)
-                                    SoundCache.loadDriverNameSounds(DriverNameHelper.getUsableDriverNameSounds(rawDriverNames));
-                                    // if the SRE is active, load the appropriate phrases
-                                    if (speechRecogniser != null && speechRecogniser.initialised)
+                                    if (currentGameState.SessionData.formattedPlayerLapTimes.Count > 0)
                                     {
-                                        speechRecogniser.addOpponentsSpeechRecognition(
-                                            DriverNameHelper.getUsableDriverNamesForSRE(rawDriverNames), currentGameState.getCarNumbers());
-                                    }
-                                }
-                            }
-                            audioPlayer.wakeMonitorThreadForRegularMessages(currentGameState.Now);
-                        }
-                        else if (shouldTriggerEvents(previousGameState, currentGameState))
-                        {
-                            if (!sessionFinished)
-                            {
-                                if (spotter != null)
-                                {
-                                    if (DamageReporting.waitingForDriverIsOKResponse)
-                                    {
-                                        spotter.pause();
-                                    }
-                                    else if (currentGameState.FlagData.isFullCourseYellow)
-                                    {
-                                        if (turnSpotterOffImmediatelyOnFCY)
-                                        {
-                                            spotter.pause();
-                                        }
-                                        // in fcy, if the spotter's running wait a while before pausing it
-                                        else if (!spotter.isPaused())
-                                        {
-                                            float speedThreshold = GlobalBehaviourSettings.useOvalLogic ? fcySpeedToTurnSpotterOffOnOvals : fcySpeedToTurnSpotterOffOnRoadCourses;
-                                            if (!waitingToPauseSpotter)
-                                            {
-                                                waitingToPauseSpotter = true;
-                                                minTurnSpotterOffForFCYTime = currentGameState.Now.Add(minTimeToWaitToTurnSpotterOffInFCY);
-                                                maxTurnSpotterOffForFCYTime = currentGameState.Now.Add(maxTimeToWaitToTurnSpotterOffInFCY);
-                                            }
-                                            // if we've started a new lap, turn off the spotter.
-                                            // if we've passed the max time to wait until turning him off, just turn him off. If we're between min and max, turn him
-                                            // off but only if the speed is low *and* there's no overlap
-                                            else if (currentGameState.SessionData.IsNewLap
-                                                     || currentGameState.Now > maxTurnSpotterOffForFCYTime
-                                                     || (currentGameState.Now > minTurnSpotterOffForFCYTime && currentGameState.PositionAndMotionData.CarSpeed < speedThreshold && !spotter.hasOverlap()))
-                                            {
-                                                waitingToPauseSpotter = false;
-                                                spotter.pause();
-                                            }
-                                        }
+                                        Console.WriteLine("Session lap times:");
+                                        Console.WriteLine(String.Join(";    ", currentGameState.SessionData.formattedPlayerLapTimes));
                                     }
                                     else
                                     {
-                                        spotter.unpause();
+                                        Console.WriteLine("No valid lap times were set.");
                                     }
                                 }
-                                if (currentGameState.SessionData.IsNewLap)
+
+                                try
                                 {
-                                    currentGameState.display();
-                                }
-                                stateCleared = false;
-                            }
-                            // update the auto-verbosity
-                            PlaybackModerator.UpdateAutoVerbosity(currentGameState);
-
-                            // increment the driver training service recording lap counter when we're recording and we start a new lap
-                            if (currentGameState.SessionData.IsNewLap && DriverTrainingService.isRecordingPaceNotes && currentGameState.PositionAndMotionData.CarSpeed > 0.5)
-                            {
-                                DriverTrainingService.incrementPaceNotesRecordingLapCounter();
-                            }
-                            // increment the driver training service lap playback counter when we're playing back and we start a new lap
-                            if (currentGameState.SessionData.IsNewLap && DriverTrainingService.isPlayingPaceNotes && currentGameState.PositionAndMotionData.CarSpeed > 0.5)
-                            {
-                                DriverTrainingService.incrementPaceNotesPlaybackLapCounter();
-                            }
-
-                            // Allow events to be processed after session finish.  Event should use applicableSessionPhases/applicableSessionTypes to opt in/out.
-                            // for now, don't trigger any events for F1 20xx as there's no game mapping
-                            if (!Game.F1_20S)
-                            {
-                                Boolean isPractice = currentGameState.SessionData.SessionType == SessionType.Practice || currentGameState.SessionData.SessionType == SessionType.LonePractice;
-                                // before triggering events, see if we need to enable pace notes automatically.
-                                if (this.autoEnablePacenotesInPractice && CrewChief.gameDefinition.racingType == RacingType.Circuit
-                                    && currentGameState != null && previousGameState != null
-                                    && !DriverTrainingService.isRecordingPaceNotes
-                                    && isPractice)
-                                {
-                                    // trigger for stopping pace notes automatically - we've quit to pit or entered the pitlane
-                                    Boolean enteredPit = (!previousGameState.PitData.IsInGarage && currentGameState.PitData.IsInGarage)
-                                        || (!previousGameState.PitData.InPitlane && currentGameState.PitData.InPitlane);
-                                    // trigger for automatically enabling pace notes in practice. Triggers when we leave the garage, we're handed control from the AI
-                                    // or we're in the pits and our speed increases to 0.5 m/s. This is to (hopefully) catch cases where the game doesn't use AI
-                                    // control in the pit and doesn't have a transition from garage to pitlane.
-                                    Boolean exitedGarage = (previousGameState.PitData.IsInGarage && currentGameState.PitData.InPitlane)
-                                        || (GameEventBool.PlayerTookControl)
-                                        || (currentGameState.PitData.InPitlane && previousGameState.PositionAndMotionData.CarSpeed < 0.5 && currentGameState.PositionAndMotionData.CarSpeed >= 0.5);
-
-                                    if (DriverTrainingService.isPlayingPaceNotes && enteredPit)
+                                    if (previousGameState != null &&
+                                        previousGameState.SessionData != null)
                                     {
-                                        DriverTrainingService.stopPlayingPaceNotes();
-                                    }
-                                    else if (!DriverTrainingService.isPlayingPaceNotes && exitedGarage)
-                                    {
-                                        if (!DriverTrainingService.loadPaceNotes(CrewChief.gameDefinition.gameEnum,
-                                                currentGameState.SessionData.TrackDefinition.name, currentGameState.carClass.carClassEnum, audioPlayer))
+                                        var classPosition = previousGameState.SessionData.ClassPosition;
+                                        if (Game.IRACING)
                                         {
-                                            Console.WriteLine("Attempted to auto-start pace notes, but none are available for this circuit");
+                                            // workaround: in iRacing the position is often wrong prior to crossing the line
+                                            classPosition = currentGameState.SessionData.ClassPosition;
+                                        }
+                                        sessionEndMessages.trigger(previousGameState.SessionData.SessionRunningTime, previousGameState.SessionData.SessionType, currentGameState.SessionData.SessionPhase,
+                                            previousGameState.SessionData.SessionStartClassPosition, classPosition,
+                                            previousGameState.SessionData.NumCarsInPlayerClassAtStartOfSession, previousGameState.SessionData.CompletedLaps, currentGameState.SessionData.expectedFinishingPosition,
+                                            currentGameState.SessionData.IsDisqualified, currentGameState.SessionData.IsDNF, currentGameState.Now);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Error($"Error triggering session end messages 'Object reference not set to an instance of an object'?\n{ex.Message}");
+                                }
+
+                                audioPlayer.holdChannelOpen = false;    // clear the 'hold open' state here before waking the monitor
+                                audioPlayer.wakeMonitorThreadForRegularMessages(currentGameState.Now);
+                                sessionFinished = true;
+                                audioPlayer.disablePearlsOfWisdom = false;
+
+                                if (loadDataFromFile)
+                                {
+                                    Utilities.InterruptedSleep(2000 /*totalWaitMillis*/, 500 /*waitWindowMillis*/, () => running /*keepWaitingPredicate*/);
+                                }
+                            }
+
+                            // this is a hack because it doesn't fit anywhere else. In iRacing there is a point after the race when
+                            // the session officially ends. It is useful to know when this is because people will tend to
+                            // continue grinding for safety points. It is typically indicated by the session counter jumping
+                            // but on some tracks the timer jumps to the magical value 604800 as soon as the player crosses the line
+                            // (which we also see in the gridwalk).
+                            //
+                            // We don't have a dedicated voice message for this, so we just repeat the session end message.
+                            if (Game.IRACING && sessionFinished && previousGameState != null
+                                && !playedSessionFinished
+                                && !currentGameState.SessionData.IsNewSession
+                                && currentGameState.SessionData.SessionType == SessionType.Race
+                                && sessionEndMessages.enableSessionEndMessages
+                                && ((previousGameState.SessionData.CarsStillToFinish != 0 && currentGameState.SessionData.CarsStillToFinish == 0)
+                                    || previousGameState.SessionData.SessionTimeRemaining < currentGameState.SessionData.SessionTimeRemaining))
+                            {
+                                playedSessionFinished = true;
+                                Log.Debug("looks like the session is over");
+                                audioPlayer.playMessage(new QueuedMessage("session_over", 0, messageFragments: AbstractEvent.MessageContents(SessionEndMessages.folderEndOfSession), priority: 10));
+                            }
+
+                            // not used float prevTime = previousGameState == null ? 0 : previousGameState.SessionData.SessionRunningTime;
+                            if (currentGameState.SessionData.IsNewSession)
+                            {
+                                Console.WriteLine("New session");
+                                PlaybackModerator.ClearVerbosityData();
+                                PlaybackModerator.lastBlockedMessageId = -1;
+                                audioPlayer.disablePearlsOfWisdom = false;
+                                displayNewSessionInfo(currentGameState);
+                                sessionFinished = false;
+                                playedSessionFinished = false;
+                                TopicWindowBrakes.SessionConstants(currentGameState);
+                                TopicWindowTyres.SessionConstants(currentGameState);
+                                if (!stateCleared)
+                                {
+                                    Console.WriteLine("Clearing game state...");
+                                    audioPlayer.purgeQueues();
+
+                                    var _eventsList = eventsList;
+                                    foreach (KeyValuePair<String, AbstractEvent> entry in _eventsList)
+                                    {
+                                        entry.Value.clearState();
+                                    }
+                                    spotter?.clearState();
+                                    faultingEvents.Clear();
+                                    faultingEventsCount.Clear();
+                                    sessionHasFailingEvent = false;
+                                    stateCleared = true;
+                                    PCarsGameStateMapper.FIRST_VIEWED_PARTICIPANT_NAME = null;
+                                    PCarsGameStateMapper.WARNED_ABOUT_MISSING_STEAM_ID = false;
+                                    PCarsGameStateMapper.FIRST_VIEWED_PARTICIPANT_INDEX = -1;
+                                }
+                                if (enableDriverNames)
+                                {
+                                    List<String> rawDriverNames = currentGameState.getRawDriverNames();
+                                    if (currentGameState.SessionData.DriverRawName != null && currentGameState.SessionData.DriverRawName.Length > 0 &&
+                                        !rawDriverNames.Contains(currentGameState.SessionData.DriverRawName))
+                                    {
+                                        rawDriverNames.Add(currentGameState.SessionData.DriverRawName);
+                                    }
+                                    if (rawDriverNames.Count > 0)
+                                    {
+                                        // load all the sound files for this set of driver names. Note this will recreate all their cleaned up and
+                                        // mapped versions, and sounds which previously failed to match won't be in this set (we won't attempt to
+                                        // match them again)
+                                        SoundCache.loadDriverNameSounds(DriverNameHelper.getUsableDriverNameSounds(rawDriverNames));
+                                        // if the SRE is active, load the appropriate phrases
+                                        if (speechRecogniser != null && speechRecogniser.initialised)
+                                        {
+                                            speechRecogniser.addOpponentsSpeechRecognition(
+                                                DriverNameHelper.getUsableDriverNamesForSRE(rawDriverNames), currentGameState.getCarNumbers());
                                         }
                                     }
-                                }
-
-                                // Exception "Collection was modified; enumeration operation may not execute."
-                                // reported by user, avoid it.
-                                // A race condition? clearAndReloadEvents() is called from another thread?
-                                // That's the only place it's modified.
-                                var _eventsList = eventsList;
-                                foreach (KeyValuePair<String, AbstractEvent> entry in _eventsList)
-                                {
-                                    if (entry.Value.isApplicableForCurrentSessionAndPhase(currentGameState.SessionData.SessionType, currentGameState.SessionData.SessionPhase))
-                                    {
-                                        // special case - if we've crashed heavily and are waiting for a response from the driver, don't trigger other events
-                                        if (entry.Key.Equals("DamageReporting") || !DamageReporting.waitingForDriverIsOKResponse)
-                                        {
-                                            triggerEvent(entry.Key, entry.Value, previousGameState, currentGameState);
-                                        }
-                                    }
-                                }
-                                if (eventsList != _eventsList)
-                                {
-                                    Log.Warning($"eventsList was modified? Count: {eventsList.Count}");
                                 }
                                 audioPlayer.wakeMonitorThreadForRegularMessages(currentGameState.Now);
                             }
-                            if (!sessionFinished)
+                            else if (shouldTriggerEvents(previousGameState, currentGameState))
                             {
-                                if (DriverTrainingService.isPlayingPaceNotes)
+                                if (!sessionFinished)
                                 {
-                                    DriverTrainingService.checkValidAndPlayIfNeeded(currentGameState.Now,
-                                        currentGameState.PositionAndMotionData.CarSpeed, currentGameState.PositionAndMotionData.Orientation.Yaw,
-                                        previousGameState.PositionAndMotionData.DistanceRoundTrack,
-                                        currentGameState.PositionAndMotionData.DistanceRoundTrack,
-                                        currentGameState.PitData.InPitlane,
-                                        audioPlayer);
+                                    if (spotter != null)
+                                    {
+                                        if (DamageReporting.waitingForDriverIsOKResponse)
+                                        {
+                                            spotter.pause();
+                                        }
+                                        else if (currentGameState.FlagData.isFullCourseYellow)
+                                        {
+                                            if (turnSpotterOffImmediatelyOnFCY)
+                                            {
+                                                spotter.pause();
+                                            }
+                                            // in fcy, if the spotter's running wait a while before pausing it
+                                            else if (!spotter.isPaused())
+                                            {
+                                                float speedThreshold = GlobalBehaviourSettings.useOvalLogic ? fcySpeedToTurnSpotterOffOnOvals : fcySpeedToTurnSpotterOffOnRoadCourses;
+                                                if (!waitingToPauseSpotter)
+                                                {
+                                                    waitingToPauseSpotter = true;
+                                                    minTurnSpotterOffForFCYTime = currentGameState.Now.Add(minTimeToWaitToTurnSpotterOffInFCY);
+                                                    maxTurnSpotterOffForFCYTime = currentGameState.Now.Add(maxTimeToWaitToTurnSpotterOffInFCY);
+                                                }
+                                                // if we've started a new lap, turn off the spotter.
+                                                // if we've passed the max time to wait until turning him off, just turn him off. If we're between min and max, turn him
+                                                // off but only if the speed is low *and* there's no overlap
+                                                else if (currentGameState.SessionData.IsNewLap
+                                                         || currentGameState.Now > maxTurnSpotterOffForFCYTime
+                                                         || (currentGameState.Now > minTurnSpotterOffForFCYTime && currentGameState.PositionAndMotionData.CarSpeed < speedThreshold && !spotter.hasOverlap()))
+                                                {
+                                                    waitingToPauseSpotter = false;
+                                                    spotter.pause();
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            spotter.unpause();
+                                        }
+                                    }
+                                    if (currentGameState.SessionData.IsNewLap)
+                                    {
+                                        currentGameState.display();
+                                    }
+                                    stateCleared = false;
                                 }
-                                AiTeam.SpotterStartCheck.Report(spotter != null, spotterIsRunning, GlobalBehaviourSettings.spotterEnabled,
-                                    GlobalBehaviourSettings.spotterEnabledInitialState, GlobalBehaviourSettings.realisticMode,
-                                    GlobalBehaviourSettings.useOvalLogic, AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse,
-                                    Game.F1_20S || Debug.PlaybackSpotter);
-                                if (spotter != null && GlobalBehaviourSettings.spotterEnabled && !spotterIsRunning &&
-                                    (Game.F1_20S || Debug.PlaybackSpotter || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse))
+                                // update the auto-verbosity
+                                PlaybackModerator.UpdateAutoVerbosity(currentGameState);
+
+                                // increment the driver training service recording lap counter when we're recording and we start a new lap
+                                if (currentGameState.SessionData.IsNewLap && DriverTrainingService.isRecordingPaceNotes && currentGameState.PositionAndMotionData.CarSpeed > 0.5)
                                 {
-                                    Console.WriteLine("********** starting spotter***********");
-                                    spotter.clearState();
-                                    startSpotterThread();
+                                    DriverTrainingService.incrementPaceNotesRecordingLapCounter();
                                 }
-                                else if (spotterIsRunning && !GlobalBehaviourSettings.spotterEnabled)
+                                // increment the driver training service lap playback counter when we're playing back and we start a new lap
+                                if (currentGameState.SessionData.IsNewLap && DriverTrainingService.isPlayingPaceNotes && currentGameState.PositionAndMotionData.CarSpeed > 0.5)
                                 {
-                                    runSpotterThread = false;
+                                    DriverTrainingService.incrementPaceNotesPlaybackLapCounter();
+                                }
+
+                                // Allow events to be processed after session finish.  Event should use applicableSessionPhases/applicableSessionTypes to opt in/out.
+                                // for now, don't trigger any events for F1 20xx as there's no game mapping
+                                if (!Game.F1_20S)
+                                {
+                                    Boolean isPractice = currentGameState.SessionData.SessionType == SessionType.Practice || currentGameState.SessionData.SessionType == SessionType.LonePractice;
+                                    // before triggering events, see if we need to enable pace notes automatically.
+                                    if (this.autoEnablePacenotesInPractice && CrewChief.gameDefinition.racingType == RacingType.Circuit
+                                        && currentGameState != null && previousGameState != null
+                                        && !DriverTrainingService.isRecordingPaceNotes
+                                        && isPractice)
+                                    {
+                                        // trigger for stopping pace notes automatically - we've quit to pit or entered the pitlane
+                                        Boolean enteredPit = (!previousGameState.PitData.IsInGarage && currentGameState.PitData.IsInGarage)
+                                            || (!previousGameState.PitData.InPitlane && currentGameState.PitData.InPitlane);
+                                        // trigger for automatically enabling pace notes in practice. Triggers when we leave the garage, we're handed control from the AI
+                                        // or we're in the pits and our speed increases to 0.5 m/s. This is to (hopefully) catch cases where the game doesn't use AI
+                                        // control in the pit and doesn't have a transition from garage to pitlane.
+                                        Boolean exitedGarage = (previousGameState.PitData.IsInGarage && currentGameState.PitData.InPitlane)
+                                            || (GameEventBool.PlayerTookControl)
+                                            || (currentGameState.PitData.InPitlane && previousGameState.PositionAndMotionData.CarSpeed < 0.5 && currentGameState.PositionAndMotionData.CarSpeed >= 0.5);
+
+                                        if (DriverTrainingService.isPlayingPaceNotes && enteredPit)
+                                        {
+                                            DriverTrainingService.stopPlayingPaceNotes();
+                                        }
+                                        else if (!DriverTrainingService.isPlayingPaceNotes && exitedGarage)
+                                        {
+                                            if (!DriverTrainingService.loadPaceNotes(CrewChief.gameDefinition.gameEnum,
+                                                    currentGameState.SessionData.TrackDefinition.name, currentGameState.carClass.carClassEnum, audioPlayer))
+                                            {
+                                                Console.WriteLine("Attempted to auto-start pace notes, but none are available for this circuit");
+                                            }
+                                        }
+                                    }
+
+                                    // Exception "Collection was modified; enumeration operation may not execute."
+                                    // reported by user, avoid it.
+                                    // A race condition? clearAndReloadEvents() is called from another thread?
+                                    // That's the only place it's modified.
+                                    var _eventsList = eventsList;
+                                    foreach (KeyValuePair<String, AbstractEvent> entry in _eventsList)
+                                    {
+                                        if (entry.Value.isApplicableForCurrentSessionAndPhase(currentGameState.SessionData.SessionType, currentGameState.SessionData.SessionPhase))
+                                        {
+                                            // special case - if we've crashed heavily and are waiting for a response from the driver, don't trigger other events
+                                            if (entry.Key.Equals("DamageReporting") || !DamageReporting.waitingForDriverIsOKResponse)
+                                            {
+                                                triggerEvent(entry.Key, entry.Value, previousGameState, currentGameState);
+                                            }
+                                        }
+                                    }
+                                    if (eventsList != _eventsList)
+                                    {
+                                        Log.Warning($"eventsList was modified? Count: {eventsList.Count}");
+                                    }
+                                    audioPlayer.wakeMonitorThreadForRegularMessages(currentGameState.Now);
+                                }
+                                if (!sessionFinished)
+                                {
+                                    if (DriverTrainingService.isPlayingPaceNotes)
+                                    {
+                                        DriverTrainingService.checkValidAndPlayIfNeeded(currentGameState.Now,
+                                            currentGameState.PositionAndMotionData.CarSpeed, currentGameState.PositionAndMotionData.Orientation.Yaw,
+                                            previousGameState.PositionAndMotionData.DistanceRoundTrack,
+                                            currentGameState.PositionAndMotionData.DistanceRoundTrack,
+                                            currentGameState.PitData.InPitlane,
+                                            audioPlayer);
+                                    }
+                                    AiTeam.SpotterStartCheck.Report(spotter != null, spotterIsRunning, GlobalBehaviourSettings.spotterEnabled,
+                                        GlobalBehaviourSettings.spotterEnabledInitialState, GlobalBehaviourSettings.realisticMode,
+                                        GlobalBehaviourSettings.useOvalLogic, AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse,
+                                        Game.F1_20S || Debug.PlaybackSpotter);
+                                    if (spotter != null && GlobalBehaviourSettings.spotterEnabled && !spotterIsRunning &&
+                                        (Game.F1_20S || Debug.PlaybackSpotter || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse))
+                                    {
+                                        Console.WriteLine("********** starting spotter***********");
+                                        spotter.clearState();
+                                        startSpotterThread();
+                                    }
+                                    else if (spotterIsRunning && !GlobalBehaviourSettings.spotterEnabled)
+                                    {
+                                        runSpotterThread = false;
+                                    }
                                 }
                             }
+                            else
+                            {
+                                spotter?.pause();
+                            }
                         }
-                        else
-                        {
-                            spotter?.pause();
-                        }
+                        TickGuard.Ok();
+                    }
+                    catch (Exception e) when (running && TickGuard.Survive(e, currentGameState, previousGameState))
+                    {
                     }
                 }
 
