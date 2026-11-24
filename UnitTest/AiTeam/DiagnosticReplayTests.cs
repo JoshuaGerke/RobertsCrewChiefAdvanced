@@ -76,7 +76,8 @@ namespace UnitTest.AiTeamTests
                 Line(11.000, "tts.end", "{\"duration_ms\":420,\"status\":\"completed\"}"),
                 Line(11.000, "api.end", "{\"duration_ms\":640,\"status\":\"ok\"}"),
                 Line(20.000, "ptt.released", "{\"utterance_sequence\":1}"),
-                Line(26.500, "audio.driver_submit", "{\"event_id\":\"e2\"}"),
+                Line(26.400, "radio.enqueue", "{\"clip_id\":\"c-answer\",\"speaker\":\"Mik\",\"text\":\"Reifen gut\",\"priority\":5,\"utterance_sequence\":1}"),
+                Line(26.500, "audio.driver_submit", "{\"clip_id\":\"c-answer\",\"event_id\":null}"),
             });
             var l = RadioAudit.Latencies(session);
             Assert.AreEqual(250, l["erkannt_bis_eingereiht"].Single(), 1);
@@ -88,6 +89,31 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(8.6, RadioAudit.Percentile(new List<double> { 1, 3, 5, 7, 9 }, 95), 1e-9);
             Assert.IsTrue(double.IsNaN(RadioAudit.Percentile(new List<double>(), 50)));
             StringAssert.Contains("p95", RadioAudit.LatencyReport(session));
+        }
+
+        /// <summary>
+        /// Review 24.11. (Sebring): Nach 2,01 s lief ein Sektorhinweis, nach 2,07 s ein Überholurteil – beide zählten als Antwort.
+        /// Rob fragt nach den Reifen, ein Sektorhinweis läuft dazwischen, Mik antwortet danach: nur Miks Clip stoppt die Uhr.
+        /// </summary>
+        [Test]
+        public void Only_the_answer_to_this_question_stops_the_answer_clock()
+        {
+            var session = DiagnosticReplay.Load(new[]
+            {
+                Line(10.000, "ptt.released", "{\"utterance_sequence\":4}"),
+                Line(11.900, "radio.enqueue", "{\"clip_id\":\"c-sector\",\"topic\":\"quali-sector\",\"speaker\":\"Ben\",\"text\":\"Sektor 2 schneller\",\"priority\":3,\"event_id\":\"e7\"}"),
+                Line(12.010, "audio.driver_submit", "{\"clip_id\":\"c-sector\",\"event_id\":\"e7\"}"),
+                Line(12.070, "audio.driver_submit", "{\"clip_id\":\"c-old\",\"event_id\":\"e8\"}"),
+                Line(13.000, "radio.enqueue", "{\"clip_id\":\"c-earlier\",\"speaker\":\"Ben\",\"text\":\"Platz 5\",\"priority\":5,\"utterance_sequence\":3}"),
+                Line(13.100, "audio.driver_submit", "{\"clip_id\":\"c-earlier\"}"),
+                Line(15.400, "radio.enqueue", "{\"clip_id\":\"c-tyres\",\"speaker\":\"Mik\",\"text\":\"Reifen im Fenster\",\"priority\":5,\"utterance_sequence\":4}"),
+                Line(15.500, "audio.driver_submit", "{\"clip_id\":\"c-tyres\"}"),
+                Line(40.000, "ptt.released", "{\"utterance_sequence\":5}"),
+                Line(41.000, "audio.driver_submit", "{\"clip_id\":\"c-other\"}"),
+            });
+            var answers = RadioAudit.Latencies(session)["frage_bis_antwort_audio"];
+            Assert.AreEqual(1, answers.Count, "Frage 5 blieb ohne Antwort und bekommt keinen fremden Clip");
+            Assert.AreEqual(5500, answers.Single(), 1, "Miks Antwort, nicht der Sektorhinweis nach 2,01 s");
         }
 
         [Test]

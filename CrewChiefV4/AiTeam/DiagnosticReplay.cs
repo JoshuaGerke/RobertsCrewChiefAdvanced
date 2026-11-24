@@ -36,7 +36,10 @@ namespace CrewChiefV4.AiTeam
         public readonly Dictionary<string, DateTime> Enqueued = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         public readonly Dictionary<string, DateTime> AudioStarted = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         public readonly List<double> TtsMs = new List<double>(), ApiMs = new List<double>(), AnswerMs = new List<double>();
-        internal readonly List<DateTime> PttReleased = new List<DateTime>(), AnyAudioStart = new List<DateTime>();
+        /// <summary>Taste losgelassen je Funkspruch-Nummer; Antwortclips je Funkspruch-Nummer; erster Audiostart je Clip.</summary>
+        internal readonly Dictionary<int, DateTime> PttReleased = new Dictionary<int, DateTime>();
+        internal readonly Dictionary<string, int> AnswerClips = new Dictionary<string, int>(StringComparer.Ordinal);
+        internal readonly Dictionary<string, DateTime> ClipStarted = new Dictionary<string, DateTime>(StringComparer.Ordinal);
     }
 
     internal sealed class AuditFinding
@@ -84,13 +87,15 @@ namespace CrewChiefV4.AiTeam
                     case "radio.enqueue":
                         session.Radio.Add(new ReplayRadio { Utc = utc, Topic = (string)d["topic"], Speaker = (string)d["speaker"], Text = (string)d["text"], Priority = Int(d["priority"]) });
                         First(session.Enqueued, (string)d["event_id"], utc);
+                        int answers = Int(d["utterance_sequence"], -1);
+                        if (answers >= 0 && (string)d["clip_id"] is string answerClip) session.AnswerClips[answerClip] = answers;
                         break;
                     case "decision":
                         if ((string)d["status"] == "detected") First(session.Detected, (string)d["event_id"], utc);
                         break;
                     case "audio.driver_submit":
                         First(session.AudioStarted, (string)d["event_id"], utc);
-                        session.AnyAudioStart.Add(utc);
+                        First(session.ClipStarted, (string)d["clip_id"], utc);
                         break;
                     case "tts.end":
                         if ((string)d["status"] == "completed" || (string)d["status"] == "ok" || d["status"] == null) AddMs(session.TtsMs, d["duration_ms"]);
@@ -99,18 +104,19 @@ namespace CrewChiefV4.AiTeam
                         AddMs(session.ApiMs, d["duration_ms"]);
                         break;
                     case "ptt.released":
-                        session.PttReleased.Add(utc);
+                        int released = Int(d["utterance_sequence"], -1);
+                        if (released >= 0) session.PttReleased[released] = utc;
                         break;
                 }
             }
-            // Antwortzeit: Taste losgelassen bis zum nächsten Audiostart (höchstens 30 s, sonst keine Antwort).
-            session.AnyAudioStart.Sort();
+            // Antwortzeit: Taste losgelassen bis zum Start des ersten Clips, der auf genau diesen Funkspruch antwortet (höchstens 30 s).
+            // Review 24.11.: Bisher stoppte jeder beliebige Audiostart die Uhr – auch ein Sektorhinweis, der zwischen Frage und Antwort lief.
             foreach (var released in session.PttReleased)
             {
-                int i = session.AnyAudioStart.BinarySearch(released);
-                if (i < 0) i = ~i;
-                if (i < session.AnyAudioStart.Count && session.AnyAudioStart[i] - released <= TimeSpan.FromSeconds(30))
-                    session.AnswerMs.Add((session.AnyAudioStart[i] - released).TotalMilliseconds);
+                var starts = session.AnswerClips.Where(a => a.Value == released.Key && session.ClipStarted.ContainsKey(a.Key))
+                    .Select(a => session.ClipStarted[a.Key]).Where(t => t >= released.Value).OrderBy(t => t).ToList();
+                if (starts.Count > 0 && starts[0] - released.Value <= TimeSpan.FromSeconds(30))
+                    session.AnswerMs.Add((starts[0] - released.Value).TotalMilliseconds);
             }
             session.Frames.Sort((a, b) => a.Utc.CompareTo(b.Utc));
             session.Radio.Sort((a, b) => a.Utc.CompareTo(b.Utc));
@@ -159,7 +165,7 @@ namespace CrewChiefV4.AiTeam
             if (ms >= 0 && ms < 600000) list.Add(ms);
         }
 
-        private static int Int(JToken t) { try { return t == null || t.Type == JTokenType.Null ? 0 : (int)t; } catch (Exception) { return 0; } }
+        private static int Int(JToken t, int fallback = 0) { try { return t == null || t.Type == JTokenType.Null ? fallback : (int)t; } catch (Exception) { return fallback; } }
         private static float Float(JToken t, float fallback) { try { return t == null || t.Type == JTokenType.Null ? fallback : (float)t; } catch (Exception) { return fallback; } }
         private static bool Bool(JToken t, bool fallback = false) { try { return t == null || t.Type == JTokenType.Null ? fallback : (bool)t; } catch (Exception) { return fallback; } }
     }

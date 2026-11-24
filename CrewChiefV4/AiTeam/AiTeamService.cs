@@ -140,6 +140,8 @@ namespace CrewChiefV4.AiTeam
         private readonly SemaphoreSlim requestLock = new SemaphoreSlim(1, 1);
         private CancellationTokenSource currentRequest;
         private int pressSequence;
+        /// <summary>Funkspruch von Rob, auf den der laufende Ablauf antwortet; steht im Diagnoseprotokoll an der Antwort.</summary>
+        private static readonly AsyncLocal<int?> answeringUtterance = new AsyncLocal<int?>();
         private int sessionGeneration;
 
         private readonly object dialogSync = new object();
@@ -1311,6 +1313,7 @@ namespace CrewChiefV4.AiTeam
         {
             using (var diagnosticSpan = LiveDiagnostics.Begin("utterance", LiveDiagnostics.Data("utterance_sequence",sequence)))
             {
+                answeringUtterance.Value = sequence;
                 try
                 {
             if (!HasApiKey)
@@ -3367,7 +3370,8 @@ namespace CrewChiefV4.AiTeam
                     PhraseMemory.NoteSpoken(member, text, DateTime.UtcNow);
                     if (playbackStarted != null) playbackStarted();
                 } }, discarded, playbackEnded, eventId, observedTopic);
-            if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("radio.enqueue",LiveDiagnostics.Data("clip_id",id,"topic",observedTopic,"speaker",member.ToString(),"text",text,"priority",localOnly?localPriority:isReply?5:SoundMetadata.DEFAULT_PRIORITY,"immediate",isReply,"event_id",eventId),eventId);
+            if (LiveDiagnostics.Enabled) LiveDiagnostics.Emit("radio.enqueue",LiveDiagnostics.Data("clip_id",id,"topic",observedTopic,"speaker",member.ToString(),"text",text,"priority",localOnly?localPriority:isReply?5:SoundMetadata.DEFAULT_PRIORITY,"immediate",isReply,"event_id",eventId,
+                "utterance_sequence",isReply?answeringUtterance.Value:null),eventId);
             var fragments = new List<MessageFragment> { MessageFragment.Text(SoundCache.AI_AUDIO_IDENTIFIER + id) };
             if (isReply)
             {
