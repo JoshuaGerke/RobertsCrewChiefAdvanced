@@ -144,6 +144,7 @@ namespace CrewChiefV4.AiTeam.Field
                 PrepareTrack(f);
                 string sk = f.Sim + "|" + f.Track + "|" + f.Layout + "|" + f.RawSession + "|" + f.SessionIteration;
                 if (sk != sessionKey) { sessionKey = sk; cars.Clear(); lapsAtTimeZero = -1; }
+                // Unter FCY und bei Unterbrechung fährt das ganze Feld langsam oder steht: kein Wagen gilt dann als Gefahr, nichts wird gelernt.
                 bool racing = f.Phase == FieldPhase.Green || f.Phase == FieldPhase.Checkered;
                 var result = new List<FieldCarView>(f.Cars.Length);
                 FieldCarView player = null;

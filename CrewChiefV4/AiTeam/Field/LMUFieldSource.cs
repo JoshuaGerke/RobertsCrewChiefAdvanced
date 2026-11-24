@@ -69,7 +69,10 @@ namespace CrewChiefV4.AiTeam.Field
                 case 2: return FieldPhase.Gridwalk;
                 case 3: return FieldPhase.Formation;
                 case 4: return FieldPhase.Countdown;
-                case 5: case 6: case 7: return FieldPhase.Green;
+                case 5: return FieldPhase.Green;
+                // Review 24.11.: FCY und Rennunterbrechung galten im Lagebild als Grün – das halbe Feld wirkte „langsam“ oder „steht“.
+                case 6: return FieldPhase.FullCourseYellow;
+                case 7: return FieldPhase.Stopped;
                 case 8: return FieldPhase.Checkered;
                 default: return FieldPhase.Unknown;
             }

@@ -5,8 +5,8 @@ namespace CrewChiefV4.AiTeam.Field
     /// <summary>Art der Session, unabhängig von der Sim.</summary>
     internal enum FieldSession { Unknown, Practice, Qualify, Warmup, Race }
 
-    /// <summary>Phase der Session, unabhängig von der Sim.</summary>
-    internal enum FieldPhase { Unknown, Garage, Gridwalk, Formation, Countdown, Green, Checkered }
+    /// <summary>Phase der Session, unabhängig von der Sim. FullCourseYellow = Neutralisierung (FCY/SC), Stopped = Rennunterbrechung.</summary>
+    internal enum FieldPhase { Unknown, Garage, Gridwalk, Formation, Countdown, Green, Checkered, FullCourseYellow, Stopped }
 
     /// <summary>
     /// Klassen für Sims, die je Fahrer nur den Klassennamen liefern (LMU, AMS2). Gleicher Name = gleiche Klasse; den Klassenplatz

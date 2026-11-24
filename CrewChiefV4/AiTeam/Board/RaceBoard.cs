@@ -99,7 +99,8 @@ namespace CrewChiefV4.AiTeam.Board
                 case SessionPhase.Gridwalk: return FieldPhase.Gridwalk;
                 case SessionPhase.Formation: return FieldPhase.Formation;
                 case SessionPhase.Countdown: return FieldPhase.Countdown;
-                case SessionPhase.Green: case SessionPhase.FullCourseYellow: return FieldPhase.Green;
+                case SessionPhase.Green: return FieldPhase.Green;
+                case SessionPhase.FullCourseYellow: return FieldPhase.FullCourseYellow;
                 case SessionPhase.Checkered: case SessionPhase.Finished: return FieldPhase.Checkered;
                 default: return FieldPhase.Unknown;
             }
@@ -117,8 +118,11 @@ namespace CrewChiefV4.AiTeam.Board
             // Session und Phase: nativ zuerst
             if (native && v.Session != FieldSession.Unknown) b.Session = Fact<FieldSession>.From(v.Session, BoardSource.Native, nu);
             else if (s != null && SessionOf(s.SessionType) != FieldSession.Unknown) b.Session = Fact<FieldSession>.From(SessionOf(s.SessionType), BoardSource.CrewChief, now);
-            if (native && v.Phase != FieldPhase.Unknown) b.Phase = Fact<FieldPhase>.From(v.Phase, BoardSource.Native, nu);
-            else if (s != null && PhaseOf(s.SessionPhase) != FieldPhase.Unknown) b.Phase = Fact<FieldPhase>.From(PhaseOf(s.SessionPhase), BoardSource.CrewChief, now);
+            // Flaggen erkennt Crew Chief: meldet die Sim selbst nur „Grün“ (RaceRoom, AMS2, AC), gilt Crew Chiefs FCY.
+            var ccPhase = s != null ? PhaseOf(s.SessionPhase) : FieldPhase.Unknown;
+            if (native && v.Phase != FieldPhase.Unknown && !(v.Phase == FieldPhase.Green && ccPhase == FieldPhase.FullCourseYellow))
+                b.Phase = Fact<FieldPhase>.From(v.Phase, BoardSource.Native, nu);
+            else if (ccPhase != FieldPhase.Unknown) b.Phase = Fact<FieldPhase>.From(ccPhase, BoardSource.CrewChief, now);
             if (native && s != null && v.Session != FieldSession.Unknown && SessionOf(s.SessionType) != FieldSession.Unknown && SessionOf(s.SessionType) != v.Session)
                 b.Conflicts["session"] = v.Session + "/" + s.SessionType;
 
