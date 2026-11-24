@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CrewChiefV4;
@@ -312,8 +312,8 @@ namespace UnitTest.AiTeamTests
             var call = watch.Take(gs, now, false);
             Assert.IsNotNull(call);
             Assert.AreEqual("sector-best", call.Topic);
-            StringAssert.Contains("Sektor 1", call.Text);
-            StringAssert.Contains("29,5", call.Text);
+            Assert.IsTrue(call.Text.Contains("Sektor 1") || call.Text.Contains("ersten Sektor"), call.Text);
+            StringAssert.Contains("0,500", call.Text);
             StringAssert.DoesNotContain("Feldbestzeit", call.Text);
         }
 

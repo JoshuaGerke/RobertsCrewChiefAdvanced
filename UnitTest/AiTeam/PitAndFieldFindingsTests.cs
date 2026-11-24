@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.GameState;
@@ -143,9 +143,10 @@ namespace UnitTest.AiTeamTests
             var call = watch.Take(present, now, false);
             Assert.IsNotNull(call); Assert.AreEqual("sector-best", call.Topic);
             StringAssert.StartsWith("Rob, ", call.Text);
-            StringAssert.Contains("34,512", call.Text);
-            var push = Enumerable.Range(0, RadioPhraseCatalog.Current.Count("own-sector-best-push")).Select(i => RadioPhraseCatalog.Current.Format("own-sector-best-push", i)).ToArray();
-            Assert.IsTrue(push.Any(p => call.Text.EndsWith(p, StringComparison.Ordinal)), call.Text);
+            // Rob 24.11.: im Training kurz und knapp – welcher Sektor und wie viel schneller (35,000 → 34,512).
+            Assert.IsTrue(call.Text.Contains("Sektor 1") || call.Text.Contains("ersten Sektor"), call.Text);
+            StringAssert.Contains("0,488", call.Text);
+            Assert.Less(call.Text.Length, 90, "kurz und knapp: " + call.Text);
         }
 
         [Test]

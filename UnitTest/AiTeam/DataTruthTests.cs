@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
@@ -42,7 +42,9 @@ namespace UnitTest.AiTeamTests
             var call = watch.Take(late, late.SourceTelemetryUtc, false);
             Assert.IsNotNull(call, "früher ging die Gelegenheit für die ganze Runde verloren");
             Assert.AreEqual("sector-best", call.Topic);
-            StringAssert.Contains("29,4", call.Text);
+            // Rob 24.11.: im Training kurz – persönliche Bestzeit und der Gewinn (30,0 → 29,4).
+            Assert.IsTrue(call.Text.Contains("Sektor 1") || call.Text.Contains("ersten Sektor"), call.Text);
+            StringAssert.Contains("0,600", call.Text);
         }
 
         [Test]

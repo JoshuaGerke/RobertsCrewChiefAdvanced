@@ -137,6 +137,14 @@ namespace CrewChiefV4.AiTeam
         private DateTime lastSectorBestCall;
         private readonly RadioVariantCursor sectorBestVariants = new RadioVariantCursor();
         private readonly RadioVariantCursor bestPaceVariants = new RadioVariantCursor();
+        // Training/Qualifying (Rob 24.11., AMS2 Cascais): Die beim Einstieg mitgelieferte Bestmarke der Sim (Sektoren und Runde) ist
+        // nur der Maßstab für „persönliche Bestzeit“; jede Verbesserung gegenüber dem, was das Team selbst gesehen hat, wird angesagt.
+        private readonly float[] sectorSeed = { -1, -1, -1 };
+        private bool sectorSeedOpen = true;
+        private float observedBest = -1;
+        private int liveS1Lap = -1, sessionSectorCount;
+        private bool liveS1Pb, liveS1Purple;
+        private DateTime liveS1Utc = DateTime.MinValue;
 
         public void Reset()
         {
@@ -144,7 +152,8 @@ namespace CrewChiefV4.AiTeam
             lastLap = lastSectorCallLap = lastSectorCall = -1; improvements = new RadioVariantCursor(); rivalBests = new RadioVariantCursor();
             lastRadio = lastSectorBestCall = lastSectorTimeCall = announcedLapUtc = DateTime.MinValue; firstSectorTimeCalled = false; announcedLapSeconds = -1;
             firstTimedLapCalled = lastQualifyingLapOffered = firstFuelOffered = fuelBaselineReported = lastPracticeLapOffered = false;
-            for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = -1;
+            for (int i = 0; i < completedSectorBest.Length; i++) completedSectorBest[i] = sectorSeed[i] = -1;
+            sectorSeedOpen = true; observedBest = -1; liveS1Lap = -1; liveS1Pb = liveS1Purple = false; liveS1Utc = DateTime.MinValue; sessionSectorCount = 0;
             edgeLap = edgeSector = -1; edgeUtc = DateTime.MinValue; flyingLap = -1; hotLap = -1;
             timedLapAttempts = 0; lastGapLap = -100; lastGapUtc = DateTime.MinValue; wasInPit = false; pendingQualiTarget = false; lastAnalysisLap = -100; lastAnalysisUtc = DateTime.MinValue; lastAttemptsAnnounced = -1; lastOutlapGapLap = -1;
         }
@@ -166,6 +175,7 @@ namespace CrewChiefV4.AiTeam
                 // Joining an existing session does not turn its historic best into a new event.
                 personalBest = s.PlayerLapTimeSessionBest;
                 classBest = FieldBest(gs);
+                SeedSectors(gs);
                 return;
             }
             bool green = s.SessionPhase == SessionPhase.Green;
@@ -179,6 +189,9 @@ namespace CrewChiefV4.AiTeam
             // until the first locally completed lap; never seed from that lap's newly updated best.
             if(completed==null && lastLap<0 && Good(s.PlayerLapTimeSessionBest))
                 personalBest=Good(personalBest)?Math.Min(personalBest,s.PlayerLapTimeSessionBest):s.PlayerLapTimeSessionBest;
+            // Mitgelieferte Sektor-Bestmarken bis zum ersten selbst gesehenen Sektorwechsel (danach trägt Crew Chief eigene Zeiten ein).
+            if (sectorSeedOpen && previous != null && previous.SessionData.SectorNumber != s.SectorNumber) sectorSeedOpen = false;
+            if (sectorSeedOpen) SeedSectors(gs);
             var length = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float step = previous == null ? float.NaN : s.SessionRunningTime - previous.SessionData.SessionRunningTime;
             float distance = gs.PositionAndMotionData.DistanceRoundTrack;
@@ -323,10 +336,22 @@ namespace CrewChiefV4.AiTeam
                                 RadioLanguage.T(" Schnellster in der Klasse!", " Quickest in class!", " ¡El más rápido de la clase!"),
                                 RadioLanguage.T(" Ganz oben in der Klasse.", " Top of the class.", " Primero de la clase.")) :
                                 first ? FirstLapComparison(gs, time, names, firstComparisonVariant++) : "");
+                        // Rob 24.11.: Bei der neuen schnellsten Runde im Training/Qualifying kurzes Lob und Motivation.
+                        if (!race && !first) text += " " + RadioVariants.Pick("lap-best-motivation", SessionBestPhrases.LapBestMotivation);
                         // The recorded lap remains true when standings or another driver's best changes.
                         // Fresh classification and gaps belong to the separate timing reports.
                         Add(gs, now, "own-lap", text, first ? "first_valid_lap" : "personal_best_improved", 5,
                             variants, group, heard);
+                        ownCall = true;
+                        announcedLapSeconds = time; announcedLapUtc = now;
+                    }
+                    else if (!race && Good(observedBest) && time < observedBest - .01f && time > personalBest + .01f)
+                    {
+                        // AMS2 Cascais 24.11.: Funk erst nach sechs Runden gestartet, die Sim lieferte 1:37,640 als Bestzeit mit. Die
+                        // Steigerung von 1:38,863 über 1:38,241 auf 1:38,145 blieb stumm. Schneller als alles seit dem Einstieg ist
+                        // eine Nachricht – ehrlich mit dem Rest auf die persönliche Bestzeit.
+                        string text = RadioVariants.Pick("lap-improved", SessionBestPhrases.LapImproved(LocalAnswers.LapTime(time), Delta(time - personalBest)));
+                        Add(gs, now, "own-lap", text, "valid_lap_faster_than_observed_best_above_seeded_personal_best", 5);
                         ownCall = true;
                         announcedLapSeconds = time; announcedLapUtc = now;
                     }
@@ -339,6 +364,7 @@ namespace CrewChiefV4.AiTeam
                         ownCall = true;
                     }
                     personalBest = Good(personalBest) ? Math.Min(personalBest, time) : time;
+                    if (!race) observedBest = Good(observedBest) ? Math.Min(observedBest, time) : time;
                 }
                 // LMU 21.11.: „Ich hab grad eine Runde gefahren, gar kein Kommentar dazu.“ Im Rennen kam nur die Bestzeit
                 // eine Ansage; vier Runden (drei gestrichen) blieben stumm. Ab Runde 2 bekommt jede eigene Runde einen Satz.
@@ -401,7 +427,8 @@ namespace CrewChiefV4.AiTeam
             if (sectorRadio && green && !ownCall && !s.SectorTimingEstimated)
             {
                 bool live = TryLiveSector(gs, previous, now, out var lap, out int sector);
-                if (live && (ObserveFlyingLap(gs, previous, lap, sector, now) || ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
+                if (live && !race && (ObserveSessionSectorBest(gs, lap, sector, now) || ObservePersonalBestPace(gs, lap, sector, now))) return;
+                if (live && race && (ObserveFlyingLap(gs, previous, lap, sector, now) || ObserveLivePersonalBest(gs, previous, lap, sector, now) ||
                     ObservePersonalBestPace(gs, lap, sector, now))) return;
                 if (QualifyingResultWatch.Supported(type))
                     ObserveQualifyingSector(gs, previous, now, names, tracks);
@@ -606,6 +633,83 @@ namespace CrewChiefV4.AiTeam
             return true;
         }
 
+        /// <summary>Mitgelieferte Sektor-Bestmarken übernehmen (Einstieg in eine laufende Session).</summary>
+        private void SeedSectors(GameStateData gs)
+        {
+            var s = gs.SessionData;
+            float[] values = { s.PlayerBestSector1Time, s.PlayerBestSector2Time, s.PlayerBestSector3Time };
+            for (int i = 0; i < values.Length; i++)
+                if (GoodSector(values[i])) sectorSeed[i] = GoodSector(sectorSeed[i]) ? Math.Min(sectorSeed[i], values[i]) : values[i];
+        }
+
+        /// <summary>
+        /// Training/Qualifying, live nach Sektor 1 und 2 (Rob 24.11., AMS2 Cascais): Von 26 Prüfungen ging keine durch – der Vergleich
+        /// lief gegen die beim Einstieg mitgelieferte Bestmarke der Sim und verlangte 0,04 s Gewinn. Die Ansage kam dann eine Runde später
+        /// am Rundenende, lang und mit Zahlen. Jetzt zählt jede Verbesserung gegenüber dem, was das Team in dieser Session gesehen hat,
+        /// sofort und kurz; „persönliche Bestzeit“ heißt es nur, wenn auch die mitgelieferte Marke fällt. Nach Sektor 1 und 2 auf Bestzeit:
+        /// „das könnte deine schnellste Runde werden“.
+        /// </summary>
+        private bool ObserveSessionSectorBest(GameStateData state, LapData lap, int sector, DateTime now)
+        {
+            if (sector > 1) return false;
+            float time = lap.SectorTimes[sector];
+            float observed = completedSectorBest[sector], seed = sectorSeed[sector];
+            float reference = GoodSector(observed) ? observed : seed;
+            float own = GoodSector(observed) && GoodSector(seed) ? Math.Min(observed, seed) : GoodSector(observed) ? observed : seed;
+            RateSector(time, own, FieldBestSector(state, sector), out _, out bool purple);
+            bool pb = GoodSector(own) && own - time >= .001f;
+            bool improved = GoodSector(reference) && reference - time >= .001f;
+            // Schnelle Runde: Bestzeitkurs oder höchstens 0,25 s darüber – Routine und Hintergrund schweigen bis zum Rundenende.
+            bool onPace = pb || improved || purple || GoodSector(own) && time - own <= HotLapMargin;
+            if (onPace) hotLap = lap.LapNumber; else if (hotLap == lap.LapNumber) hotLap = -1;
+            bool afterS1 = sector == 1 && liveS1Lap == lap.LapNumber;
+            if (!(pb || improved || purple))
+            {
+                if (sector == 0) liveS1Lap = -1;
+                LiveDiagnostics.Decision("sector-best", "skipped", "sector_" + (sector + 1) + (GoodSector(reference) ? ":not_faster_than_session_best" : ":no_reference_yet"));
+                return false;
+            }
+            // Nur eine Verbesserung wird sofort zur neuen Marke; die erste Zeit setzt das Rundenende (gültige Runde).
+            completedSectorBest[sector] = GoodSector(observed) ? Math.Min(observed, time) : time;
+            bool s1Spoken = afterS1 && (pending.Any(c => c.Topic == "sector-best" && c.DeliveryStartedUtc != DateTime.MinValue) || lastSectorBestCall >= liveS1Utc);
+            bool bothPb = afterS1 && pb && liveS1Pb;
+            string text, evidence;
+            if (afterS1 && s1Spoken)
+            {
+                text = RadioVariants.Pick(bothPb ? "sector2-after-best" : "sector2-after-improved",
+                    bothPb ? SessionBestPhrases.SecondAfterFirstBest : SessionBestPhrases.SecondAfterFirstImproved);
+                if (purple) text += " " + RadioVariants.Pick("sector-purple", SessionBestPhrases.PurpleSuffix);
+                evidence = bothPb ? "live_sectors_1_and_2_personal_best" : "live_sectors_1_and_2_improved";
+            }
+            else if (bothPb)
+            {
+                // Sektor 1 war noch nicht zu hören: beide in einem Satz (die Einzelmeldung zu Sektor 1 wird unten ersetzt).
+                int variant = flyingRandom.Next(6);
+                if (variant == flyingLastVariant) variant = (variant + 1 + flyingRandom.Next(5)) % 6;
+                flyingLastVariant = variant;
+                text = FlyingLapText(null, liveS1Purple && purple, false, PersonalBestSplitDelta(state, lap), variant);
+                evidence = "live_sectors_1_and_2_personal_best";
+            }
+            else
+            {
+                text = pb ? RadioVariants.Pick("sector-pb-" + sector, SessionBestPhrases.SectorPersonalBest(sector)) :
+                    improved ? RadioVariants.Pick("sector-improved-" + sector, SessionBestPhrases.SectorImproved(sector)) : null;
+                if (purple) text = (text == null ? "" : text + " ") + RadioVariants.Pick("sector-purple", SessionBestPhrases.PurpleSuffix);
+                string gained = improved ? SessionBestPhrases.Gain(reference - time) : null;
+                if (gained != null) text += " " + gained;
+                evidence = pb ? "live_sector_personal_best" : improved ? "live_sector_faster_than_session_best" : "live_sector_faster_than_class_best";
+            }
+            if (sessionSectorCount++ % 2 == 0 && !string.IsNullOrWhiteSpace(sectorDriverName))
+                text = RadioPhraseCatalog.Address(text, sectorDriverName);
+            if (sector == 0) { liveS1Lap = lap.LapNumber; liveS1Pb = pb; liveS1Purple = purple; liveS1Utc = now; }
+            else liveS1Lap = -1;
+            var call = Add(state, now, "sector-best", text, evidence, 4);
+            int currentSector = state.SessionData.SectorNumber;
+            call.AdditionalValidity = live => live.SessionData.CurrentLapIsValid && !live.SessionData.SectorTimingEstimated &&
+                live.SessionData.SectorNumber == currentSector && !live.PitData.OnInLap && !live.PitData.OnOutLap && !live.FlagData.isLocalYellow;
+            return true;
+        }
+
         /// <summary>Vorsprung der ersten beiden Sektoren auf die Splits der eigenen Bestzeitrunde; -1 wenn nicht belegt.</summary>
         private double PersonalBestSplitDelta(GameStateData state, LapData lap)
         {
@@ -648,7 +752,7 @@ namespace CrewChiefV4.AiTeam
                         "Los sectores 1 y 2 son los más rápidos de todo el grupo. ¡Llévala a casa" + (n != null ? ", " + n : "") + "!");
             else
                 text = v % 3 == 0
-                    ? RadioLanguage.T((n != null ? n + ", B" : "B") + "estzeit in Sektor 1 und 2. Das könnte deine schnellste Runde werden.",
+                    ? RadioLanguage.T((n != null ? n + ", p" : "P") + "ersönliche Bestzeit in Sektor 1 und 2. Das könnte deine schnellste Runde werden.",
                         (n != null ? n + ", p" : "P") + "ersonal best in sectors 1 and 2. This could be your fastest lap.",
                         (n != null ? n + ", m" : "M") + "ejor marca personal en los sectores 1 y 2. Esta puede ser tu vuelta más rápida.")
                     : v % 3 == 1
@@ -731,7 +835,7 @@ namespace CrewChiefV4.AiTeam
             // schnellsten Runde sein könnte.“ In Runde 7 war Sektor 2 persönliche Bestzeit, die Runde wurde Bestzeit – Funk: nichts,
             // weil dieser Hinweis im Rennen abgeschaltet war. Jetzt auch im Rennen, nur nicht im engen Zweikampf.
             bool race = type == SessionType.Race;
-            if (sector != 1 || !GoodSector(lap.SectorTimes[0]) || now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
+            if (sector != 1 || !GoodSector(lap.SectorTimes[0]) || race && now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return false;
             if (race && !RacePaceHintFits(state)) { LiveDiagnostics.Decision("own-best-pace", "skipped", "race_battle_or_invalid_lap"); return false; }
             var s = state.SessionData;
             float s1 = s.PlayerBestLapSector1Time, s2 = s.PlayerBestLapSector2Time, s3 = s.PlayerBestLapSector3Time;
@@ -814,21 +918,39 @@ namespace CrewChiefV4.AiTeam
 
         private void ObserveCompletedSectorBest(GameStateData state, LapRecord lap, DateTime now, bool announce)
         {
+            bool race = type == SessionType.Race;
             int sector = -1;
-            float improvement = .019f;
+            // Training/Qualifying: jede Verbesserung zählt (Sektor 1 und 2 kamen schon live, hier bleibt meist Sektor 3).
+            float improvement = race ? .019f : .0009f;
+            bool pb = false;
             for (int i = 0; i < completedSectorBest.Length; i++)
             {
                 float measured = lap.SectorTimes[i], prior = completedSectorBest[i];
                 if (!TrackAwareness.InRange(measured, 1, 3600).HasValue || measured > lap.LapTime) continue;
-                if (prior > 0 && prior - measured > improvement)
+                float reference = race || prior > 0 ? prior : sectorSeed[i];
+                if (reference > 0 && reference - measured > improvement)
                 {
                     sector = i;
-                    improvement = prior - measured;
+                    improvement = reference - measured;
+                    pb = !GoodSector(sectorSeed[i]) || sectorSeed[i] - measured >= .001f;
                 }
                 if (prior <= 0 || measured < prior) completedSectorBest[i] = measured;
             }
-            if (sector < 0 || !announce || now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return;
-            OfferSectorBest(state, now, sector, lap.SectorTimes[sector], "valid_completed_player_lap_and_improved_recorded_sector", false, improvement);
+            if (sector < 0 || !announce) return;
+            if (race)
+            {
+                if (now - lastSectorBestCall < TimeSpan.FromSeconds(55)) return;
+                OfferSectorBest(state, now, sector, lap.SectorTimes[sector], "valid_completed_player_lap_and_improved_recorded_sector", false, improvement);
+                return;
+            }
+            string text = pb ? RadioVariants.Pick("sector-pb-" + sector, SessionBestPhrases.SectorPersonalBest(sector)) :
+                RadioVariants.Pick("sector-improved-" + sector, SessionBestPhrases.SectorImproved(sector));
+            string gained = SessionBestPhrases.Gain(improvement);
+            if (gained != null) text += " " + gained;
+            if (sessionSectorCount++ % 2 == 0 && !string.IsNullOrWhiteSpace(sectorDriverName))
+                text = RadioPhraseCatalog.Address(text, sectorDriverName);
+            var call = Add(state, now, "sector-best", text, pb ? "completed_lap_sector_personal_best" : "completed_lap_sector_faster_than_session_best", 4);
+            call.AdditionalValidity = live => !live.PitData.InPitlane && !live.FlagData.isLocalYellow;
         }
 
         private void ObserveQualifyingSector(GameStateData state, GameStateData previous, DateTime now, bool names, TrackAwareness tracks)
@@ -1357,9 +1479,125 @@ namespace CrewChiefV4.AiTeam
             }
             if (busy) return null;
             var call = pending.Where(c => c.CanReserve(now) && (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
-                c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || c.Topic == "race-lap" && now - lastRadio >= TimeSpan.FromSeconds(3) || !ownLapOnly &&
+                c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || c.Topic == "race-lap" && now - lastRadio >= TimeSpan.FromSeconds(3) ||
+                // Rob 24.11.: Sektor-Bestzeiten im Training/Qualifying kommen sofort, nicht erst nach acht Sekunden Funkstille.
+                type != SessionType.Race && (c.Topic == "sector-best" || c.Topic == "own-best-pace") && now - lastRadio >= TimeSpan.FromSeconds(2) || !ownLapOnly &&
                 (c.Topic == "near-best" || c.Topic == "lap-on-pace" || c.Topic == "quali-target" && now - lastRadio >= TimeSpan.FromSeconds(3) || !routineBusy && now - lastRadio >= TimeSpan.FromSeconds(8)))).OrderByDescending(c => c.Priority).FirstOrDefault();
             return call != null && call.TryReserve(now) ? call : null;
         }
+    }
+
+    /// <summary>
+    /// Rob 24.11. (AMS2 Cascais, Training): „In der Quali und Practice immer eine kurze Ansage – Bestzeit im ersten Sektor, auch im
+    /// zweiten, das könnte deine schnellste Runde werden. Bei der schnellsten Runde kurzes Lob und Motivation.“ Kurze Sätze, je fünf
+    /// Formulierungen in DE/EN/ES. „Persönliche Bestzeit“ nur, wenn die Zeit auch die beim Einstieg mitgelieferte Bestmarke schlägt;
+    /// sonst heißt es „verbessert“.
+    /// </summary>
+    internal static class SessionBestPhrases
+    {
+        private static string Ordinal(int sector) => sector == 0 ? RadioLanguage.T("ersten", "first", "primer") :
+            sector == 1 ? RadioLanguage.T("zweiten", "second", "segundo") : RadioLanguage.T("dritten", "third", "tercer");
+        private static string Word(int sector) => sector == 0 ? RadioLanguage.T("1", "one", "uno") :
+            sector == 1 ? RadioLanguage.T("2", "two", "dos") : RadioLanguage.T("3", "three", "tres");
+
+        /// <summary>Persönliche Bestzeit in einem Sektor (kurz).</summary>
+        internal static string[] SectorPersonalBest(int sector)
+        {
+            string o = Ordinal(sector), w = Word(sector);
+            return RadioLanguage.Pick(
+                new[] { "Persönliche Bestzeit im " + o + " Sektor.", "Sektor " + w + ": persönliche Bestzeit!", "Sektor " + w + " so schnell wie noch nie.",
+                    "Persönliche Bestmarke in Sektor " + w + ". Weiter so.", "Im " + o + " Sektor persönliche Bestzeit. Stark!" },
+                new[] { "Personal best in sector " + w + ".", "Sector " + w + ": personal best!", "Sector " + w + ", quicker than ever.",
+                    "Personal best mark in sector " + w + ". Keep going.", "Personal best in the " + o + " sector. Strong!" },
+                new[] { "Mejor marca personal en el " + o + " sector.", "Sector " + w + ": ¡mejor marca personal!", "Sector " + w + ", más rápido que nunca.",
+                    "Mejor marca personal en el sector " + w + ". Sigue así.", "En el " + o + " sector, mejor marca personal. ¡Fuerte!" });
+        }
+
+        /// <summary>Schneller als alles seit dem Einstieg, aber nicht unter der mitgelieferten Bestmarke.</summary>
+        internal static string[] SectorImproved(int sector)
+        {
+            string o = Ordinal(sector), w = Word(sector);
+            return RadioLanguage.Pick(
+                new[] { "Verbessert im " + o + " Sektor.", "Sektor " + w + " schneller als zuletzt.", "Im " + o + " Sektor wieder Zeit gefunden.",
+                    "Sektor " + w + " besser als die Runden davor.", "Sektor " + w + " geht nach vorn. Gut so." },
+                new[] { "Improved in sector " + w + ".", "Sector " + w + " quicker than last time.", "Found time again in sector " + w + ".",
+                    "Sector " + w + " better than the laps before.", "Sector " + w + " is coming. Good." },
+                new[] { "Mejoras en el " + o + " sector.", "Sector " + w + " más rápido que la última vez.", "Has vuelto a encontrar tiempo en el sector " + w + ".",
+                    "Sector " + w + " mejor que las vueltas anteriores.", "El sector " + w + " va a mejor. Bien." });
+        }
+
+        /// <summary>Sektor 2 persönliche Bestzeit, nachdem Sektor 1 schon als persönliche Bestzeit zu hören war.</summary>
+        internal static string[] SecondAfterFirstBest => RadioLanguage.Pick(
+            new[] { "Auch im zweiten Sektor persönliche Bestzeit, das könnte deine schnellste Runde werden!",
+                "Sektor 2 auch persönliche Bestzeit! Das kann deine schnellste Runde werden.",
+                "Zweimal persönliche Bestzeit! Die Runde könnte deine schnellste werden, sauber bleiben.",
+                "Und Sektor 2 legt nach, persönliche Bestzeit. Da kommt vielleicht deine schnellste Runde.",
+                "Auch der zweite Sektor ist persönliche Bestzeit. Bring die Runde heim, das könnte die schnellste werden." },
+            new[] { "Personal best in sector two as well, this could be your fastest lap!",
+                "Sector two is a personal best too! This can be your fastest lap.",
+                "Two personal best sectors! This could be your quickest lap, keep it clean.",
+                "And sector two follows up, personal best. Your fastest lap might be coming.",
+                "Sector two is a personal best as well. Bring it home, this could be the fastest." },
+            new[] { "¡También mejor marca personal en el segundo sector, esta puede ser tu vuelta más rápida!",
+                "¡El sector dos también es mejor marca personal! Esta puede ser tu vuelta más rápida.",
+                "¡Dos sectores con mejor marca personal! Puede ser tu vuelta más rápida, mantenla limpia.",
+                "Y el sector dos también, mejor marca personal. Puede venir tu vuelta más rápida.",
+                "El segundo sector también es mejor marca personal. Tráela a casa, puede ser la más rápida." });
+
+        /// <summary>Sektor 2 verbessert, nachdem Sektor 1 schon verbessert war (die mitgelieferte Bestmarke ist noch schneller).</summary>
+        internal static string[] SecondAfterFirstImproved => RadioLanguage.Pick(
+            new[] { "Auch Sektor 2 verbessert, die Runde läuft richtig gut.", "Sektor 2 legt auch zu. Starke Runde bis hier.",
+                "Zweimal verbessert, jetzt sauber zu Ende fahren.", "Auch im zweiten Sektor schneller. Die Runde sieht gut aus.",
+                "Sektor 2 ebenfalls besser. Bleib dran, das wird eine gute Runde." },
+            new[] { "Sector two improved as well, this lap is going really well.", "Sector two picks up too. Strong lap so far.",
+                "Two improvements, now finish it cleanly.", "Quicker in sector two as well. This lap looks good.",
+                "Sector two better too. Stay with it, this will be a good lap." },
+            new[] { "También mejoras en el sector dos, la vuelta va muy bien.", "El sector dos también mejora. Vuelta fuerte hasta aquí.",
+                "Dos mejoras, ahora termínala limpia.", "También más rápido en el segundo sector. La vuelta pinta bien.",
+                "El sector dos también mejor. Sigue así, será una buena vuelta." });
+
+        /// <summary>Lila: schneller als jede Bestzeit der Klasse (Zusatz).</summary>
+        internal static string[] PurpleSuffix => RadioLanguage.Pick(
+            new[] { "Und das ist lila, schneller als alle in deiner Klasse.", "Lila, da war noch keiner schneller.", "Das ist sogar die schnellste Zeit der Klasse.",
+                "Schnellster der Klasse in diesem Sektor.", "Lila Sektor!" },
+            new[] { "And that's purple, quicker than everyone in your class.", "Purple, nobody has been quicker there.", "That's even the fastest time in class.",
+                "Quickest in class in that sector.", "Purple sector!" },
+            new[] { "Y es morado, más rápido que todos en tu clase.", "Morado, nadie ha sido más rápido ahí.", "Es incluso el mejor tiempo de la clase.",
+                "El más rápido de la clase en ese sector.", "¡Sector morado!" });
+
+        /// <summary>Kurzer Gewinn gegenüber der bisherigen Marke, null ohne belegten Gewinn.</summary>
+        internal static string Gain(float gain)
+        {
+            if (!(gain >= .01f) || gain > 30) return null;
+            string g = gain.ToString("0.000", RadioLanguage.Culture);
+            return RadioLanguage.T(g + " schneller.", g + " quicker.", g + " más rápido.");
+        }
+
+        /// <summary>Kurzes Lob und Motivation nach einer neuen persönlichen Bestzeit im Training oder Qualifying.</summary>
+        internal static string[] LapBestMotivation => RadioLanguage.Pick(
+            new[] { "Stark gefahren! Da geht vielleicht noch mehr.", "Sauber! Jetzt die nächste genauso.", "Klasse Runde. Bleib in dem Rhythmus.",
+                "Sehr gut! Halt den Schwung, das war noch nicht das Ende.", "Top! Die kannst du noch einmal unterbieten." },
+            new[] { "Strong driving! There might be even more in it.", "Clean! Now the next one just like that.", "Great lap. Stay in that rhythm.",
+                "Very good! Keep the momentum, that's not the end of it.", "Top! You can go under that again." },
+            new[] { "¡Muy bien conducido! Puede que haya aún más.", "¡Limpio! Ahora la siguiente igual.", "Gran vuelta. Mantén ese ritmo.",
+                "¡Muy bien! Mantén el impulso, esto no se acaba aquí.", "¡Genial! Puedes bajar de ahí otra vez." });
+
+        /// <summary>Schneller als alle Runden seit dem Einstieg, aber noch über der mitgelieferten persönlichen Bestzeit.</summary>
+        internal static string[] LapImproved(string time, string gap) => RadioLanguage.Pick(
+            new[] { time + ". Schneller als deine Runden davor, noch " + gap + " auf deine persönliche Bestzeit.",
+                "Verbessert auf " + time + ". Bis zur persönlichen Bestzeit fehlen noch " + gap + ".",
+                time + ", wieder ein Stück schneller. " + gap + " fehlen noch auf deine persönliche Bestmarke.",
+                "Gute Runde, " + time + ". Du kommst an deine persönliche Bestzeit ran, noch " + gap + ".",
+                "Da geht es nach vorn: " + time + ". Noch " + gap + " bis zu deiner persönlichen Bestzeit." },
+            new[] { time + ". Quicker than your laps before, " + gap + " still to your personal best.",
+                "Improved to " + time + ". " + gap + " still missing to your personal best.",
+                time + ", a bit quicker again. " + gap + " still to your personal best mark.",
+                "Good lap, " + time + ". You're closing in on your personal best, " + gap + " to go.",
+                "Moving forward: " + time + ". " + gap + " to your personal best." },
+            new[] { time + ". Más rápido que tus vueltas anteriores, aún " + gap + " a tu mejor marca personal.",
+                "Mejoras a " + time + ". Te faltan " + gap + " para tu mejor marca personal.",
+                time + ", otra vez un poco más rápido. Faltan " + gap + " para tu mejor marca personal.",
+                "Buena vuelta, " + time + ". Te acercas a tu mejor marca personal, faltan " + gap + ".",
+                "Vas a mejor: " + time + ". Aún " + gap + " hasta tu mejor marca personal." });
     }
 }
