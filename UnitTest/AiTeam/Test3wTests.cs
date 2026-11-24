@@ -298,7 +298,7 @@ namespace UnitTest.AiTeamTests
                 var reopened = new DriverRadioPreferences(folder);
                 Assert.AreEqual(2, reopened.RearTrafficSeconds);
                 Assert.IsFalse(reopened.QualifyingSectors);
-                Assert.AreEqual(1.5, reopened.IntervalScale("behind"), .01);
+                Assert.AreEqual(2, reopened.IntervalScale("behind"), .01, "Rob 24.11.: das alte „Routine häufiger“ wirkt nicht mehr, nur „Abstände seltener“");
             }
             finally { Directory.Delete(folder, true); }
         }

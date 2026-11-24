@@ -393,15 +393,10 @@ namespace CrewChiefV4.AiTeam
                 return !enabled || current == null || current.RadioPreferences.QualifyingSectors;
             }
         }
-        /// <summary>Gespeicherte Funkdichte des Fahrers (0 mehr, 1 normal, 2 weniger).</summary>
-        public static int RadioDensity
-        {
-            get
-            {
-                var current = Volatile.Read(ref store);
-                return !enabled || current == null ? 1 : current.RadioPreferences.Density;
-            }
-        }
+        /// <summary>
+        /// Funkdichte: immer normal (Rob 24.11.: keine Funkstufen mehr). Ein früher gespeichertes „mehr/weniger Infos“ wirkt nicht mehr.
+        /// </summary>
+        public static int RadioDensity => 1;
         public static bool TryRadioPreference(string question,out string reply)
         {
             reply=null;

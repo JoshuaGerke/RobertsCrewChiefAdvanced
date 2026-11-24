@@ -59,6 +59,11 @@ namespace CrewChiefV4.GameState
 
         public static Boolean spotterEnabledInitialState = UserSettings.GetUserSettings().getBoolean("enable_spotter");
         public static Boolean spotterEnabled = spotterEnabledInitialState;
+        /// <summary>
+        /// RRCA (Rob 24.11.): „Spotter ein“ / „Spotter aus“ per Funk. Gilt bis Crew Chief neu gestartet wird, auch über den Wechsel
+        /// Training → Qualifying → Rennen hinweg; null = keine Ansage des Fahrers, es gilt der Spottermodus.
+        /// </summary>
+        public static Boolean? driverSpotterChoice = null;
 
         public static Boolean cutTrackWarningsEnabledInitialState = UserSettings.GetUserSettings().getBoolean("play_cut_track_warnings");
         public static Boolean cutTrackWarningsEnabled = cutTrackWarningsEnabledInitialState;
@@ -88,6 +93,7 @@ namespace CrewChiefV4.GameState
             GlobalBehaviourSettings.enableOvalSpotterBehaviours = UserSettings.GetUserSettings().getBoolean("enable_oval_spotter_enhancements");
             GlobalBehaviourSettings.spotterEnabledInitialState = UserSettings.GetUserSettings().getBoolean("enable_spotter");
             GlobalBehaviourSettings.spotterEnabled = spotterEnabledInitialState;
+            GlobalBehaviourSettings.driverSpotterChoice = null;
             GlobalBehaviourSettings.cutTrackWarningsEnabledInitialState = UserSettings.GetUserSettings().getBoolean("play_cut_track_warnings");
             GlobalBehaviourSettings.maxComplaintsPerSession = Math.Min(int.MaxValue - 10000, UserSettings.GetUserSettings().getInt("max_complaints_per_session"));
             GlobalBehaviourSettings.spotterVehicleLength = defaultSpotterVehicleLength;
@@ -203,6 +209,11 @@ namespace CrewChiefV4.GameState
                         Log.Warning("SPOTTER NOT ENABLED on road circuit because Realistic Mode is checked");
                     }
                 }
+            }
+            if (driverSpotterChoice.HasValue)
+            {
+                spotterEnabled = driverSpotterChoice.Value;
+                Console.WriteLine("RRCA Spotter: Fahrer hat per Funk " + (spotterEnabled ? "„Spotter ein“" : "„Spotter aus“") + " gesagt, das gilt weiter");
             }
             ovalSpotterMode = useOvalLogic && enableOvalSpotterBehaviours;
             // RRCA: Spotterzustand bei jedem Sitzungsstart protokollieren, damit ein stummer Spotter einen Grund im Log hat.

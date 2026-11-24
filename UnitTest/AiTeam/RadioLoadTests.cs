@@ -87,26 +87,23 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Driver_can_ask_for_more_or_less_radio_and_it_is_kept()
+        public void Old_more_or_less_radio_wishes_no_longer_change_anything()
         {
+            // Rob 24.11.: Keine Funkstufen mehr. Eine früher gespeicherte Funkdichte wirkt nicht, neue Wünsche werden nicht gespeichert.
             string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rrca-density-" + Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(folder);
             try
             {
-                System.IO.File.WriteAllText(System.IO.Path.Combine(folder, "funkwuensche.json"), "{\"schema\":3,\"routine\":1,\"gaps\":1,\"qualifying_sectors\":true,\"rear_traffic_seconds\":3}");
+                System.IO.File.WriteAllText(System.IO.Path.Combine(folder, "funkwuensche.json"), "{\"schema\":4,\"routine\":2,\"gaps\":1,\"qualifying_sectors\":true,\"rear_traffic_seconds\":3,\"radio_density\":2}");
                 var prefs = new DriverRadioPreferences(folder);
-                Assert.AreEqual(1, prefs.Density, "alte Datei ohne Funkdichte: normal");
-                Assert.IsTrue(prefs.TryCommand("Bitte weniger Funk", out string reply));
-                StringAssert.Contains("zurück", reply);
-                Assert.AreEqual(2, new DriverRadioPreferences(folder).Density, "bleibt gespeichert");
-                Assert.IsTrue(prefs.TryCommand("Mehr Infos!", out _));
-                Assert.AreEqual(0, new DriverRadioPreferences(folder).Density);
-                Assert.IsTrue(prefs.TryCommand("less radio", out _));
-                Assert.IsTrue(prefs.TryCommand("Más radio", out _));
-                Assert.AreEqual(0, new DriverRadioPreferences(folder).Density);
+                Assert.AreEqual(1, prefs.IntervalScale("fuel"), "altes „Routine seltener“ dämpft nicht");
+                foreach (var said in new[] { "Bitte weniger Funk", "Mehr Infos!", "less radio", "Más radio", "Routinefunk seltener" })
+                {
+                    Assert.IsFalse(prefs.TryCommand(said, out _), said);
+                    Assert.IsTrue(RadioAmountCommand.IsAmountWish(said), said + " bekommt die ehrliche Antwort");
+                }
+                Assert.AreEqual(1, DriverMemory.RadioDensity);
                 Assert.IsTrue(new DriverRadioPreferences(folder).QualifyingSectors, "andere Wünsche bleiben erhalten");
-                Assert.IsTrue(prefs.TryCommand("Funkwünsche zurücksetzen", out _));
-                Assert.AreEqual(1, new DriverRadioPreferences(folder).Density);
             }
             finally { try { System.IO.Directory.Delete(folder, true); } catch (Exception) { } }
         }

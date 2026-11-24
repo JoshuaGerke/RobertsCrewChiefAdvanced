@@ -1175,12 +1175,10 @@ namespace CrewChiefV4.AiTeam
             o["sprit"] = WithoutMeta(Execute("get_fuel_status", ctx));
             o["gegner"] = WithoutMeta(Execute("get_opponents_nearby", ctx));
             o["box"] = WithoutMeta(Execute("get_pit_info", ctx));
-            // LMU Sebring 23.11.: Mik sagte „Ich gebe dir wieder die vollständigen Informationen“, die Funkmenge blieb auf Ruhig.
+            // Rob 24.11.: Keine Funkstufen mehr; LMU Sebring 23.11. versprach Mik „wieder die vollständigen Informationen“.
             o["funkmenge"] = new JObject
             {
-                ["stufe"] = AutoRadioPlan.CurrentAmount.ToString(),
-                ["hinweis"] = "Die Funkmenge stellt nur der Fahrer per Funkbefehl um (Ruhe bitte, Funk normal, Mehr Infos, Viel mehr Infos). " +
-                    "Sage nie zu, sie selbst umzustellen. Bei Quiet ruhen nur die regelmäßigen Berichte; Ereignisse kommen weiter.",
+                ["hinweis"] = "Es gibt keine Funkstufen. Die Crew funkt immer nach Lage; sage nie zu, mehr oder weniger zu funken.",
             };
             var previousStint = DriverMemory.PreviousStint(ctx);
             if (previousStint != null) o["vorherige_sitzung_referenz"] = previousStint;

@@ -84,7 +84,9 @@ namespace CrewChiefV4.AiTeam
             s.WindowsVoiceBen = Get(() => u.getString("ai_team_windows_voice_ben"), s.WindowsVoiceBen);
             s.WindowsVoiceMik = Get(() => u.getString("ai_team_windows_voice_mik"), s.WindowsVoiceMik);
             s.WindowsVoiceSara = Get(() => u.getString("ai_team_windows_voice_sara"), s.WindowsVoiceSara);
-            s.RadioMode = GetEnum(() => u.getString("ai_team_radio_mode_listprop"), s.RadioMode);
+            // Rob 24.11.: Keine Funkstufen mehr. Die Crew funkt immer nach ihrer eigenen Lage-Logik; eine früher gespeicherte Stufe
+            // (etwa „Ruhig“ aus LMU Sebring 23.11.) wird nicht mehr gelesen und dämpft nichts.
+            s.RadioMode = AiRadioMode.NORMAL;
             s.DriverName = GetString(() => u.getString("ai_team_driver_name"), s.DriverName);
             s.DriverNickname = Get(() => u.getString("ai_team_driver_nickname"), "");
             s.PttKey = Get(() => u.getString("ai_team_ptt_key"), s.PttKey);

@@ -1,11 +1,14 @@
+using System;
+using CrewChiefV4.GameState;
 using System.Text.RegularExpressions;
 
 namespace CrewChiefV4.AiTeam
 {
     /// <summary>
-    /// Rob 23.11.: Funkmenge während der Fahrt per Funk: „Ruhe bitte“, „mehr Infos“, „viel mehr Infos“ und „Funk normal“.
-    /// Wirkt sofort und bleibt gespeichert, wie der Regler im Cockpit. Sara und alle Sicherheitsmeldungen sind nie betroffen.
-    /// Fragen („Gibt es mehr Infos?“) ändern nichts.
+    /// Rob 24.11.: Die Funkstufen (Ruhig, Normal, Mehr, Viel mehr) sind entfernt. „Das bringt ihn nur durcheinander“: Die Crew funkt
+    /// immer nach ihrer eigenen Lage-Logik (Renndauer, Spannung, Zweikampf, Ereignisse). Die alten Befehle werden noch erkannt,
+    /// damit die Crew ehrlich sagt, dass sich nichts ändert, statt dass das Sprachmodell eine Umstellung bestätigt.
+    /// Fragen („Gibt es mehr Infos?“) zählen nicht.
     /// </summary>
     internal static class RadioAmountCommand
     {
@@ -30,89 +33,41 @@ namespace CrewChiefV4.AiTeam
         private static readonly Regex Less = new Regex(Lead +
             @"(?:weniger (?:infos?|informationen|funk|daten)|etwas weniger|less (?:info|information|radio|data)|a bit less|" +
             @"menos (?:info|infos|informacion|radio|datos))" + Tail);
+        /// <summary>Der frühere Funkwunsch „Routineberichte seltener/häufiger/normal“ war ebenfalls eine Funkstufe.</summary>
+        private static readonly Regex Routine = new Regex(Lead +
+            @"(?:(?:melde(?: mir)? )?(?:routinefunk|routineberichte|routine) (?:bitte )?(?:seltener|haeufiger|oefter|normal)(?: hoeren)?|" +
+            @"(?:mehr|weniger) routine(?:funk|berichte)?|(?:more|less|fewer) routine (?:reports|calls)|(?:mas|menos) informes de rutina)" + Tail);
         private static readonly Regex Normal = new Regex(Lead +
             @"(?:(?:funk|infos?|funkmenge|radio) (?:wieder )?normal|(?:funk|infos?|informationen|ansagen) wieder (?:an|ein)|wieder (?:infos?|informationen|ansagen|funk)|" +
             @"(?:radio|info) back on|(?:wieder )?normal(?:er)? funk|zurueck auf normal|wieder normal|normal|" +
             @"(?:radio|info) (?:back )?(?:to )?normal|back to normal|normal radio|" +
             @"radio normal|vuelve a normal|otra vez normal|volvemos a lo normal)" + Tail);
 
-        /// <summary>Erkannter Wunsch oder null; „weniger“ von der Stufe Normal aus.</summary>
-        internal static RadioAmount? Parse(string text) => Parse(text, RadioAmount.Normal);
-
-        /// <summary>Erkannter Wunsch oder null. „Weniger Infos“ geht eine Stufe unter <paramref name="current"/>.</summary>
-        internal static RadioAmount? Parse(string text, RadioAmount current)
+        /// <summary>Ein alter Funkstufen-Befehl („Ruhe bitte“, „mehr Infos“, „viel mehr Infos“, „weniger Infos“, „Funk normal“).</summary>
+        internal static bool IsAmountWish(string text)
         {
             string raw = (text ?? "").Trim();
-            if (raw.Length == 0 || raw.Length > 80 || raw.EndsWith("?")) return null;
+            if (raw.Length == 0 || raw.Length > 80 || raw.EndsWith("?")) return false;
             string n = DriverRadioPreferences.Normalize(raw).Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u").Replace("ñ", "n");
             n = Regex.Replace(n, @"[!.,;:]+", ",").Trim(',', ' ');
             n = Regex.Replace(n, @"\s*,\s*", ", ");
-            if (MuchMore.IsMatch(n)) return RadioAmount.MuchMore;
-            if (More.IsMatch(n)) return RadioAmount.More;
-            if (Quiet.IsMatch(n)) return RadioAmount.Quiet;
-            if (Less.IsMatch(n)) return current == RadioAmount.MuchMore ? RadioAmount.More : current == RadioAmount.More ? RadioAmount.Normal : RadioAmount.Quiet;
-            if (Normal.IsMatch(n)) return RadioAmount.Normal;
-            return null;
+            return MuchMore.IsMatch(n) || More.IsMatch(n) || Quiet.IsMatch(n) || Less.IsMatch(n) || Normal.IsMatch(n) || Routine.IsMatch(n);
         }
 
-        /// <summary>
-        /// LMU Sebring 23.11.: Bei „Ruhig“ beschwerte sich Rob viermal („Ben, kommt von dir nichts mehr?“, „Keine Reaktion auf meine
-        /// Überholmanöver“, „Keine Ansagen mehr über die Rennzeit“) – die Crew antwortete mit Erklärungen, der Funk blieb still.
-        /// Wer bei Ruhig fehlende Meldungen beklagt, will wieder Funk: das gilt als „Funk normal“.
-        /// </summary>
-        private static readonly Regex Complaint = new Regex(
-            @"(?:kommt (?:von (?:dir|euch) )?(?:gar )?nichts|(?:keine|gar keine) (?:ansagen|meldungen|reaktion|infos?|informationen)|" +
-            @"warum (?:sagt|kommt|meldet) (?:ihr |du |keiner |niemand )?(?:mir )?nichts|ihr seid (?:so )?(?:still|ruhig)|hoert man nichts|" +
-            @"warum hast du mir nicht gesagt|" +
-            @"nothing from you|no (?:calls|info|information|reaction)|why (?:didn.?t|don.?t) you (?:tell|say)|you.?re (?:so )?quiet|" +
-            @"no (?:me )?dices nada|no hay (?:avisos|informacion)|por que no me (?:dices|avisas|dijiste))");
-
-        /// <summary>Beschwerde über fehlende Meldungen, solange die Funkmenge auf Ruhig steht.</summary>
-        internal static bool ComplainsAboutSilence(string text, RadioAmount current)
-        {
-            if (current != RadioAmount.Quiet || string.IsNullOrWhiteSpace(text)) return false;
-            string n = DriverRadioPreferences.Normalize(text).Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u").Replace("ñ", "n");
-            return Complaint.IsMatch(n);
-        }
-
-        /// <summary>Antwort auf eine Beschwerde bei Ruhig: ehrlich sagen, warum es still war, und wieder normal funken.</summary>
-        internal static string SilenceReply(int variant) => AiRadioSchedule.Of(variant,
-            RadioLanguage.T("Stimmt, du hattest auf Ruhig gestellt. Ab jetzt funken wir wieder normal.", "Right, you'd set us to quiet. From now on we're back to normal radio.", "Cierto, nos habías puesto en silencio. A partir de ahora radio normal."),
-            RadioLanguage.T("Das lag an der Einstellung Ruhig. Ist zurückgenommen, du hörst wieder alles Wichtige.", "That was the quiet setting. It's undone, you'll hear everything important again.", "Era el modo silencio. Ya está quitado, vuelves a oír todo lo importante."),
-            RadioLanguage.T("Wir waren auf Ruhig. Verstanden, Funk wieder normal.", "We were on quiet. Copy, radio back to normal.", "Estábamos en silencio. Entendido, radio otra vez normal."),
-            RadioLanguage.T("Sorry, Ruhig war noch aktiv. Jetzt wieder normaler Funk.", "Sorry, quiet was still on. Normal radio again now.", "Perdona, el silencio seguía activo. Ahora radio normal otra vez."));
-
-        /// <summary>Kurze Bestätigung in der Funksprache, vier Formulierungen je Stufe.</summary>
-        internal static string Reply(RadioAmount amount, int variant)
-        {
-            switch (amount)
-            {
-                case RadioAmount.Quiet:
-                    return AiRadioSchedule.Of(variant,
-                        RadioLanguage.T("Verstanden, Ruhe am Funk. Wichtiges und Sara kommen weiter.", "Copy, quiet on the radio. Anything important and Sara still come through.", "Entendido, silencio en la radio. Lo importante y Sara siguen llegando."),
-                        RadioLanguage.T("Alles klar, wir halten uns zurück. Nur noch das Nötigste.", "Got it, we'll hold back. Only the essentials.", "De acuerdo, nos contenemos. Solo lo esencial."),
-                        RadioLanguage.T("Okay, Funkruhe. Sag „Funk normal“, wenn du wieder mehr hören willst.", "Okay, radio quiet. Say \"radio normal\" when you want more again.", "Vale, silencio de radio. Di \"radio normal\" cuando quieras más."),
-                        RadioLanguage.T("Verstanden, keine Routineberichte mehr. Gefahren meldet Sara wie immer.", "Copy, no more routine reports. Sara calls the hazards as always.", "Entendido, se acabaron los informes de rutina. Sara avisa de los peligros como siempre."));
-                case RadioAmount.More:
-                    return AiRadioSchedule.Of(variant,
-                        RadioLanguage.T("Verstanden, ab jetzt mehr Infos.", "Copy, more info from now on.", "Entendido, a partir de ahora más información."),
-                        RadioLanguage.T("Alles klar, du hörst mehr von uns, vor allem zu vorne und hinten.", "Got it, you'll hear more from us, mostly about ahead and behind.", "De acuerdo, nos oirás más, sobre todo de delante y detrás."),
-                        RadioLanguage.T("Okay, wir legen eine Schippe drauf.", "Okay, we'll step it up.", "Vale, subimos un punto."),
-                        RadioLanguage.T("Verstanden, mehr Daten, wenn Luft ist.", "Copy, more data whenever there's room.", "Entendido, más datos cuando haya hueco."));
-                case RadioAmount.MuchMore:
-                    return AiRadioSchedule.Of(variant,
-                        RadioLanguage.T("Verstanden, volles Programm am Funk.", "Copy, full programme on the radio.", "Entendido, programa completo por radio."),
-                        RadioLanguage.T("Alles klar, viel mehr Infos. Sag „Funk normal“, wenn es zu viel wird.", "Got it, lots more info. Say \"radio normal\" if it gets too much.", "De acuerdo, mucha más información. Di \"radio normal\" si es demasiado."),
-                        RadioLanguage.T("Okay, wir reden ab jetzt deutlich mehr mit dir.", "Okay, we'll be talking to you a lot more now.", "Vale, a partir de ahora hablamos bastante más contigo."),
-                        RadioLanguage.T("Verstanden, du bekommst alles, was wir sehen.", "Copy, you get everything we see.", "Entendido, te pasamos todo lo que vemos."));
-                default:
-                    return AiRadioSchedule.Of(variant,
-                        RadioLanguage.T("Verstanden, Funk wieder normal.", "Copy, radio back to normal.", "Entendido, radio otra vez normal."),
-                        RadioLanguage.T("Alles klar, zurück auf normal.", "Got it, back to normal.", "De acuerdo, volvemos a lo normal."),
-                        RadioLanguage.T("Okay, normaler Funk ab jetzt.", "Okay, normal radio from now on.", "Vale, radio normal a partir de ahora."),
-                        RadioLanguage.T("Verstanden, wir funken wieder im normalen Rhythmus.", "Copy, back to our normal rhythm.", "Entendido, volvemos a nuestro ritmo normal."));
-            }
-        }
+        /// <summary>Kurze, ehrliche Antwort: Es gibt keine Stufen mehr, die Crew entscheidet nach Lage. Vier Formulierungen.</summary>
+        internal static string NoLevelsReply(int variant) => AiRadioSchedule.Of(variant,
+            RadioLanguage.T("Verstanden. Wir funken immer nach Lage: wenn etwas passiert, sofort, sonst im Rhythmus des Rennens.",
+                "Copy. We always call it as the race goes: straight away when something happens, otherwise in the race's rhythm.",
+                "Entendido. Siempre hablamos según la carrera: al momento si pasa algo, si no al ritmo de la carrera."),
+            RadioLanguage.T("Alles klar. Eine Funkstufe gibt es nicht mehr, wir melden uns, wenn es etwas zu sagen gibt.",
+                "Got it. There's no radio level any more, we'll call when there's something to say.",
+                "De acuerdo. Ya no hay niveles de radio, te avisamos cuando haya algo que decir."),
+            RadioLanguage.T("Okay. Du bekommst alles Wichtige, wir entscheiden nach dem Rennen, wann.",
+                "Okay. You get everything important, the race decides when.",
+                "Vale. Te llega todo lo importante, la carrera decide cuándo."),
+            RadioLanguage.T("Verstanden. Vorne, hinten und alles, was passiert, kommt wie immer von uns.",
+                "Copy. Ahead, behind and anything that happens still comes from us as always.",
+                "Entendido. Delante, detrás y todo lo que pase te lo seguimos diciendo como siempre."));
     }
     /// <summary>
     /// Rob 23.11.: „Spotter aus“ / „Spotter ein“. Abgeschaltet werden nur die Nahbereichsansagen (links, rechts, Auto daneben,
@@ -127,6 +82,17 @@ namespace CrewChiefV4.AiTeam
         private static readonly Regex On = new Regex(@"^(?:(?:sara|ok|okay|bitte|please|por favor)[, ]+)*(?:spotter (?:ein|an|einschalten|on|encendido|activo|activado)|" +
             @"(?:schalte?|mach) (?:den )?spotter (?:ein|an)|spotter wieder (?:ein|an)|turn (?:the )?spotter (?:back )?on|switch (?:the )?spotter (?:back )?on|spotter back on|" +
             @"(?:activa|enciende|pon) (?:el )?spotter)(?:[, ]+(?:bitte|please|por favor|danke|thanks|gracias))*$");
+
+        /// <summary>
+        /// Wirkt sofort und bleibt bis zum Neustart von Crew Chief, auch beim Wechsel Training → Qualifying → Rennen und im
+        /// Spottermodus Realistisch. Der Spielzyklus startet oder stoppt den Spotter beim nächsten Takt.
+        /// </summary>
+        internal static void Apply(bool on)
+        {
+            GlobalBehaviourSettings.driverSpotterChoice = on;
+            GlobalBehaviourSettings.spotterEnabled = on;
+            Console.WriteLine("RRCA Spotter: per Funk " + (on ? "eingeschaltet" : "ausgeschaltet"));
+        }
 
         /// <summary>true = Spotter ein, false = aus, null = kein Spotterbefehl.</summary>
         internal static bool? Parse(string text)

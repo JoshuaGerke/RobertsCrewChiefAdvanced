@@ -242,6 +242,8 @@ namespace CrewChiefV4
                     continue;
                 }
 #endif
+                // RRCA (Rob 24.11.): Die Funkmenge des KI-Teams gibt es nicht mehr; die Crew funkt immer nach Lage.
+                if (strProp.Name == "ai_team_radio_mode_listprop") continue;
                 if (strProp.Name.EndsWith(PropertiesForm.listPropPostfix) && ListPropertyValues.getListBoxLabels(strProp.Name) != null)
                 {   // Dropdown list
                     this.propertiesFlowLayoutPanel.Controls.Add(new ListPropertyControl(strProp.Name, Configuration.getUIString(strProp.Name),

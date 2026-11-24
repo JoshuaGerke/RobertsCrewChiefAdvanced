@@ -275,6 +275,8 @@ namespace CrewChiefV4.AiTeam
                     if (UserSettings.GetUserSettings().getBoolean("realistic_mode") != realistic) { Post(BuildInit()); break; }
                     {
                         GlobalBehaviourSettings.realisticMode = realistic;
+                        // Eine neue Wahl im Cockpit ersetzt ein früheres „Spotter ein/aus“ per Funk.
+                        GlobalBehaviourSettings.driverSpotterChoice = null;
                         // Sofort wirksam: auf Rundstrecken Sara an (Normal) oder aus (Realistisch); auf Ovalen bleibt sie immer an.
                         if (!GlobalBehaviourSettings.useOvalLogic)
                             GlobalBehaviourSettings.spotterEnabled = !realistic && GlobalBehaviourSettings.spotterEnabledInitialState;
@@ -464,7 +466,6 @@ namespace CrewChiefV4.AiTeam
                 },
                 ["settings"] = new JObject
                 {
-                    ["radioMode"] = s.RadioMode.ToString(),
                     ["radioLanguage"] = s.RadioLanguageSetting,
                     ["fastModel"] = s.FastModel,
                     ["deepModel"] = s.DeepModel,
@@ -665,7 +666,6 @@ namespace CrewChiefV4.AiTeam
                 prefs.Set(id, (bool)t["on"] ? Int(t["seconds"], 120) : 0);
                 prefs.SetTolerance(id, Int(t["minus"], 7), Int(t["plus"], 8));
             }
-            AiRadioMode mode;
             var u = UserSettings.GetUserSettings();
             u.setProperty("ai_team_fast_model", fast);
             u.setProperty("ai_team_deep_model", deep);
@@ -674,7 +674,6 @@ namespace CrewChiefV4.AiTeam
             u.setProperty("ai_team_reasoning_effort", ((string)v["reasoning"] ?? "none").Trim());
             u.setProperty("ai_team_max_calls_per_session", Math.Max(0, Int(v["callLimit"], 300)));
             u.setProperty("ai_team_timeout_seconds", Math.Max(3, Math.Min(60, Int(v["timeout"], 12))));
-            if (Enum.TryParse((string)v["radioMode"], out mode)) u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
             string radioLanguage = ((string)v["radioLanguage"] ?? RadioLanguage.Auto).Trim().ToLowerInvariant();
             if (radioLanguage == RadioLanguage.Auto || radioLanguage == RadioLanguage.German || radioLanguage == RadioLanguage.English || radioLanguage == RadioLanguage.Spanish)
                 u.setProperty("ai_team_radio_language", radioLanguage);

@@ -241,7 +241,7 @@ namespace CrewChiefV4.AiTeam
         internal int? DensityOverride;
         private int Density => DensityOverride ?? AmountDensity(AutoRadioPlan.CurrentAmount, DriverMemory.RadioDensity);
 
-        /// <summary>Funkmenge aus Cockpit oder Funkbefehl hat Vorrang; bei Normal gilt der ältere gespeicherte Funkwunsch.</summary>
+        /// <summary>Funkdichte aus Funkmenge und Funkwunsch; seit Rob 24.11. beides fest normal.</summary>
         internal static int AmountDensity(RadioAmount amount, int saved) =>
             amount == RadioAmount.MuchMore ? -1 : amount == RadioAmount.More ? 0 : saved;
 

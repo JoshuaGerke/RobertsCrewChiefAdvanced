@@ -12,14 +12,9 @@
 >
 > | Say | What happens |
 > |---|---|
-> | **"Quiet please"** | No more routine reports and analyses. Position changes, battles, time left, field news, warnings and answers still come. |
-| **"Less info"** | One step down (Much more to More, More to Normal, Normal to Quiet). |
-> | **"More info"** | More reports, mostly about the cars ahead and behind. |
-> | **"Much more info"** / **"Full info"** | The full programme. |
-> | **"Radio normal"** / **"Radio back on"** | Back to the normal rhythm. If you ask in Quiet why nothing comes, the crew switches to Normal by itself. |
 > | **"Spotter off"** / **"Spotter on"** | Only Sara's side calls (left, right, clear). She always calls yellows, crashes, slow cars and the safety car. |
 >
-> The radio amount takes effect at once and is saved. In the app it is under **AI & radio** → **Radio amount**. The spotter stays off until you say "spotter on" or restart RRCA. How often the crew reports on its own is up to the crew: it follows the race length and how tense the race is.
+> This takes effect at once and holds until you restart RRCA, also from qualifying into the race and in realistic spotter mode. There is no radio amount any more: the crew always talks as the race requires. Events come at once, the cars ahead and behind most often, even more in a battle, and technical reports when there is room.
 
 RRCA is a free, unofficial extension for [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). It gives you a pit crew of three voices that you can talk to during a race:
 
@@ -160,7 +155,7 @@ Do all of this while the sim is closed or while you are standing in the pits, ne
 
 **f) Your sim.** On the **Cockpit** page, switch on **Detect game automatically**. RRCA then starts the crew by itself when your sim is running. Alternatively, choose the sim from the list and click **Start**. Make sure telemetry or shared memory is switched on in the sim's own settings; Crew Chief's documentation explains this for each sim.
 
-**g) Radio amount and reports.** Under **AI & radio** you set the **Radio amount**: Quiet, Normal, More info or Much more info. Under **Scheduled radio reports** you now only switch topics on or off. The crew sets the rhythm: in short races up to 15 minutes each technical topic comes once or twice, more often in longer races. The cars ahead and behind come most often, twice as often in a close battle. Calm phases bring tyres, damage, weather and track temperature; in a battle the technical reports wait. Events such as damage, penalties, yellows or best laps always come straight away.
+**g) Radio reports.** There is no radio amount to set; the crew always talks as the race requires. Under **AI & radio** → **Scheduled radio reports** you only switch topics on or off. The crew sets the rhythm: in short races up to 15 minutes each technical topic comes once or twice, more often in longer races. The cars ahead and behind come most often, twice as often in a close battle. Calm phases bring tyres, damage, weather and track temperature; in a battle the technical reports wait. Events such as damage, penalties, yellows or best laps always come straight away.
 
 ## 8. Your first test
 

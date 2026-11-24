@@ -214,25 +214,9 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         internal string ApplySpotterCommand(bool on)
         {
-            GlobalBehaviourSettings.spotterEnabled = on;
+            SpotterCommand.Apply(on);
             LiveDiagnostics.Decision("spotter", on ? "enabled" : "disabled", "driver_command");
             return SpotterCommand.Reply(on, spotterReplies++);
-        }
-        /// <summary>Funkmenge per Funk setzen: gilt sofort und bleibt wie der Cockpit-Regler gespeichert.</summary>
-        internal string ApplyRadioAmount(RadioAmount amount)
-        {
-            var mode = AutoRadioPlan.ToMode(amount);
-            settings.RadioMode = mode;
-            radioSchedule.Amount = AutoRadioPlan.CurrentAmount = amount;
-            try
-            {
-                var u = UserSettings.GetUserSettings();
-                u.setProperty("ai_team_radio_mode_listprop", mode.ToString());
-                u.saveUserSettings();
-            }
-            catch (Exception e) { Console.WriteLine("[KI-Team] Funkmenge nicht gespeichert: " + e.Message); }
-            LiveDiagnostics.Decision("radio-amount", "changed", "driver_command_" + amount.ToString().ToLowerInvariant());
-            return RadioAmountCommand.Reply(amount, radioAmountReplies++);
         }
 
         public void ReloadSettings()
@@ -514,7 +498,7 @@ namespace CrewChiefV4.AiTeam
             bool excluded = RaceExclusion.Active(current);
             if (raceRhythm.Observe(current, now)) radioSchedule.StaggerAfterStart(now, settings.RadioPreferences);
             bool startPhase = raceRhythm.InStart(current);
-            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length; radioSchedule.Amount = AutoRadioPlan.CurrentAmount = AutoRadioPlan.FromMode(settings.RadioMode);
+            radioSchedule.StartCalm = startPhase; radioSchedule.Length = raceRhythm.Length; radioSchedule.Amount = AutoRadioPlan.CurrentAmount = RadioAmount.Normal;
             if (lapCompleted || now - lastFuelCheckUtc >= TimeSpan.FromSeconds(1))
             {
                 lastFuelCheckUtc = now;
@@ -1499,22 +1483,13 @@ namespace CrewChiefV4.AiTeam
                 return muteReply;
             }
 
-            // Rob 23.11.: „Ruhe bitte“, „mehr Infos“, „viel mehr Infos“, „Funk normal“ – sofort, lokal, gespeichert wie der Cockpit-Regler.
-            var amount = routed.Member != TeamMember.Sara ? RadioAmountCommand.Parse(routed.Question, AutoRadioPlan.CurrentAmount) : null;
-            // LMU Sebring 23.11.: Beschwerden über Stille bei „Ruhig“ holen den normalen Funk zurück, mit ehrlichem Grund.
-            if (!amount.HasValue && RadioAmountCommand.ComplainsAboutSilence(routed.Question, AutoRadioPlan.CurrentAmount))
+            // Rob 24.11.: Funkstufen gibt es nicht mehr. Alte Befehle („Ruhe bitte“, „mehr Infos“, „Funk normal“) ändern nichts; die
+            // Crew sagt das kurz und ehrlich, statt dass das Sprachmodell eine Umstellung bestätigt, die es nicht gibt.
+            bool amountWish = routed.Member != TeamMember.Sara && RadioAmountCommand.IsAmountWish(routed.Question);
+            if (amountWish)
             {
-                ApplyRadioAmount(RadioAmount.Normal);
-                string silenceReply = RadioAmountCommand.SilenceReply(radioAmountReplies++);
-                LiveDiagnostics.Decision("radio-amount", "changed", "driver_complained_about_silence_in_quiet_mode", routed.Question);
-                Stats.AddLocalAnswer();
-                await SpeakAsync(routed.Member, silenceReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
-                RememberExchange(routed.Member, routed.Question, silenceReply);
-                return silenceReply;
-            }
-            if (amount.HasValue)
-            {
-                string amountReply = ApplyRadioAmount(amount.Value);
+                string amountReply = RadioAmountCommand.NoLevelsReply(radioAmountReplies++);
+                LiveDiagnostics.Decision("radio-amount", "unchanged", "levels_removed", routed.Question);
                 Stats.AddLocalAnswer();
                 await SpeakAsync(routed.Member, amountReply, true, CancellationToken.None, _ => generation == Volatile.Read(ref sessionGeneration)).ConfigureAwait(false);
                 RememberExchange(routed.Member, routed.Question, amountReply);

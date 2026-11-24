@@ -12,14 +12,9 @@
 >
 > | Di | Qué pasa |
 > |---|---|
-> | **«Silencio, por favor»** | Sin informes de rutina ni análisis. Cambios de posición, duelos, tiempo restante, noticias de la parrilla, avisos y respuestas siguen llegando. |
-| **«Menos información»** | Un nivel menos (de Mucha más a Más, de Más a Normal, de Normal a Tranquila). |
-> | **«Más información»** | Más informes, sobre todo del coche de delante y el de detrás. |
-> | **«Mucha más información»** / **«Toda la información»** | Programa completo. |
-> | **«Radio normal»** | Vuelta al ritmo normal. Si en Tranquila preguntas por qué no llega nada, el equipo vuelve solo a Normal. |
 > | **«Spotter apagado»** / **«Spotter activado»** | Solo los avisos laterales de Sara (izquierda, derecha, libre). Amarillas, accidentes, coches lentos y safety car los avisa siempre. |
 >
-> La cantidad de radio se aplica al momento y queda guardada. En el programa está en **IA y radio** → **Cantidad de radio**. El spotter sigue apagado hasta que digas «spotter activado» o reinicies RRCA. Con qué frecuencia informa el equipo por su cuenta lo decide él mismo: según la duración de la carrera y la tensión.
+> Se aplica al momento y dura hasta que reinicies RRCA, también al pasar de la clasificación a la carrera y en el modo de spotter realista. Ya no hay cantidad de radio: el equipo habla siempre según la carrera. Los eventos llegan al momento, el coche de delante y el de detrás más a menudo, aún más en un duelo, y lo técnico cuando hay hueco.
 
 RRCA es una extensión gratuita y no oficial para [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). Te da un equipo de boxes con tres voces con el que puedes hablar durante la carrera:
 
@@ -160,7 +155,7 @@ Haz todo esto con el simulador cerrado o parado en boxes, nunca conduciendo.
 
 **f) Tu simulador.** En la página **Cockpit**, activa **Detectar simulador automáticamente**. RRCA pondrá en marcha el equipo cuando tu simulador esté abierto. También puedes elegir el simulador de la lista y pulsar **Iniciar**. En los ajustes del simulador tiene que estar activada la telemetría o la memoria compartida (shared memory); la documentación de Crew Chief lo explica para cada simulador.
 
-**g) Cantidad de radio e informes.** En **IA y radio** eliges la **Cantidad de radio**: Tranquila, Normal, Más información o Mucha más información. En **Informes periódicos por radio** ahora solo activas o desactivas temas. El ritmo lo pone el equipo: en carreras cortas de hasta 15 minutos cada tema técnico llega una o dos veces, en carreras más largas más a menudo. El coche de delante y el de detrás llegan más a menudo, el doble en un duelo cerrado. En fases tranquilas llegan neumáticos, daños, tiempo y temperatura de pista; en un duelo lo técnico espera. Eventos como daños, sanciones, amarillas o mejores vueltas llegan siempre al momento.
+**g) Informes por radio.** No hay cantidad de radio que ajustar; el equipo habla siempre según la carrera. En **IA y radio** → **Informes periódicos por radio** solo activas o desactivas temas. El ritmo lo pone el equipo: en carreras cortas de hasta 15 minutos cada tema técnico llega una o dos veces, en carreras más largas más a menudo. El coche de delante y el de detrás llegan más a menudo, el doble en un duelo cerrado. En fases tranquilas llegan neumáticos, daños, tiempo y temperatura de pista; en un duelo lo técnico espera. Eventos como daños, sanciones, amarillas o mejores vueltas llegan siempre al momento.
 
 ## 8. Tu primera prueba
 

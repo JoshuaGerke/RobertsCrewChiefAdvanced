@@ -1,37 +1,39 @@
 using System.Linq;
+using CrewChiefV4;
 using CrewChiefV4.AiTeam;
+using CrewChiefV4.GameState;
 using NUnit.Framework;
 
 namespace UnitTest.AiTeamTests
 {
     /// <summary>
-    /// Rob 23.11.: Funkmenge und Spotter per Funk. „Ruhe bitte“, „mehr Infos“, „viel mehr Infos“, „Funk normal“, „Spotter aus“,
-    /// „Spotter ein“ in Deutsch, Englisch und Spanisch. Fragen und längere Sätze ändern nichts. Die Befehle hängen an keiner
-    /// Simulation; sie laufen in AMS2, RaceRoom, LMU, AC EVO und iRacing gleich.
+    /// Rob 24.11.: Keine Funkstufen mehr („das bringt ihn nur durcheinander“). Die Crew funkt immer nach ihrer Lage-Logik. Alte
+    /// Befehle wie „Ruhe bitte“ oder „mehr Infos“ ändern nichts, die Crew sagt das kurz. „Spotter ein“ und „Spotter aus“ bleiben
+    /// und wirken während der Fahrt, auch beim Wechsel Training → Qualifying → Rennen und im Spottermodus Realistisch.
+    /// Die Befehle hängen an keiner Simulation; sie laufen in AMS2, RaceRoom, LMU, AC EVO und iRacing gleich.
     /// </summary>
     [TestFixture, Category("AiTeam")]
     public class RadioAmountCommandTests
     {
-        [TestCase("Ruhe bitte", RadioAmount.Quiet), TestCase("Ben, Ruhe bitte!", RadioAmount.Quiet), TestCase("bitte Ruhe", RadioAmount.Quiet),
-         TestCase("Funkruhe", RadioAmount.Quiet), TestCase("weniger Infos", RadioAmount.Quiet), TestCase("Quiet please", RadioAmount.Quiet),
-         TestCase("less radio", RadioAmount.Quiet), TestCase("Silencio, por favor", RadioAmount.Quiet), TestCase("menos información", RadioAmount.Quiet),
-         TestCase("mehr Infos", RadioAmount.More), TestCase("Mehr Infos bitte.", RadioAmount.More), TestCase("Crew, mehr Funk", RadioAmount.More),
-         TestCase("more info please", RadioAmount.More), TestCase("más información", RadioAmount.More), TestCase("mas radio", RadioAmount.More),
-         TestCase("viel mehr Infos", RadioAmount.MuchMore), TestCase("Ben, viel mehr Infos bitte", RadioAmount.MuchMore), TestCase("noch mehr Infos", RadioAmount.MuchMore),
-         TestCase("much more info", RadioAmount.MuchMore), TestCase("lots more radio", RadioAmount.MuchMore), TestCase("mucha más información", RadioAmount.MuchMore),
-         TestCase("Funk normal", RadioAmount.Normal), TestCase("wieder normal", RadioAmount.Normal), TestCase("Infos normal", RadioAmount.Normal),
-         TestCase("radio normal", RadioAmount.Normal), TestCase("back to normal", RadioAmount.Normal), TestCase("vuelve a normal", RadioAmount.Normal)]
-        public void Radio_amount_commands_are_recognised_in_three_languages(string said, RadioAmount expected)
+        [TestCase("Ruhe bitte"), TestCase("Ben, Ruhe bitte!"), TestCase("bitte Ruhe"), TestCase("Funkruhe"), TestCase("weniger Infos"),
+         TestCase("Quiet please"), TestCase("less radio"), TestCase("Silencio, por favor"), TestCase("menos información"),
+         TestCase("mehr Infos"), TestCase("Mehr Infos bitte."), TestCase("Crew, mehr Funk"), TestCase("more info please"), TestCase("más información"),
+         TestCase("viel mehr Infos"), TestCase("Volle Informationen."), TestCase("Volles Programm"), TestCase("much more info"), TestCase("toda la información"),
+         TestCase("Funk normal"), TestCase("wieder normal"), TestCase("Infos wieder an"), TestCase("radio back on"), TestCase("vuelve a normal"),
+         TestCase("Routinefunk seltener"), TestCase("Routineberichte häufiger")]
+        public void Old_radio_level_commands_are_recognised_but_change_nothing(string said)
         {
-            Assert.AreEqual(expected, RadioAmountCommand.Parse(said));
+            Assert.IsTrue(RadioAmountCommand.IsAmountWish(said), said);
+            Assert.IsNull(SpotterCommand.Parse(said));
+            Assert.IsFalse(DriverRadioPreferences.IsCommand(said), "wird nicht als Funkwunsch gespeichert");
         }
 
         [TestCase("Gibt es mehr Infos?"), TestCase("Ruhe?"), TestCase("Wie viel Sprit habe ich noch?"), TestCase("Ruhe vor dem Sturm, oder"),
          TestCase("Mehr Infos zum Reifenverschleiß vorne links und hinten rechts bitte, und wie lange halten die noch"),
-         TestCase("Ich brauche nicht mehr Infos"), TestCase("Wie weit ist der Vordermann"), TestCase(""), TestCase(null)]
-        public void Questions_and_other_sentences_change_nothing(string said)
+         TestCase("Ich brauche nicht mehr Infos"), TestCase("Wie weit ist der Vordermann"), TestCase("Ben, kommt von dir nichts mehr?"), TestCase(""), TestCase(null)]
+        public void Questions_and_other_sentences_are_no_command(string said)
         {
-            Assert.IsNull(RadioAmountCommand.Parse(said));
+            Assert.IsFalse(RadioAmountCommand.IsAmountWish(said));
             Assert.IsNull(SpotterCommand.Parse(said));
         }
 
@@ -43,11 +45,11 @@ namespace UnitTest.AiTeamTests
         public void Spotter_commands_are_recognised_in_three_languages(string said, bool on)
         {
             Assert.AreEqual(on, SpotterCommand.Parse(said));
-            Assert.IsNull(RadioAmountCommand.Parse(said));
+            Assert.IsFalse(RadioAmountCommand.IsAmountWish(said));
         }
 
         [Test]
-        public void Every_confirmation_has_four_or_more_wordings_in_every_language()
+        public void Every_reply_has_four_or_more_wordings_in_every_language()
         {
             string was = RadioLanguage.Current;
             try
@@ -55,14 +57,16 @@ namespace UnitTest.AiTeamTests
                 foreach (string language in new[] { RadioLanguage.German, RadioLanguage.English, RadioLanguage.Spanish })
                 {
                     RadioLanguage.Current = language;
-                    foreach (RadioAmount amount in new[] { RadioAmount.Quiet, RadioAmount.Normal, RadioAmount.More, RadioAmount.MuchMore })
-                        Assert.GreaterOrEqual(Enumerable.Range(0, 6).Select(i => RadioAmountCommand.Reply(amount, i)).Distinct().Count(), 4, language + " " + amount);
+                    Assert.GreaterOrEqual(Enumerable.Range(0, 6).Select(RadioAmountCommand.NoLevelsReply).Distinct().Count(), 4, language);
                     foreach (bool on in new[] { true, false })
                         Assert.GreaterOrEqual(Enumerable.Range(0, 6).Select(i => SpotterCommand.Reply(on, i)).Distinct().Count(), 4, language + " spotter " + on);
                 }
                 // Spotter aus nennt, was bleibt: Gelb, Unfälle, Safety Car.
                 RadioLanguage.Current = RadioLanguage.German;
                 Assert.IsTrue(Enumerable.Range(0, 5).Select(i => SpotterCommand.Reply(false, i)).Any(r => r.Contains("Gelb") || r.Contains("Gefahr") || r.Contains("Safety Car")));
+                // Die Antwort auf alte Befehle verspricht keine Umstellung.
+                foreach (var reply in Enumerable.Range(0, 4).Select(RadioAmountCommand.NoLevelsReply))
+                    StringAssert.DoesNotContain("ab jetzt mehr", reply);
             }
             finally { RadioLanguage.Current = was; }
         }
@@ -76,14 +80,91 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void Radio_amount_maps_to_the_cockpit_setting_both_ways()
+        public void The_radio_always_runs_at_the_crews_own_level()
         {
-            foreach (RadioAmount amount in new[] { RadioAmount.Quiet, RadioAmount.Normal, RadioAmount.More, RadioAmount.MuchMore })
-                Assert.AreEqual(amount, AutoRadioPlan.FromMode(AutoRadioPlan.ToMode(amount)));
-            Assert.AreEqual(CrewChiefV4.AiTeam.AiRadioMode.MINIMAL, AutoRadioPlan.ToMode(RadioAmount.Quiet));
-            Assert.AreEqual(-1, RadioLoad.AmountDensity(RadioAmount.MuchMore, 1));
-            Assert.AreEqual(0, RadioLoad.AmountDensity(RadioAmount.More, 1));
-            Assert.AreEqual(2, RadioLoad.AmountDensity(RadioAmount.Normal, 2), "Normal behält den älteren Funkwunsch");
+            Assert.AreEqual(AiRadioMode.NORMAL, new AiTeamSettings().RadioMode);
+            Assert.AreEqual(1, DriverMemory.RadioDensity, "keine gespeicherte Funkdichte");
+            Assert.AreEqual(1, RadioLoad.AmountDensity(RadioAmount.Normal, DriverMemory.RadioDensity));
+        }
+
+        private bool wasInitial, wasRealistic, wasEnabled, wasOval;
+        private bool? wasChoice;
+
+        [SetUp]
+        public void KeepSpotterState()
+        {
+            wasInitial = GlobalBehaviourSettings.spotterEnabledInitialState; wasRealistic = GlobalBehaviourSettings.realisticMode;
+            wasEnabled = GlobalBehaviourSettings.spotterEnabled; wasOval = GlobalBehaviourSettings.useOvalLogic; wasChoice = GlobalBehaviourSettings.driverSpotterChoice;
+        }
+
+        [TearDown]
+        public void RestoreSpotterState()
+        {
+            GlobalBehaviourSettings.spotterEnabledInitialState = wasInitial; GlobalBehaviourSettings.realisticMode = wasRealistic;
+            GlobalBehaviourSettings.spotterEnabled = wasEnabled; GlobalBehaviourSettings.useOvalLogic = wasOval; GlobalBehaviourSettings.driverSpotterChoice = wasChoice;
+        }
+
+        private static string StartReason() => SpotterStartCheck.Reason(true, false, GlobalBehaviourSettings.spotterEnabled,
+            GlobalBehaviourSettings.spotterEnabledInitialState, GlobalBehaviourSettings.realisticMode, GlobalBehaviourSettings.useOvalLogic, true, false);
+
+        /// <summary>
+        /// LMU Sebring 24.11.: Spottermodus Realistisch, Rundstrecke. „Spotter ein“ muss Sara sofort spotten lassen und darf beim
+        /// Wechsel vom Qualifying ins Rennen nicht wieder verloren gehen. „Spotter aus“ ebenso.
+        /// </summary>
+        [Test]
+        public void Spotter_on_and_off_by_radio_work_while_driving_and_survive_the_switch_to_the_race()
+        {
+            var sebring = new TrackDefinition("Sebring International Raceway", 6019);
+            GlobalBehaviourSettings.spotterEnabledInitialState = true;
+            GlobalBehaviourSettings.realisticMode = true;
+            GlobalBehaviourSettings.driverSpotterChoice = null;
+
+            GlobalBehaviourSettings.UpdateFromTrackDefinition(sebring); // Qualifying beginnt
+            Assert.IsFalse(GlobalBehaviourSettings.spotterEnabled, "Realistisch: auf der Rundstrecke zunächst aus");
+            Assert.AreEqual("realistic_mode_on_road_course", StartReason());
+
+            SpotterCommand.Apply(true); // „Spotter ein“ während der Fahrt
+            Assert.IsTrue(GlobalBehaviourSettings.spotterEnabled);
+            Assert.AreEqual("ready_to_start", StartReason(), "der Spielzyklus startet den Spotter beim nächsten Takt");
+
+            GlobalBehaviourSettings.UpdateFromTrackDefinition(sebring); // Qualifying → Rennen
+            Assert.IsTrue(GlobalBehaviourSettings.spotterEnabled, "„Spotter ein“ gilt auch im Rennen");
+            Assert.AreEqual("ready_to_start", StartReason());
+
+            SpotterCommand.Apply(false); // „Spotter aus“
+            Assert.IsFalse(GlobalBehaviourSettings.spotterEnabled);
+            GlobalBehaviourSettings.realisticMode = false;
+            GlobalBehaviourSettings.UpdateFromTrackDefinition(sebring); // nächste Sitzung, Modus Normal
+            Assert.IsFalse(GlobalBehaviourSettings.spotterEnabled, "„Spotter aus“ gilt bis zum Neustart, auch im Modus Normal");
+        }
+
+        [Test]
+        public void Without_a_radio_command_the_spotter_mode_decides()
+        {
+            var track = new TrackDefinition("Spa-Francorchamps", 7004);
+            GlobalBehaviourSettings.spotterEnabledInitialState = true;
+            GlobalBehaviourSettings.driverSpotterChoice = null;
+            GlobalBehaviourSettings.realisticMode = false;
+            GlobalBehaviourSettings.UpdateFromTrackDefinition(track);
+            Assert.IsTrue(GlobalBehaviourSettings.spotterEnabled, "Normal: Spotter auf jeder Strecke");
+            GlobalBehaviourSettings.realisticMode = true;
+            GlobalBehaviourSettings.UpdateFromTrackDefinition(track);
+            Assert.IsFalse(GlobalBehaviourSettings.spotterEnabled, "Realistisch: nur auf Ovalen");
+        }
+
+        /// <summary>
+        /// Der Spotter wird beim Start mit dem damaligen Zustand gebaut. War er da aus, muss „Spotter ein“ ihn trotzdem wecken; der
+        /// Spielzyklus gleicht ihn dafür jeden Takt mit dem Schalter ab, ohne Crew Chiefs eigenen Bestätigungsclip.
+        /// </summary>
+        [Test]
+        public void A_spotter_built_while_off_wakes_up_on_spotter_on()
+        {
+            var spotter = new CrewChiefV4.rFactor2.RF2Spotter(null, false);
+            Assert.IsFalse(spotter.isEnabled);
+            spotter.syncEnabled(true);
+            Assert.IsTrue(spotter.isEnabled);
+            spotter.syncEnabled(false);
+            Assert.IsFalse(spotter.isEnabled);
         }
     }
 }

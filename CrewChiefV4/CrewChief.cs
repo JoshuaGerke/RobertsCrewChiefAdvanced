@@ -540,6 +540,7 @@ namespace CrewChiefV4
             else
             {
                 GlobalBehaviourSettings.spotterEnabled = true;
+                GlobalBehaviourSettings.driverSpotterChoice = true;
                 spotter.enableSpotter();
             }
         }
@@ -549,6 +550,7 @@ namespace CrewChiefV4
             if (spotter != null)
             {
                 GlobalBehaviourSettings.spotterEnabled = false;
+                GlobalBehaviourSettings.driverSpotterChoice = false;
                 spotter.disableSpotter();
             }
         }
@@ -1393,6 +1395,9 @@ namespace CrewChiefV4
                                         GlobalBehaviourSettings.spotterEnabledInitialState, GlobalBehaviourSettings.realisticMode,
                                         GlobalBehaviourSettings.useOvalLogic, AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse,
                                         Game.F1_20S || Debug.PlaybackSpotter);
+                                    // RRCA (Rob 24.11.): „Spotter ein“ per Funk muss auch einen Spotter wecken, der beim Start aus war.
+                                    if (spotter != null && spotter.isEnabled != GlobalBehaviourSettings.spotterEnabled)
+                                        spotter.syncEnabled(GlobalBehaviourSettings.spotterEnabled);
                                     if (spotter != null && GlobalBehaviourSettings.spotterEnabled && !spotterIsRunning &&
                                         (Game.F1_20S || Debug.PlaybackSpotter || AiTeam.AiTeamService.LocalSaraEnabledForRoadCourse))
                                     {

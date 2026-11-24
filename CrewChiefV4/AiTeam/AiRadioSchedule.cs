@@ -255,7 +255,7 @@ namespace CrewChiefV4.AiTeam
         internal bool StartCalm;
         /// <summary>Rennlänge; verlängert oder verkürzt die eingestellten Abstände je Thema (nur ohne Automatik).</summary>
         internal RaceLength Length;
-        /// <summary>Funkmenge aus Cockpit oder Funkbefehl („Ruhe bitte“, „mehr Infos“, „viel mehr Infos“).</summary>
+        /// <summary>Funkmenge; seit Rob 24.11. immer Normal (die Lage-Logik). Andere Werte nur noch in Tests des Funkplans.</summary>
         internal RadioAmount Amount = RadioAmount.Normal;
         /// <summary>Renndauer dieser Session, aus dem letzten Spielzustand.</summary>
         internal RaceSpan Span = RaceSpan.Practice;

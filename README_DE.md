@@ -12,14 +12,9 @@
 >
 > | Sag | Was passiert |
 > |---|---|
-> | **„Ruhe bitte“** | Keine Routineberichte und Analysen mehr. Platzwechsel, Zweikampf, Restzeit, Feldnachrichten, Warnungen und Antworten kommen weiter. |
-| **„Weniger Infos“** | Eine Stufe weniger (von Viel mehr auf Mehr, von Mehr auf Normal, von Normal auf Ruhig). |
-> | **„Mehr Infos“** | Öfter Berichte, vor allem zu Vorder- und Hintermann. |
-> | **„Viel mehr Infos“** / **„Volle Infos“** | Volles Programm. |
-> | **„Funk normal“** / **„Infos wieder an“** | Zurück zum normalen Rhythmus. Fragst du bei Ruhig, warum nichts kommt, schaltet die Crew von selbst auf Normal. |
 > | **„Spotter aus“** / **„Spotter ein“** | Nur Saras Seitenansagen (links, rechts, frei). Gelb, Unfälle, langsame Autos und Safety Car meldet sie immer. |
 >
-> Die Funkmenge gilt sofort und bleibt gespeichert. Im Programm steht sie unter **KI & Funk** → **Funkmenge**. Der Spotter bleibt aus, bis du „Spotter ein“ sagst oder RRCA neu startest. Wie oft die Crew von sich aus berichtet, bestimmt sie selbst: nach Renndauer und Spannung im Rennen.
+> Das gilt sofort und bis du RRCA neu startest, auch beim Wechsel vom Qualifying ins Rennen und im Spottermodus Realistisch. Eine Funkmenge gibt es nicht mehr: Die Crew funkt immer nach Lage. Ereignisse kommen sofort, Vorder- und Hintermann am häufigsten, im Zweikampf noch öfter, und die Technik dann, wenn Luft ist.
 
 RRCA ist eine kostenlose, inoffizielle Erweiterung für [Crew Chief V4](https://gitlab.com/mr_belowski/CrewChiefV4). Sie gibt dir eine Boxencrew aus drei Stimmen, mit der du im Rennen sprechen kannst:
 
@@ -160,7 +155,7 @@ Mach das alles bei geschlossenem Spiel oder wenn du in der Box stehst, nie währ
 
 **f) Deine Simulation.** Auf der Seite **Cockpit** schaltest du **Spiel automatisch erkennen** ein. RRCA startet die Crew dann selbst, sobald dein Spiel läuft. Alternativ das Spiel aus der Liste wählen und auf **Start** klicken. In den Einstellungen des Spiels muss die Telemetrie bzw. Shared Memory eingeschaltet sein; die Crew-Chief-Dokumentation erklärt das für jedes Spiel.
 
-**g) Funkmenge und Funkberichte.** Unter **KI & Funk** stellst du die **Funkmenge** ein: Ruhig, Normal, Mehr Infos oder Viel mehr Infos. Unter **Regelmäßige Funkberichte** schaltest du Themen nur noch an oder aus. Den Takt bestimmt die Crew: In kurzen Rennen bis 15 Minuten kommt jedes Technikthema ein- bis zweimal, in längeren Rennen öfter. Vorder- und Hintermann kommen am häufigsten, im Zweikampf doppelt so oft. In ruhigen Phasen kommen Reifen, Schaden, Wetter und Streckentemperatur; im Zweikampf wartet die Technik. Ereignisse wie Schaden, Strafe, Gelb oder Bestzeit kommen immer sofort.
+**g) Funkberichte.** Eine Funkmenge stellst du nicht ein, die Crew funkt immer nach Lage. Unter **KI & Funk** → **Regelmäßige Funkberichte** schaltest du Themen nur an oder aus. Den Takt bestimmt die Crew: In kurzen Rennen bis 15 Minuten kommt jedes Technikthema ein- bis zweimal, in längeren Rennen öfter. Vorder- und Hintermann kommen am häufigsten, im Zweikampf doppelt so oft. In ruhigen Phasen kommen Reifen, Schaden, Wetter und Streckentemperatur; im Zweikampf wartet die Technik. Ereignisse wie Schaden, Strafe, Gelb oder Bestzeit kommen immer sofort.
 
 ## 8. Der erste Test
 

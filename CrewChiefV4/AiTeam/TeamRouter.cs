@@ -64,7 +64,7 @@ namespace CrewChiefV4.AiTeam
             // später im Satz angesprochen (zwischen Kommas, am Satzende, „von/mit/an Sarah“), ist es gemeint. Ein Gegnername
             // mitten im Satz („Wie weit ist Mike Rockenfeller?“) zählt nicht.
             var addressedLater = AddressedLater(text);
-            if (addressedLater.HasValue && !DriverRadioPreferences.IsCommand(text) && !RadioAmountCommand.Parse(text).HasValue)
+            if (addressedLater.HasValue && !DriverRadioPreferences.IsCommand(text) && !RadioAmountCommand.IsAmountWish(text))
                 return new RoutedRequest { Member = addressedLater.Value, Question = text, AddressedByName = true };
 
             // „Spotter aus/ein“ gehört zu Sara, ganz gleich, wer zuletzt gesprochen hat.
@@ -72,7 +72,7 @@ namespace CrewChiefV4.AiTeam
                 return new RoutedRequest { Member = TeamMember.Sara, Question = text, AddressedByName = false };
 
             // Explicit routine preferences belong to the pit wall, even after a conversation with Sara.
-            if (DriverRadioPreferences.IsCommand(text) || RadioAmountCommand.Parse(text).HasValue)
+            if (DriverRadioPreferences.IsCommand(text) || RadioAmountCommand.IsAmountWish(text))
                 return new RoutedRequest { Member = TeamMember.Ben, Question = text, AddressedByName = false };
 
             string lower = " " + text.ToLowerInvariant() + " ";

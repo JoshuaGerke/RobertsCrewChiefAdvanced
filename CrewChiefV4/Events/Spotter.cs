@@ -68,6 +68,16 @@ namespace CrewChiefV4.Events
             audioPlayer.playMessageImmediately(new QueuedMessage(NoisyCartesianCoordinateSpotter.folderDisableSpotter, 0));
         }
 
+        /// <summary>
+        /// RRCA: Ein- und Ausschalten ohne Crew Chiefs Bestätigungsclip; Sara bestätigt selbst. Der Spotter wird beim Start mit dem
+        /// damaligen Zustand gebaut; ohne Abgleich bliebe er nach „Spotter ein“ stumm, wenn er beim Start aus war.
+        /// </summary>
+        public void syncEnabled(Boolean on)
+        {
+            enabled = on;
+        }
+        public Boolean isEnabled => enabled;
+
         public void pause()
         {
             this.paused = true;
