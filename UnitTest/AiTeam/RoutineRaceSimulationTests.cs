@@ -97,6 +97,9 @@ namespace UnitTest.AiTeamTests
         internal static RaceRun Run(int minutes, RadioAmount amount = RadioAmount.Normal, SimProfile sim = null)
         {
             sim = sim ?? AMS2;
+            // Jeder Lauf beginnt mit leerem Satzgedächtnis und fester Formulierungswahl. Sonst hängt das Ergebnis davon ab,
+            // welche Tests vorher liefen und welche Formulierung der Zufall wählte (CI 24.11.: einmal iRacing, einmal AC EVO knapp drüber).
+            PhraseMemory.Clear(); RadioVariants.Seed(7);
             var truth = new DataTruth(); DataTruth.Use(truth);
             var tracks = sim.DerivedGaps ? new TrackAwareness() : null;
             double race = minutes * 60.0;
