@@ -6,7 +6,19 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.36: Fehlerbehebungen.**
+> **Neu in Alpha 0.37: Bestzeiten, Topspeed und klare Zuständigkeiten.**
+>
+> - **Jede Bestzeit im Feld wird angesagt**, mit Namen und dem Abstand zu deiner Bestzeit, im Training, im Qualifying und im Rennen, auch in der Startrunde und in der letzten Runde. Die Meldung wartet, bis Luft ist, und verfällt erst, wenn jemand schneller war. Hast du im Rennen noch keine gewertete Runde, vergleicht Ben mit deiner Bestzeit von heute oder deiner letzten Runde.
+> - **Topspeed zweimal im Rennen**: im ersten Drittel und im letzten Viertel nennt Ben die drei Schnellsten auf der Geraden und deinen Wert mit Platz.
+> - **Deine Bestzeit zählt, wenn die Sim sie zählt.** Übernimmt RaceRoom eine Runde als Bestzeit, die Crew Chief als ungültig führt, kommt trotzdem die Ansage.
+> - **Ben antwortet auf alles Allgemeine**: Rennlage, Abstände, Restzeit, Bestzeiten, Strategie. Mik sagt nur noch Sprit, Verbrauch, Reifen, Technik und Schäden an, kurz und ohne Diskussion.
+> - **Sprit im Training sofort**: eine erste Schätzung nach wenigen hundert Metern, danach der Verbrauch der ersten vollen Runde, auch wenn die Runde gestrichen war. Fragst du nach Sprit für eine Renndauer, rechnet die Crew es in Litern vor.
+> - **Sektor-Bestzeiten im Training und Qualifying** kommen sofort und kurz, bei deiner schnellsten Runde gibt es ein kurzes Lob.
+> - **Rennleitung für alle Sims**: Verwarnungen und Strafen kommentiert Ben in eigenen Worten, mit Namen.
+> - **Überrundete** werden nur noch gemeldet, wenn du wirklich aufholst, nicht bei gleichbleibendem Abstand.
+> - **Vor dem Start** hält die Crew das Rennen nicht mehr für beendet, und die Restzeit nennt sie als aktuellen Wert.
+>
+> **Seit Alpha 0.36: Fehlerbehebungen.**
 >
 > - **Richtige Klasse im Multiclass-Rennen** (LMU, AMS2, iRacing). Die Rennbilanz nennt den Sieger deiner Klasse statt des Gesamtsiegers. Klassenplatz und Topspeed der Klassenspitze stimmen.
 > - **FCY und Rennunterbrechung in LMU.** Unter FCY oder bei Rennunterbrechung gilt nicht mehr das halbe Feld als „langsam“ oder „steht“.

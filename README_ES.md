@@ -6,7 +6,19 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.36: correcciones.**
+> **Novedades de Alpha 0.37: mejores vueltas, velocidad punta y tareas claras.**
+>
+> - **Se anuncia cada mejor vuelta de la parrilla**, con el nombre y la diferencia con tu mejor vuelta, en entrenamientos, clasificación y carrera, también en la vuelta de salida y en la última vuelta. El aviso espera a que haya hueco y solo caduca cuando alguien ha sido más rápido. Si en carrera aún no tienes una vuelta válida, Ben compara con tu mejor vuelta de hoy o con tu última vuelta.
+> - **Velocidad punta dos veces por carrera**: en el primer tercio y en el último cuarto Ben nombra a los tres más rápidos en recta y tu valor con tu puesto.
+> - **Tu mejor vuelta cuenta si el simulador la cuenta.** Si RaceRoom toma como mejor vuelta una que Crew Chief marca como no válida, el aviso llega igualmente.
+> - **Ben responde a todo lo general**: situación de carrera, diferencias, tiempo restante, mejores vueltas, estrategia. Mik solo anuncia combustible, consumo, neumáticos, técnica y daños, breve y sin discutir.
+> - **Combustible en entrenamientos al momento**: una primera estimación tras unos cientos de metros y luego el consumo de la primera vuelta completa, aunque la vuelta se haya anulado. Si preguntas por el combustible para una duración de carrera, el equipo hace la cuenta en litros.
+> - **Mejores sectores en entrenamientos y clasificación** llegan al momento y breves; con tu vuelta más rápida hay un breve elogio.
+> - **Dirección de carrera en todos los simuladores**: Ben comenta advertencias y sanciones con sus propias palabras y con nombres.
+> - **Doblados**: solo se avisan cuando de verdad te acercas, no con una distancia constante.
+> - **Antes de la salida** el equipo ya no cree que la carrera ha terminado, y da el tiempo restante como valor actual.
+>
+> **Desde Alpha 0.36: correcciones.**
 >
 > - **Clase correcta en carreras multiclase** (LMU, AMS2, iRacing). El resumen de carrera nombra al ganador de tu clase en lugar del ganador absoluto. La posición de clase y la velocidad punta de la clase son correctas.
 > - **FCY e interrupción en LMU.** Con FCY o bandera roja ya no cuenta medio pelotón como «lento» o «parado».
