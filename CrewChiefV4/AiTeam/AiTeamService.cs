@@ -257,6 +257,7 @@ namespace CrewChiefV4.AiTeam
             DriverMemory.Configure(settings.Enabled && settings.PersistentMemory);
             ConfigureCrewLog(newSettings.WriteLog);
             AudioPlayer.aiTeamSpotterMuted = settings.Enabled && !settings.SaraEnabled;
+            NativeRaceControl.DriverName = AiPersonas.CleanForRadio(settings.RadioName ?? "Rob", 30, false);
             // "Nur noch das KI-Team spricht": Crew Chiefs eigene Ansagen nicht mehr einreihen (Spotter läuft separat weiter)
             AudioPlayer.messageFilter = settings.Enabled && settings.ReplaceCrewChiefVoice
                 ? new Func<QueuedMessage, bool>(m => {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -40,8 +40,36 @@ namespace CrewChiefV4.AiTeam
                 if (f == "flags/give_one_position_back_first_warning" || f == "flags/give_one_position_back_next_warning") return "giveback:1";
                 if (f == "flags/give_positions_back_first_warning_intro" || f == "flags/give_positions_back_next_warning_intro") return "giveback:n";
                 if (f == "flags/give_positions_back_completed") return "giveback-done";
+                // Rob 24.11.: „Warum werden Verwarnungen und Strafen der Rennleitung nicht kommentiert?“ Bei „nur das KI-Team spricht“
+                // fielen diese Crew-Chief-Meldungen bisher ersatzlos weg (alle Sims: rF2/LMU/GTR2 über die Spielmeldungen, iRacing über
+                // Black Flag und Meatball, alle über die Kollisions- und Ausrittzählung). Neue Strafen selbst meldet die Strafwache.
+                if (f == "flags/black_flag" || f == "penalties/new_penalty_black_flag") return "pen-black";
+                if (f == "penalties/meatball_flag") return "pen-meatball";
+                if (f == "penalties/penalty_disqualified" || f.StartsWith("penalties/disqualified_", StringComparison.Ordinal)) return "pen-dq";
+                if (f == "penalties/you_still_have_a_penalty" || f == "penalties/penalty_not_served" ||
+                    f.StartsWith("penalties/still_have_to_serve_", StringComparison.Ordinal)) return "pen-still";
+                if (f == "penalties/warning_unsportsmanlike_driving") return "pen-warn:conduct";
+                if (f == "penalties/warning_driving_too_slow") return "pen-warn:slow";
+                if (f == "penalties/warning_wrong_way") return "pen-warn:wrongway";
+                if (f.StartsWith("penalties/warning_headlights_required", StringComparison.Ordinal)) return "pen-warn:lights";
+                if (f == "penalties/warning_enter_pits_to_avoid_exceeding_laps") return "pen-warn:stint";
+                if (f == "penalties/too_many_car_to_car_collisions") return "pen-warn:contact";
+                if (f == "penalties/one_more_collision_before_kick") return "pen-warn:kick-contact";
+                if (f == "penalties/one_more_off_track_before_kick") return "pen-warn:kick-offtrack";
             }
             return null;
+        }
+
+        /// <summary>Name für die Ansprache („Rob, …“), vom Dienst aus den Einstellungen gesetzt.</summary>
+        internal static string DriverName = "Rob";
+
+        /// <summary>Setzt den Namen ein; ohne Namen bleibt ein vollständiger Satz („Achtung, Verwarnung …“).</summary>
+        internal static string Lead(string line, string name)
+        {
+            if (!string.IsNullOrWhiteSpace(name)) return line.Replace("{n}", name.Trim());
+            string t = line.StartsWith("{n}, ", StringComparison.Ordinal) ? line.Substring(5) : line;
+            t = t.Replace(" {n},", ",").Replace(", {n}", "").Replace("{n}", "");
+            return t.Length > 0 ? char.ToUpper(t[0], RadioLanguage.Culture) + t.Substring(1) : t;
         }
 
         private static string Cause(string f)
@@ -86,6 +114,8 @@ namespace CrewChiefV4.AiTeam
         internal static DateTime LastServedUtc = DateTime.MinValue;
 
         internal static int Priority(string kind) => kind.StartsWith("giveback:", StringComparison.Ordinal) ? 9 :
+            kind == "pen-black" || kind == "pen-meatball" || kind == "pen-dq" || kind == "pen-warn:wrongway" ? 9 :
+            kind.StartsWith("pen-warn", StringComparison.Ordinal) ? 7 : kind == "pen-still" ? 6 :
             kind.StartsWith("dyellow", StringComparison.Ordinal) || kind.StartsWith("yellow", StringComparison.Ordinal) ? 8 :
             kind == "pen-pitnow" || kind == "pen-laps:1" ? 8 : kind.StartsWith("pen-type", StringComparison.Ordinal) ? 7 : 5;
 
@@ -211,6 +241,57 @@ namespace CrewChiefV4.AiTeam
                         RadioLanguage.T("Erledigt, die Rennleitung ist zufrieden.", "Done, race control is happy.", "Hecho, dirección de carrera conforme."),
                         RadioLanguage.T("Gut gemacht, der Gelbverstoß ist vom Tisch.", "Well done, the yellow flag issue is closed.", "Bien hecho, asunto de la amarilla cerrado."),
                         RadioLanguage.T("Sauber zurückgegeben, jetzt wieder angreifen.", "Cleanly handed back, now attack again.", "Devuelto limpio, ahora a atacar de nuevo."));
+                case "pen-warn":
+                {
+                    string name = DriverName;
+                    string reasonText = n == "conduct" ? RadioLanguage.T(" Grund: unsportliches Fahren.", " Reason: unsportsmanlike driving.", " Motivo: conducción antideportiva.") :
+                        n == "slow" ? RadioLanguage.T(" Du bist zu langsam auf der Strecke unterwegs.", " You're going too slowly on track.", " Vas demasiado lento en pista.") :
+                        n == "wrongway" ? RadioLanguage.T(" Du fährst in die falsche Richtung, dreh um, sobald es sicher ist!", " You're going the wrong way, turn around as soon as it's safe!", " ¡Vas en sentido contrario, da la vuelta en cuanto sea seguro!") :
+                        n == "lights" ? RadioLanguage.T(" Scheinwerfer einschalten!", " Turn your headlights on!", " ¡Enciende los faros!") :
+                        n == "stint" ? RadioLanguage.T(" Du musst an die Box, sonst überschreitest du die erlaubten Runden.", " You need to pit or you'll exceed the allowed laps.", " Tienes que entrar a boxes o superarás las vueltas permitidas.") :
+                        n == "contact" ? RadioLanguage.T(" Zu viele Kollisionen mit anderen Autos.", " Too many collisions with other cars.", " Demasiadas colisiones con otros coches.") :
+                        n == "kick-contact" ? RadioLanguage.T(" Noch eine Kollision und du wirst vom Server geworfen.", " One more collision and you'll be kicked from the server.", " Una colisión más y te echan del servidor.") :
+                        n == "kick-offtrack" ? RadioLanguage.T(" Noch ein Ausritt und du wirst vom Server geworfen.", " One more off-track and you'll be kicked from the server.", " Una salida de pista más y te echan del servidor.") : "";
+                    return V("rc-pen-warn",
+                        RadioLanguage.T("{n}, du hast eine Verwarnung von der Rennleitung bekommen.", "{n}, you've had a warning from race control.", "{n}, dirección de carrera te ha dado un aviso."),
+                        RadioLanguage.T("Achtung {n}, Verwarnung der Rennleitung.", "Heads up {n}, warning from race control.", "Atención {n}, aviso de dirección de carrera."),
+                        RadioLanguage.T("{n}, die Rennleitung hat dich verwarnt.", "{n}, race control has warned you.", "{n}, dirección de carrera te ha advertido."),
+                        RadioLanguage.T("Verwarnung für uns, {n}. Jetzt sauber bleiben.", "Warning for us, {n}. Keep it clean now.", "Aviso para nosotros, {n}. Ahora, limpio."),
+                        RadioLanguage.T("{n}, das war eine Verwarnung. Die nächste kann eine Strafe sein.", "{n}, that was a warning. The next one could be a penalty.", "{n}, eso fue un aviso. El siguiente podría ser una sanción."))
+                        .Select(t => Lead(t, name) + reasonText).ToArray();
+                }
+                case "pen-black":
+                    return V("rc-pen-black",
+                        RadioLanguage.T("{n}, schwarze Flagge für uns! Sofort an die Box.", "{n}, black flag for us! Box straight away.", "{n}, ¡bandera negra para nosotros! A boxes ya."),
+                        RadioLanguage.T("Achtung {n}, Black Flag. Wir müssen rein.", "Heads up {n}, black flag. We have to come in.", "Atención {n}, bandera negra. Tenemos que entrar."),
+                        RadioLanguage.T("{n}, die Rennleitung zeigt uns Schwarz. Diese Runde an die Box.", "{n}, race control is showing us black. Box this lap.", "{n}, dirección de carrera nos muestra la negra. A boxes esta vuelta."),
+                        RadioLanguage.T("Schwarze Flagge, {n}. Box, Box.", "Black flag, {n}. Box, box.", "Bandera negra, {n}. Box, box."),
+                        RadioLanguage.T("{n}, wir haben eine Strafe mit schwarzer Flagge bekommen. Ab an die Box.", "{n}, we've been given a black flag penalty. Into the pits.", "{n}, nos han sancionado con bandera negra. A boxes."))
+                        .Select(t => Lead(t, DriverName)).ToArray();
+                case "pen-meatball":
+                    return V("rc-pen-meatball",
+                        RadioLanguage.T("{n}, Meatball-Flagge: Das Auto muss zur Reparatur an die Box.", "{n}, meatball flag: the car has to pit for repairs.", "{n}, bandera de daños: el coche tiene que entrar a reparar."),
+                        RadioLanguage.T("Achtung {n}, schwarze Flagge mit orangem Punkt. Wir müssen reparieren.", "Heads up {n}, black flag with the orange disc. We need to repair.", "Atención {n}, bandera negra con disco naranja. Hay que reparar."),
+                        RadioLanguage.T("{n}, die Rennleitung holt uns wegen des Schadens rein. Diese Runde Box.", "{n}, race control is calling us in for the damage. Box this lap.", "{n}, dirección de carrera nos llama por los daños. A boxes esta vuelta."),
+                        RadioLanguage.T("Meatball für uns, {n}. Ab in die Box, Schaden beheben.", "Meatball for us, {n}. Into the pits, fix the damage.", "Bandera de daños, {n}. A boxes a reparar."),
+                        RadioLanguage.T("{n}, Strafe wegen Schaden: an die Box, sonst gibt es mehr.", "{n}, damage flag: pit now or it gets worse.", "{n}, sanción por daños: a boxes o será peor."))
+                        .Select(t => Lead(t, DriverName)).ToArray();
+                case "pen-dq":
+                    return V("rc-pen-dq",
+                        RadioLanguage.T("{n}, wir sind disqualifiziert worden. Das tut weh.", "{n}, we've been disqualified. That hurts.", "{n}, nos han descalificado. Duele."),
+                        RadioLanguage.T("Schlechte Nachricht, {n}: Disqualifikation.", "Bad news, {n}: disqualification.", "Mala noticia, {n}: descalificación."),
+                        RadioLanguage.T("{n}, die Rennleitung hat uns disqualifiziert.", "{n}, race control has disqualified us.", "{n}, dirección de carrera nos ha descalificado."),
+                        RadioLanguage.T("Disqualifiziert, {n}. Das Rennen ist für uns gelaufen.", "Disqualified, {n}. The race is over for us.", "Descalificados, {n}. La carrera se acabó para nosotros."),
+                        RadioLanguage.T("{n}, das ist die Disqualifikation. Tut mir leid.", "{n}, that's a disqualification. I'm sorry.", "{n}, es la descalificación. Lo siento."))
+                        .Select(t => Lead(t, DriverName)).ToArray();
+                case "pen-still":
+                    return V("rc-pen-still",
+                        RadioLanguage.T("{n}, du hast noch eine offene Strafe.", "{n}, you still have a penalty to serve.", "{n}, aún tienes una sanción pendiente."),
+                        RadioLanguage.T("Denk an die Strafe, {n}, sie ist noch nicht abgesessen.", "Remember the penalty, {n}, it hasn't been served yet.", "Recuerda la sanción, {n}, aún no está cumplida."),
+                        RadioLanguage.T("{n}, die Strafe steht noch aus.", "{n}, the penalty is still outstanding.", "{n}, la sanción sigue pendiente."),
+                        RadioLanguage.T("Die Strafe ist noch offen, {n}. Plan die Box ein.", "The penalty is still open, {n}. Plan the pit stop.", "La sanción sigue abierta, {n}. Planifica la parada."),
+                        RadioLanguage.T("{n}, Erinnerung: Strafe noch nicht erledigt.", "{n}, reminder: penalty not done yet.", "{n}, recordatorio: sanción aún sin cumplir."))
+                        .Select(t => Lead(t, DriverName)).ToArray();
                 case "pen-blue":
                     return V("rc-pen-blue",
                         RadioLanguage.T("Blaue Flagge, lass ihn jetzt vorbei, sonst gibt es eine Strafe.", "Blue flag, let him by now or we get a penalty.", "Bandera azul, déjale pasar ya o nos penalizan."),
@@ -240,6 +321,9 @@ namespace CrewChiefV4.AiTeam
                 case "dyellow": return sector == 0 ? !gs.FlagData.isLocalYellow : flag == FlagEnum.UNKNOWN || flag == FlagEnum.DOUBLE_YELLOW || flag == FlagEnum.YELLOW;
                 case "green": return flag == FlagEnum.UNKNOWN || flag == FlagEnum.GREEN;
                 case "pen-laps": case "pen-pitnow": return !gs.PitData.InPitlane && gs.PenaltiesData.NumOutstandingPenalties != 0;
+                case "pen-still": return !gs.PitData.InPitlane;
+                // Die Disqualifikation am Sessionende meldet die Rundenwache.
+                case "pen-dq": return gs.SessionData.SessionPhase != SessionPhase.Finished;
                 case "giveback": return gs.FlagData.numCarsPassedIllegally > 0;
                 default: return true;
             }

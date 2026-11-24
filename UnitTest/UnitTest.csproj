@@ -126,6 +126,7 @@
     <Compile Include="AiTeam\FuelProjectionTests.cs" />
     <Compile Include="AiTeam\PitAndFieldFindingsTests.cs" />
     <Compile Include="AiTeam\SessionBestCallTests.cs" />
+    <Compile Include="AiTeam\PenaltyHintTests.cs" />
     <Compile Include="AiTeam\RaceMindTests.cs" />
     <Compile Include="AiTeam\EngineerJudgementTests.cs" />
     <Compile Include="AiTeam\DataTruthTests.cs" />
