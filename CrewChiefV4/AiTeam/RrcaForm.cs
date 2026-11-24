@@ -336,6 +336,10 @@ namespace CrewChiefV4.AiTeam
                     Post(BuildInit());
                     break;
                 case "toggleRun":
+                    // LMU 24.11.: Stopp und sofort Start im Cockpit startete einen zweiten Durchlauf, während der alte noch aufräumte.
+                    // Der Startknopf im Hauptfenster ist bis zum Ende des Aufräumens gesperrt; das Cockpit hält sich jetzt daran.
+                    if (MainWindow.instance != null && !MainWindow.instance.startApplicationButton.Enabled)
+                    { Notice("Crew Chief stoppt oder startet noch. Bitte einen Moment warten."); Post(BuildInit()); break; }
                     if (MainWindow.instance != null) MainWindow.instance.startApplicationButton_Click(this, EventArgs.Empty);
                     break;
                 case "setGame":
