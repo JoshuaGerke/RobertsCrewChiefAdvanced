@@ -377,6 +377,7 @@
     <Compile Include="AiTeam\IncidentWatch.cs" />
     <Compile Include="AiTeam\LapWatch.cs" />
     <Compile Include="AiTeam\CrewSpeechPolicy.cs" />
+    <Compile Include="AiTeam\SessionGreenTracker.cs" />
     <Compile Include="AiTeam\SessionLapObserver.cs" />
     <Compile Include="AiTeam\LocalAnswers.cs" />
     <Compile Include="AiTeam\OpenAiCompatibleClient.cs" />

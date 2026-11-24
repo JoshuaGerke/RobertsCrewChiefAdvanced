@@ -256,10 +256,14 @@ namespace CrewChiefV4.AiTeam
         {
             var gs = ctx.GameState;
             var s = gs.SessionData;
+            // RaceRoom Salzburg 24.11.: Zwischen Training und Rennen meldete Crew Chief schon „Rennen“, aber noch die Zielflagge des
+            // Trainings. Ben: „Mein Lagebild zeigt das Rennen als beendet“, als Rob in der Startbox stand.
+            bool notStarted = !SessionGreenTracker.SawGreen(s) &&
+                (s.SessionPhase == SessionPhase.Finished || s.SessionPhase == SessionPhase.Checkered || s.SessionPhase == SessionPhase.Unavailable);
             var o = new JObject
             {
                 ["session"] = s.SessionType.ToString(),
-                ["phase"] = s.SessionPhase.ToString(),
+                ["phase"] = notStarted ? "VorDemStart" : s.SessionPhase.ToString(),
                 ["strecke"] = Text(s.TrackDefinition != null ? s.TrackDefinition.name : gs.trackName, "strecke", missing),
                 ["auto"] = Text(gs.carName, "auto", missing),
                 ["fahrzeugklasse"] = Text(gs.carClass != null ? gs.carClass.getClassIdentifier() : null, "fahrzeugklasse", missing),
@@ -279,6 +283,8 @@ namespace CrewChiefV4.AiTeam
                 ["restrunden_geschaetzt"] = LapWatch.LapsAreEstimated(s),
                 ["letzte_runde_geschaetzt"] = LapWatch.LapsAreEstimated(s) && LapWatch.LapsLeft(s) == 1,
             };
+            if (notStarted)
+                o["phase_hinweis"] = "Die Session hat noch nicht begonnen (Laden, Startaufstellung oder Startbox). Zielflagge, Runden und Restzeit stammen noch aus der vorigen Session.";
             if (IncidentPointsWatch.Known(s))
             {
                 o["vorfallpunkte"] = s.CurrentIncidentCount;
