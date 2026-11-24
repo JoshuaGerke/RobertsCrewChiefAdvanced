@@ -205,6 +205,78 @@ namespace UnitTest.AiTeamTests
             StringAssert.StartsWith("Akos Forgacs", call.Text);
         }
 
+        private static NativeFieldEvents Retirements(GameStateData gs, params string[] names)
+        {
+            var events = new NativeFieldEvents();
+            for (int i = 0; i < names.Length; i++)
+            {
+                string key = "car-" + (20 + i);
+                gs.OpponentData[key] = Car(names[i], 10 + i); gs.retriedDriverNames[names[i]] = null;
+                events.Capture(new NativeFieldFact("retired", key, names[i], null, "retirement", gs, gs.OpponentData[key], 0));
+            }
+            return events;
+        }
+
+        /// <summary>
+        /// Review 24.11.: Die Sammelansage entfernte die Einzelmeldungen sofort. Kam sie nicht an, waren alle Namen weg.
+        /// Jetzt kommen die noch gültigen Einzelmeldungen zurück und werden neu gesprochen.
+        /// </summary>
+        [Test]
+        public void Names_of_an_undelivered_bundle_come_back_instead_of_being_lost()
+        {
+            var gs = Race();
+            var events = Retirements(gs, "Anna Alt", "Bernd Berg", "Carla Cruz");
+            events.Observe(gs, T, null, true);
+            var bundle = events.Take(gs, T, false, true, false);
+            Assert.IsNotNull(bundle);
+            foreach (var n in new[] { "Anna Alt", "Bernd Berg", "Carla Cruz" }) StringAssert.Contains(n, bundle.Text);
+            Assert.AreEqual(2, events.BundledCount, "zwei Einzelmeldungen stecken in der Sammelansage");
+
+            bundle.ReleaseForRetry(T);                       // Rob drückt die Sprechtaste: erster Versuch abgebrochen
+            var again = events.Take(gs, T.AddSeconds(2), false, true, false);
+            Assert.AreSame(bundle, again, "zweiter Versuch derselben Sammelansage");
+            foreach (var n in new[] { "Anna Alt", "Bernd Berg", "Carla Cruz" }) StringAssert.Contains(n, again.Text);
+            again.ReleaseForRetry(T.AddSeconds(2));          // auch der zweite Versuch kommt nicht an
+
+            var retry = events.Take(gs, T.AddSeconds(4), false, true, false);
+            Assert.IsNotNull(retry, "die übrigen Namen gehen nicht verloren");
+            Assert.AreNotSame(bundle, retry);
+            StringAssert.Contains("Bernd Berg", retry.Text); StringAssert.Contains("Carla Cruz", retry.Text);
+        }
+
+        [Test]
+        public void A_delivered_bundle_is_not_spoken_again()
+        {
+            var gs = Race();
+            var events = Retirements(gs, "Anna Alt", "Bernd Berg");
+            events.Observe(gs, T, null, true);
+            var bundle = events.Take(gs, T, false, true, false);
+            Assert.IsNotNull(bundle);
+            bundle.MarkPlaybackStarted(T.AddSeconds(1));
+            Assert.IsNull(events.Take(gs, T.AddSeconds(60), false, true, false));
+            Assert.AreEqual(0, events.PendingCount); Assert.AreEqual(0, events.BundledCount);
+        }
+
+        /// <summary>Review 24.11.: Bei 16 wartenden Meldungen fiel die älteste weg – auch ein Ausfall vor 15 Führungswechseln.</summary>
+        [Test]
+        public void A_full_queue_drops_the_least_important_call_not_a_retirement()
+        {
+            var gs = Race();
+            var events = Retirements(gs, "Anna Alt");
+            for (int i = 0; i < NativeFieldEvents.MaxPending; i++)
+            {
+                string key = "lead-" + i;
+                var op = Car("Spitze " + i, 1);
+                gs.OpponentData[key] = op;
+                events.Capture(new NativeFieldFact("leader", key, op.DriverRawName, null, "new_leader", gs, op, 0));
+            }
+            events.Observe(gs, T, null, true);
+            Assert.AreEqual(NativeFieldEvents.MaxPending, events.PendingCount);
+            var first = events.Take(gs, T, false, true, false);
+            Assert.IsNotNull(first);
+            StringAssert.StartsWith("Anna Alt", first.Text, "der Ausfall bleibt in der Warteliste und hat Vorrang");
+        }
+
         [TestCase("ks_nurburgring:layout_gp_b", "Nürburgring")]
         [TestCase("ks_red_bull_ring:layout_gp", "Red Bull Ring")]
         [TestCase("ks_laguna_seca", "Laguna Seca")]
