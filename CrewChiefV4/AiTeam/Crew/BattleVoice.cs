@@ -224,6 +224,8 @@ namespace CrewChiefV4.AiTeam
                 if (digit.EndsWith(",") || digit.EndsWith(".")) { if (!Regex.IsMatch(templ, @"\d[.,]\d")) { reason = "new_number:" + word; return null; } continue; }
                 if (!Regex.IsMatch(templ, @"(?<![\d.,])" + digit + @"(?![\d])")) { reason = "new_number:" + word; return null; }
             }
+            string meaning = MeaningChange(lower, templ.ToLowerInvariant());
+            if (meaning != null) { reason = meaning; return null; }
             var allowed = allowedNames ?? new List<string>();
             foreach (var n in allowed)
                 if (c.IndexOf(n, StringComparison.OrdinalIgnoreCase) < 0) { reason = "rival_name_missing"; return null; }
@@ -237,6 +239,61 @@ namespace CrewChiefV4.AiTeam
             if (recentLines != null && recentLines.Any(r => Similarity(r, c) >= RepeatSimilarity)) { reason = "repeats_recent_line"; return null; }
             if (Similarity(templ, c) >= .9) { reason = "same_as_template"; return null; }
             return c;
+        }
+
+        // Prüfbericht Alpha 0.38 (Fälle 11 und 12) und Hockenheim 25.11.: Die Zahlenprüfung ließ „Keller fällt zurück“ für
+        // „Keller holt auf“ durch, einen erfundenen Reifenschaden für bloßen Zeitverlust und „Jawohl, Patrick SWAYZEE!“ beim
+        // eigenen Platzverlust. Richtung, Ursache und Stimmung gehören zur Kernaussage und dürfen sich nicht drehen.
+        private static readonly string[] Closing =
+        {
+            "holt auf", "holt dich", "holt sich", "schließt auf", "schliesst auf", "kommt näher", "kommt ran", "rückt näher", "rückt an", "ist dran", "wird enger",
+            "näher", "aufgeholt", "läuft auf", "closing", "catching", "gaining", "reeling", "coming back", "se acerca", "recorta", "te alcanza", "acercando",
+        };
+        private static readonly string[] Opening =
+        {
+            "fällt zurück", "fällt ab", "zurückgefallen", "lässt abreißen", "reißt ab", "baust aus", "bauen den vorsprung aus", "bauen aus", "vorsprung wächst",
+            "zieht davon", "setzt sich ab", "wird größer", "dropping back", "falling back", "pulling away", "gap is growing", "extending", "se aleja", "se escapa", "pierde terreno",
+        };
+        private static readonly string[] Causes =
+        {
+            "reifenschaden", "plattfuß", "schaden", "beschädigt", "defekt", "dreher", "gedreht", "abflug", "ausritt", "verbremst", "fehler", "problem mit", "technik",
+            "puncture", "damage", "damaged", "spun", "spin", "mistake", "off track", "pinchazo", "daño", "dañado", "trompo", "error", "avería",
+        };
+        private static readonly string[] Cheers =
+        {
+            "jawohl", "jaaa", "super", "stark", "klasse", "genial", "wahnsinn", "großartig", "bravo", "sauber gemacht", "geschafft", "yes!", "great", "brilliant",
+            "fantastic", "awesome", "get in", "¡sí", "genial", "fantástico", "estupendo", "bravo",
+        };
+        /// <summary>Vorlage meldet, dass Rob einen Platz verloren hat (nicht „du bist vorbei“).</summary>
+        private static readonly Regex OwnLoss = new Regex(
+            @"zurückgefallen|plätze? verloren|verloren an|gleich wieder verloren|platz weg|überholt dich|geht durch|zieht vorbei|vorbei ist|(?<!b)ist (wieder )?vorbei|" +
+            @"ist durch|konter von|hat direkt gekontert|konter bekommen|kam zurück|places? lost|lost (the place|straight back)|passed you|got past|is through|is back ahead|" +
+            @"puesto perdido|te ha pasado|te adelanta|vuelve a ir delante|perdido otra vez",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private static readonly Regex Negated = new Regex(@"(?:kein|keine|keinen|ohne|no|sin|nicht)\s+(?:\p{L}+\s+)?$", RegexOptions.Compiled);
+
+        private static bool AnyOf(string text, string[] words) => words.Any(w => text.Contains(w));
+
+        /// <summary>Hat der neue Satz die Bedeutung der Vorlage gedreht? Liefert den Grund oder null.</summary>
+        internal static string MeaningChange(string candidate, string template)
+        {
+            string c = candidate ?? "", t = template ?? "";
+            bool tClosing = AnyOf(t, Closing), tOpening = AnyOf(t, Opening);
+            if (AnyOf(c, Opening) && !tOpening && tClosing) return "direction_flipped";
+            if (AnyOf(c, Closing) && !tClosing && tOpening) return "direction_flipped";
+            foreach (var cause in Causes)
+            {
+                if (t.Contains(cause)) continue;
+                foreach (Match m in Regex.Matches(c, Regex.Escape(cause)))
+                    if (!Negated.IsMatch(c.Substring(0, m.Index))) return "invented_cause:" + cause;
+            }
+            if (OwnLoss.IsMatch(t) && !AnyOf(t, Cheers))
+                foreach (var cheer in Cheers)
+                    if (Regex.IsMatch(c, @"(?<!\p{L})" + Regex.Escape(cheer) + @"(?!\p{L})")) return "cheer_on_loss:" + cheer.Trim('!', '¡');
+            if ((c.Contains("bist schneller") || c.Contains("you're quicker") || c.Contains("you're faster") || c.Contains("eres más rápido")) &&
+                !(t.Contains("schneller") || t.Contains("quicker") || t.Contains("faster") || t.Contains("más rápido") || tClosing))
+                return "unproven_claim";
+            return null;
         }
 
         /// <summary>

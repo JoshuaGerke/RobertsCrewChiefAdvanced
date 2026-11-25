@@ -137,12 +137,7 @@ namespace CrewChiefV4.AiTeam
         {
             var s = gs.SessionData;
             if (fieldCall != null && fieldCall.DeliveryStartedUtc != DateTime.MinValue) { fieldCall = null; retrySlot = -1; }
-            if (fieldCall != null && fieldCall.DeliveryFailed)
-            {
-                if (fieldCallSlot >= 0 && fieldTries[fieldCallSlot] < FieldRetries) { fieldSlotDone[fieldCallSlot] = false; retrySlot = fieldCallSlot; }
-                LiveDiagnostics.Decision("field-topspeed", "retry", "not_spoken;slot=" + fieldCallSlot + ";tries=" + (fieldCallSlot >= 0 ? fieldTries[fieldCallSlot] : 0));
-                fieldCall = null;
-            }
+            if (fieldCall != null && (fieldCall.DeliveryFailed || now > fieldCall.ExpiresUtc)) RetryField(fieldCall.DeliveryFailed ? "not_spoken" : "expired_unspoken");
             if (fieldCall != null || s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green ||
                 view == null || view.Player == null || view.Cars == null) return;
             int slot = FieldSlot(s);
@@ -263,13 +258,28 @@ namespace CrewChiefV4.AiTeam
                     "Trampa de velocidad: " + list + ". Tú " + mine + " km/h, " + r + "º. El tiempo lo ganas en las curvas."));
         }
 
+        /// <summary>
+        /// Hockenheim 25.11.: Der erste Topspeed-Termin verfiel ungehört; der Wiederholversuch aus 0.38 griff nur bei einem
+        /// abgebrochenen Abspielen, nicht beim Verfallen. Beides setzt den Termin jetzt neu an (höchstens dreimal).
+        /// </summary>
+        private void RetryField(string why)
+        {
+            if (fieldCallSlot >= 0 && fieldTries[fieldCallSlot] < FieldRetries) { fieldSlotDone[fieldCallSlot] = false; retrySlot = fieldCallSlot; }
+            LiveDiagnostics.Decision("field-topspeed", "retry", why + ";slot=" + fieldCallSlot + ";tries=" + (fieldCallSlot >= 0 ? fieldTries[fieldCallSlot] : 0));
+            fieldCall = null;
+        }
+
         internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool enabled)
         {
             if (busy || !enabled) return null;
             if (fieldCall != null)
             {
                 if (fieldCall.IsValid(gs, now)) { if (fieldCall.TryReserve(now)) return fieldCall; }
-                else if (now > fieldCall.ExpiresUtc) { LiveDiagnostics.Decision(fieldCall.Topic, "suppressed", "expired", fieldCall.Evidence, fieldCall.EventId); fieldCall = null; }
+                else if (now > fieldCall.ExpiresUtc)
+                {
+                    LiveDiagnostics.Decision(fieldCall.Topic, "suppressed", "expired", fieldCall.Evidence, fieldCall.EventId);
+                    if (fieldCall.DeliveryStartedUtc == DateTime.MinValue) RetryField("expired_unspoken"); else fieldCall = null;
+                }
             }
             if (call == null) return null;
             if (!call.IsValid(gs, now))

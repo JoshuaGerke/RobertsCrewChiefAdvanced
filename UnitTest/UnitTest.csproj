@@ -142,6 +142,7 @@
     <Compile Include="AiTeam\BattleVoiceTests.cs" />
     <Compile Include="AiTeam\SebringRadioTests.cs" />
     <Compile Include="AiTeam\SebringDriveFindingsTests.cs" />
+    <Compile Include="AiTeam\Hockenheim25FindingsTests.cs" />
     <Compile Include="AiTeam\QualiCoachingTests.cs" />
     <Compile Include="AiTeam\BattleSectorTests.cs" />
     <Compile Include="AiTeam\RaceEventMemoryTests.cs" />

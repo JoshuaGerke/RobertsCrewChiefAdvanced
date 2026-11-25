@@ -420,7 +420,10 @@ namespace CrewChiefV4.AiTeam
                     string name = names ? new string((rival.DriverRawName ?? "").Where(c => char.IsLetterOrDigit(c) || c == ' ' || c == '-').Take(50).ToArray()).Trim() : "";
                     float mine = Good(personalBest) && Good(s.PlayerLapTimeSessionBest) ? Math.Min(personalBest, s.PlayerLapTimeSessionBest) :
                         Good(personalBest) ? personalBest : s.PlayerLapTimeSessionBest;
-                    if (!Good(mine)) mine = TodayBest(gs);
+                    // Hockenheim 25.11.: Im Training „zu deiner eigenen Bestzeit fehlen 1,8“ – verglichen mit der Trainingsrunde 1:45,578,
+                    // obwohl die Hotlap von eben 1:44,047 war (richtig: 0,3). Außerhalb des Rennens zählt Robs beste Runde von heute.
+                    float today = TodayBest(gs);
+                    if (Good(today) && (!Good(mine) || s.SessionType != SessionType.Race && today < mine)) mine = today;
                     var rivalCall = Add(gs, now, "rival-best", FastestLapText(name, nextBest, mine, RaceRadioLanguage.SeparateClass(s), rivalBests.Heard),
                         firstFieldTime ? "first_field_time_just_driven" : "measured_field_best_and_identified_rival", 4, rivalBests);
                     // Ben sagt die Bestzeiten im Feld an; sie bleiben gültig, bis jemand schneller ist.

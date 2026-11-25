@@ -6,7 +6,18 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.38: Fehlerbehebungen nach dem LMU-Rennen in Algarve.**
+> **Neu in Alpha 0.39: Fehlerbehebungen nach dem RaceRoom-Rennen in Hockenheim.**
+>
+> - **Deine Bestzeit als Referenz.** Fährst du im Training oder Qualifying los, sagt Ben deine absolute Bestzeit für Wagen und Strecke, mit Sprit an Bord, Strecken- und Lufttemperatur: „Rob, deine absolute Bestzeit hier auf der Strecke liegt bisher bei … Das ist deine Referenz.“ Vier abwechselnde Fassungen. Funkst du gerade, wartet die Ansage bis zu zwei Minuten und kommt sonst beim nächsten Losfahren.
+> - **Bestzeiten-Datenbank für RaceRoom.** RaceRoom meldet keinen Autonamen, deshalb blieb die Datenbank dort leer. Jetzt dient das Automodell der Sim als Schlüssel.
+> - **Richtiger Startplatz.** Der Platz in der Startaufstellung gilt, nicht der erste Wert beim Anlegen der Sitzung. „Seit dem Start zwei Plätze verloren“ bei unverändertem Platz fällt weg.
+> - **Ben dreht nichts um.** Eine frei formulierte Ansage darf die Richtung nicht umkehren („fällt zurück“ statt „holt auf“), keine Ursache erfinden (etwa einen Reifenschaden), beim Platzverlust nicht jubeln und kein „du bist schneller“ ohne Beleg behaupten. Sonst kommt der feste Satz.
+> - **Richtiger Vergleich im Training.** Bestzeiten anderer vergleicht Ben mit deiner besten Runde von heute, auch aus der Hotlap davor.
+> - **Verteidigung nach hinten kommt an.** „… schließt auf“ wartet länger auf freien Funk und ist wichtiger eingestuft. Ob der Abstand noch stimmt, wird beim Sprechen geprüft.
+> - **Der erste Topspeed-Vergleich kommt.** Verfällt er ungehört, wird er mit frischen Werten neu angesetzt.
+> - **Kein „der macht dir Platz“** mehr bei klassenfremdem Verkehr, das weiß keiner vorher.
+>
+> **Seit Alpha 0.38: Fehlerbehebungen nach dem LMU-Rennen in Algarve.**
 >
 > - **Sara hat Vorrang.** Gelb, Unfälle, stehende und langsame Wagen unterbrechen Ben und Mik sofort. Antworten auf deine Fragen unterbricht sie nur bei echter Gefahr.
 > - **Zwei Stufen für alle Ansagen.** Wichtige Meldungen kommen sofort, alles andere stellt sich an und kommt, sobald Luft ist. Die Wartezeit hinter laufendem Funk zählt nicht als Alter, eine Meldung entfällt nur, wenn ihr Inhalt wirklich veraltet ist.

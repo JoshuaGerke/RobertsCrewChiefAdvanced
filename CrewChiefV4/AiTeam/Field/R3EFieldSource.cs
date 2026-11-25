@@ -38,7 +38,8 @@ namespace CrewChiefV4.AiTeam.Field
             oRaceLaps = At("RaceSessionLaps.Race1"), oRaceMin = At("RaceSessionMinutes.Race1"),
             oSessionType = At("SessionType"), oIteration = At("SessionIteration"), oFormat = At("SessionLengthFormat"),
             oPhase = At("SessionPhase"), oLaps = At("NumberOfLaps"), oDuration = At("SessionTimeDuration"), oRemaining = At("SessionTimeRemaining"),
-            oGiveBack = At("Flags.YellowPositionsGained"), oVehicleSlot = At("VehicleInfo.SlotId");
+            oGiveBack = At("Flags.YellowPositionsGained"), oVehicleSlot = At("VehicleInfo.SlotId"),
+            oVehicleModel = At("VehicleInfo.ModelId");
         private static readonly int dName = D("DriverInfo.Name"), dSlot = D("DriverInfo.SlotId"), dClass = D("DriverInfo.ClassId"),
             dFinish = D("FinishStatus"), dPlace = D("Place"), dPlaceClass = D("PlaceClass"), dDist = D("LapDistance"),
             dX = D("Position.X"), dY = D("Position.Y"), dZ = D("Position.Z"), dLaps = D("CompletedLaps"), dValid = D("CurrentLapValid"),
@@ -162,6 +163,8 @@ namespace CrewChiefV4.AiTeam.Field
             int give = I(b, oGiveBack); f.PositionsToGiveBack = give >= 0 && give < 64 ? give : -1;
             f.NumCars = numCars;
             int playerSlot = I(b, oVehicleSlot);
+            // Hockenheim 25.11.: Crew Chief setzt für RaceRoom keinen Autonamen – die Bestzeiten-Datenbank blieb leer.
+            int model = I(b, oVehicleModel); f.PlayerCarModel = model > 0 ? "r3e-model-" + model.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
             int start = allDrivers + 4;
             int usable = Math.Max(0, Math.Min(numCars, (length - start) / driverSize));
             if (f.Cars.Length != usable) f.Cars = new FieldCarFrame[usable];

@@ -6,7 +6,18 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.38: bug fixes after the LMU race at Algarve.**
+> **New in Alpha 0.39: bug fixes after the RaceRoom race at Hockenheim.**
+>
+> - **Your best lap as the reference.** When you head out in practice or qualifying, Ben names your absolute best lap for this car and track, with the fuel on board, track and air temperature: "Rob, your absolute best on this track so far is a … That's your reference." Four alternating wordings. If you are on the radio, the call waits for up to two minutes, otherwise it comes the next time you head out.
+> - **Best lap database for RaceRoom.** RaceRoom does not report a car name, so the database stayed empty there. The sim's car model now serves as the key.
+> - **Correct grid position.** The place on the starting grid counts, not the first value when the session is created. "Lost two places since the start" with an unchanged position is gone.
+> - **Ben does not twist the meaning.** A freely worded call may not reverse the direction ("dropping back" instead of "closing"), invent a cause (such as a puncture), cheer when you lose a place or claim "you're quicker" without evidence. Otherwise the fixed sentence is used.
+> - **Correct comparison in practice.** Ben compares other drivers' best laps with your best lap of today, including the hotlap before.
+> - **Defending from behind gets through.** "… is closing" waits longer for a free radio and ranks higher. Whether the gap still holds is checked when it is spoken.
+> - **The first top speed comparison arrives.** If it expires unheard, it is set up again with fresh values.
+> - **No more "he'll make room"** for other-class traffic, nobody knows that in advance.
+>
+> **Since Alpha 0.38: bug fixes after the LMU race at Algarve.**
 >
 > - **Sara comes first.** Yellow flags, accidents, stopped and slow cars cut Ben and Mik off at once. She only cuts an answer to your question for a real hazard.
 > - **Two tiers for all calls.** Important calls come at once, everything else queues and comes as soon as the radio is free. Time spent waiting behind running radio does not count as age, and a call is only dropped when its content is really out of date.

@@ -122,7 +122,8 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             if (s.SessionType != SessionType.Race) { if (session != int.MinValue) Reset(); return; }
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
-            if (startPosition <= 0) startPosition = RaceStartLatch.Position(s);
+            int latchedStart = RaceStartLatch.Position(s);
+            if (latchedStart > 0) startPosition = latchedStart;
             if (windows.Count == 0 && (s.SessionNumberOfLaps > 0 || s.SessionTotalRunTime > 0)) Plan(s);
             // Früher Zwischenstand nach der ersten vollen Runde, die weiteren frühestens nach drei Runden.
             if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < (delivered == 0 ? 1 : 3)) return;

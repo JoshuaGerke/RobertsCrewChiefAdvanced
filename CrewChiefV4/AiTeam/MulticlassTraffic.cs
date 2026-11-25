@@ -119,9 +119,10 @@ namespace CrewChiefV4.AiTeam
                 RadioLanguage.T("Du läufst auf " + de + " auf, andere Klasse. Sauber vorbei, am besten auf der Geraden.",
                     "You're catching " + en + ", different class. Clean pass, ideally on the straight.",
                     "Te acercas a " + es + ", otra clase. Adelanta limpio, mejor en la recta."),
-                RadioLanguage.T("Klassenfremder Verkehr voraus: " + de + ". Kein Risiko, der macht dir Platz.",
-                    "Other-class traffic ahead: " + en + ". No risk, he'll make room.",
-                    "Tráfico de otra clase delante: " + es + ". Sin riesgos, te dejará sitio."),
+                // Astra-Prüfbericht 25.11.: „der macht dir Platz“ ist eine Behauptung über den anderen Fahrer, die keiner messen kann.
+                RadioLanguage.T("Klassenfremder Verkehr voraus: " + de + ". Kein Risiko, rechne nicht damit, dass er Platz macht.",
+                    "Other-class traffic ahead: " + en + ". No risk, don't count on him making room.",
+                    "Tráfico de otra clase delante: " + es + ". Sin riesgos, no cuentes con que te deje sitio."),
                 RadioLanguage.T(De + " kommt näher. Zeig dich früh, dann ist er berechenbar.",
                     En + " coming up. Show yourself early so he knows you're there.",
                     Es + " se acerca. Déjate ver pronto para que sepa que estás ahí."),
