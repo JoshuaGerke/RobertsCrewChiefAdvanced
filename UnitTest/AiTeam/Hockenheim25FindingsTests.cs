@@ -20,12 +20,13 @@ namespace UnitTest.AiTeamTests
         private static readonly DateTime T = new DateTime(2026, 11, 25, 20, 32, 0, DateTimeKind.Utc);
         private static readonly string[] Field = { "Keller", "Malik", "Pacak", "Swayzee" };
         private string wasLanguage;
+        private bool wasDeterministic;
 
         [SetUp]
-        public void SetUp() { wasLanguage = RadioLanguage.Current; RadioLanguage.Current = RadioLanguage.German; RaceStartLatch.Reset(); BattleVoice.Reset(); }
+        public void SetUp() { wasLanguage = RadioLanguage.Current; wasDeterministic = RadioVariants.Deterministic; RadioLanguage.Current = RadioLanguage.German; RaceStartLatch.Reset(); BattleVoice.Reset(); }
 
         [TearDown]
-        public void TearDown() { RadioLanguage.Current = wasLanguage; RaceStartLatch.Reset(); BattleVoice.Reset(); RadioVariants.Deterministic = false; }
+        public void TearDown() { RadioLanguage.Current = wasLanguage; RaceStartLatch.Reset(); BattleVoice.Reset(); RadioVariants.Deterministic = wasDeterministic; }
 
         // ---------- Startplatz ----------
 
