@@ -85,7 +85,7 @@ namespace UnitTest.AiTeamTests
                 RadioLanguage.Current = language;
                 for (int v = 0; v < 12; v++)
                 {
-                    string line = DriverJudgementWatch.Countered("Rob", "Patrick Swayzee", v);
+                    string line = DriverJudgement.Countered("Rob", "Patrick Swayzee", v);
                     StringAssert.DoesNotContain("schneller", line); StringAssert.DoesNotContain("quicker", line); StringAssert.DoesNotContain("más rápido", line);
                 }
             }
