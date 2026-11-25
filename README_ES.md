@@ -6,7 +6,11 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.39: correcciones tras la carrera de RaceRoom en Hockenheim.**
+> **Novedades de Alpha 0.40: Sara también arranca en inglés y español.**
+>
+> - **La voz de Sara en EN y ES.** Con la radio en inglés o español, RRCA se quedaba en «la voz elegida de Sara está preparada pero no cargada», incluso tras reiniciar. La comprobación de inicio ahora conoce el idioma del paquete de Sara. Gracias a kamil-malinski por el aviso y la solución.
+>
+> **Desde Alpha 0.39: correcciones tras la carrera de RaceRoom en Hockenheim.**
 >
 > - **Tu mejor vuelta como referencia.** Al salir a pista en libres o clasificación, Ben te dice tu mejor tiempo absoluto con este coche en este circuito, con la gasolina a bordo y la temperatura de pista y de aire: «Rob, tu mejor tiempo absoluto en esta pista hasta ahora es un … Esa es tu referencia.» Cuatro formulaciones alternas. Si estás hablando por radio, el aviso espera hasta dos minutos; si no, llega la próxima vez que salgas.
 > - **Base de datos de mejores vueltas para RaceRoom.** RaceRoom no informa del nombre del coche, así que la base de datos quedaba vacía. Ahora el modelo de coche del simulador sirve de clave.

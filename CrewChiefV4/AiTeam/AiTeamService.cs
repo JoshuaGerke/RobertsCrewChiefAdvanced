@@ -3611,27 +3611,7 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Kennung der aktuell gewählten Sara-Stimme; ändert sie sich, wird das Spotterpack neu erzeugt.</summary>
         public string SaraVoiceKey
         {
-            get
-            {
-                // Deutsch ohne Zusatz, damit bestehende Pakete gültig bleiben; andere Sprachen brauchen ein eigenes Paket
-                return SaraVoiceKeyWithoutLanguage + (RadioLanguage.IsGerman ? "" : "|lang=" + RadioLanguage.Current);
-            }
-        }
-
-        private string SaraVoiceKeyWithoutLanguage
-        {
-            get
-            {
-                if (settings.TtsProvider == AiTtsProvider.ELEVENLABS)
-                {
-                    return "elevenlabs|" + settings.ElevenLabsModel + "|" + settings.ElevenLabsVoiceSara + "|radio=" + settings.RadioEffect;
-                }
-                if (settings.TtsProvider != AiTtsProvider.WINDOWS)
-                {
-                    return "cloud|" + settings.TtsModel + "|" + settings.VoiceSara + "|radio=" + settings.RadioEffect;
-                }
-                return "windows|" + settings.WindowsVoiceSara + "|radio=" + settings.RadioEffect;
-            }
+            get { return CrewVoiceReadiness.ExpectedSaraVoiceKey(settings); }
         }
 
         public bool SaraSpotterPackCurrent

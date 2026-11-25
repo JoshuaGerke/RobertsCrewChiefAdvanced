@@ -6,7 +6,11 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.39: Fehlerbehebungen nach dem RaceRoom-Rennen in Hockenheim.**
+> **Neu in Alpha 0.40: Sara startet auch auf Englisch und Spanisch.**
+>
+> - **Sara-Stimme in EN und ES.** Mit englischem oder spanischem Funk blieb RRCA bei „Saras gewählte Originalstimme ist vorbereitet, aber noch nicht in der Audioengine geladen“ stehen, auch nach einem Neustart. Die Startprüfung kennt jetzt die Sprache des Sara-Pakets. Danke an kamil-malinski für Fehlerbericht und Lösung.
+>
+> **Seit Alpha 0.39: Fehlerbehebungen nach dem RaceRoom-Rennen in Hockenheim.**
 >
 > - **Deine Bestzeit als Referenz.** Fährst du im Training oder Qualifying los, sagt Ben deine absolute Bestzeit für Wagen und Strecke, mit Sprit an Bord, Strecken- und Lufttemperatur: „Rob, deine absolute Bestzeit hier auf der Strecke liegt bisher bei … Das ist deine Referenz.“ Vier abwechselnde Fassungen. Funkst du gerade, wartet die Ansage bis zu zwei Minuten und kommt sonst beim nächsten Losfahren.
 > - **Bestzeiten-Datenbank für RaceRoom.** RaceRoom meldet keinen Autonamen, deshalb blieb die Datenbank dort leer. Jetzt dient das Automodell der Sim als Schlüssel.

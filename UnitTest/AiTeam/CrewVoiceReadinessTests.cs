@@ -26,6 +26,17 @@ namespace UnitTest.AiTeamTests
         public void Missing_or_different_local_spotter_cannot_claim_selected_voice_is_ready(bool pack,string selected,string folder,string reason)
         { var result=Check(Settings(),pack,selected,folder);Assert.IsFalse(result.Ready);Assert.AreEqual(reason,result.Reason); }
 
+        // Issue #18: Englisches Pack trägt "|lang=en", die Startprüfung erwartete den Schlüssel ohne Sprache
+        [TestCase("en", "elevenlabs|eleven_flash_v2_5|FGY2WhTYpPnrIDTdsKH5|radio=True|lang=en")]
+        [TestCase("es", "elevenlabs|eleven_flash_v2_5|FGY2WhTYpPnrIDTdsKH5|radio=True|lang=es")]
+        [TestCase("de", "elevenlabs|eleven_flash_v2_5|FGY2WhTYpPnrIDTdsKH5|radio=True")]
+        public void Loaded_pack_in_radio_language_is_ready(string language, string loadedKey)
+        {
+            var s=Settings();s.RadioLanguageSetting=language;s.ElevenLabsModel="eleven_flash_v2_5";s.ElevenLabsVoiceSara="FGY2WhTYpPnrIDTdsKH5";s.RadioEffect=true;
+            Assert.AreEqual(loadedKey,CrewVoiceReadiness.ExpectedSaraVoiceKey(s));
+            Assert.AreEqual("ready",Check(s,key:loadedKey).Reason);
+        }
+
         [Test]
         public void Replaced_pack_on_disk_does_not_claim_old_loaded_clips_have_changed()
         { var s=Settings();string loaded=CrewVoiceReadiness.ExpectedSaraVoiceKey(s);s.ElevenLabsVoiceSara="another-selected-voice";var result=Check(s,key:loaded);Assert.IsFalse(result.Ready);Assert.AreEqual("restart_required",result.Reason); }

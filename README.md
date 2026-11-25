@@ -6,7 +6,11 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.39: bug fixes after the RaceRoom race at Hockenheim.**
+> **New in Alpha 0.40: Sara starts in English and Spanish too.**
+>
+> - **Sara's voice in EN and ES.** With English or Spanish radio, RRCA got stuck at "Sara's selected voice is prepared but not loaded in the audio engine", even after a restart. The startup check now knows the language of Sara's pack. Thanks to kamil-malinski for the report and the fix.
+>
+> **Since Alpha 0.39: bug fixes after the RaceRoom race at Hockenheim.**
 >
 > - **Your best lap as the reference.** When you head out in practice or qualifying, Ben names your absolute best lap for this car and track, with the fuel on board, track and air temperature: "Rob, your absolute best on this track so far is a … That's your reference." Four alternating wordings. If you are on the radio, the call waits for up to two minutes, otherwise it comes the next time you head out.
 > - **Best lap database for RaceRoom.** RaceRoom does not report a car name, so the database stayed empty there. The sim's car model now serves as the key.

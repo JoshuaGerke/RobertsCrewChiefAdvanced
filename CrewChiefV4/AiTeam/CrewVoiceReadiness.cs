@@ -66,11 +66,14 @@ namespace CrewChiefV4.AiTeam
 
         public static string ExpectedSaraVoiceKey(AiTeamSettings settings)
         {
+            string language = RadioLanguage.Resolve(settings.RadioLanguageSetting);
+            // Keep existing German packs valid; other languages require their own pack.
+            string suffix = language == RadioLanguage.German ? "" : "|lang=" + language;
             if (settings.TtsProvider == AiTtsProvider.ELEVENLABS)
-                return "elevenlabs|" + settings.ElevenLabsModel + "|" + settings.ElevenLabsVoiceSara + "|radio=" + settings.RadioEffect;
+                return "elevenlabs|" + settings.ElevenLabsModel + "|" + settings.ElevenLabsVoiceSara + "|radio=" + settings.RadioEffect + suffix;
             if (settings.TtsProvider != AiTtsProvider.WINDOWS)
-                return "cloud|" + settings.TtsModel + "|" + settings.VoiceSara + "|radio=" + settings.RadioEffect;
-            return "windows|" + settings.WindowsVoiceSara + "|radio=" + settings.RadioEffect;
+                return "cloud|" + settings.TtsModel + "|" + settings.VoiceSara + "|radio=" + settings.RadioEffect + suffix;
+            return "windows|" + settings.WindowsVoiceSara + "|radio=" + settings.RadioEffect + suffix;
         }
 
         public static Result Evaluate(AiTeamSettings settings, bool packReady, string selectedSpotterName,
