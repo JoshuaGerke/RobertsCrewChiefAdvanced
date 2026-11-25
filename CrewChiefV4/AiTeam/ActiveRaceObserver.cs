@@ -523,7 +523,8 @@ namespace CrewChiefV4.AiTeam
                 gs.carClass != null && entering.CarClass != null && CarData.IsCarClassEqual(gs.carClass, entering.CarClass, false))
                 recentFrontPit = new PitGainEvidence(previousFrontKey, entering, oldFront.Position, now);
             if (!green || gs.PitData.InPitlane || previousInPits) recentFrontPit = null;
-            if (startPosition == 0) startPosition = RaceStartLatch.Position(s);
+            int latchedStart = RaceStartLatch.Position(s); // vor Grün läuft der Platz in der Startaufstellung mit (Hockenheim 25.11.)
+            if (latchedStart > 0) startPosition = latchedStart;
             // Kurzes Startfazit nach der ersten halben Runde (Robs Wunsch), einmal pro Rennen, in wechselnden Formulierungen
             float trackLength = s.TrackDefinition == null ? 0 : s.TrackDefinition.trackLength;
             float lapDistance = gs.PositionAndMotionData.DistanceRoundTrack;
@@ -854,7 +855,10 @@ namespace CrewChiefV4.AiTeam
             // Rennverständnis (Rob 21.11.): Kennen wir ihn schon aus einem Duell, sagt Ben es dazu.
             string story = name.Length > 0 ? RaceStory.Approaching(s.OpponentKeyBehind, now, storyVariant) : "";
             if (story.Length > 0) { text += " " + story; storyVariant++; }
-            Add("rear-pressure", text, state, now, 10, 4, "same_class_rival_interval_shrinking_into_attack_range");
+            // Hockenheim 25.11.: „Simon Malik schließt auf“ (0,9 und 0,5 s) verfiel zweimal ungehört nach 10 s, während Rob gerade
+            // fragte und Mik Tracklimits meldete. Verteidigung hat Vorrang vor Routine (Prüfliste 5): länger gültig, höherer Rang.
+            // Der Abstand wird beim Sprechen weiter neu geprüft (siehe unten), eine veraltete Zahl kommt also nicht durch.
+            Add("rear-pressure", text, state, now, 20, 5, "same_class_rival_interval_shrinking_into_attack_range");
             var warning = pending.Last();
             warning.FieldNamesAllowed = name.Length != 0;
             warning.BindVariant(pressureVariants, group, variant);

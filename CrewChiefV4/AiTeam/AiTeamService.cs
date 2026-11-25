@@ -354,6 +354,7 @@ namespace CrewChiefV4.AiTeam
                 (current.SessionData.SessionPhase == SessionPhase.Green || current.SessionData.SessionPhase == SessionPhase.FullCourseYellow))
                 return;
             SessionGreenTracker.Observe(current);
+            RaceStartLatch.Observe(current.SessionData);
             int session = current.SessionData.SessionId;
             bool newSession = session != Memory.SessionId || (previous != null && previous.SessionData.SessionType != current.SessionData.SessionType) ||
                 (current.SessionData.IsNewSession && previous != null && !previous.SessionData.IsNewSession);
@@ -890,7 +891,7 @@ namespace CrewChiefV4.AiTeam
             if (raceCall == null) raceCall = sessionLaps.Take(current, now, ownLapBusy || now.Ticks < Volatile.Read(ref lapCountdownUntilTicks), ownLapOnly: true);
             if (raceCall == null) raceCall = TakePitFinish(current, now);
             if (raceCall == null) raceCall = personalBest.Take(current, now, Spotter().HasOverlap || radioRenderGate.Busy || currentRequest != null,
-                settings.IsMemberEnabled(TeamMember.Mik));
+                settings.IsMemberEnabled(TeamMember.Mik), settings.IsMemberEnabled(TeamMember.Ben));
             if (raceCall == null && !proactiveRunning && currentRequest == null)
             {
                 // Rob 21.11.: Unterbrochenes nachreichen, sobald der Funk frei ist.

@@ -11,12 +11,12 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class PersonalBestWatch
     {
-        private int session = int.MinValue, variant, lastSectorLap = -100;
+        private int session = int.MinValue, variant, lastSectorLap = -100, briefAttempts;
         private bool briefed, nearDone;
         private DateTime drivingSince = DateTime.MinValue, sessionStartUtc = DateTime.MinValue;
         private ObservedRaceCall call;
 
-        internal void Reset() { session = int.MinValue; lastSectorLap = -100; briefed = nearDone = false; drivingSince = sessionStartUtc = DateTime.MinValue; call = null; }
+        internal void Reset() { session = int.MinValue; lastSectorLap = -100; briefAttempts = 0; briefed = nearDone = false; drivingSince = sessionStartUtc = DateTime.MinValue; call = null; }
 
         internal static bool Practiceish(SessionType t) => t == SessionType.Practice || t == SessionType.LonePractice || t == SessionType.Qualify ||
             t == SessionType.PrivateQualify || t == SessionType.HotLap;
@@ -27,7 +27,7 @@ namespace CrewChiefV4.AiTeam
         internal static string Conditions(PersonalBest pb)
         {
             var parts = new System.Collections.Generic.List<string>();
-            if (pb.FuelAtStart >= 0) parts.Add(RadioLanguage.T(RadioLanguage.Num(pb.FuelAtStart, "0") + " Litern", RadioLanguage.Num(pb.FuelAtStart, "0") + " litres",
+            if (pb.FuelAtStart >= 0) parts.Add(RadioLanguage.T(RadioLanguage.Num(pb.FuelAtStart, "0") + " Litern Sprit", RadioLanguage.Num(pb.FuelAtStart, "0") + " litres",
                 RadioLanguage.Num(pb.FuelAtStart, "0") + " litros"));
             if (!string.IsNullOrWhiteSpace(pb.Compound)) parts.Add(RadioLanguage.T("Reifen " + pb.Compound, pb.Compound + " tyres", "neumáticos " + pb.Compound));
             if (PersonalBest.Finite(pb.TrackC)) parts.Add(RadioLanguage.T(RadioLanguage.Num(pb.TrackC, "0") + " Grad Strecke", RadioLanguage.Num(pb.TrackC, "0") + " degrees track",
@@ -98,22 +98,29 @@ namespace CrewChiefV4.AiTeam
                         ". Esa es la referencia. Vigilo tus sectores y te digo dónde pierdes frente a esa vuelta." + (compareToday.Length > 0 ? " " + compareToday : "") + " ¡Vamos!");
             }
             // Rob 23.11.: Der Vergleich aus der Datenbank am Anfang der Session, immer mit mehreren Formulierungen.
+            // Rob 25.11.: „Deine absolute Bestzeit hier auf der Strecke liegt bisher bei …“ – Zeit, Sprit, Strecke und Luft, dann
+            // „Das ist deine Referenz.“ Vier Fassungen zur Abwechslung; fehlende Werte werden weggelassen, nie geraten.
             string t = Time(pb.LapSeconds);
             string opening = RadioVariants.Pick("pb-brief-opening",
-                RadioLanguage.T(n + "deine Bestzeit hier liegt bei " + t, n + "your best here is " + t, n + "tu mejor tiempo aquí es " + t),
-                RadioLanguage.T(n + "deine Bestmarke mit diesem Auto hier: " + t, n + "your benchmark in this car here: " + t, n + "tu referencia con este coche aquí: " + t),
-                RadioLanguage.T(n + "aus unserer Datenbank: Deine schnellste Runde hier ist eine " + t, n + "from our database: your fastest lap here is a " + t,
-                    n + "según nuestra base de datos, tu vuelta más rápida aquí es un " + t),
-                RadioLanguage.T(n + "zur Orientierung, deine Referenz auf dieser Strecke ist eine " + t, n + "for reference, your benchmark at this track is a " + t,
-                    n + "como orientación, tu referencia en este circuito es un " + t),
-                RadioLanguage.T(n + "die Messlatte für heute ist deine " + t + " von früher", n + "the bar for today is your " + t + " from before",
-                    n + "el listón para hoy es tu " + t + " de antes"),
-                RadioLanguage.T(n + "in unseren Daten steht für dich hier eine " + t, n + "our data has you at a " + t + " here", n + "en nuestros datos tienes aquí un " + t));
+                RadioLanguage.T(n + "deine absolute Bestzeit hier auf der Strecke liegt bisher bei " + t, n + "your absolute best on this track so far is a " + t,
+                    n + "tu mejor tiempo absoluto en esta pista hasta ahora es un " + t),
+                RadioLanguage.T(n + "deine schnellste Runde hier mit diesem Auto war bisher eine " + t, n + "your fastest lap here in this car so far is a " + t,
+                    n + "tu vuelta más rápida aquí con este coche hasta ahora es un " + t),
+                RadioLanguage.T(n + "zur Orientierung: Deine Bestmarke auf dieser Strecke steht bei " + t, n + "for reference: your benchmark on this track stands at " + t,
+                    n + "como orientación: tu marca en este circuito está en " + t),
+                RadioLanguage.T(n + "aus unserer Datenbank: Deine Allzeit-Bestzeit hier ist eine " + t, n + "from our database: your all-time best here is a " + t,
+                    n + "según nuestra base de datos, tu mejor tiempo de siempre aquí es un " + t));
             if (n.Length == 0) opening = char.ToUpperInvariant(opening[0]) + opening.Substring(1);
+            var reference = RadioLanguage.Pick(RefDe, RefEn, RefEs);
             string compare = Compare(pb, fuelNow, trackNow);
             var end = RadioLanguage.Pick(EndDe, EndEn, EndEs);
-            return opening + Conditions(pb) + "." + (compare.Length > 0 ? " " + compare : "") + " " + end[((variant % end.Length) + end.Length) % end.Length];
+            return opening + Conditions(pb) + ". " + reference[((variant % reference.Length) + reference.Length) % reference.Length] +
+                (compare.Length > 0 ? " " + compare : "") + " " + end[((variant % end.Length) + end.Length) % end.Length];
         }
+
+        private static readonly string[] RefDe = { "Das ist deine Referenz.", "Daran messen wir uns heute.", "Das ist die Marke für heute.", "Danach richten wir uns." };
+        private static readonly string[] RefEn = { "That's your reference.", "That's what we measure against today.", "That's the mark for today.", "That's our yardstick." };
+        private static readonly string[] RefEs = { "Esa es tu referencia.", "Con eso nos medimos hoy.", "Esa es la marca de hoy.", "Eso es lo que tomamos como guía." };
 
         internal static string Record(float now, PersonalBest previous, string name, int variant)
         {
@@ -219,15 +226,23 @@ namespace CrewChiefV4.AiTeam
             if (!driving) { drivingSince = DateTime.MinValue; return; }
             if (drivingSince == DateTime.MinValue) drivingSince = now;
             if (now - drivingSince < TimeSpan.FromSeconds(8) || call != null) return;
-            briefed = true;
             var ctx = RaceFactContext.FromGameState(game, gs, now);
-            var pb = ctx.IdentityKnown ? store.Find(ctx.Game, ctx.Car, ctx.Track, ctx.Layout) : null;
-            if (pb == null) return;
+            // Hockenheim 25.11.: Kam das Automodell erst später an, war das Briefing schon „erledigt“. Ohne Identität noch nicht abhaken.
+            if (!ctx.IdentityKnown) return;
+            briefed = true;
+            var pb = store.Find(ctx.Game, ctx.Car, ctx.Track, ctx.Layout);
+            if (pb == null || pb.DateUtc >= sessionStartUtc) return;
+            briefAttempts++;
             var c = gs.Conditions.LatestConditions;
             float trackNow = c != null && c.Time != DateTime.MinValue ? c.TrackTemperature : float.NaN;
             float fuelNow = gs.FuelData.FuelUseActive ? gs.FuelData.FuelLeft : -1;
             Offer(gs, now, "personal-best-brief", Briefing(pb, fuelNow, trackNow, AiPersonas.CleanForRadio(name ?? "", 30, false), variant++), 3, "stored_personal_best_and_live_conditions");
+            // Rob 25.11.: Ben sagt die Referenz, wenn er zusammenfasst, und sie muss ankommen: zwei Minuten gültig statt 30 s.
+            call.Member = TeamMember.Ben;
+            call.ExpiresUtc = now.AddSeconds(BriefValiditySeconds);
         }
+
+        internal const int BriefValiditySeconds = 120, BriefAttempts = 3;
 
         /// <summary>Nach jeder beendeten Runde: speichern und bei Allzeit-Bestzeit oder knapp dahinter kommentieren.</summary>
         /// <summary>Verschleißrate dieser Fahrt in die Datenbank (nach jeder sauberen Runde, sobald zwei Runden Messung vorliegen).</summary>
@@ -284,8 +299,12 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
+        private bool BriefPending => call != null && call.Topic == "personal-best-brief" && call.DeliveryStartedUtc == DateTime.MinValue;
+
         private void Offer(GameStateData gs, DateTime now, string topic, string text, int priority, string evidence)
         {
+            // Die Referenz vom Anfang wird nicht von „knapp dran“ oder einem Sektorvergleich verdrängt, nur von einem Rekord.
+            if (BriefPending && topic != "personal-best-brief" && priority <= call.Priority && call.IsValid(gs, now)) return;
             call = new ObservedRaceCall
             {
                 Topic = topic, Text = text, Evidence = evidence, Member = TeamMember.Mik, Priority = priority, Position = -1,
@@ -295,10 +314,16 @@ namespace CrewChiefV4.AiTeam
             LiveDiagnostics.Decision(topic, "detected", evidence, text, call.EventId);
         }
 
-        internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool mikEnabled)
+        internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool mikEnabled, bool benEnabled = true)
         {
-            if (call != null && (!call.IsValid(gs, now) || call.DeliveryStartedUtc != DateTime.MinValue)) call = null;
-            if (busy || !mikEnabled || call == null) return null;
+            if (call != null && (!call.IsValid(gs, now) || call.DeliveryStartedUtc != DateTime.MinValue))
+            {
+                // Nie abgespielt (verfallen, verworfen, in der Box): beim nächsten Losfahren noch einmal, höchstens dreimal je Sitzung.
+                if (BriefPending && briefAttempts < BriefAttempts) { briefed = false; drivingSince = DateTime.MinValue; }
+                call = null;
+            }
+            if (call != null && call.Member == TeamMember.Ben && !benEnabled) call.Member = TeamMember.Mik;
+            if (busy || call == null || !(call.Member == TeamMember.Ben ? benEnabled : mikEnabled)) return null;
             return call.TryReserve(now) ? call : null;
         }
     }

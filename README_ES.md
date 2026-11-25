@@ -6,7 +6,18 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.38: correcciones tras la carrera de LMU en Algarve.**
+> **Novedades de Alpha 0.39: correcciones tras la carrera de RaceRoom en Hockenheim.**
+>
+> - **Tu mejor vuelta como referencia.** Al salir a pista en libres o clasificación, Ben te dice tu mejor tiempo absoluto con este coche en este circuito, con la gasolina a bordo y la temperatura de pista y de aire: «Rob, tu mejor tiempo absoluto en esta pista hasta ahora es un … Esa es tu referencia.» Cuatro formulaciones alternas. Si estás hablando por radio, el aviso espera hasta dos minutos; si no, llega la próxima vez que salgas.
+> - **Base de datos de mejores vueltas para RaceRoom.** RaceRoom no informa del nombre del coche, así que la base de datos quedaba vacía. Ahora el modelo de coche del simulador sirve de clave.
+> - **Posición de salida correcta.** Cuenta el puesto en la parrilla, no el primer valor al crear la sesión. Desaparece «dos puestos perdidos desde la salida» con la posición sin cambios.
+> - **Ben no cambia el sentido.** Un aviso formulado libremente no puede invertir la dirección («se aleja» en vez de «se acerca»), inventar una causa (como un pinchazo), celebrar cuando pierdes un puesto ni afirmar «eres más rápido» sin pruebas. Si no, se usa la frase fija.
+> - **Comparación correcta en libres.** Ben compara las mejores vueltas de los demás con tu mejor vuelta de hoy, también la del hotlap anterior.
+> - **La defensa por detrás llega.** «… se acerca» espera más a que la radio esté libre y tiene más prioridad. Al hablar se comprueba si la distancia sigue siendo válida.
+> - **Llega la primera comparación de velocidad punta.** Si caduca sin oírse, se vuelve a preparar con valores frescos.
+> - **Se acabó el «te dejará sitio»** con tráfico de otra clase: eso nadie lo sabe de antemano.
+>
+> **Desde Alpha 0.38: correcciones tras la carrera de LMU en Algarve.**
 >
 > - **Sara tiene prioridad.** Banderas amarillas, accidentes y coches parados o lentos interrumpen a Ben y a Mik al momento. Una respuesta a tu pregunta solo la interrumpe ante un peligro real.
 > - **Dos niveles para todos los avisos.** Los importantes llegan al momento, el resto espera su turno y llega en cuanto la radio queda libre. El tiempo de espera tras la radio en curso no cuenta como antigüedad, y un aviso solo se descarta si su contenido está realmente desfasado.

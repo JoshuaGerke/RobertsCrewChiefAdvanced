@@ -102,7 +102,14 @@ namespace CrewChiefV4.AiTeam
                     conditions = "rain:" + rain + "/surface:" + surface;
                 }
             }
-            return new RaceFactContext(game, state.carName, track == null ? null : track.name, layout,
+            // RaceRoom liefert über Crew Chief keinen Autonamen: dann das Automodell aus dem eigenen Lagebild (Hockenheim 25.11.).
+            string car = state.carName;
+            if (!Known(car))
+            {
+                var view = Field.FieldService.Fresh(5);
+                if (view != null && !string.IsNullOrWhiteSpace(view.PlayerCarModel)) car = view.PlayerCarModel;
+            }
+            return new RaceFactContext(game, car, track == null ? null : track.name, layout,
                 state.carClass == null ? null : state.carClass.getClassIdentifier(), compound, conditions);
         }
         internal static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }

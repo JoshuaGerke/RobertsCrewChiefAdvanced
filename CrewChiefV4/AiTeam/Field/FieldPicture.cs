@@ -53,6 +53,7 @@ namespace CrewChiefV4.AiTeam.Field
         public int SessionLaps, NumCars, MaxPlace, PositionsToGiveBack;
         /// <summary>Offene Slow-down-Zeit des Spielers in Sekunden (RaceRoom: Zeit zum Zurückgeben), -1 = keine.</summary>
         public float PlayerSlowDown = -1;
+        public string PlayerCarModel;
         public int[] RaceMinutes, RaceLaps;
         public FieldUpcoming[] Upcoming = new FieldUpcoming[0];
         public IReadOnlyList<FieldCarView> Cars;
@@ -166,7 +167,8 @@ namespace CrewChiefV4.AiTeam.Field
                     RaceMinutes = (int[])f.RaceMinutes.Clone(), RaceLaps = (int[])f.RaceLaps.Clone(),
                     Cars = result.AsReadOnly(), Player = player, ProfileCoverage = Coverage(),
                     PlayerSlowDown = f.Player != null && f.Player.SlowDown > 0 ? f.Player.SlowDown : -1,
-                    AirTempC = f.AirTempC, TrackTempC = f.TrackTempC, Upcoming = f.Upcoming ?? new FieldUpcoming[0], MeasuredHz = measuredHz
+                    AirTempC = f.AirTempC, TrackTempC = f.TrackTempC, Upcoming = f.Upcoming ?? new FieldUpcoming[0], MeasuredHz = measuredHz,
+                    PlayerCarModel = f.PlayerCarModel
                 };
                 built.PlayerLapsLeft = LapsLeft(built);
                 Volatile.Write(ref view, built);

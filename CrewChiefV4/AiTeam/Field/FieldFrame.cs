@@ -113,6 +113,8 @@ namespace CrewChiefV4.AiTeam.Field
         public bool LayoutVerified;
         public FieldCarFrame[] Cars = new FieldCarFrame[0];
         public int PlayerIndex = -1;
+        /// <summary>Eigenes Automodell als Schlüssel, wenn Crew Chief keinen Autonamen liefert (RaceRoom: „r3e-model-1234“), sonst null.</summary>
+        public string PlayerCarModel;
 
         public FieldCarFrame Player => PlayerIndex >= 0 && PlayerIndex < Cars.Length ? Cars[PlayerIndex] : null;
     }
