@@ -136,25 +136,27 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
-        public void First_summary_comes_after_about_three_minutes_and_two_to_three_per_race()
+        public void Big_summary_once_in_short_races_and_two_to_three_times_in_longer_ones()
         {
-            // Rob 20.11.: „aktive Zusammenfassung nach 2–3 Minuten und das 2–3-mal im Rennen“.
+            // Rob 24.11.: „Bei kurzen Rennen nur einmal und bei längeren 2–3-mal.“
             var s = Race().SessionData; s.SessionHasFixedTime = true;
-            s.SessionTotalRunTime = 20 * 60; Assert.AreEqual(3, RaceSummaryWatch.TotalCount(s));
-            s.SessionTotalRunTime = 10 * 60; Assert.AreEqual(2, RaceSummaryWatch.TotalCount(s));
+            s.SessionTotalRunTime = 20 * 60; Assert.AreEqual(1, RaceSummaryWatch.TotalCount(s), "20 Minuten wie in Algarve");
+            s.SessionTotalRunTime = 30 * 60; Assert.AreEqual(1, RaceSummaryWatch.TotalCount(s));
+            s.SessionTotalRunTime = 45 * 60; Assert.AreEqual(2, RaceSummaryWatch.TotalCount(s));
             s.SessionTotalRunTime = 90 * 60; Assert.AreEqual(3, RaceSummaryWatch.TotalCount(s));
-            s.SessionTotalRunTime = 20 * 60;
-            for (int seed = 1; seed < 20; seed++)
-            {
-                double early = new RaceSummaryWatch(seed).EarlyWindow(s) * s.SessionTotalRunTime;
-                Assert.That(early, Is.InRange(150, 210), "früher Zwischenstand nach etwa drei Minuten");
-            }
             var gs = Race(13); gs.SessionData.SessionHasFixedTime = true; gs.SessionData.SessionTotalRunTime = 1200; gs.SessionData.SessionRunningTime = 30;
             gs.SessionData.PlayerLapTimeSessionBest = 65.2f; gs.SessionData.PlayerClassSessionBestLapTime = 64.4f;
             var watch = new RaceSummaryWatch(3);
             watch.Observe(gs, null, () => null, T);
-            Assert.AreEqual(3, watch.Windows.Count);
-            Assert.That(watch.Windows.Zip(watch.Windows.Skip(1), (a, b) => b - a).All(d => d > .1), "über das Rennen verteilt");
+            Assert.AreEqual(1, watch.Windows.Count);
+            Assert.AreEqual(RaceSummaryWatch.HalfRace, watch.Windows[0], 1e-9, "das eine Fazit zur Rennhälfte");
+            var longRace = new RaceSummaryWatch(3);
+            gs.SessionData.SessionTotalRunTime = 90 * 60;
+            gs.SessionData.SessionId++;
+            longRace.Observe(gs, null, () => null, T);
+            Assert.AreEqual(3, longRace.Windows.Count);
+            Assert.That(longRace.Windows.Zip(longRace.Windows.Skip(1), (a, b) => b - a).All(d => d > .1), "über das Rennen verteilt");
+            gs.SessionData.SessionTotalRunTime = 1200;
             var ctx = new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T, Memory = new AiRaceMemory(), DriverName = "Rob" };
             string text = watch.Compose(ctx, -1, -1);
             StringAssert.Contains("Klassenbestzeit", text);
@@ -166,8 +168,11 @@ namespace UnitTest.AiTeamTests
         {
             var s = Race().SessionData; s.SessionHasFixedTime = true;
             s.SessionTotalRunTime = 10 * 60; Assert.AreEqual(1, RaceSummaryWatch.PlannedCount(s));
-            s.SessionTotalRunTime = 25 * 60; Assert.AreEqual(2, RaceSummaryWatch.PlannedCount(s));
-            s.SessionTotalRunTime = 60 * 60; Assert.AreEqual(3, RaceSummaryWatch.PlannedCount(s));
+            s.SessionTotalRunTime = 40 * 60; Assert.AreEqual(2, RaceSummaryWatch.PlannedCount(s));
+            s.SessionTotalRunTime = 61 * 60; Assert.AreEqual(3, RaceSummaryWatch.PlannedCount(s));
+            s.SessionHasFixedTime = false; s.SessionNumberOfLaps = 15; Assert.AreEqual(1, RaceSummaryWatch.PlannedCount(s));
+            s.SessionNumberOfLaps = 30; Assert.AreEqual(2, RaceSummaryWatch.PlannedCount(s));
+            s.SessionNumberOfLaps = 50; Assert.AreEqual(3, RaceSummaryWatch.PlannedCount(s));
         }
 
         [Test]
@@ -339,12 +344,19 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(MindVerdict.Admit, Judge(calm, "field-pit"));
             // Rob 23.11.: „Sara muss mir sofort sagen, wenn jemand an die Box fährt.“
             Assert.AreEqual(MindVerdict.Admit, Judge(Situation(RacePhase.Middle, RaceAttention.Battle), "field-pit"), "Box eines Gegners auch im Zweikampf");
-            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "field-pit"), "unter Gelb warten");
+            // LMU Algarve 24.11.: „Noah Preston hat aufgegeben“ wartete 22-mal unter Gelb. Saras Feldnachrichten kommen auch unter Gelb.
+            Assert.AreEqual(MindVerdict.Admit, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "field-pit"), "auch unter Gelb");
+            Assert.AreEqual(MindVerdict.Admit, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "field-retired"), "Ausfall unter Gelb");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Pit), "field-retired"), "in der eigenen Box wartet sie");
             Assert.AreEqual(MindVerdict.Admit, Judge(battle, "field-pit"), "Sara sagt die Box eines Gegners auch im Angriff");
             Assert.AreEqual(MindVerdict.Drop, Judge(battle, "field-tyres"), "im Angriff verfallen andere Feldnachrichten");
             Assert.AreEqual(MindVerdict.Hold, Judge(start, "status"));
             Assert.AreEqual(MindVerdict.Admit, Judge(final, "field-fastest"), "Rob, Monza 22.11.: Bestzeiten immer melden");
-            Assert.AreEqual(MindVerdict.Drop, Judge(lastLap, "field-fastest"), "in der letzten Runde nicht mehr");
+            // RaceRoom Salzburg 24.11.: Rob will jede Bestzeit hören, auch in der Startrunde und in der letzten Runde.
+            Assert.AreEqual(MindVerdict.Admit, Judge(lastLap, "field-fastest"), "auch in der letzten Runde");
+            Assert.AreEqual(MindVerdict.Admit, Judge(start, "field-fastest"), "auch in der Startrunde");
+            Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Caution), "field-fastest"), "unter Gelb wartet sie");
+            Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Finished, RaceAttention.Open), "field-fastest"), "nach der Zielflagge entfällt sie");
             Assert.AreEqual(MindVerdict.Admit, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-pit"), "Box eines Gegners gehört zum eigenen Rennen");
             Assert.AreEqual(MindVerdict.Drop, Judge(Situation(RacePhase.Middle, RaceAttention.Open, RaceFocus.Defend), "field-tyres"), "Fokus auf dem eigenen Kampf");
             Assert.AreEqual(MindVerdict.Hold, Judge(Situation(RacePhase.Middle, RaceAttention.Traffic), "reader-pace-front"));
@@ -808,6 +820,23 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("deine Chance auf Keller", BackmarkerWatch.Compose(5, null, 1.1f, "Keller", 6f, "Wurz", 0));
             StringAssert.Contains("Früh zeigen", BackmarkerWatch.Compose(5, null, 5f, "Keller", 6f, "Wurz", 0));
             StringAssert.DoesNotContain("das ist", BackmarkerWatch.Compose(5, null, 5f, null, 6f, null, 1), "ohne Namensfreigabe kein Name");
+        }
+
+        [Test]
+        public void Salzburg_backmarker_at_constant_distance_is_not_closing()
+        {
+            // RaceRoom Salzburg 24.11.: Alvaro Garcia blieb neun Minuten 5 bis 7 s vor Rob und wurde sechsmal angesagt.
+            var watch = new BackmarkerWatch();
+            double? closing = null;
+            for (int i = 0; i <= 8; i++) closing = watch.SustainedClosing("garcia", 300f + (i % 2 == 0 ? 0f : 15f), T.AddSeconds(i));
+            Assert.IsTrue(closing.HasValue);
+            Assert.Less(closing.Value, BackmarkerWatch.MinimumClosingMps, "pendelnder, gleichbleibender Abstand ist kein Aufholen");
+
+            watch = new BackmarkerWatch();
+            Assert.IsNull(watch.SustainedClosing("slow", 400f, T), "noch kein Verlauf");
+            for (int i = 1; i <= 6; i++) closing = watch.SustainedClosing("slow", 400f - 12f * i, T.AddSeconds(i));
+            Assert.IsTrue(closing.HasValue);
+            Assert.AreEqual(12, closing.Value, .01, "echtes Aufholen mit 12 m/s");
         }
 
         [Test]

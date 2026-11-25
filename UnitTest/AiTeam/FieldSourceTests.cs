@@ -91,6 +91,79 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(140f, f.Player.BestS12);
         }
 
+        /// <summary>LMU Sebring Multiclass: zwei Hypercars, zwei GT3, Rob im GT3 auf Gesamtplatz 3.</summary>
+        private static byte[] LmuMulticlass(byte phase)
+        {
+            var b = new byte[LMUFieldSource.StructSize];
+            int info = LMUFieldSource.oInfo;
+            S(b, info + LMUFieldSource.iTrack, "Sebring International Raceway"); I(b, info + LMUFieldSource.iSession, 10);
+            D(b, info + LMUFieldSource.iEt, 600); D(b, info + LMUFieldSource.iEnd, 3600); I(b, info + LMUFieldSource.iMaxLaps, 0);
+            D(b, info + LMUFieldSource.iLapDist, 6019); I(b, info + LMUFieldSource.iNum, 4); b[info + LMUFieldSource.iPhase] = phase;
+            b[info + LMUFieldSource.iRealtime] = 1;
+            var cars = new[] { Tuple.Create("Kubica", "Hyper", 1), Tuple.Create("Lopez", "GT3", 2), Tuple.Create("Rob", "gt3", 3), Tuple.Create("Estre", "Hyper", 4) };
+            for (int i = 0; i < cars.Length; i++)
+            {
+                int o = LMUFieldSource.oVeh + i * LMUFieldSource.VehSize;
+                I(b, o + LMUFieldSource.vId, 20 + i); S(b, o + LMUFieldSource.vName, cars[i].Item1); S(b, o + LMUFieldSource.vClass, cars[i].Item2);
+                BitConverter.GetBytes((short)8).CopyTo(b, o + LMUFieldSource.vLaps); D(b, o + LMUFieldSource.vDist, 1000 + i * 200);
+                b[o + LMUFieldSource.vPlayer] = (byte)(cars[i].Item1 == "Rob" ? 1 : 0); b[o + LMUFieldSource.vPlace] = (byte)cars[i].Item3;
+                b[o + LMUFieldSource.vCount] = 2; D(b, o + LMUFieldSource.vVel + 16, 50);
+            }
+            return b;
+        }
+
+        [Test]
+        public void Lmu_multiclass_ranks_each_car_within_its_own_class()
+        {
+            var f = new FieldFrame();
+            Assert.IsTrue(LMUFieldSource.ParseBuffer(LmuMulticlass(5), f, T));
+            var car = f.Cars.ToDictionary(c => c.Name);
+            Assert.AreEqual(car["Lopez"].ClassId, car["Rob"].ClassId, "GT3 ist eine Klasse, auch bei anderer Schreibweise");
+            Assert.AreNotEqual(car["Kubica"].ClassId, car["Rob"].ClassId);
+            Assert.AreEqual(3, car["Rob"].Place); Assert.AreEqual(2, car["Rob"].PlaceClass, "Gesamt 3, aber Zweiter der GT3");
+            Assert.AreEqual(1, car["Lopez"].PlaceClass); Assert.AreEqual(1, car["Kubica"].PlaceClass); Assert.AreEqual(2, car["Estre"].PlaceClass);
+        }
+
+        [Test]
+        public void Lmu_race_debrief_names_the_class_winner_not_the_overall_winner()
+        {
+            var f = new FieldFrame();
+            Assert.IsTrue(LMUFieldSource.ParseBuffer(LmuMulticlass(8), f, T));
+            var view = new FieldPicture().Observe(f);
+            string text = SessionDebrief.ComposeRace(view, "Rob", new List<ChronicleEntry>(), 0);
+            StringAssert.Contains("Gewonnen hat Lopez", text);
+            StringAssert.DoesNotContain("Kubica", text); StringAssert.DoesNotContain("Estre", text);
+        }
+
+        [Test]
+        public void Ams2_multiclass_reads_the_class_name_of_each_participant()
+        {
+            var b = new byte[AMS2FieldSource.StructSize];
+            U(b, AMS2FieldSource.oGame, 2); U(b, AMS2FieldSource.oSession, 5); U(b, AMS2FieldSource.oRace, 2);
+            I(b, AMS2FieldSource.oViewed, 2); I(b, AMS2FieldSource.oNum, 3);
+            var cars = new[] { Tuple.Create("Senna", "F-Reiza", 1u), Tuple.Create("Piquet", "GT3", 2u), Tuple.Create("Rob", "GT3", 3u) };
+            for (int i = 0; i < cars.Length; i++)
+            {
+                int o = AMS2FieldSource.oParts + i * AMS2FieldSource.PartSize;
+                b[o + AMS2FieldSource.pActive] = 1; S(b, o + AMS2FieldSource.pName, cars[i].Item1); U(b, o + AMS2FieldSource.pPlace, cars[i].Item3);
+                S(b, AMS2FieldSource.oClassNames + i * 64, cars[i].Item2);
+            }
+            var f = new FieldFrame();
+            Assert.IsTrue(AMS2FieldSource.ParseBuffer(b, f, T));
+            Assert.AreEqual("Rob", f.Player.Name); Assert.AreEqual(3, f.Player.Place);
+            Assert.AreEqual(2, f.Player.PlaceClass, "Zweiter der GT3");
+            Assert.AreEqual(f.Cars[1].ClassId, f.Player.ClassId); Assert.AreNotEqual(f.Cars[0].ClassId, f.Player.ClassId);
+        }
+
+        [Test]
+        public void Without_class_names_the_class_place_stays_the_overall_place()
+        {
+            var cars = new[] { new FieldCarFrame { Place = 2 }, new FieldCarFrame { Place = 1 } };
+            FieldClasses.RankWithinClass(cars);
+            Assert.AreEqual(2, cars[0].PlaceClass); Assert.AreEqual(1, cars[1].PlaceClass);
+            Assert.AreEqual(-1, FieldClasses.IdOf("  ")); Assert.AreEqual(FieldClasses.IdOf("LMP2"), FieldClasses.IdOf("lmp2"));
+        }
+
         [Test]
         public void Ac_reads_plugin_field_and_needs_the_plugin()
         {
@@ -173,7 +246,7 @@ DriverInfo:
             int at = 0;
             foreach (var v in new[] { Tuple.Create("SessionNum", 2, 1), Tuple.Create("SessionState", 2, 1), Tuple.Create("SessionTimeRemain", 5, 1),
                 Tuple.Create("PlayerCarIdx", 2, 1), Tuple.Create("IsOnTrack", 1, 1), Tuple.Create("CarIdxLapDistPct", 4, 64), Tuple.Create("CarIdxLapCompleted", 2, 64),
-                Tuple.Create("CarIdxPosition", 2, 64), Tuple.Create("CarIdxTrackSurface", 2, 64) })
+                Tuple.Create("CarIdxPosition", 2, 64), Tuple.Create("CarIdxTrackSurface", 2, 64), Tuple.Create("CarIdxClass", 2, 64) })
             {
                 map[v.Item1] = new IRacingDynamicsSource.Slot { Type = v.Item2, Offset = at, Count = v.Item3 };
                 at += v.Item3 * (v.Item2 == 5 ? 8 : v.Item2 <= 1 ? 1 : 4);
@@ -182,6 +255,7 @@ DriverInfo:
             I(b, map["SessionNum"].Offset, 0); I(b, map["SessionState"].Offset, 4); D(b, map["SessionTimeRemain"].Offset, 300); I(b, map["PlayerCarIdx"].Offset, 1); b[map["IsOnTrack"].Offset] = 1;
             for (int i = 0; i < 64; i++) { F(b, map["CarIdxLapDistPct"].Offset + 4 * i, -1); I(b, map["CarIdxTrackSurface"].Offset + 4 * i, -1); }
             Car(map, b, 1, .10f, 2); Car(map, b, 2, .20f, 1);
+            I(b, map["CarIdxClass"].Offset + 4 * 1, 11); I(b, map["CarIdxClass"].Offset + 4 * 2, 22);
             var lastPct = Enumerable.Repeat(float.NaN, 64).ToArray(); var lastAt = new DateTime[64]; var speed = Enumerable.Repeat(float.NaN, 64).ToArray();
             var f = new FieldFrame();
             Assert.IsTrue(IRacingFieldSource.Fill(map, b, info, f, T, lastPct, lastAt, speed));
@@ -189,6 +263,7 @@ DriverInfo:
             Assert.AreEqual(FieldSession.Practice, f.Session); Assert.AreEqual(600f, f.TimeDuration); Assert.AreEqual(300f, f.TimeRemaining);
             Assert.AreEqual(2, f.Upcoming.Length); Assert.AreEqual(FieldSession.Qualify, f.Upcoming[0].Session); Assert.AreEqual(30, f.Upcoming[1].Minutes);
             Assert.AreEqual(30, f.RaceMinutes[0]);
+            Assert.AreEqual(11, f.Player.ClassId, "Klasse aus CarIdxClass"); Assert.AreEqual(22, f.Cars.First(c => !c.IsPlayer).ClassId);
             Car(map, b, 1, .101f, 2); // 7 m in 0,1 s = 70 m/s
             Assert.IsTrue(IRacingFieldSource.Fill(map, b, info, f, T.AddMilliseconds(100), lastPct, lastAt, speed));
             Assert.That(f.Player.Speed, Is.EqualTo(70f).Within(.5));

@@ -136,6 +136,64 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(CarMotion.Spun, v.Cars.Single(c => c.Name == "Fahrer 4").Motion);
         }
 
+        /// <summary>
+        /// Review 24.11.: LMU meldete FCY und Rennunterbrechung dem Lagebild als Grün. Grün → FCY → Unterbrechung → Neustart:
+        /// In jedem Schritt muss die Phase stimmen, unter FCY und Unterbrechung gilt kein Wagen als langsam oder stehend.
+        /// </summary>
+        [Test]
+        public void Lmu_green_fcy_stop_and_restart_keep_phase_and_hazards_apart()
+        {
+            Assert.AreEqual(FieldPhase.Green, LMUFieldSource.MapPhase(5));
+            Assert.AreEqual(FieldPhase.FullCourseYellow, LMUFieldSource.MapPhase(6));
+            Assert.AreEqual(FieldPhase.Stopped, LMUFieldSource.MapPhase(7));
+            Assert.AreEqual(FieldPhase.Checkered, LMUFieldSource.MapPhase(8));
+
+            var p = new FieldPicture(); var t = T0;
+            var cars = Field(d => 60f);
+            var v = Step(p, ref t, cars, 30);
+            Assert.AreEqual(FieldPhase.Green, v.Phase);
+
+            foreach (var c in cars) c.Override = 20f; // FCY: alle mit einem Drittel des Tempos
+            v = Step(p, ref t, cars, 2, phase: FieldPhase.FullCourseYellow);
+            Assert.AreEqual(FieldPhase.FullCourseYellow, v.Phase);
+            Assert.IsTrue(v.Cars.All(c => c.Motion == CarMotion.Normal), "unter FCY ist niemand eine Gefahr: " +
+                string.Join(", ", v.Cars.Select(c => c.Name + ":" + c.Motion)));
+
+            foreach (var c in cars) c.Override = 0f; // Rennunterbrechung: alle stehen
+            v = Step(p, ref t, cars, 3, phase: FieldPhase.Stopped);
+            Assert.AreEqual(FieldPhase.Stopped, v.Phase);
+            Assert.IsTrue(v.Cars.All(c => c.Motion == CarMotion.Normal), "bei Unterbrechung steht das Feld, das ist kein Unfall");
+            Assert.IsTrue(MenuBriefing.RaceUnderway(Underway(v)), "eine Unterbrechung ist kein Rennstart");
+
+            foreach (var c in cars) c.Override = null; // Neustart
+            cars[2].Override = 0f;
+            Step(p, ref t, cars, .5);
+            v = Step(p, ref t, cars, 1.5);
+            Assert.AreEqual(FieldPhase.Green, v.Phase);
+            Assert.AreEqual(CarMotion.Stopped, v.Cars.Single(c => c.Name == "Fahrer 2").Motion, "nach dem Neustart wird ein stehendes Auto wieder erkannt");
+            Assert.AreEqual(60f, v.Cars.Single(c => c.Name == "Fahrer 1").Speed, .01f);
+        }
+
+        private static FieldView Underway(FieldView v)
+        {
+            v.Player.CompletedLaps = Math.Max(1, v.Player.CompletedLaps);
+            return v;
+        }
+
+        [Test]
+        public void Board_takes_crew_chiefs_fcy_when_the_sim_itself_only_knows_green()
+        {
+            var gs = new CrewChiefV4.GameState.GameStateData(T0.Ticks);
+            gs.SessionData.SessionType = CrewChiefV4.GameState.SessionType.Race;
+            gs.SessionData.SessionPhase = CrewChiefV4.GameState.SessionPhase.FullCourseYellow;
+            var v = new FieldView { Utc = T0, Sim = "AMS2", Session = FieldSession.Race, Phase = FieldPhase.Green, Cars = new List<FieldCarView>() };
+            Assert.AreEqual(FieldPhase.FullCourseYellow, CrewChiefV4.AiTeam.Board.RaceBoard.Compose(gs, v, T0).Phase.Value);
+            v.Phase = FieldPhase.Stopped;
+            Assert.AreEqual(FieldPhase.Stopped, CrewChiefV4.AiTeam.Board.RaceBoard.Compose(gs, v, T0).Phase.Value, "die Sim weiß mehr: Unterbrechung");
+            gs.SessionData.SessionPhase = CrewChiefV4.GameState.SessionPhase.Green; v.Phase = FieldPhase.Green;
+            Assert.AreEqual(FieldPhase.Green, CrewChiefV4.AiTeam.Board.RaceBoard.Compose(gs, v, T0).Phase.Value);
+        }
+
         [Test]
         public void StandingOnGridBeforeGreen_IsNoHazard()
         {

@@ -79,6 +79,8 @@ namespace CrewChiefV4.Audio
         private static Dictionary<String, Tuple<int, int>> varietyData = new Dictionary<string, Tuple<int, int>>();
 
         internal static SingleSound currentlyPlayingSound;
+        /// <summary>Wartet ein frischer Sara-Clip, der einen KI-Clip mit dieser Stufe und diesem Thema ablösen darf? (setzt der AudioPlayer)</summary>
+        internal static Func<int, string, bool> CrewCutterWaiting;
     internal static bool SafetyRadioActive => Volatile.Read(ref currentlyPlayingSound)?.IsSafetyRadio == true;
 
         // cacheSoundsThread is initialized on the main thread only, so it is safe to sync on the main thread.
@@ -584,8 +586,8 @@ namespace CrewChiefV4.Audio
             // Inspect and stop the same sound instance. A concurrent Sara clip must never be stopped instead.
             var sound = System.Threading.Volatile.Read(ref currentlyPlayingSound);
             if (AudioPlayer.playWithNAudio && sound != null &&
-                AiTeam.CrewSpeechPolicy.CanInterruptForHazard(sound.isAiAudio, sound.isSpotter, sound.isBleep, sound.playbackPriority, priority,
-                    sound.AiAudioTopic))
+                AiTeam.CrewSpeechPolicy.CanSaraCut(sound.isAiAudio, sound.isSpotter, sound.isBleep, sound.playbackPriority,
+                    sound.AiAudioTopic, priority))
                 sound.Stop();
         }
 
@@ -2214,6 +2216,9 @@ namespace CrewChiefV4.Audio
 
         // if the sound is a listen start beep and caching the file data is enabled, we don't
         // wait for the sound to finish playing before returning control to the caller.
+        /// <summary>1, solange diese Ansage läuft (Gutschrift für wartende Meldungen).</summary>
+        private int onAir;
+
         private void PlayNAudio(bool isListenStartBeep)
         {
             if (getVolume() == 0)
@@ -2245,8 +2250,12 @@ namespace CrewChiefV4.Audio
                     if (isAiAudio)
                     {
                         if (!AiTeam.AiAudioStore.TryStart(aiAudioId, start)) return;
+                        // LMU Algarve 24.11.: Kam Saras Warnung während des Funktons, lief Bens Clip danach trotzdem 25 s.
+                        var cutter = SoundCache.CrewCutterWaiting;
+                        if (cutter != null && cutter(playbackPriority, AiAudioTopic)) Stop();
                     }
                     else start();
+                    if (!isBleep && Interlocked.Exchange(ref onAir, 1) == 0) AiTeam.DriverRadioGate.OnAirStarted(DateTime.UtcNow);
 
                     if (!asynchronousBeep && !playWaitHandle.WaitOne(allowedPlayTimeForNAudio))
                     {
@@ -2261,6 +2270,7 @@ namespace CrewChiefV4.Audio
                 }
                 finally
                 {
+                    if (Interlocked.Exchange(ref onAir, 0) == 1) AiTeam.DriverRadioGate.OnAirEnded(DateTime.UtcNow);
                     if (!asynchronousBeep)
                     {
                         if (!cacheSoundPlayer) ReleaseNAudio();

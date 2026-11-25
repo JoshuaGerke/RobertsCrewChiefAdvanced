@@ -63,7 +63,7 @@ namespace UnitTest.AiTeamTests
             var watch = new RaceSummaryWatch(5);
             var ctx = new RaceDataContext { GameState = gs, NowUtc = T, LastTelemetryUtc = T, Memory = new AiRaceMemory(), DriverName = "Rob" };
             watch.Observe(gs, null, () => ctx, T);
-            Assert.GreaterOrEqual(watch.HalfWindow, 1);
+            Assert.GreaterOrEqual(watch.HalfWindow, 0);
             Assert.AreEqual(RaceSummaryWatch.HalfRace, watch.Windows[watch.HalfWindow], 1e-9);
             for (int i = 1; i < watch.Windows.Count; i++) Assert.Greater(watch.Windows[i], watch.Windows[i - 1], "Fenster aufsteigend");
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -312,7 +312,8 @@ namespace CrewChiefV4.AiTeam
                     RadioLanguage.T("Wir haben " + penalty + " bekommen.", "We've got " + penalty + ".", "Nos han puesto " + penalty + "."),
                     RadioLanguage.T("Die Rennleitung gibt uns " + penalty + ".", "Race control has given us " + penalty + ".", "Dirección de carrera nos pone " + penalty + "."),
                     RadioLanguage.T("Schlechte Nachricht: " + penalty + " für uns.", "Bad news: " + penalty + " for us.", "Mala noticia: " + penalty + " para nosotros."),
-                    RadioLanguage.T("Es ist offiziell, " + penalty + ".", "It's official, " + penalty + ".", "Es oficial, " + penalty + "."));
+                    RadioLanguage.T("Es ist offiziell, " + penalty + ".", "It's official, " + penalty + ".", "Es oficial, " + penalty + "."),
+                    RadioLanguage.T("Achtung, du hast " + penalty + " bekommen.", "Heads up, you've been given " + penalty + ".", "Atención, te han puesto " + penalty + "."));
                 string serveText = !serve ? "" : RadioVariants.Pick("incident-penalty-serve",
                     RadioLanguage.T(" Sie muss in der Box abgesessen werden, ich behalte den Abstand nach hinten im Blick.", " It has to be served in the pits, I'm keeping an eye on the gap behind.", " Hay que cumplirla en boxes, vigilo la distancia por detrás."),
                     RadioLanguage.T(" Die holen wir in der Box ab, ich rechne mit dem Abstand nach hinten.", " We'll serve it in the pits, I'm working with the gap behind.", " La cumplimos en boxes, calculo con la distancia por detrás."),
@@ -360,7 +361,10 @@ namespace CrewChiefV4.AiTeam
                 TrackLimitWarnings++;
             }
             // LMU liefert die Tracklimit-Punkte nativ; dann meldet Mik den Punktestand (LMUTrackLimitPoints) statt der Zählung.
-            if (limitWarning && native != null && native.StepsPerPoint > 0) limitWarning = false;
+            // LMU Sebring 23.11. (Rennen): Cut-Warnungen 1 → 2 → 3, kein Kommentar. LMU meldete Schritte je Punkt, zählte aber
+            // keine Schritte (mTrackLimitsSteps blieb 0) – dann sagt auch die Punktewache nichts. Nur wenn LMU wirklich zählt,
+            // übernimmt sie; sonst meldet Mik die Warnung aus der Zählung.
+            if (limitWarning && native != null && native.StepsPerPoint > 0 && native.TrackLimitsSteps > 0) limitWarning = false;
             if (!minimalMode && (limitWarning || invalidated))
             {
                 string text = limitWarning ? language.TrackLimit(TrackLimitWarnings > 1, invalidated)

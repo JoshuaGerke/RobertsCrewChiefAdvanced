@@ -51,25 +51,21 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>
-        /// Rob 20.11.: „Nach 2–3 Minuten eine aktive Zusammenfassung und das Ganze 2–3-mal im Rennen.“ Ein früher Zwischenstand nach
-        /// etwa drei Minuten (bzw. nach zwei Runden) plus ein bis zwei weitere über das Rennen verteilt.
+        /// Rob 24.11. (LMU Algarve): „Die großen Zusammenfassungen von Ben sind gut, brauchen wir bei kurzen Rennen aber nur einmal und
+        /// bei längeren 2–3-mal.“ Bis 30 Minuten (bzw. unter 20 Runden) eine, bis 60 Minuten (unter 40 Runden) zwei, darüber drei.
         /// </summary>
-        internal static int TotalCount(SessionData s) => 1 + Math.Min(2, PlannedCount(s));
+        internal static int TotalCount(SessionData s) => PlannedCount(s);
 
-        /// <summary>Zeitpunkt des frühen Zwischenstands als Rennanteil.</summary>
-        internal double EarlyWindow(SessionData s)
-        {
-            if (s.SessionHasFixedTime && s.SessionTotalRunTime > 0) return Math.Min(.3, (150 + random.NextDouble() * 60) / s.SessionTotalRunTime);
-            return s.SessionNumberOfLaps > 0 ? Math.Min(.3, 2.0 / s.SessionNumberOfLaps) : .1;
-        }
+        /// <summary>Grenzen kurz/mittel/lang in Minuten bzw. Runden.</summary>
+        internal const int ShortRaceMinutes = 30, LongRaceMinutes = 60, ShortRaceLaps = 20, LongRaceLaps = 40;
 
         /// <summary>Wie viele Zusammenfassungen passen zu dieser Renndauer (1–3).</summary>
         internal static int PlannedCount(SessionData s)
         {
             double minutes = s.SessionHasFixedTime ? s.SessionTotalRunTime / 60.0 : -1;
             int laps = s.SessionHasFixedTime ? -1 : s.SessionNumberOfLaps;
-            if (minutes > 0) return minutes < 15 ? 1 : minutes < 35 ? 2 : 3;
-            if (laps > 0) return laps < 10 ? 1 : laps < 25 ? 2 : 3;
+            if (minutes > 0) return minutes <= ShortRaceMinutes ? 1 : minutes <= LongRaceMinutes ? 2 : 3;
+            if (laps > 0) return laps < ShortRaceLaps ? 1 : laps < LongRaceLaps ? 2 : 3;
             return 1;
         }
 
@@ -83,22 +79,13 @@ namespace CrewChiefV4.AiTeam
         private void Plan(SessionData s)
         {
             windows.Clear();
-            halfWindow = -1;
-            double early = EarlyWindow(s);
-            windows.Add(early);
-            int n = TotalCount(s) - 1;
-            // LMU Bahrain 22.11.: „Kein Zwischenfazit zur Rennhälfte.“ Ab zwei Zwischenständen ist einer fest bei halber Distanz,
-            // ein weiterer liegt mit Zufall zwischen Halbzeit und Schlussphase.
-            if (n >= 1)
-            {
-                halfWindow = windows.Count;
-                windows.Add(Math.Max(early + .15, HalfRace));
-            }
-            for (int i = 2; i <= n; i++)
-            {
-                double jitter = (random.NextDouble() - .5) * .1;
-                windows.Add(Math.Max(windows[windows.Count - 1] + .1, Math.Min(.85, .72 + jitter)));
-            }
+            int n = TotalCount(s);
+            // LMU Bahrain 22.11.: „Kein Zwischenfazit zur Rennhälfte.“ Das Fazit zur Rennhälfte ist immer dabei; im langen Rennen
+            // kommt eines nach dem ersten Viertel dazu, im mittleren und langen eines im letzten Viertel (mit etwas Zufall).
+            if (n >= 3) windows.Add(.25 + (random.NextDouble() - .5) * .06);
+            halfWindow = windows.Count;
+            windows.Add(HalfRace);
+            if (n >= 2) windows.Add(.75 + (random.NextDouble() - .5) * .06);
         }
 
         internal IReadOnlyList<double> Windows => windows;

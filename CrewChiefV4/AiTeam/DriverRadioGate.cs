@@ -27,7 +27,9 @@ namespace CrewChiefV4.AiTeam
         /// vor Miky Favia. Die Zeit, in der Rob spricht oder die Crew ihm antwortet, zählt nicht gegen die Lebensdauer einer
         /// Meldung: Sie wird gutgeschrieben, höchstens <see cref="MaxCredit"/>.
         /// </summary>
-        internal static readonly TimeSpan MaxCredit = TimeSpan.FromSeconds(25);
+        /// <remarks>LMU Algarve 24.11.: Auch die Zeit, in der die Crew oder Crew Chief spricht, wird gutgeschrieben (Bens Zwischenstand
+        /// dauerte 25 s, dahinter verfielen sechs Meldungen auf einmal). Deshalb 45 s statt 25 s.</remarks>
+        internal static readonly TimeSpan MaxCredit = TimeSpan.FromSeconds(45);
         private static long heldTicksDone, answerTicksDone, answerSinceTicks;
         private static int answers;
         private static readonly object answerGate = new object();
@@ -70,7 +72,11 @@ namespace CrewChiefV4.AiTeam
             }
         }
 
-        /// <summary>Gesamte Zeit (Ticks), in der Rob gefunkt hat oder auf eine Antwort wartete; steigt nur.</summary>
+        /// <summary>Eine Ansage läuft (Crew, Spotter oder Crew Chief); zählt wie eine offene Antwort, ohne doppelt zu zählen.</summary>
+        internal static void OnAirStarted(DateTime nowUtc) => AnswerStarted(nowUtc);
+        internal static void OnAirEnded(DateTime nowUtc) => AnswerEnded(nowUtc);
+
+        /// <summary>Gesamte Zeit (Ticks), in der Rob gefunkt hat, auf eine Antwort wartete oder eine Ansage lief; steigt nur.</summary>
         internal static long BusyTicks(DateTime nowUtc)
         {
             long total = Interlocked.Read(ref heldTicksDone);

@@ -23,7 +23,7 @@ namespace CrewChiefV4.AiTeam.Field
             vDist = Off(Veh, "mLapDist"), vBest1 = Off(Veh, "mBestSector1"), vBest2 = Off(Veh, "mBestSector2"), vBest = Off(Veh, "mBestLapTime"),
             vLast = Off(Veh, "mLastLapTime"), vPlayer = Off(Veh, "mIsPlayer"), vPits = Off(Veh, "mInPits"), vPlace = Off(Veh, "mPlace"),
             vLapStart = Off(Veh, "mLapStartET"), vPos = Off(Veh, "mPos"), vVel = Off(Veh, "mLocalVel"), vCount = Off(Veh, "mCountLapFlag"),
-            vGarage = Off(Veh, "mInGarageStall");
+            vGarage = Off(Veh, "mInGarageStall"), vClass = Off(Veh, "mVehicleClass");
         private const int Max = rFactor2Constants.MAX_MAPPED_VEHICLES;
         private double lastEt = double.NaN;
         private readonly System.Collections.Generic.Dictionary<int, float> baseDist = new System.Collections.Generic.Dictionary<int, float>();
@@ -69,7 +69,10 @@ namespace CrewChiefV4.AiTeam.Field
                 case 2: return FieldPhase.Gridwalk;
                 case 3: return FieldPhase.Formation;
                 case 4: return FieldPhase.Countdown;
-                case 5: case 6: case 7: return FieldPhase.Green;
+                case 5: return FieldPhase.Green;
+                // Review 24.11.: FCY und Rennunterbrechung galten im Lagebild als Grün – das halbe Feld wirkte „langsam“ oder „steht“.
+                case 6: return FieldPhase.FullCourseYellow;
+                case 7: return FieldPhase.Stopped;
                 case 8: return FieldPhase.Checkered;
                 default: return FieldPhase.Unknown;
             }
@@ -107,14 +110,16 @@ namespace CrewChiefV4.AiTeam.Field
             {
                 int o = oVeh + i * VehSize;
                 var c = f.Cars[i] ?? (f.Cars[i] = new FieldCarFrame());
-                c.Slot = BitConverter.ToInt32(b, o + vId); c.Name = Utf8(b, o + vName, 32); c.ClassId = -1;
+                c.Slot = BitConverter.ToInt32(b, o + vId); c.Name = Utf8(b, o + vName, 32);
+                // Rob 24.11.: Multiclass (Sebring) – ohne Klasse nannte die Rennbilanz den Gesamtsieger als Klassensieger.
+                c.ClassId = FieldClasses.IdOf(Utf8(b, o + vClass, 32));
                 c.CompletedLaps = BitConverter.ToInt16(b, o + vLaps);
                 sbyte finish = unchecked((sbyte)b[o + vFinish]); c.FinishStatus = finish >= 0 && finish <= 3 ? finish : -1;
                 double d = BitConverter.ToDouble(b, o + vDist); c.LapDistance = d >= 0 && d < 100000 ? (float)d : float.NaN;
                 c.BestS1 = Time(BitConverter.ToDouble(b, o + vBest1)); c.BestS12 = Time(BitConverter.ToDouble(b, o + vBest2));
                 c.BestLap = Time(BitConverter.ToDouble(b, o + vBest)); c.LastLap = Time(BitConverter.ToDouble(b, o + vLast));
                 c.SplitBest1 = c.SplitBest2 = c.SplitBest3 = float.NaN;
-                c.IsPlayer = b[o + vPlayer] != 0; c.InPit = b[o + vPits] != 0; c.Place = b[o + vPlace]; c.PlaceClass = c.Place;
+                c.IsPlayer = b[o + vPlayer] != 0; c.InPit = b[o + vPits] != 0; c.Place = b[o + vPlace];
                 double lapStart = BitConverter.ToDouble(b, o + vLapStart);
                 c.LapTimeCurrent = lapStart > 0 && et > lapStart ? (float)(et - lapStart) : float.NaN;
                 c.CurrentLapValid = b[o + vCount] == 2;
@@ -125,6 +130,7 @@ namespace CrewChiefV4.AiTeam.Field
                 c.Extrapolated = false;
                 if (c.IsPlayer) { f.PlayerIndex = i; f.PlayerInGarage = b[o + vGarage] != 0; }
             }
+            FieldClasses.RankWithinClass(f.Cars);
             return true;
         }
     }

@@ -156,7 +156,7 @@ namespace CrewChiefV4.AiTeam
             if (t == "story-free" || t == "story-escaped" || t == "story-followup") return RadioClass.Encouragement;
             // Rob (Monza 22.11.): „Sofort eine Rundenzeit, wenn jemand eine Bestrunde gefahren hat.“ Die Klassen- bzw. Feldbestzeit
             // ist ein Rennereignis, keine Statistik – beide Meldungen warteten als Daten im Dauerzweikampf, bis sie verfielen.
-            if (t == "field-fastest" || t == "field-fastest-overall") return RadioClass.Event;
+            if (t == "field-fastest" || t == "field-fastest-overall" || t == "rival-best") return RadioClass.Event;
             if (t.StartsWith("fuel-", StringComparison.Ordinal) || t.StartsWith("tyre-", StringComparison.Ordinal) || t.StartsWith("engine-", StringComparison.Ordinal) ||
                 t.StartsWith("field-", StringComparison.Ordinal) || t.StartsWith("reader-", StringComparison.Ordinal) || t.StartsWith("weather-", StringComparison.Ordinal) ||
                 t == "stint-consistency" || t == "status" || t == "summary" || t == "race-summary" || t == "gap-trend" || t == "rival-best" ||
@@ -195,11 +195,13 @@ namespace CrewChiefV4.AiTeam
         /// Begrüßung, Startspruch und Rennbilanz gehören ebenfalls dazu: Die Funklast darf sie nie blockieren.
         /// </summary>
         internal static bool OwnResult(string topic) =>
-            topic == "own-lap" || topic == "race-lap" || topic == "first-lap-fuel" || topic == "fuel-baseline" ||
-            topic == "field-fastest" || topic == "field-fastest-overall" ||
+            topic == "own-lap" || topic == "race-lap" || topic == "first-lap-fuel" || topic == "fuel-baseline" || topic == "fuel-early" ||
+            topic == "field-fastest" || topic == "field-fastest-overall" || topic == "rival-best" || topic == "field-topspeed" ||
             topic == "greeting" || topic == "race-start" || topic == "session-debrief" || topic == "time-left" ||
             // LMU Sebring 24.11.: Die eigene Sektorbestzeit wartete als „Lob“ auf weniger Anspannung und verfiel.
-            topic == "sector-best";
+            topic == "sector-best" ||
+            // LMU Algarve 24.11.: „Dein bester Wert auf dieser Strecke überhaupt“ wartete 14-mal als Lob und kam nie.
+            topic == "personal-best-record";
 
         /// <summary>Darf diese Ansage jetzt sprechen? Sonst wartet sie (Hold) und verfällt, wenn ihre Zeit um ist.</summary>
         internal bool Allows(string topic, int priority, DateTime now, out string reason)

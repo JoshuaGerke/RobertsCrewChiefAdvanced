@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CrewChiefV4.AiTeam.Field;
@@ -28,12 +29,53 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Unterschied zur Klassenspitze, ab dem sie erwähnt wird.</summary>
         internal const float FieldDeltaKmh = 3f;
 
-        private int session = -1, lastLap = -1, rivalAheadLap = -99, rivalBehindLap = -99, fieldLap = -99;
-        private ObservedRaceCall call;
+        /// <summary>RaceRoom Salzburg 24.11. (Rob: „das Höchsttempo wenigstens zweimal im Rennen vergleichen, im ersten Drittel und im
+        /// letzten Viertel“): Der Klassenvergleich war zweimal fertig, wartete aber hinter anderem Funk und verfiel; in den letzten
+        /// Runden war er gesperrt. Jetzt gibt es zwei feste Termine mit den drei Schnellsten und Robs Wert, die bis zum Ende ihres
+        /// Abschnitts gültig bleiben.</summary>
+        internal const int FieldStartLap = 2;
+        /// <summary>Ende des ersten Drittels (mit etwas Spielraum, falls die Runde knapp darüber endet).</summary>
+        internal const double FirstWindowEnd = 0.40;
+        /// <summary>Beginn des letzten Viertels.</summary>
+        internal const double LastWindowStart = 0.75;
+
+        private int session = -1, lastLap = -1, rivalAheadLap = -99, rivalBehindLap = -99;
+        private readonly bool[] fieldSlotDone = new bool[2];
+        private ObservedRaceCall call, fieldCall;
+        /// <summary>
+        /// LMU Algarve 24.11.: Der Vergleich im ersten Drittel wurde zweimal vor dem Abspielen verworfen und war danach verloren.
+        /// Ein nicht gesprochener Termin wird mit frischen Werten neu gebildet (höchstens <see cref="FieldRetries"/>-mal),
+        /// der erste auch nach seinem Abschnitt, solange das letzte Viertel noch nicht begonnen hat.
+        /// </summary>
+        internal const int FieldRetries = 3;
+        private int fieldCallSlot = -1, retrySlot = -1;
+        private readonly int[] fieldTries = new int[2];
 
         internal void Reset()
         {
-            session = -1; lastLap = -1; rivalAheadLap = -99; rivalBehindLap = -99; fieldLap = -99; call = null;
+            session = -1; lastLap = -1; rivalAheadLap = -99; rivalBehindLap = -99; call = null; fieldCall = null;
+            fieldSlotDone[0] = fieldSlotDone[1] = false; fieldCallSlot = retrySlot = -1; fieldTries[0] = fieldTries[1] = 0;
+        }
+
+        /// <summary>Anteil des Rennens (0..1) nach Uhr oder Runden; -1 = unbekannt.</summary>
+        internal static double Progress(SessionData s)
+        {
+            if (s == null) return -1;
+            if (s.SessionHasFixedTime && s.SessionTotalRunTime > 0 && s.SessionTimeRemaining >= 0)
+                return Math.Max(0, Math.Min(1, 1 - s.SessionTimeRemaining / s.SessionTotalRunTime));
+            if (s.SessionNumberOfLaps > 0) return Math.Max(0, Math.Min(1, s.CompletedLaps / (double)s.SessionNumberOfLaps));
+            return -1;
+        }
+
+        /// <summary>Welcher feste Topspeed-Termin gerade offen ist: 0 = erstes Drittel, 1 = letztes Viertel, -1 = keiner.</summary>
+        internal static int FieldSlot(SessionData s)
+        {
+            if (s == null || s.CompletedLaps < FieldStartLap) return -1;
+            double p = Progress(s);
+            if (p < 0) return s.CompletedLaps >= StartLap ? 0 : -1;
+            if (p <= FirstWindowEnd) return 0;
+            if (p >= LastWindowStart) return 1;
+            return -1;
         }
 
         /// <summary>Pro Tick: einmal je beendeter Runde mit dem aktuellen Lagebild prüfen.</summary>
@@ -52,6 +94,7 @@ namespace CrewChiefV4.AiTeam
         internal void Evaluate(GameStateData gs, FieldView view, bool names, DateTime now)
         {
             var s = gs.SessionData;
+            EvaluateField(gs, view, names, now);
             if (call != null && (call.DeliveryStartedUtc != DateTime.MinValue || now > call.ExpiresUtc || call.DeliveryFailed)) call = null;
             if (call != null || s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green || gs.PitData.InPitlane ||
                 s.CompletedLaps < StartLap || view == null || view.Player == null || view.Cars == null) return;
@@ -87,30 +130,148 @@ namespace CrewChiefV4.AiTeam
                 LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, call.Text, call.EventId);
                 return;
             }
+        }
 
-            if (lap - fieldLap < FieldEveryLaps) return;
-            var fastest = view.Cars.Where(c => c != null && c.ClassId == view.Player.ClassId && !float.IsNaN(c.TopSpeed))
-                .OrderByDescending(c => c.TopSpeed).FirstOrDefault();
-            if (fastest == null) return;
-            float top = fastest.TopSpeed * 3.6f;
-            string text;
-            if (fastest.IsPlayer || Math.Abs(top - mine) < .5f) text = FieldText(true, null, Kmh(mine), Kmh(mine), "0");
-            else
+        /// <summary>Feste Termine: Robs Höchsttempo gegen die drei Schnellsten seiner Klasse.</summary>
+        private void EvaluateField(GameStateData gs, FieldView view, bool names, DateTime now)
+        {
+            var s = gs.SessionData;
+            if (fieldCall != null && fieldCall.DeliveryStartedUtc != DateTime.MinValue) { fieldCall = null; retrySlot = -1; }
+            if (fieldCall != null && fieldCall.DeliveryFailed)
             {
-                if (top - mine < FieldDeltaKmh || top - mine > ImplausibleDeltaKmh || !names) return;
-                var op = gs.OpponentData.Values.FirstOrDefault(o => o != null && SameName(o.DriverRawName, fastest.Name));
-                string name = op != null && op.CanUseName ? RadioPhraseCatalog.SafeRivalName(op.DriverRawName) : null;
-                if (string.IsNullOrWhiteSpace(name)) return;
-                text = FieldText(false, name, Kmh(top), Kmh(mine), Kmh(top - mine));
+                if (fieldCallSlot >= 0 && fieldTries[fieldCallSlot] < FieldRetries) { fieldSlotDone[fieldCallSlot] = false; retrySlot = fieldCallSlot; }
+                LiveDiagnostics.Decision("field-topspeed", "retry", "not_spoken;slot=" + fieldCallSlot + ";tries=" + (fieldCallSlot >= 0 ? fieldTries[fieldCallSlot] : 0));
+                fieldCall = null;
             }
-            fieldLap = lap;
-            call = Build(gs, now, "field-topspeed", text, 2, null, "field_top_speed_class;top_kmh=" + Kmh(top) + ";own_kmh=" + Kmh(mine));
-            LiveDiagnostics.Decision(call.Topic, "detected", call.Evidence, call.Text, call.EventId);
+            if (fieldCall != null || s.SessionType != SessionType.Race || s.SessionPhase != SessionPhase.Green ||
+                view == null || view.Player == null || view.Cars == null) return;
+            int slot = FieldSlot(s);
+            if (slot < 0 && retrySlot == 0 && s.CompletedLaps >= FieldStartLap && Progress(s) >= 0 && Progress(s) < LastWindowStart) slot = 0;
+            if (slot < 0 || fieldSlotDone[slot]) return;
+            float mine = view.Player.TopSpeed * 3.6f;
+            if (float.IsNaN(mine) || mine < 60) return;
+            // LMU Algarve 24.11.: „Speedtrap: 269, Ike … 268“ – der Schnellste war ein ausgeschiedener Wagen ohne Namen. Gezählt
+            // werden nur Autos, die noch fahren und (mit Namen) zugeordnet werden können.
+            var ranked = view.Cars.Where(c => c != null && c.ClassId == view.Player.ClassId && !float.IsNaN(c.TopSpeed) &&
+                    c.Motion != CarMotion.Retired && (c.IsPlayer || !names || SpeakableName(gs, c.Name, true) != null) &&
+                    c.TopSpeed * 3.6f >= 60 && c.TopSpeed * 3.6f - mine <= ImplausibleDeltaKmh)
+                .OrderByDescending(c => c.TopSpeed).ToList();
+            if (ranked.Count < 2) return;
+            int rank = ranked.FindIndex(c => c.IsPlayer) + 1;
+            if (rank < 1) return;
+            var top = ranked.Take(3).Select(c => new TopSpeedEntry
+            {
+                Name = c.IsPlayer ? null : SpeakableName(gs, c.Name, names),
+                IsPlayer = c.IsPlayer,
+                Kmh = Kmh(c.TopSpeed * 3.6f)
+            }).ToList();
+            fieldSlotDone[slot] = true;
+            fieldCallSlot = slot; fieldTries[slot]++;
+            float best = ranked[0].TopSpeed * 3.6f;
+            string text = TopThreeText(top, Kmh(mine), rank, ranked.Count, Kmh(Math.Max(0, best - mine)));
+            fieldCall = Build(gs, now, "field-topspeed", text, 4, null,
+                "field_top_speed_top3;slot=" + (slot == 0 ? "first_third" : "last_quarter") + ";top_kmh=" + Kmh(best) + ";own_kmh=" + Kmh(mine) + ";rank=" + rank);
+            // Bis zum Ende des Abschnitts gültig: das erste Drittel bis zur Rennmitte, das letzte Viertel bis zur Zielflagge.
+            fieldCall.ExpiresUtc = now.AddSeconds(slot == 0 ? 240 : 600);
+            LiveDiagnostics.Decision(fieldCall.Topic, "detected", fieldCall.Evidence, fieldCall.Text, fieldCall.EventId);
+        }
+
+        internal sealed class TopSpeedEntry { public string Name; public bool IsPlayer; public string Kmh; }
+
+        private static string SpeakableName(GameStateData gs, string raw, bool names)
+        {
+            if (!names || string.IsNullOrWhiteSpace(raw)) return null;
+            var op = gs.OpponentData.Values.FirstOrDefault(o => o != null && SameName(o.DriverRawName, raw));
+            if (op == null || !op.CanUseName) return null;
+            string name = RadioPhraseCatalog.SafeRivalName(op.DriverRawName);
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
+
+        /// <summary>Liste „A 249, B 247 und C 246 km/h“; Robs Eintrag heißt „du“, ohne Namen nur die Werte.</summary>
+        internal static string TopList(IList<TopSpeedEntry> top)
+        {
+            var parts = top.Select(e => e.IsPlayer ? RadioLanguage.T("du ", "you ", "tú ") + e.Kmh :
+                string.IsNullOrWhiteSpace(e.Name) ? e.Kmh : e.Name + " " + e.Kmh).ToList();
+            string and = RadioLanguage.T(" und ", " and ", " y ");
+            string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + and + parts[parts.Count - 1];
+            return list + " km/h";
+        }
+
+        /// <summary>Top 3 im Topspeed und Robs Wert, sechs Formulierungen je Sprache (DE/EN/ES).</summary>
+        internal static string TopThreeText(IList<TopSpeedEntry> top, string mine, int rank, int total, string behind)
+        {
+            string list = TopList(top);
+            string r = rank.ToString(CultureInfo.InvariantCulture), n = total.ToString(CultureInfo.InvariantCulture);
+            if (rank == 1)
+                return RadioVariants.Pick("topspeed-top3-own-best",
+                    RadioLanguage.T("Topspeed-Vergleich: " + list + ". Du bist auf der Geraden der Schnellste.",
+                        "Top speed check: " + list + ". You're the quickest on the straight.",
+                        "Velocidad punta: " + list + ". Eres el más rápido en recta."),
+                    RadioLanguage.T("Höchsttempo in der Klasse: " + list + ". Keiner ist schneller als du.",
+                        "Class top speeds: " + list + ". Nobody is faster than you.",
+                        "Punta de la clase: " + list + ". Nadie es más rápido que tú."),
+                    RadioLanguage.T("Auf der Geraden führst du die Liste an: " + list + ".",
+                        "You top the speed trap: " + list + ".",
+                        "Encabezas la lista en recta: " + list + "."),
+                    RadioLanguage.T("Kurzer Blick auf die Endgeschwindigkeit: " + list + ". Platz 1, das Auto geht gut.",
+                        "Quick look at the top end: " + list + ". P1, the car is working.",
+                        "Un vistazo a la punta: " + list + ". Primero, el coche va bien."),
+                    RadioLanguage.T("Die Top 3 im Topspeed: " + list + ". Du hast den Bestwert.",
+                        "Top three on speed: " + list + ". The best figure is yours.",
+                        "Los tres más rápidos en punta: " + list + ". El mejor registro es tuyo."),
+                    RadioLanguage.T("Speedtrap: " + list + ". Ganz vorn bist du.",
+                        "Speed trap: " + list + ". You're at the top.",
+                        "Trampa de velocidad: " + list + ". Estás arriba del todo."));
+            if (rank <= 3)
+                return RadioVariants.Pick("topspeed-top3-own-in",
+                    RadioLanguage.T("Topspeed-Vergleich: " + list + ". Du bist Platz " + r + " von " + n + ".",
+                        "Top speed check: " + list + ". You're P" + r + " of " + n + ".",
+                        "Velocidad punta: " + list + ". Eres " + r + "º de " + n + "."),
+                    RadioLanguage.T("Höchsttempo in der Klasse: " + list + ". Damit bist du in den Top 3.",
+                        "Class top speeds: " + list + ". That puts you in the top three.",
+                        "Punta de la clase: " + list + ". Con eso estás entre los tres primeros."),
+                    RadioLanguage.T("Auf der Geraden die Schnellsten: " + list + ". Dir fehlen " + behind + " km/h auf die Spitze.",
+                        "Quickest on the straight: " + list + ". You're " + behind + " km/h off the top.",
+                        "Los más rápidos en recta: " + list + ". Te faltan " + behind + " km/h para el primero."),
+                    RadioLanguage.T("Kurzer Blick auf die Endgeschwindigkeit: " + list + ". Platz " + r + ", das passt.",
+                        "Quick look at the top end: " + list + ". P" + r + ", that's fine.",
+                        "Un vistazo a la punta: " + list + ". " + r + "º, está bien."),
+                    RadioLanguage.T("Die Top 3 im Topspeed: " + list + ". Du bist dabei.",
+                        "Top three on speed: " + list + ". You're in there.",
+                        "Los tres más rápidos en punta: " + list + ". Estás entre ellos."),
+                    RadioLanguage.T("Speedtrap: " + list + ". Rang " + r + " für dich.",
+                        "Speed trap: " + list + ". P" + r + " for you.",
+                        "Trampa de velocidad: " + list + ". Puesto " + r + " para ti."));
+            return RadioVariants.Pick("topspeed-top3-own-out",
+                RadioLanguage.T("Topspeed-Vergleich: vorn " + list + ". Du hast " + mine + ", Platz " + r + " von " + n + ".",
+                    "Top speed check: up front " + list + ". You've got " + mine + ", P" + r + " of " + n + ".",
+                    "Velocidad punta: delante " + list + ". Tú tienes " + mine + ", " + r + "º de " + n + "."),
+                RadioLanguage.T("Auf der Geraden sind am schnellsten " + list + ". Bei dir stehen " + mine + ", " + behind + " weniger als die Spitze.",
+                    "Quickest on the straight: " + list + ". You're showing " + mine + ", " + behind + " down on the top.",
+                    "Los más rápidos en recta: " + list + ". Tú marcas " + mine + ", " + behind + " menos que el primero."),
+                RadioLanguage.T("Höchsttempo in der Klasse: " + list + ". Du liegst mit " + mine + " km/h auf Platz " + r + ".",
+                    "Class top speeds: " + list + ". You're on " + mine + " km/h, P" + r + ".",
+                    "Punta de la clase: " + list + ". Tú vas a " + mine + " km/h, " + r + "º."),
+                RadioLanguage.T("Kurzer Blick auf die Endgeschwindigkeit: " + list + ". Dein Wert: " + mine + " km/h, Rang " + r + " von " + n + ".",
+                    "Quick look at the top end: " + list + ". Yours: " + mine + " km/h, P" + r + " of " + n + ".",
+                    "Un vistazo a la punta: " + list + ". La tuya: " + mine + " km/h, " + r + "º de " + n + "."),
+                RadioLanguage.T("Die Top 3 im Topspeed: " + list + ". Du bist bei " + mine + ", " + behind + " km/h hinter der Spitze.",
+                    "Top three on speed: " + list + ". You're at " + mine + ", " + behind + " km/h off the top.",
+                    "Los tres más rápidos en punta: " + list + ". Tú estás en " + mine + ", a " + behind + " km/h del primero."),
+                RadioLanguage.T("Speedtrap: " + list + ". Für dich " + mine + " km/h, Platz " + r + ". Die Zeit holst du in den Kurven.",
+                    "Speed trap: " + list + ". You've got " + mine + " km/h, P" + r + ". You find the time in the corners.",
+                    "Trampa de velocidad: " + list + ". Tú " + mine + " km/h, " + r + "º. El tiempo lo ganas en las curvas."));
         }
 
         internal ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool enabled)
         {
-            if (call == null || busy || !enabled) return null;
+            if (busy || !enabled) return null;
+            if (fieldCall != null)
+            {
+                if (fieldCall.IsValid(gs, now)) { if (fieldCall.TryReserve(now)) return fieldCall; }
+                else if (now > fieldCall.ExpiresUtc) { LiveDiagnostics.Decision(fieldCall.Topic, "suppressed", "expired", fieldCall.Evidence, fieldCall.EventId); fieldCall = null; }
+            }
+            if (call == null) return null;
             if (!call.IsValid(gs, now))
             {
                 if (now > call.ExpiresUtc) { LiveDiagnostics.Decision(call.Topic, "suppressed", "expired", call.Evidence, call.EventId); call = null; }

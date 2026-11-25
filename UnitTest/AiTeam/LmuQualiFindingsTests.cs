@@ -301,6 +301,37 @@ namespace UnitTest.AiTeamTests
             finally { FuelCarry.Reset(); }
         }
 
+        /// <summary>
+        /// Review 24.11.: „Wie viel brauche ich für 10 Runden?“ ohne Literangabe – die Crew nannte ihre eigene Schätzung aus
+        /// Training und Quali „dein Wert“. Die Herkunft muss stimmen, Robs eigene Zahl bleibt „dein Wert“.
+        /// </summary>
+        [Test]
+        public void Fuel_plan_names_the_true_source_of_the_consumption()
+        {
+            try
+            {
+                FuelCarry.Reset();
+                var quali = Quali(SessionPhase.Green, 5, 8); quali.carName = "Porsche 911 GT3 R";
+                FuelCarry.Remember(quali, 1.8f, 3);
+                var race = Quali(SessionPhase.Green, 0, 10); race.SessionData.SessionType = SessionType.Race; race.carName = quali.carName;
+                race.FuelData.FuelUseActive = true; race.FuelData.FuelLeft = 42f;
+                string answer = RaceFuelPlan.Answer("Wie viel Sprit brauche ich für 10 Runden?", race, new AiRaceMemory());
+                StringAssert.Contains("1,8 Litern (geschätzt aus Training und Quali)", answer);
+                StringAssert.DoesNotContain("dein Wert", answer);
+                answer = RaceFuelPlan.Answer("Wie viel Sprit brauche ich für 10 Runden mit 2,5 Litern?", race, new AiRaceMemory());
+                StringAssert.Contains("2,5 Litern (dein Wert)", answer);
+                Assert.AreEqual("gemessen", RaceFuelPlan.BasisText(FuelEstimate.Basis.Measured));
+                StringAssert.Contains("hochgerechnet", RaceFuelPlan.BasisText(FuelEstimate.Basis.Projected));
+                foreach (var lang in new[] { RadioLanguage.English, RadioLanguage.Spanish })
+                {
+                    RadioLanguage.Current = lang;
+                    foreach (var b in new[] { FuelEstimate.Basis.Measured, FuelEstimate.Basis.Projected, FuelEstimate.Basis.Carried })
+                        Assert.IsFalse(RaceFuelPlan.BasisText(b).Contains("Runde") || RaceFuelPlan.BasisText(b).Contains("geschätzt"), lang + ": übersetzt");
+                }
+            }
+            finally { FuelCarry.Reset(); RadioLanguage.Current = RadioLanguage.German; }
+        }
+
         [Test]
         public void Fuel_use_from_practice_and_quali_is_combined_weighted_by_laps()
         {

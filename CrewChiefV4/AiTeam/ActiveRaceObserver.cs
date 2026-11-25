@@ -212,7 +212,26 @@ namespace CrewChiefV4.AiTeam
             }
             return true;
         }
-        public DateTime DetectedUtc, ExpiresUtc;
+        public DateTime DetectedUtc;
+        /// <summary>
+        /// Rob 24.11. (LMU Algarve): „Gar nicht mehr kommen ist schlecht.“ Sektorbestzeit, Topspeed und Abstände warteten hinter
+        /// Bens 25 s langem Zwischenstand und verfielen. Die Zeit, in der gefunkt wird (Crew, Spotter, Rob), zählt nicht gegen die
+        /// Lebensdauer einer wartenden Meldung (höchstens <see cref="DriverRadioGate.MaxCredit"/>); ob sie dann noch stimmt, prüft
+        /// die Gültigkeit beim Sprechen.
+        /// </summary>
+        public DateTime ExpiresUtc
+        {
+            get
+            {
+                if (expiresUtc >= DateTime.MaxValue - DriverRadioGate.MaxCredit) return expiresUtc;
+                return expiresUtc + DriverRadioGate.Credit(busyAtCreate, DateTime.UtcNow);
+            }
+            set { expiresUtc = value; }
+        }
+        private DateTime expiresUtc;
+        private readonly long busyAtCreate = DriverRadioGate.BusyTicks(DateTime.UtcNow);
+        /// <summary>Funkzeit seit der Erkennung, die nicht gegen die Lebensdauer zählt.</summary>
+        internal TimeSpan WaitCredit => DriverRadioGate.Credit(busyAtCreate, DateTime.UtcNow);
         private int deliveryState, attempts;
         private long playbackStartedTicks, retryNotBeforeTicks,playbackEndedTicks;
         private int playbackInterrupted;

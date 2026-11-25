@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using CrewChiefV4.AiTeam.Field;
 using CrewChiefV4.GameState;
@@ -13,6 +14,46 @@ namespace CrewChiefV4.AiTeam
     /// Gilt für alle Sims: die Flaggen aus dem Spielstand (FlagWatch) und die Gelb-/Grün-Meldungen der Rennleitung.
     /// Erkannt und in der Rennchronik festgehalten wird Gelb weiterhin – nur der Funk entfällt.
     /// </summary>
+    /// <summary>
+    /// Schwere Kontakte und Einschläge anderer Fahrer (LMU-Ergebnisstrom). Sie werden nicht gesprochen (Rob 24.11.: „nicht jeden
+    /// Kontakt“), machen aber aus einem stehenden oder gedrehten Wagen voraus einen Unfall.
+    /// </summary>
+    internal static class FieldImpacts
+    {
+        /// <summary>Ab dieser Stärke zählt ein Kontakt zwischen zwei Autos bzw. ein Einschlag als Unfall (Algarve: 80–2100 bzw. bis 8000).</summary>
+        internal const double CarImpact = 500, ObjectImpact = 1500;
+        internal static readonly TimeSpan Window = TimeSpan.FromSeconds(30);
+        private static readonly System.Collections.Generic.Dictionary<string, DateTime> recent =
+            new System.Collections.Generic.Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        internal static string Key(string rawName)
+        {
+            string spoken = RadioPhraseCatalog.SafeRivalName(rawName);
+            return string.IsNullOrWhiteSpace(spoken) ? null : RaceTrafficWatch.NameClipText(spoken);
+        }
+
+        internal static void Note(string rawName, double severity, bool withObject, DateTime now)
+        {
+            if (double.IsNaN(severity) || severity < (withObject ? ObjectImpact : CarImpact)) return;
+            string key = Key(rawName);
+            if (key == null) return;
+            lock (recent)
+            {
+                if (recent.Count > 64) recent.Clear();
+                recent[key] = now;
+            }
+        }
+
+        /// <summary>Hatte der Wagen hinter diesem Namensclip („Das ist …“) eben einen schweren Kontakt?</summary>
+        internal static bool Recent(string nameClip, DateTime now)
+        {
+            if (string.IsNullOrWhiteSpace(nameClip)) return false;
+            lock (recent) return recent.TryGetValue(nameClip, out var at) && now >= at && now - at <= Window;
+        }
+
+        internal static void Reset() { lock (recent) recent.Clear(); }
+    }
+
     internal static class SaraFlagPolicy
     {
         /// <summary>Gewöhnliches Gelb am Funk (Sektor, lokal, doppelt, aufgehoben). Rob: aus.</summary>
@@ -43,6 +84,60 @@ namespace CrewChiefV4.AiTeam
             if (topic == "warning-flag-8" && !IncidentConfirmed(gs, view, now)) { reason = "incident_without_stopped_car_ahead"; return false; }
             return true;
         }
+
+        /// <summary>
+        /// Rob 24.11. (LMU Algarve): „Sara muss nicht jeden Kontakt der anderen melden, nur Unfälle, Dreher, langsame Fahrzeuge.
+        /// Kurz mit Gelb ankündigen: ‚Gelb – vorne ist ein Unfall – Fahrername‘, ‚Gelb – vorne steht ein Wagen‘.“ Saras
+        /// Gefahrenmeldungen voraus bekommen einen kurzen Auftakt: „Gelb!“, wenn die Sim Gelb zeigt, „Unfall“, wenn der Wagen
+        /// eben einen schweren Kontakt oder Einschlag hatte. Der Name folgt wie bisher am Ende. Gewöhnliches Gelb ohne Gefahr und
+        /// Kontakte anderer bleiben stumm.
+        /// </summary>
+        internal static bool HazardLeadTopic(string topic) =>
+            topic == "warning-hazard-far" || topic == "race-hazard-ahead";
+
+        internal static string HazardLead(string topic, GameStateData gs, string nameClip, DateTime now)
+        {
+            if (!HazardLeadTopic(topic)) return null;
+            bool yellow = YellowAheadWatch.SimShowsYellow(gs);
+            bool crash = FieldImpacts.Recent(nameClip, now);
+            return HazardLead(yellow, crash);
+        }
+
+        internal static string[] LeadOptions(bool yellow, bool crash)
+        {
+            if (crash && yellow)
+                return new[] {
+                    RadioLanguage.T("Gelb, vorne ist ein Unfall!", "Yellow, there's a crash ahead!", "¡Amarilla, accidente delante!"),
+                    RadioLanguage.T("Gelb! Unfall vor dir!", "Yellow! Accident ahead!", "¡Amarilla! ¡Accidente delante!"),
+                    RadioLanguage.T("Gelb, da vorne hat es gekracht!", "Yellow, there's been a crash up ahead!", "¡Amarilla, ha habido un choque delante!"),
+                    RadioLanguage.T("Achtung, Gelb, Unfall voraus!", "Careful, yellow, crash ahead!", "¡Cuidado, amarilla, accidente delante!"),
+                    RadioLanguage.T("Gelbe Flagge, vorne ein Unfall!", "Yellow flag, accident ahead!", "¡Bandera amarilla, accidente delante!") };
+            if (crash)
+                return new[] {
+                    RadioLanguage.T("Vorne ist ein Unfall!", "There's a crash ahead!", "¡Hay un accidente delante!"),
+                    RadioLanguage.T("Unfall vor dir!", "Accident ahead of you!", "¡Accidente delante de ti!"),
+                    RadioLanguage.T("Da vorne hat es gekracht!", "There's been a crash up ahead!", "¡Ha habido un choque delante!"),
+                    RadioLanguage.T("Achtung, Unfall voraus!", "Careful, crash ahead!", "¡Cuidado, accidente delante!"),
+                    RadioLanguage.T("Vorsicht, vorne ein Unfall!", "Watch out, accident ahead!", "¡Ojo, accidente delante!") };
+            if (yellow)
+                return new[] {
+                    RadioLanguage.T("Gelb!", "Yellow!", "¡Amarilla!"),
+                    RadioLanguage.T("Gelb vorne!", "Yellow ahead!", "¡Amarilla delante!"),
+                    RadioLanguage.T("Achtung, Gelb!", "Careful, yellow!", "¡Cuidado, amarilla!"),
+                    RadioLanguage.T("Gelbe Flagge!", "Yellow flag!", "¡Bandera amarilla!"),
+                    RadioLanguage.T("Gelb, Gelb!", "Yellow, yellow!", "¡Amarilla, amarilla!") };
+            return new string[0];
+        }
+
+        internal static string HazardLead(bool yellow, bool crash)
+        {
+            var options = LeadOptions(yellow, crash);
+            return options.Length == 0 ? null : RadioVariants.Pick("hazard-lead-" + (yellow ? "y" : "") + (crash ? "c" : ""), options);
+        }
+
+        /// <summary>Alle Auftakte in der aktuellen Sprache (zum Vorbereiten in Saras Stimme).</summary>
+        internal static IEnumerable<string> HazardLeadPhrases =>
+            LeadOptions(true, true).Concat(LeadOptions(false, true)).Concat(LeadOptions(true, false));
 
         /// <summary>Steht, dreht oder schleicht ein Wagen kurz vor Rob?</summary>
         internal static bool IncidentConfirmed(GameStateData gs, FieldView view, DateTime now)

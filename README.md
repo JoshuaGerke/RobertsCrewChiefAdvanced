@@ -6,7 +6,39 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.35: the crew calls the radio by the situation.**
+> **New in Alpha 0.38: bug fixes after the LMU race at Algarve.**
+>
+> - **Sara comes first.** Yellow flags, accidents, stopped and slow cars cut Ben and Mik off at once. She only cuts an answer to your question for a real hazard.
+> - **Two tiers for all calls.** Important calls come at once, everything else queues and comes as soon as the radio is free. Time spent waiting behind running radio does not count as age, and a call is only dropped when its content is really out of date.
+> - **Yellow with names**: "Yellow, there's an accident ahead", "Yellow, a car is stopped ahead" or "Yellow, a slow car ahead", each with the driver's name. Sara no longer reports other drivers' contacts that have no consequences.
+> - **Retirements** are reported by Sara under yellow too.
+> - **Sector bests in the race** are compared by Ben with the sector of the fastest lap in your class, with the name. Implausible gains from the start lap are dropped.
+> - **Top speed really comes twice.** If the call is lost, it comes back later. Only cars that are still running and have a name are named.
+> - **Ben's big summary**: once in races up to 30 minutes, twice up to 60 minutes, three times in longer races.
+> - **The fights stay the core**: car ahead, car behind, gap to the leader and best lap comparisons come as before.
+>
+> **Since Alpha 0.37: best laps, top speed and clear roles.**
+>
+> - **Every best lap in the field is called**, with the name and the gap to your best, in practice, qualifying and the race, also on the start lap and the last lap. The call waits for a gap on the radio and only lapses once someone is faster. If you have no counted race lap yet, Ben compares with your best today or your last lap.
+> - **Top speed twice per race**: in the first third and the last quarter Ben names the three fastest on the straight and your figure with your rank.
+> - **Your best counts when the sim counts it.** If RaceRoom takes a lap as your best that Crew Chief marks as invalid, the call still comes.
+> - **Ben answers everything general**: race situation, gaps, time left, best laps, strategy. Mik only calls fuel, consumption, tyres, technical topics and damage, short and without discussion.
+> - **Fuel in practice at once**: a first estimate after a few hundred metres, then the consumption of the first full lap, even if that lap was deleted. If you ask how much fuel a race duration needs, the crew works it out in litres.
+> - **Sector bests in practice and qualifying** come at once and short, with brief praise for your fastest lap.
+> - **Race control for all sims**: Ben comments warnings and penalties in his own words, with names.
+> - **Backmarkers** are only called when you are really catching them, not at a constant gap.
+> - **Before the start** the crew no longer thinks the race is over, and it gives the time left as the current value.
+>
+> **Since Alpha 0.36: bug fixes.**
+>
+> - **Correct class in multiclass races** (LMU, AMS2, iRacing). The race summary names the winner of your class instead of the overall winner. Class position and the class top speed are right.
+> - **FCY and red flag in LMU.** Under FCY or a race stoppage, half the field no longer counts as "slow" or "stopped".
+> - **Fuel sources named honestly.** If you ask how much fuel a distance needs without giving a figure, the crew says where the consumption comes from: measured, projected, or estimated from practice and qualifying. Only your own figure is called "your figure".
+> - **Ben does not change numbers.** A freely worded battle call can no longer turn "12 seconds" into "2 seconds".
+> - **No name gets lost.** If Sara's combined call for pit stops or retirements does not get through, the names come again. With very many calls the least important one is dropped first, never a retirement.
+> - **Diagnostics.** The answer time to your questions now measures only the answer itself, not another call in between.
+>
+> **Since Alpha 0.35: the crew calls the radio by the situation.**
 >
 > - **No more radio levels.** Ben, Mik and Sara decide themselves when information comes: events at once, the cars ahead and behind most often, technical reports when there is room.
 > - **Spotter by radio.** "Spotter on" and "spotter off" work at once and last until restart, also when qualifying turns into the race.

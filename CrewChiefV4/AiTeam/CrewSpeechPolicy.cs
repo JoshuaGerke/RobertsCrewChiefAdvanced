@@ -463,6 +463,23 @@ namespace CrewChiefV4.AiTeam
                 (!answer || incomingPriority >= InterruptAnswerPriority);
         }
 
+        /// <summary>Ab dieser Stufe hat eine Meldung von Sara Vorrang vor laufendem Funk von Ben und Mik.</summary>
+        internal const int SaraPrecedencePriority = 5;
+
+        /// <summary>
+        /// Rob 24.11. (LMU Algarve): „Sara war fast stumm, Ben und Mik haben sie überchattet, dabei sollte Sara mit ihren Meldungen
+        /// immer Vorrang haben.“ Ihre Warnung wartete hinter Bens 25 s langem Zwischenstand und verfiel. Eine Sara-Meldung ab Stufe 5
+        /// löst jeden laufenden Funk von Ben und Mik mit niedrigerer Stufe ab (sinnvolle Meldungen werden später nachgereicht).
+        /// Antworten auf Robs Fragen (Clip ohne Thema) weichen nur einer dringenden Gefahr ab Stufe 8; Spotter und Funkton laufen zu Ende.
+        /// </summary>
+        internal static bool CanSaraCut(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep, int currentPriority, string currentTopic,
+            int incomingPriority)
+        {
+            if (!currentIsAi || currentIsSpotter || currentIsBleep || incomingPriority < SaraPrecedencePriority || currentPriority >= incomingPriority)
+                return false;
+            return !string.IsNullOrEmpty(currentTopic) || incomingPriority >= InterruptAnswerPriority;
+        }
+
         internal static bool CanInterruptForResult(bool currentIsAi, bool currentIsSpotter, bool currentIsBleep,
             int currentPriority, string currentTopic = null, string nextTopic = null)
         {

@@ -6,7 +6,39 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.35: Die Crew funkt nach Lage.**
+> **Neu in Alpha 0.38: Fehlerbehebungen nach dem LMU-Rennen in Algarve.**
+>
+> - **Sara hat Vorrang.** Gelb, Unfälle, stehende und langsame Wagen unterbrechen Ben und Mik sofort. Antworten auf deine Fragen unterbricht sie nur bei echter Gefahr.
+> - **Zwei Stufen für alle Ansagen.** Wichtige Meldungen kommen sofort, alles andere stellt sich an und kommt, sobald Luft ist. Die Wartezeit hinter laufendem Funk zählt nicht als Alter, eine Meldung entfällt nur, wenn ihr Inhalt wirklich veraltet ist.
+> - **Gelb mit Namen**: „Gelb, vorne ist ein Unfall“, „Gelb, vorne steht ein Wagen“ oder „Gelb, vorne ist ein langsames Fahrzeug“, jeweils mit dem Fahrernamen. Kontakte anderer Fahrer ohne Folgen meldet Sara nicht mehr.
+> - **Ausfälle** meldet Sara auch unter Gelb.
+> - **Sektor-Bestzeiten im Rennen** vergleicht Ben mit dem Sektor der schnellsten Runde deiner Klasse, mit Namen. Unplausible Gewinne aus der Startrunde fallen weg.
+> - **Topspeed kommt wirklich zweimal.** Fällt die Meldung aus, kommt sie später wieder. Genannt werden nur Wagen, die noch fahren und einen Namen haben.
+> - **Bens große Zusammenfassung**: einmal in Rennen bis 30 Minuten, zweimal bis 60 Minuten, dreimal in längeren Rennen.
+> - **Die Kämpfe bleiben der Kern**: Vordermann, Hintermann, Abstand zur Spitze und Bestzeitvergleiche kommen wie bisher.
+>
+> **Seit Alpha 0.37: Bestzeiten, Topspeed und klare Zuständigkeiten.**
+>
+> - **Jede Bestzeit im Feld wird angesagt**, mit Namen und dem Abstand zu deiner Bestzeit, im Training, im Qualifying und im Rennen, auch in der Startrunde und in der letzten Runde. Die Meldung wartet, bis Luft ist, und verfällt erst, wenn jemand schneller war. Hast du im Rennen noch keine gewertete Runde, vergleicht Ben mit deiner Bestzeit von heute oder deiner letzten Runde.
+> - **Topspeed zweimal im Rennen**: im ersten Drittel und im letzten Viertel nennt Ben die drei Schnellsten auf der Geraden und deinen Wert mit Platz.
+> - **Deine Bestzeit zählt, wenn die Sim sie zählt.** Übernimmt RaceRoom eine Runde als Bestzeit, die Crew Chief als ungültig führt, kommt trotzdem die Ansage.
+> - **Ben antwortet auf alles Allgemeine**: Rennlage, Abstände, Restzeit, Bestzeiten, Strategie. Mik sagt nur noch Sprit, Verbrauch, Reifen, Technik und Schäden an, kurz und ohne Diskussion.
+> - **Sprit im Training sofort**: eine erste Schätzung nach wenigen hundert Metern, danach der Verbrauch der ersten vollen Runde, auch wenn die Runde gestrichen war. Fragst du nach Sprit für eine Renndauer, rechnet die Crew es in Litern vor.
+> - **Sektor-Bestzeiten im Training und Qualifying** kommen sofort und kurz, bei deiner schnellsten Runde gibt es ein kurzes Lob.
+> - **Rennleitung für alle Sims**: Verwarnungen und Strafen kommentiert Ben in eigenen Worten, mit Namen.
+> - **Überrundete** werden nur noch gemeldet, wenn du wirklich aufholst, nicht bei gleichbleibendem Abstand.
+> - **Vor dem Start** hält die Crew das Rennen nicht mehr für beendet, und die Restzeit nennt sie als aktuellen Wert.
+>
+> **Seit Alpha 0.36: Fehlerbehebungen.**
+>
+> - **Richtige Klasse im Multiclass-Rennen** (LMU, AMS2, iRacing). Die Rennbilanz nennt den Sieger deiner Klasse statt des Gesamtsiegers. Klassenplatz und Topspeed der Klassenspitze stimmen.
+> - **FCY und Rennunterbrechung in LMU.** Unter FCY oder bei Rennunterbrechung gilt nicht mehr das halbe Feld als „langsam“ oder „steht“.
+> - **Sprit ehrlich benannt.** Fragst du nach dem Sprit für eine Distanz ohne eigene Literangabe, sagt die Crew, woher der Verbrauch stammt: gemessen, hochgerechnet oder aus Training und Quali geschätzt. Nur deine eigene Zahl heißt „dein Wert“.
+> - **Ben verändert keine Zahlen.** Eine frei formulierte Zweikampfansage kann aus „12 Sekunden“ nicht mehr „2 Sekunden“ machen.
+> - **Kein Name geht verloren.** Kommt Saras Sammelansage für Boxenstopps oder Ausfälle nicht durch, kommen die Namen noch einmal. Bei sehr vielen Meldungen fällt zuerst die unwichtigste weg, nie ein Ausfall.
+> - **Diagnose.** Die Antwortzeit auf deine Fragen misst nur noch die Antwort selbst, nicht eine andere Meldung dazwischen.
+>
+> **Seit Alpha 0.35: Die Crew funkt nach Lage.**
 >
 > - **Keine Funkstufen mehr.** Ben, Mik und Sara entscheiden selbst, wann eine Info kommt: Ereignisse sofort, Vorder- und Hintermann am häufigsten, Technik, wenn Luft ist.
 > - **Spotter per Funk.** „Spotter ein“ und „Spotter aus“ wirken sofort und gelten bis zum Neustart, auch beim Wechsel vom Qualifying ins Rennen.

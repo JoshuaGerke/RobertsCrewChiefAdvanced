@@ -58,6 +58,26 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(expected, why);
         }
 
+        /// <summary>Review 24.11.: Die Zahlenprüfung suchte Teilzeichenfolgen – „2 Sekunden“ bestand gegen „12 Sekunden“.</summary>
+        [TestCase("Nur noch 2 Sekunden auf Valgo, hol ihn dir!", "Valgo liegt 12 Sekunden vor dir. 1,8 Zehntel pro Runde holst du.", "new_number:2")]
+        [TestCase("Valgo ist 8 Zehntel schneller, bleib dran.", "Valgo liegt 12 Sekunden vor dir. 1,8 Zehntel pro Runde holst du.", "new_number:8")]
+        [TestCase("Valgo ist 1 Sekunde weg, bleib dran.", "Valgo liegt 12 Sekunden vor dir. 1,8 Zehntel pro Runde holst du.", "new_number:1")]
+        public void A_number_must_match_whole_not_as_part_of_another(string candidate, string template, string expected)
+        {
+            Assert.IsNull(BattleVoice.Validate(candidate, template, new List<string> { "Valgo" }, Field, new List<string>(), out string why));
+            Assert.AreEqual(expected, why);
+        }
+
+        [Test]
+        public void The_same_numbers_still_pass_also_with_the_other_decimal_mark()
+        {
+            string template = "Valgo liegt 12 Sekunden vor dir. 1,8 Zehntel pro Runde holst du.";
+            Assert.IsNotNull(BattleVoice.Validate("Noch 12 Sekunden bis Valgo, aber du holst 1.8 Zehntel pro Runde. Dranbleiben!",
+                template, new List<string> { "Valgo" }, Field, new List<string>(), out string why), why);
+            Assert.IsTrue(BattleVoice.HasNumber("Platz 6. Vorbei an Valgo.", "6"));
+            Assert.IsFalse(BattleVoice.HasNumber("Platz 16.", "6"));
+        }
+
         [Test]
         public void A_line_close_to_a_recent_one_is_not_repeated()
         {

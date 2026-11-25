@@ -65,8 +65,10 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string,DateTime> seen=new Dictionary<string,DateTime>();
         private DateTime lastRadio=DateTime.MinValue;
         private readonly RadioVariantCursor pitVariants = new RadioVariantCursor();
-        /// <summary>Schnellste Runde eines Gegners: darf einen kurzen Zweikampf abwarten (LMU 22.11.).</summary>
-        internal const int FastestLapSeconds = 25;
+        /// <summary>Schnellste Runde eines Gegners: darf einen Zweikampf, Gelb oder die Startrunde abwarten. RaceRoom Salzburg 24.11.:
+        /// Rethemeiers erste Bestzeit wartete in der Startrunde und verfiel nach 25 s (Rob: „wieder eine Bestzeit und ihr meldet sie
+        /// nicht“). Sie bleibt jetzt gültig, bis jemand schneller ist.</summary>
+        internal const int FastestLapSeconds = 120;
         private readonly RadioVariantCursor fastestVariants = new RadioVariantCursor();
         private int fastestAnnounced;
         /// <summary>Funkname des Fahrers; Gegner-Bestzeiten sprechen ihn im Wechsel persönlich an.</summary>
@@ -84,6 +86,11 @@ namespace CrewChiefV4.AiTeam
         private DateTime classRecordUtc, overallRecordUtc;
         private readonly Dictionary<ObservedRaceCall, NativeFieldFact> pitFacts = new Dictionary<ObservedRaceCall, NativeFieldFact>();
         private readonly Dictionary<ObservedRaceCall, NativeFieldFact> saraFacts = new Dictionary<ObservedRaceCall, NativeFieldFact>();
+        /// <summary>Einzelmeldungen, die in einer Sammelansage stecken. Kommt die Sammelansage nicht an, gehen sie zurück in die Warteliste.</summary>
+        private readonly Dictionary<ObservedRaceCall, List<KeyValuePair<ObservedRaceCall, NativeFieldFact>>> bundled =
+            new Dictionary<ObservedRaceCall, List<KeyValuePair<ObservedRaceCall, NativeFieldFact>>>();
+        /// <summary>Höchstzahl wartender Feldmeldungen.</summary>
+        internal const int MaxPending = 16;
         private int bundleVariant;
         private NativeFieldFact spokenPit;
         private DateTime spokenPitUtc;
@@ -95,7 +102,7 @@ namespace CrewChiefV4.AiTeam
         }
         public void Capture(NativeFieldFact fact)
         {if(fact==null)return;incoming.Enqueue(fact);NativeFieldFact unused;while(incoming.Count>32)incoming.TryDequeue(out unused);}
-        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();seen.Clear();departing.Clear();ResetLapEvidence();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
+        public void Reset(){NativeFieldFact f;while(incoming.TryDequeue(out f)){}pending.Clear();pitFacts.Clear();saraFacts.Clear();bundled.Clear();seen.Clear();departing.Clear();ResetLapEvidence();lastRadio=DateTime.MinValue;spokenPit=null;spokenPitUtc=DateTime.MinValue;}
 
         // AC 20.11.: „Server verlassen ohne Namen.“ Crew Chief meldet Abgänge in AC gar nicht (keine Ausfallliste im Adapter);
         // ein Gegner, der im laufenden Rennen aus den Daten verschwindet oder inaktiv wird, ist nach 3 s bestätigt weg.
@@ -372,7 +379,7 @@ namespace CrewChiefV4.AiTeam
                 if (fastest) variant = (variant + fastestAnnounced++) % RadioPhraseCatalog.Current.Count(group);
                 string text = Text(f, names, variant);
                 if(text==null)continue;
-                if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapAndPush((float)f.Seconds,SessionLapObserver.ComparableOwnBest(gs),variant);
+                if(f.Kind=="fastest")text+=" "+SessionLapObserver.GapToOwnAndPush((float)f.Seconds,gs,variant);
                 if(fastest && fastestAnnounced%2==0)text=RadioPhraseCatalog.Address(text,AiPersonas.CleanForRadio(RadioName??"",30,false));
                 if(memory!=null)memory.AddObservation(text,now,"field-"+f.Kind,f.Key,f.Source);
                 // Existing SessionLapObserver already owns non-race class records.
@@ -382,7 +389,7 @@ namespace CrewChiefV4.AiTeam
                 if(f.Kind=="tyres" && (f.Position<1 || Math.Abs(f.Position-gs.SessionData.ClassPosition)>2 && f.Position!=1))relevant=false;
                 if(!relevant){LiveDiagnostics.Decision("field-"+f.Kind,"stored","session_or_rival_not_relevant",text);continue;}
                 var fact=f;
-                if (pending.Count >= 16) Remove(pending[0]);
+                if (pending.Count >= MaxPending) MakeRoom(now);
                 bool sara=f.Type==SessionType.Race && SaraNews("field-"+f.Kind);
                 var call = new ObservedRaceCall {Topic="field-"+f.Kind,Text=text,Evidence="native:"+f.Source+";opponent="+f.Key,SemanticKey="field|"+id,
                     SessionId=f.Session,SessionType=f.Type,Position=-1,Member=sara?TeamMember.Sara:TeamMember.Ben,Priority=sara?5:fastest?4:3,
@@ -485,23 +492,75 @@ namespace CrewChiefV4.AiTeam
             }
             pitFacts.Remove(call);
             saraFacts.Remove(call);
+            bundled.Remove(call);
             pending.Remove(call);
         }
+
+        /// <summary>
+        /// Review 24.11.: Bei voller Warteliste fiel bisher der älteste Eintrag ohne Logeintrag weg, auch ein Ausfall. Jetzt geht die
+        /// unwichtigste Meldung (niedrigster Vorrang, dann die älteste), nie eine, die gerade gesprochen wird, und mit Grund im Log.
+        /// </summary>
+        private void MakeRoom(DateTime now)
+        {
+            var victim = pending.Where(c => !c.IsReserved && c.DeliveryStartedUtc == DateTime.MinValue)
+                .OrderBy(c => c.Priority).ThenBy(c => c.DetectedUtc).FirstOrDefault();
+            if (victim == null) return;
+            LiveDiagnostics.Decision(victim.Topic, "suppressed", "queue_full", victim.Text, victim.EventId);
+            if (bundled.TryGetValue(victim, out var members))
+                foreach (var m in members) LiveDiagnostics.Decision(m.Key.Topic, "suppressed", "queue_full_in_bundle:" + victim.EventId, m.Key.Text, m.Key.EventId);
+            Remove(victim);
+        }
+
+        /// <summary>
+        /// Review 24.11.: Kam eine Sammelansage nicht an, waren alle Namen darin verloren. Ihre Einzelmeldungen, die noch gelten,
+        /// gehen zurück in die Warteliste; die übrigen werden mit Grund verworfen.
+        /// </summary>
+        private void Unbundle(ObservedRaceCall bundle, GameStateData gs, DateTime now)
+        {
+            if (!bundled.TryGetValue(bundle, out var members)) return;
+            bundled.Remove(bundle);
+            foreach (var m in members)
+            {
+                if (pending.Contains(m.Key)) continue;
+                if (!m.Key.IsValid(gs, now))
+                {
+                    LiveDiagnostics.Decision(m.Key.Topic, "suppressed", "expired_with_bundle:" + bundle.EventId, m.Key.Text, m.Key.EventId);
+                    continue;
+                }
+                pending.Add(m.Key);
+                saraFacts[m.Key] = m.Value;
+                if (m.Value.Kind == "pit") pitFacts[m.Key] = m.Value;
+                LiveDiagnostics.Decision(m.Key.Topic, "requeued", "bundle_not_delivered:" + bundle.EventId, m.Key.Text, m.Key.EventId);
+            }
+        }
+
+        /// <summary>Für Tests: wartende Meldungen und die Einzelmeldungen in Sammelansagen.</summary>
+        internal int PendingCount => pending.Count;
+        internal int BundledCount => bundled.Values.Sum(l => l.Count);
 
         public ObservedRaceCall Take(GameStateData gs,DateTime now,bool busy,bool enabled,bool minimal,
             Func<NativeFieldFact, bool> combinedOwnsPit = null)
         {
             foreach(var call in pending.ToArray())
             {
-                if(call.DeliveryStartedUtc!=DateTime.MinValue){lastRadio=call.DeliveryStartedUtc;Remove(call);}
+                if(call.DeliveryStartedUtc!=DateTime.MinValue)
+                {
+                    lastRadio=call.DeliveryStartedUtc;
+                    if (bundled.TryGetValue(call, out var spoken))
+                        foreach (var m in spoken)
+                            LiveDiagnostics.Decision(m.Key.Topic, call.ConsumedOnly ? "suppressed" : "delivered",
+                                (call.ConsumedOnly ? "consumed_with_bundle:" : "in_bundle:") + call.EventId, m.Key.Text, m.Key.EventId);
+                    Remove(call);
+                }
                 else if(!call.IsValid(gs,now))
                 {
                     LiveDiagnostics.Decision(call.Topic, "suppressed", now > call.ExpiresUtc ? "expired" :
                         call.DeliveryFailed ? "delivery_attempts_exhausted" : "field_facts_changed", call.Evidence, call.EventId);
+                    Unbundle(call, gs, now);
                     Remove(call);
                 }
             }
-            if(!enabled || minimal){pending.Clear();pitFacts.Clear();saraFacts.Clear();return null;}
+            if(!enabled || minimal){pending.Clear();pitFacts.Clear();saraFacts.Clear();bundled.Clear();return null;}
             if(busy || AiRadioSchedule.BusyForRoutine(gs))return null;
             foreach (var call in pending.OrderByDescending(c => c.Priority).ThenByDescending(c => c.DetectedUtc))
             {
@@ -545,17 +604,26 @@ namespace CrewChiefV4.AiTeam
                     saraFacts.TryGetValue(c, out var f) && Family(f.Kind) == family && Math.Abs((c.DetectedUtc - call.DetectedUtc).TotalSeconds) <= BundleWindow.TotalSeconds)
                 .ToList();
             if (group.Count == 0) return false;
-            var names = new[] { fact }.Concat(group.Select(c => saraFacts[c])).Select(f => call.FieldNamesAllowed || fact.Kind != "pit" ? Name(f.Name) : "")
+            // Schon gebündelte Namen (auch aus einer wartenden Sammelansage in der Gruppe) bleiben im Satz.
+            var members = new List<KeyValuePair<ObservedRaceCall, NativeFieldFact>>();
+            if (bundled.TryGetValue(call, out var earlier)) members.AddRange(earlier);
+            foreach (var c in group)
+            {
+                members.Add(new KeyValuePair<ObservedRaceCall, NativeFieldFact>(c, saraFacts[c]));
+                if (bundled.TryGetValue(c, out var inner)) members.AddRange(inner);
+            }
+            var names = new[] { fact }.Concat(members.Select(m => m.Value)).Select(f => call.FieldNamesAllowed || fact.Kind != "pit" ? Name(f.Name) : "")
                 .Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (names.Count < 2) return false;
             call.Text = BundleText(family, names, bundleVariant++);
-            call.Evidence += ";bundled=" + (group.Count + 1);
+            call.Evidence += ";bundled=" + (members.Count + 1);
             pitFacts.Remove(call);
             foreach (var other in group)
             {
                 LiveDiagnostics.Decision(other.Topic, "suppressed", "bundled_into:" + call.EventId, other.Text, other.EventId);
                 Remove(other);
             }
+            bundled[call] = members;
             LiveDiagnostics.Decision(call.Topic, "bundled", "sara_same_kind_within_" + (int)BundleWindow.TotalSeconds + "s", call.Text, call.EventId);
             return true;
         }

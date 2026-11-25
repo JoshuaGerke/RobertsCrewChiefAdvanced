@@ -17,8 +17,27 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, DateTime> reported = new Dictionary<string, DateTime>(StringComparer.Ordinal);
         private DateTime lastCall = DateTime.MinValue;
         private ObservedRaceCall call;
+        // RaceRoom Salzburg 24.11.: Alvaro Garcia (zwei Runden zurück) fuhr neun Minuten lang konstant 5 bis 7 s vor Rob und wurde
+        // sechsmal „in etwa 10 Sekunden bist du dran“ angesagt: Die Momentan-Annäherung in einer Bremszone reichte. Jetzt zählt die
+        // gemessene Annäherung über mehrere Sekunden.
+        private readonly Dictionary<string, List<KeyValuePair<DateTime, double>>> gaps = new Dictionary<string, List<KeyValuePair<DateTime, double>>>(StringComparer.Ordinal);
+        internal static readonly TimeSpan ClosingWindow = TimeSpan.FromSeconds(6);
+        internal static readonly TimeSpan RepeatPerCar = TimeSpan.FromSeconds(150);
+        internal const float MinimumClosingMps = 3f;
 
-        internal void Reset() { session = int.MinValue; reported.Clear(); lastCall = DateTime.MinValue; call = null; }
+        internal void Reset() { session = int.MinValue; reported.Clear(); gaps.Clear(); lastCall = DateTime.MinValue; call = null; }
+
+        /// <summary>Gemessene mittlere Annäherung (m/s) an einen Wagen über das Fenster; null, wenn noch zu wenig Verlauf.</summary>
+        internal double? SustainedClosing(string key, double gapNow, DateTime now)
+        {
+            if (!gaps.TryGetValue(key, out var list)) gaps[key] = list = new List<KeyValuePair<DateTime, double>>();
+            list.Add(new KeyValuePair<DateTime, double>(now, gapNow));
+            list.RemoveAll(p => now - p.Key > ClosingWindow + TimeSpan.FromSeconds(2) || p.Key > now);
+            var first = list[0];
+            double span = (now - first.Key).TotalSeconds;
+            if (span < ClosingWindow.TotalSeconds * .75) return null;
+            return (first.Value - gapNow) / span;
+        }
 
         /// <summary>Text je nach Lage: Gegner dicht hinten (Verteidigen), dicht vorne (Chance) oder frei.</summary>
         internal static string Compose(double seconds, string backmarker, float gapAhead, string frontName, float gapBehind, string rearName, int variant)
@@ -87,15 +106,27 @@ namespace CrewChiefV4.AiTeam
             if (s.SessionId != session) { Reset(); session = s.SessionId; }
             // LMU 18.11.: „Überrundeter vorne …“ kurz vor der Boxeneinfahrt nach angemeldetem Stopp – „die Ansage war unnötig“.
             if (s.SessionPhase != SessionPhase.Green || s.CompletedLaps < 1 || gs.PitData.InPitlane || PitDamageWatch.HeadingToPits(gs) || track == null || now < track.Utc ||
-                now - track.Utc > TimeSpan.FromSeconds(1) || now - lastCall < TimeSpan.FromSeconds(25) || call != null && call.IsValid(gs, now)) return;
-            var candidate = track.Cars.Where(c => !c.InPits && !c.IsSafetyCar && c.SpatiallyConsistent && c.LapOffset.HasValue && c.LapOffset.Value <= -1 &&
-                    c.RouteGapM.HasValue && c.RouteGapM.Value >= 60 && c.RouteGapM.Value <= 450 && c.ClosingMps.HasValue && c.ClosingMps.Value > 3)
-                .Select(c => new { Car = c, Seconds = c.RouteGapM.Value / c.ClosingMps.Value })
-                .Where(x => x.Seconds >= 3 && x.Seconds <= 10)
+                now - track.Utc > TimeSpan.FromSeconds(1)) return;
+            var closing = new Dictionary<string, double>(StringComparer.Ordinal);
+            foreach (var c in track.Cars)
+            {
+                if (c == null || c.InPits || c.IsSafetyCar || !c.SpatiallyConsistent || !c.LapOffset.HasValue || c.LapOffset.Value > -1 ||
+                    !c.RouteGapM.HasValue || c.RouteGapM.Value < 0 || c.RouteGapM.Value > 1500) continue;
+                string id = c.NativeIdentity ?? c.Key;
+                var mps = SustainedClosing(id, c.RouteGapM.Value, now);
+                if (mps.HasValue) closing[id] = mps.Value;
+            }
+            foreach (var stale in gaps.Where(p => p.Value.Count == 0 || now - p.Value[p.Value.Count - 1].Key > TimeSpan.FromSeconds(10)).Select(p => p.Key).ToList()) gaps.Remove(stale);
+            if (now - lastCall < TimeSpan.FromSeconds(25) || call != null && call.IsValid(gs, now)) return;
+            var candidate = track.Cars.Where(c => c != null && !c.InPits && !c.IsSafetyCar && c.SpatiallyConsistent && c.LapOffset.HasValue && c.LapOffset.Value <= -1 &&
+                    c.RouteGapM.HasValue && c.RouteGapM.Value >= 60 && c.RouteGapM.Value <= 450 && c.ClosingMps.HasValue && c.ClosingMps.Value > MinimumClosingMps &&
+                    closing.TryGetValue(c.NativeIdentity ?? c.Key, out var sustained) && sustained > MinimumClosingMps)
+                .Select(c => new { Car = c, Seconds = c.RouteGapM.Value / closing[c.NativeIdentity ?? c.Key] })
+                .Where(x => x.Seconds >= 3 && x.Seconds <= 12)
                 .OrderBy(x => x.Seconds).FirstOrDefault();
             if (candidate == null) return;
             string key = candidate.Car.NativeIdentity ?? candidate.Car.Key;
-            if (reported.TryGetValue(key, out var last) && now - last < TimeSpan.FromSeconds(60)) return;
+            if (reported.TryGetValue(key, out var last) && now - last < RepeatPerCar) return;
             reported[key] = now; lastCall = now;
             float ahead = mind != null && mind.Fresh(now) ? mind.GapAhead : -1, behind = mind != null && mind.Fresh(now) ? mind.GapBehind : -1;
             string text = Compose(candidate.Seconds, names ? candidate.Car.Name : null, ahead, frontName, behind, rearName, variant++);

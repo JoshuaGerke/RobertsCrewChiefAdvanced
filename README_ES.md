@@ -6,7 +6,39 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.35: el equipo habla según la situación.**
+> **Novedades de Alpha 0.38: correcciones tras la carrera de LMU en Algarve.**
+>
+> - **Sara tiene prioridad.** Banderas amarillas, accidentes y coches parados o lentos interrumpen a Ben y a Mik al momento. Una respuesta a tu pregunta solo la interrumpe ante un peligro real.
+> - **Dos niveles para todos los avisos.** Los importantes llegan al momento, el resto espera su turno y llega en cuanto la radio queda libre. El tiempo de espera tras la radio en curso no cuenta como antigüedad, y un aviso solo se descarta si su contenido está realmente desfasado.
+> - **Amarilla con nombres**: «Amarilla, hay un accidente delante», «Amarilla, hay un coche parado delante» o «Amarilla, hay un coche lento delante», siempre con el nombre del piloto. Sara ya no avisa de contactos de otros pilotos sin consecuencias.
+> - **Abandonos**: Sara también los avisa con bandera amarilla.
+> - **Mejores sectores en carrera**: Ben los compara con el sector de la vuelta más rápida de tu clase, con el nombre. Las mejoras imposibles de la vuelta de salida se descartan.
+> - **La velocidad punta llega de verdad dos veces.** Si el aviso se pierde, vuelve más tarde. Solo se nombran coches que siguen en pista y tienen nombre.
+> - **El gran resumen de Ben**: una vez en carreras de hasta 30 minutos, dos veces hasta 60 minutos y tres veces en carreras más largas.
+> - **Los duelos siguen siendo lo principal**: el coche de delante, el de detrás, la diferencia con el líder y las comparaciones de mejores vueltas llegan como antes.
+>
+> **Desde Alpha 0.37: mejores vueltas, velocidad punta y tareas claras.**
+>
+> - **Se anuncia cada mejor vuelta de la parrilla**, con el nombre y la diferencia con tu mejor vuelta, en entrenamientos, clasificación y carrera, también en la vuelta de salida y en la última vuelta. El aviso espera a que haya hueco y solo caduca cuando alguien ha sido más rápido. Si en carrera aún no tienes una vuelta válida, Ben compara con tu mejor vuelta de hoy o con tu última vuelta.
+> - **Velocidad punta dos veces por carrera**: en el primer tercio y en el último cuarto Ben nombra a los tres más rápidos en recta y tu valor con tu puesto.
+> - **Tu mejor vuelta cuenta si el simulador la cuenta.** Si RaceRoom toma como mejor vuelta una que Crew Chief marca como no válida, el aviso llega igualmente.
+> - **Ben responde a todo lo general**: situación de carrera, diferencias, tiempo restante, mejores vueltas, estrategia. Mik solo anuncia combustible, consumo, neumáticos, técnica y daños, breve y sin discutir.
+> - **Combustible en entrenamientos al momento**: una primera estimación tras unos cientos de metros y luego el consumo de la primera vuelta completa, aunque la vuelta se haya anulado. Si preguntas por el combustible para una duración de carrera, el equipo hace la cuenta en litros.
+> - **Mejores sectores en entrenamientos y clasificación** llegan al momento y breves; con tu vuelta más rápida hay un breve elogio.
+> - **Dirección de carrera en todos los simuladores**: Ben comenta advertencias y sanciones con sus propias palabras y con nombres.
+> - **Doblados**: solo se avisan cuando de verdad te acercas, no con una distancia constante.
+> - **Antes de la salida** el equipo ya no cree que la carrera ha terminado, y da el tiempo restante como valor actual.
+>
+> **Desde Alpha 0.36: correcciones.**
+>
+> - **Clase correcta en carreras multiclase** (LMU, AMS2, iRacing). El resumen de carrera nombra al ganador de tu clase en lugar del ganador absoluto. La posición de clase y la velocidad punta de la clase son correctas.
+> - **FCY e interrupción en LMU.** Con FCY o bandera roja ya no cuenta medio pelotón como «lento» o «parado».
+> - **Combustible con su origen.** Si preguntas cuánto combustible necesitas para una distancia sin dar una cifra, el equipo dice de dónde sale el consumo: medido, proyectado o estimado de entrenamientos y clasificación. Solo tu propia cifra se llama «tu valor».
+> - **Ben no cambia cifras.** Una frase libre en un duelo ya no puede convertir «12 segundos» en «2 segundos».
+> - **No se pierde ningún nombre.** Si el aviso conjunto de Sara sobre paradas o abandonos no llega, los nombres vuelven a sonar. Con muchísimos avisos se descarta primero el menos importante, nunca un abandono.
+> - **Diagnóstico.** El tiempo de respuesta a tus preguntas mide solo la respuesta, no otro aviso intermedio.
+>
+> **Desde Alpha 0.35: el equipo habla según la situación.**
 >
 > - **Sin niveles de radio.** Ben, Mik y Sara deciden cuándo llega cada información: los eventos al momento, el coche de delante y el de detrás más a menudo, lo técnico cuando hay hueco.
 > - **Spotter por radio.** «Spotter activado» y «spotter apagado» funcionan al momento y duran hasta reiniciar, también al pasar de la clasificación a la carrera.

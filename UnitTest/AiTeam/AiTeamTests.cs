@@ -49,7 +49,13 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(question, routed.Question);
         }
 
-        [TestCase("Wie viel Sprit haben wir noch?", TeamMember.Ben)]
+        [TestCase("Wie viel Sprit haben wir noch?", TeamMember.Mik)]
+        [TestCase("Was machen meine Reifen so und die ganzen Schäden?", TeamMember.Mik)]
+        [TestCase("Hol ich auf den auf?", TeamMember.Ben)]
+        [TestCase("Ich glaube, mehr als neun Minuten jetzt nicht mehr drin.", TeamMember.Ben)]
+        [TestCase("Auf welche Rundzeit werde ich kommen, wenn ich weiter so mache?", TeamMember.Ben)]
+        [TestCase("Der Abstand bleibt stabil, oder?", TeamMember.Ben)]
+        [TestCase("Is the guy ahead going to retire?", TeamMember.Ben)]
         [TestCase("Irgendwie schiebt der Wagen vorne", TeamMember.Mik)]
         [TestCase("Ist links frei?", TeamMember.Sara)]
         public void Router_ohne_Namen_nach_Thema(string spoken, TeamMember expected)
@@ -60,8 +66,11 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Router_Anschlussfrage_geht_an_letzten_Gesprächspartner()
         {
-            Assert.AreEqual(TeamMember.Mik, TeamRouter.Route("Und wenn wir eine Runde später kommen?", TeamMember.Mik).Member);
-            Assert.AreEqual(TeamMember.Mik, TeamRouter.Route("Und dann?", null).Member);
+            // RaceRoom Salzburg 24.11. (Rob: „Mik fühlt sich immer mit angesprochen … da reicht mir der Ben“): Anschlussfragen ohne
+            // Miks Themen beantwortet Ben, auch wenn Mik zuletzt gesprochen hat.
+            Assert.AreEqual(TeamMember.Ben, TeamRouter.Route("Und wenn wir eine Runde später kommen?", TeamMember.Mik).Member);
+            Assert.AreEqual(TeamMember.Ben, TeamRouter.Route("Und dann?", null).Member);
+            Assert.AreEqual(TeamMember.Mik, TeamRouter.Route("Und vorne links?", TeamMember.Mik).Member);
         }
 
         // ---------- Sara: lokal, deterministisch, keine unbelegte Freigabe (Test 3, Kapitel 5) ----------

@@ -29,7 +29,8 @@ namespace CrewChiefV4.AiTeam.Field
         /// RaceRoom Mantorp 21.11.: 15:49:44, 30 s nach der Zielflagge, Rob im Menü (Phase unbekannt, 0 Runden übrig) –
         /// „Viel Erfolg, leg los!“. Keine Runde mehr übrig heißt: Das Rennen ist für Rob vorbei.
         internal static bool RaceUnderway(FieldView v) => v != null && v.Session == FieldSession.Race &&
-            (v.Phase == FieldPhase.Checkered || v.PlayerLapsLeft == 0 || v.Phase == FieldPhase.Green && v.Player != null &&
+            (v.Phase == FieldPhase.Checkered || v.PlayerLapsLeft == 0 ||
+             (v.Phase == FieldPhase.Green || v.Phase == FieldPhase.FullCourseYellow || v.Phase == FieldPhase.Stopped) && v.Player != null &&
              (v.Player.CompletedLaps > 0 || v.Player.Motion == CarMotion.Finished || v.Player.Motion == CarMotion.Retired));
 
         internal static int FieldSize(FieldView v) => v == null ? 0 : Math.Max(v.NumCars, v.MaxPlace);

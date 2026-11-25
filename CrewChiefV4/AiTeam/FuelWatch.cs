@@ -80,21 +80,30 @@ namespace CrewChiefV4.AiTeam
         public bool ProvisionalConsumption;
         public string Source;
 
-        internal static float Consumption(AiRaceMemory memory, GameStateData state, out bool provisional, out int fullLaps)
+        /// <summary>Woher der Verbrauch pro Runde stammt.</summary>
+        internal enum Basis { None, Measured, Projected, Carried }
+
+        internal static float Consumption(AiRaceMemory memory, GameStateData state, out bool provisional, out int fullLaps) =>
+            Consumption(memory, state, out provisional, out fullLaps, out _);
+
+        /// <summary>Wie oben, dazu die Herkunft: volle Runden dieser Session, Hochrechnung der laufenden Runde oder Training/Quali.</summary>
+        internal static float Consumption(AiRaceMemory memory, GameStateData state, out bool provisional, out int fullLaps, out Basis basis)
         {
             provisional = false;
             fullLaps = 0;
+            basis = Basis.None;
             if (memory == null) return -1;
             // Verbrauch ausgeschaltet (AMS2 Spa 23.11.): auch keinen Verbrauch aus Training oder Quali mitnehmen.
             if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale) return -1;
             float average = memory.AverageFuelPerLap(out fullLaps);
-            if (fullLaps > 0) return average;
+            if (fullLaps > 0) { basis = Basis.Measured; return average; }
             float estimate = memory.ProvisionalFuelPerLap(state);
             provisional = estimate > 0 && Finite(estimate);
-            if (provisional) return estimate;
+            if (provisional) { basis = Basis.Projected; return estimate; }
             // Rob 20.11.: Verbrauch aus Training und Quali ins Rennen mitnehmen, bis im Rennen selbst gemessen ist.
             float carried = FuelCarry.For(state);
             provisional = carried > 0;
+            if (provisional) basis = Basis.Carried;
             return provisional ? carried : -1;
         }
 

@@ -215,7 +215,7 @@ namespace CrewChiefV4.AiTeam
             foreach (Match m in Number.Matches(c))
             {
                 string v = m.Value, alt = v.Contains(",") ? v.Replace(',', '.') : v.Replace('.', ',');
-                if (templ.IndexOf(v, StringComparison.Ordinal) < 0 && templ.IndexOf(alt, StringComparison.Ordinal) < 0) { reason = "new_number:" + v; return null; }
+                if (!HasNumber(templ, v) && !HasNumber(templ, alt)) { reason = "new_number:" + v; return null; }
             }
             foreach (var word in Regex.Split(lower, @"[^\p{L}]+"))
             {
@@ -238,6 +238,13 @@ namespace CrewChiefV4.AiTeam
             if (Similarity(templ, c) >= .9) { reason = "same_as_template"; return null; }
             return c;
         }
+
+        /// <summary>
+        /// Die Zahl steht als ganze Zahl in der Vorlage. Review 24.11.: Als Teilzeichenfolge bestand „2 Sekunden“ gegen „12 Sekunden“
+        /// und „8“ gegen „1,8“.
+        /// </summary>
+        internal static bool HasNumber(string template, string number) =>
+            !string.IsNullOrEmpty(number) && Regex.IsMatch(template ?? "", @"(?<![\d.,])" + Regex.Escape(number) + @"(?![\d]|[.,]\d)");
 
         internal static double Similarity(string a, string b)
         {

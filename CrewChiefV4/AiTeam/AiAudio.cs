@@ -1,6 +1,7 @@
 using System.Threading;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Speech.AudioFormat;
@@ -31,16 +32,18 @@ namespace CrewChiefV4.AiTeam
             public Action<bool> Finished;
             public Action Discarded;
             public int State; // 0 pending, 1 starting, 2 started, 3 discarded
+            /// <summary>Sara-Clip, der laufenden Funk von Ben und Mik mit niedrigerer Stufe ablösen darf.</summary>
+            public bool Cuts;
         }
 
         private static readonly ConcurrentDictionary<string, Entry> clips = new ConcurrentDictionary<string, Entry>();
 
-        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null, string eventId = null, string topic = null)
+        public static string Put(byte[] wav, string subtitle, Func<bool> isValid = null, Action started = null, Action discarded = null, Action<bool> finished = null, string eventId = null, string topic = null, bool cuts = false)
         {
             if (wav == null || wav.Length == 0 || wav.Length > 16 * 1024 * 1024) throw new ArgumentException("Ungültiger Audioclip.");
             Cleanup();
             string id = Guid.NewGuid().ToString("N");
-            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, Topic = topic, CreatedUtc = DateTime.UtcNow, BusyAtPut = DriverRadioGate.BusyTicks(DateTime.UtcNow), IsValid = isValid, Started = started, Discarded = discarded, Finished = finished };
+            clips[id] = new Entry { Wav = wav, Subtitle = subtitle, EventId = eventId, Topic = topic, CreatedUtc = DateTime.UtcNow, BusyAtPut = DriverRadioGate.BusyTicks(DateTime.UtcNow), IsValid = isValid, Started = started, Discarded = discarded, Finished = finished, Cuts = cuts };
             // Bound unplayed audio even if a backend rejects its queue entry without requesting it.
             foreach (var old in clips.OrderBy(kv => kv.Value.CreatedUtc).ToArray())
             {
@@ -60,6 +63,38 @@ namespace CrewChiefV4.AiTeam
         }
 
         internal static string GetTopic(string id) => id != null && clips.TryGetValue(id, out var entry) ? entry.Topic : null;
+
+        /// <summary>So lange gilt ein fertiger, noch nicht gestarteter Clip als „wartet“ (danach hängt er, statt zu warten).</summary>
+        internal static readonly TimeSpan RoutineWaitWindow = TimeSpan.FromSeconds(20);
+
+        /// <summary>
+        /// Wartet schon eine fertige Stufe-2-Ansage (nicht Sara mit Vorrang) auf ihren Start? Nur mit laufender Audioengine;
+        /// ohne Sim spielt der Funk direkt und es staut sich nichts.
+        /// </summary>
+        internal static bool RoutineWaiting(DateTime now)
+        {
+            var mw = MainWindow.instance;
+            if (mw == null || mw.crewChief == null || !mw.crewChief.running) return false;
+            return RoutineWaitingIn(clips.Values.Select(e => new KeyValuePair<bool, DateTime>(e.Cuts || System.Threading.Volatile.Read(ref e.State) != 0, e.CreatedUtc)), now);
+        }
+
+        /// <summary>Kern von <see cref="RoutineWaiting"/>: Key = startet schon oder hat Vorrang, Value = erstellt.</summary>
+        internal static bool RoutineWaitingIn(IEnumerable<KeyValuePair<bool, DateTime>> entries, DateTime now) =>
+            entries.Any(e => !e.Key && now >= e.Value && now - e.Value <= RoutineWaitWindow);
+
+        /// <summary>Thema des KI-Clips hinter einem Warteschlangen-Eintrag (null ohne KI-Clip oder ohne Thema).</summary>
+        internal static string TopicOf(string messageName) => TryMessageId(messageName, false, out string id) ? GetTopic(id) : null;
+
+        /// <summary>
+        /// LMU Algarve 24.11.: Saras „Vorsicht, in etwa 80 Metern ein sehr langsames Fahrzeug“ kam während des Funktons vor Bens
+        /// 25 s langem Zwischenstand und verfiel dahinter. Ist dies ein noch nicht gestarteter Sara-Clip mit Vorrang, höchstens
+        /// <paramref name="maxAge"/> alt (Null = beliebig alt)?
+        /// </summary>
+        internal static bool CutsCrew(string messageName, TimeSpan maxAge, DateTime now)
+        {
+            return TryMessageId(messageName, false, out string id) && clips.TryGetValue(id, out var entry) && entry.Cuts &&
+                System.Threading.Volatile.Read(ref entry.State) == 0 && (maxAge <= TimeSpan.Zero || now - entry.CreatedUtc <= maxAge);
+        }
 
         public static bool TryGet(string id, out byte[] wav, out string subtitle)
         {

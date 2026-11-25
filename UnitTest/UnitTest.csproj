@@ -70,6 +70,7 @@
     <Compile Include="AiTeam\CrewLivelinessTests.cs" />
     <Compile Include="AiTeam\CarSystemsRadioTests.cs" />
     <Compile Include="AiTeam\RivalPictureRadioTests.cs" />
+    <Compile Include="AiTeam\LmuAlgarveTests.cs" />
     <Compile Include="AiTeam\Test3uTests.cs" />
     <Compile Include="AiTeam\Test3vTests.cs" />
     <Compile Include="AiTeam\Test3wTests.cs" />
@@ -125,6 +126,8 @@
     <Compile Include="AiTeam\LmuRaceFindingsTests.cs" />
     <Compile Include="AiTeam\FuelProjectionTests.cs" />
     <Compile Include="AiTeam\PitAndFieldFindingsTests.cs" />
+    <Compile Include="AiTeam\SessionBestCallTests.cs" />
+    <Compile Include="AiTeam\PenaltyHintTests.cs" />
     <Compile Include="AiTeam\RaceMindTests.cs" />
     <Compile Include="AiTeam\EngineerJudgementTests.cs" />
     <Compile Include="AiTeam\DataTruthTests.cs" />

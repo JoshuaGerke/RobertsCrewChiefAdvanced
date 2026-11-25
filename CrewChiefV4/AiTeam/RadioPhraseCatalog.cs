@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -82,7 +82,9 @@ namespace CrewChiefV4.AiTeam
             "Letzte", "Letzter", "Letztes", "Erste", "Erster", "Zwei", "Drei", "Kleiner", "Kleine", "Nur", "Bleib", "Halt",
             "Last", "Final", "First", "Just", "Stay", "Keep", "Última", "Último", "Primera", "Primer", "Solo", "Sigue", "Mantén",
             "You", "We", "The", "A", "And", "Another", "New", "Nice", "Good", "Great", "Strong", "Back", "Fastest", "Your", "That", "Now", "One", "Clean", "Yes",
-            "Has", "Hemos", "Otra", "Otro", "Un", "Una", "El", "La", "Los", "Nueva", "Nuevo", "Bien", "Buen", "Buena", "Muy", "Ya", "Ahora", "Tu"
+            "Has", "Hemos", "Otra", "Otro", "Un", "Una", "El", "La", "Los", "Nueva", "Nuevo", "Bien", "Buen", "Buena", "Muy", "Ya", "Ahora", "Tu",
+            "Verbessert", "Auch", "Zweimal", "Im", "Lila", "Schnellster", "Improved", "Found", "Personal", "Sector", "Two", "Purple", "Quickest",
+            "Mejoras", "Mejor", "También", "Y", "En", "Dos", "Morado"
         };
 
         /// <summary>Spricht den Fahrer mit Namen an („Rob, …“). Nur bekannte Satzanfänge werden klein geschrieben; Substantive und Namen bleiben.</summary>
