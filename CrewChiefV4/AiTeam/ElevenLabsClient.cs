@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.IO;
+using System.Net.WebSockets;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -54,6 +56,9 @@ namespace CrewChiefV4.AiTeam
             {
                 try
                 {
+            if (string.Equals(modelId, "eleven_v4_turbo", StringComparison.OrdinalIgnoreCase))
+                return await DialogueSpeechPcmAsync(voiceId, modelId, text, ct).ConfigureAwait(false);
+
             var body = new JObject
             {
                 ["text"] = text,
@@ -80,6 +85,97 @@ namespace CrewChiefV4.AiTeam
                 }
                 catch (Exception diagnosticError) { diagnosticSpan.Fail(diagnosticError); throw; }
             }
+        }
+
+        // v4 Turbo uses the Text to Dialogue WebSocket, with one registered voice per session.
+        // Keep the existing byte[] PCM contract for the radio filter and spotter pack generator.
+        private async Task<byte[]> DialogueSpeechPcmAsync(string voiceId, string modelId, string text, CancellationToken ct)
+        {
+            var sw = Stopwatch.StartNew();
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            using (var socket = new ClientWebSocket())
+            using (var pcm = new MemoryStream())
+            {
+                timeout.CancelAfter(http.Timeout);
+                var token = timeout.Token;
+                try
+                {
+                    string key = apiKeyProvider();
+                    LiveDiagnostics.RememberSecret(key);
+                    socket.Options.SetRequestHeader("xi-api-key", key);
+                    var uri = new UriBuilder(baseUrl);
+                    uri.Scheme = uri.Scheme == "https" ? "wss" : "ws";
+                    uri.Path = uri.Path.TrimEnd('/') + "/v1/text-to-dialogue/stream-input";
+                    uri.Query = "model_id=" + Uri.EscapeDataString(modelId) + "&output_format=pcm_24000";
+                    await socket.ConnectAsync(uri.Uri, token).ConfigureAwait(false);
+                    await SendDialogueMessageAsync(socket, new JObject
+                    {
+                        ["voices"] = new JArray(voiceId)
+                    }, token).ConfigureAwait(false);
+                    await SendDialogueMessageAsync(socket, new JObject
+                    {
+                        ["inputs"] = new JArray(new JObject
+                        {
+                            ["text"] = text,
+                            ["voice_id"] = voiceId,
+                            ["new_turn"] = false
+                        })
+                    }, token).ConfigureAwait(false);
+                    await SendDialogueMessageAsync(socket, new JObject { ["close_socket"] = true }, token).ConfigureAwait(false);
+
+                    var buffer = new byte[8192];
+                    while (true)
+                    {
+                        using (var message = new MemoryStream())
+                        {
+                            WebSocketReceiveResult received;
+                            do
+                            {
+                                received = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), token).ConfigureAwait(false);
+                                if (received.MessageType != WebSocketMessageType.Text)
+                                    throw new AiApiException("ElevenLabs: WebSocket vor Abschluss der Audioausgabe geschlossen.", null);
+                                message.Write(buffer, 0, received.Count);
+                            } while (!received.EndOfMessage);
+
+                            var reply = JObject.Parse(Encoding.UTF8.GetString(message.ToArray()));
+                            var error = reply["error"];
+                            if (error != null && error.Type != JTokenType.Null && error.Type != JTokenType.Boolean ||
+                                error != null && error.Type == JTokenType.Boolean && (bool)error)
+                                throw new AiApiException("ElevenLabs: " + ((string)reply["message"] ?? error.ToString()), null);
+                            string audio = (string)reply["audio"];
+                            if (!string.IsNullOrEmpty(audio))
+                            {
+                                byte[] chunk = Convert.FromBase64String(audio);
+                                pcm.Write(chunk, 0, chunk.Length);
+                            }
+                            if ((bool?)reply["is_final"] == true)
+                                break;
+                        }
+                    }
+                    if (pcm.Length == 0 || pcm.Length % 2 != 0)
+                        throw new AiApiException("ElevenLabs: Keine gültigen PCM-Audiodaten erhalten.", null);
+                    if (socket.State == WebSocketState.Open || socket.State == WebSocketState.CloseReceived)
+                        await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", token).ConfigureAwait(false);
+                    stats.AddTts(sw.ElapsedMilliseconds);
+                    return pcm.ToArray();
+                }
+                catch (OperationCanceledException e)
+                {
+                    stats.AddFailure();
+                    throw new AiApiException(ct.IsCancellationRequested ? "abgebrochen" : "Zeitüberschreitung", null, e);
+                }
+                catch (Exception)
+                {
+                    stats.AddFailure();
+                    throw;
+                }
+            }
+        }
+
+        private static Task SendDialogueMessageAsync(ClientWebSocket socket, JObject message, CancellationToken ct)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(message.ToString(Formatting.None));
+            return socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct);
         }
 
         /// <summary>Stimmen im Konto des Nutzers (inklusive aus der Bibliothek hinzugefügter Stimmen).</summary>
