@@ -2039,6 +2039,8 @@ namespace CrewChiefV4.AiTeam
                 // Lagebild („kann ich nicht bestätigen“), obwohl dort „Iban Garcia, gedreht, 80 m hinter dir“ stand. Vorfälle und
                 // Sektorvergleiche brauchen das Lagebild.
                 "gedreht", "dreher", "unfall", "unfäll", "vorfall", "vorfäll", "vorkommnis", "abgeflogen", "steht", "sektor",
+                // iRacing 27.11.: „alles kaputt oder was siehst du?“ lief ohne Werkzeug und ohne Schadensdaten.
+                "kaputt", "beschädig", "reparat", "einschlag", "mauer", "broken", "repair", "roto", "repar",
                 "spun", "spin", "crash", "accident", "incident", "stopped", "sector",
                 "trompo", "accidente", "incidente", "parado", "sectores" };
             return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;

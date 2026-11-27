@@ -195,6 +195,8 @@ namespace CrewChiefV4.iRacing
             // Fast Repairs: -1 = this build of the sim does not provide the value.
             FastRepairUsed = variables.ContainsKey("FastRepairUsed") ? (System.Int32)read("FastRepairUsed") : -1;
             FastRepairAvailable = variables.ContainsKey("FastRepairAvailable") ? (System.Int32)read("FastRepairAvailable") : -1;
+            // RRCA 0.41: Art des letzten Vorfalls (Mauer, Auto, neben der Strecke); liegt nur einen Takt an.
+            PlayerIncidents = variables.ContainsKey("PlayerIncidents") ? (System.Int32)read("PlayerIncidents") : 0;
 
             PaceMode = (PaceMode)read("PaceMode");
             CarIdxPaceLine = (System.Int32[])read("CarIdxPaceLine");
@@ -795,6 +797,8 @@ namespace CrewChiefV4.iRacing
         /// <summary>
         public System.Int32 FastRepairUsed = -1;
         public System.Int32 FastRepairAvailable = -1;
+        /// <summary>irsdk_IncidentFlags: untere 8 Bit Art (2 neben der Strecke, 4/5 Begrenzung, 7/8 Auto), darüber die Punkte.</summary>
+        public System.Int32 PlayerIncidents;
         public PaceMode PaceMode;
 
         /// <summary>

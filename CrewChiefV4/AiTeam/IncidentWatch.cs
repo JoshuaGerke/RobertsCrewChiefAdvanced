@@ -405,6 +405,8 @@ namespace CrewChiefV4.AiTeam
             // Im kurzen Routinebericht nur Werte ab 1 Prozent; die ausführliche Auskunft nennt weiter alles ab 0,05.
             var numeric = brief ? NumericDamageWatch.Report(d, 1f) : NumericDamageWatch.Report(d);
             if (!d.DamageEnabled) return numeric;
+            // iRacing: keine Bauteile, aber Reparaturbedarf, Art und Wucht (Rob 27.11.).
+            if (RepairPicture.Applies(d)) return RepairPicture.Report(d, brief, includeAdvice, out _);
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
@@ -551,7 +553,8 @@ namespace CrewChiefV4.AiTeam
 
         public static bool IsSerious(CarDamageData d)
         {
-            return d.OverallAeroDamage >= DamageLevel.MAJOR || d.OverallEngineDamage >= DamageLevel.MAJOR || d.OverallTransmissionDamage >= DamageLevel.MAJOR ||
+            return d.RepairRequired == true ||
+                d.OverallAeroDamage >= DamageLevel.MAJOR || d.OverallEngineDamage >= DamageLevel.MAJOR || d.OverallTransmissionDamage >= DamageLevel.MAJOR ||
                 CornerText(d.SuspensionDamageStatus, DamageLevel.MAJOR) != null || CornerText(d.SuspensionDamageStatus, DamageLevel.DESTROYED) != null ||
                 CornerText(d.BrakeDamageStatus, DamageLevel.MAJOR) != null || CornerText(d.BrakeDamageStatus, DamageLevel.DESTROYED) != null;
         }
