@@ -95,6 +95,11 @@ namespace CrewChiefV4.AiTeam
         internal static bool HazardLeadTopic(string topic) =>
             topic == "warning-hazard-far" || topic == "race-hazard-ahead";
 
+        /// <summary>Audit 25.11. (Astra 2 x 1,5 s): Gefahr voraus wartet nicht auf neu erzeugte Clips für Auftakt oder Namen.
+        /// Fehlt einer, geht der Kernspruch sofort raus und der Clip wird für das nächste Mal erzeugt.</summary>
+        internal static bool NoRenderWait(string topic) => HazardLeadTopic(topic) ||
+            (topic ?? "").StartsWith("race-hazard", StringComparison.Ordinal) || (topic ?? "").StartsWith("warning-hazard", StringComparison.Ordinal);
+
         internal static string HazardLead(string topic, GameStateData gs, string nameClip, DateTime now)
         {
             if (!HazardLeadTopic(topic)) return null;

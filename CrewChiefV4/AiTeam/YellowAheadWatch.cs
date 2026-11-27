@@ -19,9 +19,12 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Näher als das übernimmt die Nahbereichswarnung (Abstand, Ausweichen).</summary>
         internal const float NearM = 250f;
         internal const float FarM = 1000f;
-        /// <summary>Höchstens so viele Sekunden Fahrzeit entfernt (Feldtempo).</summary>
-        internal const float MaxAheadS = 22f;
+        /// <summary>P1.2 (Rob 25.11.): nur Gefahren etwa 3 bis 8 Sekunden vor Rob, Zeitlücke statt fester Meter. RaceRoom Laguna
+        /// Seca 27.11.: Warnungen bei 700–1000 m, das Auto fuhr nach 3–11 s weiter oder stand in der Garage.</summary>
+        internal const float MinAheadS = 3f, MaxAheadS = 8f;
         internal static readonly TimeSpan Confirm = TimeSpan.FromMilliseconds(300);
+        /// <summary>Stehend erst nach 2 s: RaceRoom-KI hält vor dem Sprung in die Garage kurz auf der Strecke an.</summary>
+        internal static readonly TimeSpan ConfirmStopped = TimeSpan.FromSeconds(2);
         internal static readonly TimeSpan SameCarAgain = TimeSpan.FromSeconds(90);
         internal static readonly TimeSpan AnyAgain = TimeSpan.FromSeconds(12);
 
@@ -35,26 +38,52 @@ namespace CrewChiefV4.AiTeam
         private readonly Dictionary<string, DateTime> called = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private DateTime lastCall = DateTime.MinValue;
         private int session = int.MinValue;
+        private readonly List<float> garage = new List<float>();
 
-        internal void Reset() { called.Clear(); lastCall = DateTime.MinValue; session = int.MinValue; }
+        internal void Reset() { called.Clear(); garage.Clear(); lastCall = DateTime.MinValue; session = int.MinValue; }
 
-        internal static bool Hazardous(FieldCarView c, DateTime now) =>
-            c != null && !c.IsPlayer && !c.InPit && (c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun) &&
-            c.MotionSinceUtc != default(DateTime) && now >= c.MotionSinceUtc && now - c.MotionSinceUtc >= Confirm &&
-            !float.IsNaN(c.GapM) && c.GapM >= NearM && c.GapM <= FarM && (float.IsNaN(c.GapS) || c.GapS <= MaxAheadS);
+        /// <summary>Fahrzeit bis zum Wagen: gemessene Zeitlücke, sonst Meter durch Robs Tempo (mindestens 15 m/s).</summary>
+        internal static float AheadSeconds(FieldCarView c, float playerSpeed) =>
+            !float.IsNaN(c.GapS) && c.GapS > 0 ? c.GapS : float.IsNaN(c.GapM) ? float.NaN : c.GapM / Math.Max(15f, playerSpeed);
 
-        /// <summary>Nächster gedrehter oder stehender Wagen zwischen 250 und 1000 m vor Rob, sonst null.</summary>
-        internal static Hazard Nearest(FieldView view, DateTime now)
+        internal static bool Hazardous(FieldCarView c, DateTime now, float playerSpeed = 0)
+        {
+            if (c == null || c.IsPlayer || c.InPit || c.Motion != CarMotion.Stopped && c.Motion != CarMotion.Spun) return false;
+            TimeSpan confirm = c.Motion == CarMotion.Stopped ? ConfirmStopped : Confirm;
+            if (c.MotionSinceUtc == default(DateTime) || now < c.MotionSinceUtc || now - c.MotionSinceUtc < confirm) return false;
+            float s = AheadSeconds(c, playerSpeed);
+            return !float.IsNaN(c.GapM) && c.GapM >= NearM && c.GapM <= FarM && !float.IsNaN(s) && s >= MinAheadS && s <= MaxAheadS;
+        }
+
+        /// <summary>RaceRoom 27.11.: KI-Autos in der Garage stehen alle auf derselben Streckenposition (Laguna 3032 m), Tempo 0, nicht
+        /// in der Box. Zwei oder mehr stehende Wagen auf demselben Meter sind die Garage, kein Unfall; der Platz gilt dann für die
+        /// ganze Sitzung.</summary>
+        internal static List<float> GarageSpots(FieldView view)
+        {
+            var parked = view.Cars.Where(c => c != null && !c.IsPlayer && !c.InPit && c.Speed < .05f && !float.IsNaN(c.LapDistance)).ToList();
+            var spots = new List<float>();
+            foreach (var c in parked)
+                if (parked.Any(o => !ReferenceEquals(o, c) && Math.Abs(o.LapDistance - c.LapDistance) < .5f) && !spots.Any(p => Math.Abs(p - c.LapDistance) < 3))
+                    spots.Add(c.LapDistance);
+            return spots;
+        }
+
+        /// <summary>Nächster gedrehter oder stehender Wagen 3–8 s vor Rob (höchstens 1000 m), sonst null.</summary>
+        internal static Hazard Nearest(FieldView view, DateTime now, IList<float> garage = null)
         {
             if (view == null || view.Cars == null || view.Player == null || !view.Fresh(now, 2) || view.InMenus || view.Paused || view.InReplay) return null;
-            var car = view.Cars.Where(c => Hazardous(c, now)).OrderBy(c => c.GapM).FirstOrDefault();
+            float speed = view.Player.Speed;
+            var car = view.Cars.Where(c => Hazardous(c, now, speed) && (garage == null || !garage.Any(p => Math.Abs(p - c.LapDistance) < 3)))
+                .OrderBy(c => c.GapM).FirstOrDefault();
             return car == null ? null : new Hazard { Name = car.Name, GapM = car.GapM, LapDistance = car.LapDistance, Stopped = car.Motion == CarMotion.Stopped };
         }
 
         /// <summary>Der gemeldete Wagen steht, dreht oder schleicht noch vor Rob (sonst ist die Warnung überholt).</summary>
-        internal static bool StillThere(FieldView view, string name, DateTime now)
+        internal static bool StillThere(FieldView view, string name, DateTime now, float lapDistance = float.NaN)
         {
             var c = view?.ByName(name);
+            // Ein Sprung der Streckenposition heißt Garage oder Zurücksetzen, nicht mehr dieselbe Gefahr.
+            if (c != null && !float.IsNaN(lapDistance) && !float.IsNaN(c.LapDistance) && Math.Abs(c.LapDistance - lapDistance) > 30) return false;
             return c != null && view.Fresh(now, 2) && !c.InPit &&
                 (c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun || c.Motion == CarMotion.Slow) &&
                 !float.IsNaN(c.GapM) && c.GapM > 30 && c.GapM <= FarM + 200;
@@ -81,11 +110,14 @@ namespace CrewChiefV4.AiTeam
         internal Hazard Take(FieldView view, GameStateData gs, DateTime now)
         {
             if (gs == null) return null;
-            if (gs.SessionData.SessionId != session) { called.Clear(); lastCall = DateTime.MinValue; session = gs.SessionData.SessionId; }
+            if (gs.SessionData.SessionId != session) { called.Clear(); garage.Clear(); lastCall = DateTime.MinValue; session = gs.SessionData.SessionId; }
+            if (view?.Cars != null && view.Fresh(now, 2))
+                foreach (float spot in GarageSpots(view))
+                    if (!garage.Any(p => Math.Abs(p - spot) < 3)) { garage.Add(spot); LiveDiagnostics.Decision("warning-hazard-far", "skipped", "garage_spot_" + (int)spot + "m"); }
             if (gs.PitData.InPitlane || gs.SessionData.SessionPhase != SessionPhase.Green) return null;
             if (!(gs.PositionAndMotionData.CarSpeed >= 15)) return null; // Rob steht oder rollt: keine Warnung nach vorn
             if (lastCall != DateTime.MinValue && now >= lastCall && now - lastCall < AnyAgain) return null;
-            var hazard = Nearest(view, now);
+            var hazard = Nearest(view, now, garage);
             if (hazard == null || string.IsNullOrWhiteSpace(hazard.Name)) return null;
             if (called.TryGetValue(hazard.Name, out var at) && now >= at && now - at < SameCarAgain) return null;
             called[hazard.Name] = now; lastCall = now;

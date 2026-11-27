@@ -77,6 +77,43 @@ namespace UnitTest.AiTeamTests
             Assert.IsTrue(AiTeamService.NeedsTools("Und was sagst du, alles kaputt oder was siehst du?", null));
         }
 
+        // R1: RaceRoom-Garage (gestapelte KI-Autos, Tempo 0, nicht in der Box) ist keine Gefahr; Sprung der Position beendet die Warnung.
+        private static readonly DateTime T = new DateTime(2026, 11, 27, 21, 0, 0, DateTimeKind.Utc);
+        private static CrewChiefV4.AiTeam.Field.FieldView Field(double at, params CrewChiefV4.AiTeam.Field.FieldCarView[] others)
+        {
+            var player = new CrewChiefV4.AiTeam.Field.FieldCarView { IsPlayer = true, Name = "Robert Gerke", Motion = CrewChiefV4.AiTeam.Field.CarMotion.Normal, LapDistance = 2700, Speed = 50 };
+            var cars = new System.Collections.Generic.List<CrewChiefV4.AiTeam.Field.FieldCarView> { player };
+            cars.AddRange(others);
+            foreach (var c in others) c.MotionSinceUtc = T.AddSeconds(at - 10);
+            return new CrewChiefV4.AiTeam.Field.FieldView { Utc = T.AddSeconds(at), Sim = "RaceRoom", Track = "Laguna Seca", TrackLength = 3585.5f, Player = player, Cars = cars };
+        }
+        private static CrewChiefV4.AiTeam.Field.FieldCarView Parked(string name, float lap, float gapM) => new CrewChiefV4.AiTeam.Field.FieldCarView
+        { Name = name, LapDistance = lap, GapM = gapM, GapS = gapM / 50f, Speed = 0, Motion = CrewChiefV4.AiTeam.Field.CarMotion.Stopped, MotionSinceUtc = T.AddSeconds(-10) };
+        private static GameStateData RaceRoomQuali()
+        {
+            var s = new GameStateData(T.Ticks);
+            s.SessionData.SessionId = 7; s.SessionData.SessionType = SessionType.Qualify; s.SessionData.SessionPhase = SessionPhase.Green;
+            s.PositionAndMotionData.CarSpeed = 50;
+            return s;
+        }
+
+        [Test]
+        public void Stacked_garage_cars_are_no_hazard_and_the_spot_stays_known()
+        {
+            var watch = new YellowAheadWatch();
+            var gs = RaceRoomQuali();
+            Assert.IsNull(watch.Take(Field(0, Parked("Alexander Santos", 3032f, 330), Parked("Whate Verfool", 3032.1f, 330)), gs, T), "Garage");
+            Assert.IsNull(watch.Take(Field(30, Parked("Alex Fernandez", 3032f, 330)), gs, T.AddSeconds(30)), "später ein einzelnes Auto am selben Platz");
+            Assert.IsNotNull(watch.Take(Field(60, Parked("Sven Lutz", 1244f, 330)), gs, T.AddSeconds(60)), "echtes stehendes Auto");
+        }
+
+        [Test]
+        public void Warning_ends_when_the_car_jumps_away()
+        {
+            Assert.IsTrue(YellowAheadWatch.StillThere(Field(0, Parked("claudio ciao", 2054f, 330)), "claudio ciao", T, 2054f));
+            Assert.IsFalse(YellowAheadWatch.StillThere(Field(0, Parked("claudio ciao", 3032f, 330)), "claudio ciao", T, 2054f), "in die Garage gesprungen");
+        }
+
         [Test]
         public void Games_with_part_damage_keep_their_report()
         {

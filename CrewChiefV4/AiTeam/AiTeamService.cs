@@ -2762,7 +2762,7 @@ namespace CrewChiefV4.AiTeam
                 RaceChronicle.Current.Add(current, now, ChronicleKind.Yellow, detail: hazard.Stopped ? "steht_voraus" : "dreher_voraus", source: "lagebild",
                     subjectName: spokenName, dedupe: TimeSpan.FromSeconds(20));
             liveWarnings.Offer("warning-hazard-far", text, settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : TeamMember.Ben, 7, current, now,
-                live => YellowAheadWatch.StillThere(Field.FieldPicture.Shared.Current, hazardName, DateTime.UtcNow),
+                live => YellowAheadWatch.StillThere(Field.FieldPicture.Shared.Current, hazardName, DateTime.UtcNow, hazard.LapDistance),
                 "field_picture_" + (hazard.Stopped ? "stopped" : "spun") + "_" + (int)hazard.GapM + "m_ahead",
                 opponentNameClip: spokenName == null ? null : RaceTrafficWatch.NameClipText(spokenName));
         }
@@ -2970,6 +2970,15 @@ namespace CrewChiefV4.AiTeam
                     // vorbereiteten Satz (keine Wartezeit auf eine neue Stimme für den ganzen Satz).
                     byte[] leadPcm = null;
                     string lead = SaraFlagPolicy.HazardLead(call.Topic, CrewChief.currentGameState, call.OpponentNameClip, DateTime.UtcNow);
+                    // Audit 25.11.: Gefahr voraus wartet nicht auf neue Clips; was fehlt, wird fürs nächste Mal erzeugt.
+                    bool noRenderWait = SaraFlagPolicy.NoRenderWait(call.Topic);
+                    if (lead != null && noRenderWait && PreparedSpeech(call.Member, lead) == null && CachedOpponentName(call.Member, lead) == null)
+                    {
+                        LiveDiagnostics.Decision(call.Topic, "hazard_lead_skipped", "clip_not_prepared_no_wait", lead, call.EventId);
+                        string warmLead = lead; var warmMember = call.Member; string warmEvent = call.EventId;
+                        _ = Task.Run(() => RenderPhraseNow(warmMember, warmLead, generation, warmEvent));
+                        lead = null;
+                    }
                     if (lead != null && (leadPcm = PreparedSpeech(call.Member, lead) ?? CachedOpponentName(call.Member, lead) ??
                             await RenderPhraseNow(call.Member, lead, generation, call.EventId).ConfigureAwait(false)) != null)
                     {
@@ -2981,8 +2990,8 @@ namespace CrewChiefV4.AiTeam
                     // AC 20.11.: „Dreher vor dir“, Gelb und langsame Autos ohne Namen – der Name war nur dabei, wenn er zufällig
                     // schon vorbereitet war. Fehlt er, wird er jetzt sofort in derselben Stimme erzeugt (kurze Frist).
                     if (call.OpponentNameClip != null && settings.SendDriverNames &&
-                        (namePcm = CachedOpponentName(call.Member, call.OpponentNameClip) ??
-                            await RenderOpponentNameNow(call.Member, call.OpponentNameClip, generation, call.EventId).ConfigureAwait(false)) != null)
+                        (namePcm = CachedOpponentName(call.Member, call.OpponentNameClip) ?? (noRenderWait ? null :
+                            await RenderOpponentNameNow(call.Member, call.OpponentNameClip, generation, call.EventId).ConfigureAwait(false))) != null)
                     {
                         text += " " + call.OpponentNameClip;
                         detailUsesNames = true;
@@ -3122,6 +3131,8 @@ namespace CrewChiefV4.AiTeam
             string Keep(string why)
             {
                 LiveDiagnostics.Decision(call.Topic, "template_kept", "battle_voice:" + why, text, call.EventId);
+                // Audit 25.11. (P3.1): verworfene Zweikampfsätze messbar machen, auch ohne Diagnose.
+                DriverMemory.RememberObservation(call.Topic, "template_kept", "battle_voice:" + why, text, call.SessionId);
                 if (call.EventId != null) humanLines[call.EventId] = text;
                 BattleVoice.Remember(text);
                 return text;

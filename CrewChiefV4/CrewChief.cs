@@ -1103,7 +1103,7 @@ namespace CrewChiefV4
                         {
                             previousGameState = currentGameState;
                             currentGameState = nextGameState;
-                            if (AiTeam.LiveDiagnostics.Enabled) AiTeam.LiveDiagnostics.Sample(previousGameState, currentGameState);
+                            if (AiTeam.LiveDiagnostics.Enabled || AiTeam.LiveDiagnostics.WaitingToContinue) AiTeam.LiveDiagnostics.Sample(previousGameState, currentGameState);
                             if (currentGameState.SessionData.SessionType == SessionType.Race)
                             {
                                 gameStateMapper.populateDerivedRaceSessionData(currentGameState);
