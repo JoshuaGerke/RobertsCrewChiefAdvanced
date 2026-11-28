@@ -60,6 +60,9 @@ namespace CrewChiefV4.iRacing
         private void MapRepairPicture(iRacingData t, GameStateData gs)
         {
             var d = gs.CarDamageData;
+            // iRacing MX-5 28.11.: Im Grün-Takt wurde DamageEnabled nicht gesetzt und danach nur weitergereicht – ab dem Start war das
+            // Schadensmodell „aus“, Mik meldete nach dem Einschlag nichts und die Schadensfrage hieß „Werte fehlen“. iRacing hat immer eines.
+            d.DamageEnabled = true;
             float now = gs.SessionData.SessionRunningTime;
             if (now < recentPeakAt || now < impactAt) { recentPeakG = 0; recentPeakAt = impactAt = impactKindAt = impactPeakG = -1; impactKind = null; }
             float g = (float)Math.Sqrt(t.LongAccel * t.LongAccel + t.LatAccel * t.LatAccel) / 9.81f;

@@ -1422,7 +1422,7 @@ namespace CrewChiefV4.AiTeam
             return string.IsNullOrWhiteSpace(track) ? null : track + "|" + DateTime.UtcNow.ToLocalTime().Date.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         }
 
-        private static void RememberTodayBest(GameStateData gs, LapRecord lap)
+        internal static void RememberTodayBest(GameStateData gs, LapRecord lap)
         {
             if (lap == null || !lap.Valid || lap.InPitLap || !Good(lap.LapTime)) return;
             string key = TodayKey(gs);

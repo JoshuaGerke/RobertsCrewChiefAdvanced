@@ -198,7 +198,10 @@ namespace CrewChiefV4.AiTeam.Field
             }
             f.Upcoming = upcoming.ConvertAll(s => new FieldUpcoming { Session = s.Type, Minutes = float.IsNaN(s.Seconds) ? -1 : (int)Math.Round(s.Seconds / 60), Laps = s.Laps }).ToArray();
             double air = Val(map, b, "AirTemp"), track = Val(map, b, "TrackTempCrew");
-            f.AirTempC = !double.IsNaN(air) ? (float)air : info.AirC; f.TrackTempC = !double.IsNaN(track) ? (float)track : info.TrackC;
+            f.AirTempC = !double.IsNaN(air) ? (float)air : info.AirC;
+            // iRacing MX-5 28.11.: Begrüßung „Strecke 26 Grad“ aus der Session-Info (Startwert), 19 s später „verändert: jetzt 21,7“ aus der
+            // Messung. Die Streckentemperatur kommt nur aus der Messung der Crew.
+            f.TrackTempC = !double.IsNaN(track) ? (float)track : float.NaN;
             bool garage = Val(map, b, "IsInGarage") > 0, onTrack = Val(map, b, "IsOnTrack") > 0;
             f.InMenus = !onTrack; f.PlayerInGarage = garage; f.Paused = false; f.InReplay = Val(map, b, "IsReplayPlaying") > 0;
             f.PositionsToGiveBack = -1;

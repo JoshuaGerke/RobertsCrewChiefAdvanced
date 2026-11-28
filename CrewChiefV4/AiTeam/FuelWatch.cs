@@ -98,6 +98,8 @@ namespace CrewChiefV4.AiTeam
         public bool EstimatedFromTime;
         public bool ProvisionalConsumption;
         public string Source;
+        /// <summary>Restdistanz mit der besten Runde von heute gerechnet (vor der ersten Rennrunde), sonst NaN.</summary>
+        public float ReferenceLap = float.NaN;
 
         /// <summary>Woher der Verbrauch pro Runde stammt.</summary>
         internal enum Basis { None, Measured, Projected, Carried }
@@ -139,14 +141,22 @@ namespace CrewChiefV4.AiTeam
             float perLap = Consumption(ctx.Memory, gs, out bool provisional, out int sampleCount);
             if ((!provisional && sampleCount < minimumMeasuredLaps) || !Finite(perLap) || perLap <= 0) return null;
 
-            float remaining;
+            float remaining, referenceLap = float.NaN;
             bool estimated = s.SessionHasFixedTime;
             if (estimated)
             {
                 var times = ctx.Memory.GetLaps().Where(l => !l.InPitLap && Finite(l.LapTime) &&
                     l.LapTime > 10 && l.LapTime < 3600).Reverse().Take(3).ToArray();
-                if (times.Length == 0 || !Finite(s.SessionTimeRemaining) || s.SessionTimeRemaining <= 0) return null;
-                remaining = s.SessionTimeRemaining / times.Average(l => l.LapTime) + 1;
+                // P2.2 (LMU 25.11., iRacing MX-5 28.11.): vor der ersten Rennrunde „die Restdistanz ist noch offen“, obwohl die Quali-Zeit
+                // bekannt war. Dann zählt Robs beste Runde von heute (2 % Rennzuschlag), in Formation die volle Renndauer.
+                float timeLeft = Finite(s.SessionTimeRemaining) && s.SessionTimeRemaining > 0 ? s.SessionTimeRemaining :
+                    (s.SessionPhase == SessionPhase.Formation || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.Gridwalk) &&
+                    Finite(s.SessionTotalRunTime) && s.SessionTotalRunTime > 0 ? s.SessionTotalRunTime : -1;
+                float today = times.Length == 0 ? SessionLapObserver.TodayBest(gs) : -1;
+                if (timeLeft <= 0 || times.Length == 0 && !(today > 10 && today < 3600)) return null;
+                float lap = times.Length > 0 ? times.Average(l => l.LapTime) : today * 1.02f;
+                remaining = timeLeft / lap + 1;
+                if (times.Length == 0) referenceLap = today;
             }
             else
             {
@@ -165,7 +175,7 @@ namespace CrewChiefV4.AiTeam
             }
             bool crew = !provisional && Finite(ctx.CrewChiefAdditionalFuelNeeded) && Math.Abs(ctx.CrewChiefAdditionalFuelNeeded)<1000;
             return new FuelEstimate { PerLap=perLap, LapsRemaining=remaining, EstimatedFromTime=estimated,
-                ProvisionalConsumption=provisional,
+                ProvisionalConsumption=provisional, ReferenceLap=referenceLap,
                 AdditionalWithoutReserve=crew?ctx.CrewChiefAdditionalFuelNeeded:remaining*perLap-gs.FuelData.FuelLeft,
                 ReserveLitres=perLap*FuelWatch.SafetyMarginLaps,
                 Source=provisional && !(ctx.Memory.ProvisionalFuelPerLap(gs) > 0) && FuelCarry.For(gs) == perLap ? "Verbrauch aus Training und Quali dieser Strecke, im Rennen noch nicht gemessen" :

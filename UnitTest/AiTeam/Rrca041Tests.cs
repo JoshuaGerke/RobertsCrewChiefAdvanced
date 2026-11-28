@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using CrewChiefV4;
 using CrewChiefV4.AiTeam;
 using CrewChiefV4.GameState;
@@ -308,6 +309,51 @@ namespace UnitTest.AiTeamTests
             gs.SessionData.ClassPosition = gs.SessionData.OverallPosition = 1000;
             for (int i = 0; i < 11; i++) gs.OpponentData["o" + i] = new OpponentData { DriverRawName = "Fahrer " + i, IsActive = true };
             Assert.AreEqual(12, SessionGreetingDirector.FieldSize(gs), "Platz 1000 ist ein Platzhalter");
+        }
+
+        // iRacing MX-5 28.11. / P2.2: vor der ersten Rennrunde rechnet der Sprit mit der Bestzeit von heute.
+        [Test]
+        public void Fuel_before_the_first_race_lap_uses_todays_best()
+        {
+            try
+            {
+                FuelCarry.Reset(); SessionLapObserver.ResetTodayBest();
+                var quali = Session(SessionType.Qualify, 20);
+                FuelCarry.Remember(quali, 1.17f, 2);
+                SessionLapObserver.RememberTodayBest(quali, new LapRecord { LapNumber = 3, LapTime = 128.518f, Valid = true });
+                var race = Session(SessionType.Race, 21);
+                race.SessionData.SessionPhase = SessionPhase.Formation; race.SessionData.SessionHasFixedTime = true;
+                race.SessionData.SessionTotalRunTime = 1500; race.SessionData.SessionTimeRemaining = -1;
+                race.FuelData.FuelUseActive = true; race.FuelData.FuelLeft = 19.6f;
+                var ctx = new RaceDataContext { GameState = race, Memory = new AiRaceMemory(), NowUtc = T, LastTelemetryUtc = T };
+                var e = FuelEstimate.From(ctx, minimumMeasuredLaps: 1);
+                Assert.IsNotNull(e, "Restdistanz nicht mehr offen");
+                Assert.AreEqual(128.518f, e.ReferenceLap, 1e-3);
+                Assert.AreEqual(12.4, e.LapsRemaining, 0.2);
+            }
+            finally { FuelCarry.Reset(); SessionLapObserver.ResetTodayBest(); }
+        }
+
+        // iRacing MX-5 28.11.: Quali-Bilanz nennt die gültige Bestzeit, nicht die erste Runde als „gestrichen“.
+        [Test]
+        public void Debrief_uses_the_measured_valid_best()
+        {
+            var v = Timesheet(Timed("Mihai Dragan", 1, 125.344f));
+            v.Player.BestLap = float.NaN; v.Player.FastestAnyLap = 129.619f;
+            string text = CrewChiefV4.AiTeam.Field.SessionDebrief.Compose(v, "Rob", 1.2f, 2, 0, 128.518f);
+            StringAssert.Contains(LocalAnswers.LapTime(128.518f), text);
+            StringAssert.DoesNotContain("gestrichen", text);
+        }
+
+        // iRacing MX-5 28.11.: Garagenautos standen bei genau 0 m; Sara meldete „der Wagen direkt vor dir steht“.
+        [Test]
+        public void Parked_cars_are_not_traffic()
+        {
+            var gs = Session(SessionType.Qualify, 30);
+            TrackCarPosition Car(int id, double lap, float speed) =>
+                new TrackCarPosition(id, "c" + id, new OpponentData { DriverRawName = "Fahrer " + id, Speed = speed }, gs, 0, 0, lap, 280, 280, 41, 0, true);
+            var parked = TrackSituationWatch.Parked(new[] { Car(28, 0, 0), Car(29, 0, 0), Car(31, 2480.2, 0), Car(32, 2480.4, 0), Car(40, 3100, 0), Car(41, 0.1, 30) });
+            CollectionAssert.AreEquivalent(new[] { 28, 29, 31, 32 }, parked.ToArray());
         }
 
         [Test]

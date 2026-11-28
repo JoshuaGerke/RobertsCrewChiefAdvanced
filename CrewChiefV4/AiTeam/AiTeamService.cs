@@ -2041,6 +2041,8 @@ namespace CrewChiefV4.AiTeam
                 "gedreht", "dreher", "unfall", "unfäll", "vorfall", "vorfäll", "vorkommnis", "abgeflogen", "steht", "sektor",
                 // iRacing 27.11.: „alles kaputt oder was siehst du?“ lief ohne Werkzeug und ohne Schadensdaten.
                 "kaputt", "beschädig", "reparat", "einschlag", "mauer", "broken", "repair", "roto", "repar",
+                // iRacing MX-5 28.11.: „Ich sehe nur Mazda MX-5, wo sind die anderen?“ ohne Werkzeug – Ben erfand ein reines MX-5-Feld.
+                "klasse", "andere", "welche autos", "class", "other cars", "clase",
                 "spun", "spin", "crash", "accident", "incident", "stopped", "sector",
                 "trompo", "accidente", "incidente", "parado", "sectores" };
             return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;
@@ -2303,7 +2305,11 @@ namespace CrewChiefV4.AiTeam
                 {
                     text = Field.SessionDebrief.ComposeRace(v, radioName, RaceChronicle.Current.All(), debriefVariant++);
                 }
-                else text = Field.SessionDebrief.Compose(v, radioName, fuel, fuelLaps, debriefVariant++);
+                else
+                {
+                    float ownBest = CrewChief.currentGameState?.SessionData?.PlayerLapTimeSessionBest ?? -1;
+                    text = Field.SessionDebrief.Compose(v, radioName, fuel, fuelLaps, debriefVariant++, ownBest > 10 ? ownBest : float.NaN);
+                }
                 if (text == null) return;
                 debriefDoneKey = key;
             }

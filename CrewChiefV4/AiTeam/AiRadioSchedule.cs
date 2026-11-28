@@ -742,6 +742,11 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T("Der Tank steht seit über einer Minute Fahrt bei " + litres + " Litern. Verbrauch ist hier offenbar aus, zum Sprit melde ich mich erst wieder, wenn er sich bewegt.",
                     "Fuel has been stuck at " + litres + " litres for over a minute of driving. Consumption seems to be off here, I'll only report fuel again once it moves.",
                     "El depósito lleva más de un minuto en " + litres + " litros. El consumo parece desactivado, no volveré a hablar de combustible hasta que se mueva.");
+            // iRacing MX-5 28.11.: iRacing meldet Verschleiß nur beim Boxenstopp – „offenbar aus“ war falsch.
+            if (Game.gameType == GameType.IRACING)
+                return RadioLanguage.T("iRacing meldet den Reifenverschleiß erst beim Boxenstopp. Bis dahin halte ich mich an die Temperaturen.",
+                    "iRacing only reports tyre wear at a pit stop. Until then I'll go by the temperatures.",
+                    "iRacing solo da el desgaste en una parada. Hasta entonces me guío por las temperaturas.");
             return RadioLanguage.T("Die Reifen zeigen keinen Verschleiß. Der ist hier offenbar aus, dazu melde ich mich erst wieder, wenn sich etwas tut.",
                 "The tyres show no wear. It seems to be off here, I'll only report tyres again once something changes.",
                 "Los neumáticos no muestran desgaste. Parece desactivado, no volveré a hablar de ellos hasta que cambie algo.");

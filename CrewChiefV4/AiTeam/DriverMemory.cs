@@ -351,7 +351,9 @@ namespace CrewChiefV4.AiTeam
                 ["speicherstatus"]=current.Facts.Status,["schema_version"]=RaceFactStore.SchemaVersion,
                 ["verbrauchsvergleich_verfuegbar"]=summary.FuelComparisonAvailable,
                 ["kontext"]=Newtonsoft.Json.Linq.JObject.FromObject(RaceFactContext.FromGameState(context.GameName,context.GameState,context.NowUtc)),
-                ["beste_gespeicherte_runde_s"]=summary.BestObservedLapSeconds,["historischer_verbrauch_mittel_l"]=summary.AverageCleanFuelLitres,
+                ["beste_gespeicherte_runde_s"]=summary.BestObservedLapSeconds,
+                // iRacing MX-5 28.11.: 128,518 s wurden als „1:28,518“ gesprochen. Die Zeit steht deshalb auch fertig formatiert da.
+                ["beste_gespeicherte_runde"]=summary.BestObservedLapSeconds>0?LocalAnswers.LapTime((float)summary.BestObservedLapSeconds):null,["historischer_verbrauch_mittel_l"]=summary.AverageCleanFuelLitres,
                 ["quelle"]=RaceFactContext.TelemetrySource,["hinweis"]="Nur identischer Spiel-/Fahrzeug-/Strecken-/Reifen-/Bedingungskontext. Keine vollständige Rekordliste, keine garantierte Vergleichbarkeit von Setup oder Verbrauchsmultiplikator, keine aktuelle Reichweite.",
                 ["letzte_runden"]=new Newtonsoft.Json.Linq.JArray(summary.Laps.OrderByDescending(f=>f.ObservedUtc).Take(5).Select(f=>new JObject {
                     ["beobachtet_utc"]=f.ObservedUtc,["session_uid"]=f.SessionUid,["session_typ"]=f.SessionType,

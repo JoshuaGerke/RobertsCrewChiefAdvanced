@@ -72,9 +72,11 @@ namespace CrewChiefV4.AiTeam
             float balance = requestedLaps > 0 ? f.FuelLeft - requestedLaps * consumption : -estimate.AdditionalWithoutReserve;
             float reserve = requestedLaps > 0 ? consumption * FuelWatch.SafetyMarginLaps : estimate.ReserveLitres;
             string distance = requestedLaps > 0 ? "für " + requestedLaps + " Runden" : "bis ins Ziel";
-            if (balance < 0) return "Nach aktueller Rechnung fehlen " + FuelWatch.Litres(-balance) + " " + distance + ".";
-            if (balance < reserve) return "Der Sprit reicht rechnerisch " + distance + ". Die Reserve ist knapp.";
-            return "Der Sprit reicht rechnerisch " + distance + ". Etwa " + FuelWatch.Litres(balance) + " bleiben übrig.";
+            string reference = requestedLaps <= 0 && estimate != null && !float.IsNaN(estimate.ReferenceLap)
+                ? " Gerechnet mit deiner Bestzeit von heute, " + LapTime(estimate.ReferenceLap) + ", für etwa " + Math.Round(estimate.LapsRemaining).ToString("0", de) + " Runden." : "";
+            if (balance < 0) return "Nach aktueller Rechnung fehlen " + FuelWatch.Litres(-balance) + " " + distance + "." + reference;
+            if (balance < reserve) return "Der Sprit reicht rechnerisch " + distance + ". Die Reserve ist knapp." + reference;
+            return "Der Sprit reicht rechnerisch " + distance + ". Etwa " + FuelWatch.Litres(balance) + " bleiben übrig." + reference;
         }
 
         internal static string PreviousStintFuel(string question, RaceDataContext ctx)

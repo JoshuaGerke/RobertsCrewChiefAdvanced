@@ -179,7 +179,7 @@ namespace CrewChiefV4.AiTeam.Field
             new[] { "Chin up, we'll get it back next race.", "Tough one today, but we've got the data. Next time it clicks.", "Tick it off, learn from it, and attack again next race.", "You pushed through to the flag, that counts. More next time.", "Not our day, but you kept at it. The next race is ours." },
             new[] { "Ánimo, en la próxima carrera lo recuperamos.", "Hoy costó, pero tenemos los datos. La próxima saldrá.", "Olvídalo, aprende de ello y a atacar en la próxima carrera.", "Llegaste hasta la bandera, eso cuenta. La próxima habrá más.", "No fue nuestro día, pero no aflojaste. La próxima carrera es nuestra." });
 
-        internal static string Compose(FieldView v, string driverName, float fuelPerLap, int fuelLaps, int variant)
+        internal static string Compose(FieldView v, string driverName, float fuelPerLap, int fuelLaps, int variant, float ownValidBest = float.NaN)
         {
             if (v?.Player == null || v.Session != FieldSession.Practice && v.Session != FieldSession.Qualify && v.Session != FieldSession.Warmup) return null;
             var p = v.Player;
@@ -200,6 +200,9 @@ namespace CrewChiefV4.AiTeam.Field
 
             bool valid = !float.IsNaN(p.BestLap);
             float mine = valid ? p.BestLap : p.FastestAnyLap;
+            // iRacing MX-5 28.11.: „Deine schnellste Runde war 2:09,619, leider gestrichen“ – gültig war eine 2:08,518. Das Lagebild hatte
+            // die Bestzeit noch nicht; die gemessene gültige Bestzeit der Session gilt vor dem Lagebild.
+            if (ownValidBest > 10 && (!valid || ownValidBest < p.BestLap - FieldFacts.SameTimeS)) { valid = true; mine = ownValidBest; }
             // RaceRoom Laguna 27.11.: im Mehrklassenfeld Rang und Rückstand in der eigenen Klasse, gleiche Zeit (5 ms) ist kein Rückstand.
             bool multi = FieldFacts.Multiclass(v) && p.ClassId >= 0;
             var timed = FieldFacts.Timesheet(v, true);
@@ -231,7 +234,8 @@ namespace CrewChiefV4.AiTeam.Field
             // Topspeed im Mehrklassenfeld nur gegen die eigene Klasse (Laguna 27.11.: „nur Rang 10“ gegen schnellere Klassen).
             var fastest = v.Cars.Where(c => !float.IsNaN(c.TopSpeed) && (!multi || c.ClassId == p.ClassId)).OrderByDescending(c => c.TopSpeed).ToList();
             int speedRank = fastest.FindIndex(c => c.IsPlayer) + 1;
-            if (speedRank > 0 && fastest.Count >= 5)
+            // iRacing MX-5 28.11.: ohne gezeitete Runde („nur Rang 6, früher ans Gas“) stammt der Topspeed aus Out-Laps – kein Urteil.
+            if (speedRank > 0 && fastest.Count >= 5 && !float.IsNaN(mine))
             {
                 string kmh = RadioLanguage.Num(p.TopSpeed * 3.6f, "0");
                 if (speedRank <= 3)

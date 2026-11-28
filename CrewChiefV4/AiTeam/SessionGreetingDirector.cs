@@ -179,7 +179,9 @@ namespace CrewChiefV4.AiTeam
             string opening = Openings[NextVariant()].Replace("Rob", name).Replace("Ben", TeamRouter.DisplayName(speaker));
             var type = gs.SessionData.SessionType;
             bool race = type == SessionType.Race, qualifying = type == SessionType.Qualify || type == SessionType.PrivateQualify;
-            string place = " " + SpokenTrack(track) + ", " + RadioLanguage.T(race ? "Rennen" : qualifying ? "Qualifying" : "Training",
+            // iRacing MX-5 28.11.: „Watkinsglen 2021 Fullnoloop“ ist der interne Name; das Lagebild kennt „Watkins Glen“.
+            string display = Field.FieldService.Fresh(2)?.Track;
+            string place = " " + SpokenTrack(!string.IsNullOrWhiteSpace(display) ? display : track) + ", " + RadioLanguage.T(race ? "Rennen" : qualifying ? "Qualifying" : "Training",
                 race ? "race" : qualifying ? "qualifying" : "practice", race ? "carrera" : qualifying ? "clasificación" : "libres") + ". ";
             string weather = GreetingWeather(context);
             string field = FieldLine(gs);
