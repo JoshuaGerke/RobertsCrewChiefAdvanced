@@ -197,7 +197,8 @@ namespace CrewChiefV4.AiTeam
                     {
                         record.PeakTyreTemps = peaks;
                     }
-                    if (!record.Valid && record.LapTime > 0) RecordedInvalidLaps++;
+                    // Audit 25.11. (P4.1): Mik sagt gestrichene Runden auch mit selbst gestoppter Zeit an; die Bilanz zählt dieselben.
+                    if (!record.Valid && (record.LapTime > 0 || record.ClockLapTime > 0)) RecordedInvalidLaps++;
                     laps.Add(record);
                     if (laps.Count > MaxLaps)
                     {

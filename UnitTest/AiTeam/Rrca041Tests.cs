@@ -287,6 +287,29 @@ namespace UnitTest.AiTeamTests
             Assert.IsNotNull(watch.Take(Field(400, Parked("Mani Racing", 2000f, 330)), gs, T.AddSeconds(400)), "neuer Vorfall nach Weiterfahrt");
         }
 
+        // R5: Crew Chiefs Reifen- und Bremstemperaturen spricht Mik.
+        [Test]
+        public void Crew_chief_temperatures_become_a_short_mik_line()
+        {
+            Assert.AreEqual("Reifen rundum noch kalt, erst aufwärmen, Bremsen im Fenster.",
+                LiveWarningDispatcher.TemperatureLine(new[] { "tyre_monitor/cold_tyres_all_round", "tyre_monitor/good_brake_temps" }));
+            Assert.AreEqual("Reifen vorne links zu heiß.", LiveWarningDispatcher.TemperatureLine(new[] { "tyre_monitor\\hot_left_front_tyre" }));
+            Assert.IsNull(LiveWarningDispatcher.TemperatureLine(new[] { "engine_monitor/hot_oil" }));
+        }
+
+        // R9, I3: Kennungen und Platzhalter nicht vorlesen.
+        [Test]
+        public void Ids_and_placeholders_are_not_read_out()
+        {
+            Assert.AreEqual("harten Reifen", PersonalBestWatch.SpokenCompound("R3E_2017_HARD"));
+            Assert.IsNull(PersonalBestWatch.SpokenCompound("R3E_2017_X"));
+            Assert.AreEqual("Snetterton 300", SessionGreetingDirector.SpokenTrack("\"snetterton 300\""));
+            var gs = Session(SessionType.Practice, 6);
+            gs.SessionData.ClassPosition = gs.SessionData.OverallPosition = 1000;
+            for (int i = 0; i < 11; i++) gs.OpponentData["o" + i] = new OpponentData { DriverRawName = "Fahrer " + i, IsActive = true };
+            Assert.AreEqual(12, SessionGreetingDirector.FieldSize(gs), "Platz 1000 ist ein Platzhalter");
+        }
+
         [Test]
         public void Games_with_part_damage_keep_their_report()
         {
