@@ -75,8 +75,10 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>
         /// Plötzlicher Einbruch: in den letzten 3 s um mindestens 20 m/s auf höchstens 60 % gefallen und weniger als halb so schnell
-        /// wie Rob selbst an dieser Stelle (ohne Vergleich: unter 45 % von Robs Tempo). Normales Anbremsen fällt so nicht auf,
-        /// weil Rob an derselben Stelle ähnlich langsam ist.
+        /// wie üblich an dieser Stelle (Robs eigenes Tempo dort oder das gelernte Feldtempo). Normales Anbremsen fällt so nicht auf.
+        /// iRacing Navarra 28.11. (Rob: „Wo siehst du das, dass vorne sich einer dreht?“): In Runde 1 gab es noch keinen Vergleich,
+        /// geprüft wurde gegen Robs aktuelles Tempo auf der Geraden. Drei Autos, die 150 m vor ihm gemeinsam in die Kurve bremsten
+        /// (25 m/s, üblich 30), galten als Dreher. Ohne Vergleichstempo der Stelle gibt es keinen Dreher aus dem Tempo mehr.
         /// </summary>
         internal static bool SuddenSlowdown(IList<KeyValuePair<DateTime, float>> history, float speed, DateTime now, float? normalHere, float playerSpeed)
         {
@@ -85,7 +87,7 @@ namespace CrewChiefV4.AiTeam
             foreach (var h in history)
                 if (now - h.Key <= TimeSpan.FromSeconds(3) && now - h.Key >= TimeSpan.FromMilliseconds(300) && h.Value > peak) peak = h.Value;
             if (peak - speed < 20 || speed > peak * .6f) return false;
-            return normalHere.HasValue && normalHere.Value >= 15 ? speed < normalHere.Value * .5f : speed < playerSpeed * .45f;
+            return normalHere.HasValue && normalHere.Value >= 15 && speed < normalHere.Value * .5f;
         }
 
         private readonly Dictionary<string, List<KeyValuePair<DateTime, float>>> motion = new Dictionary<string, List<KeyValuePair<DateTime, float>>>();
@@ -148,6 +150,13 @@ namespace CrewChiefV4.AiTeam
                 list.RemoveAll(p => now - p.Key > TimeSpan.FromSeconds(4));
             }
             if (motion.Count > 256) motion.Clear();
+        }
+
+        /// <summary>Gelerntes Feldtempo an der Stelle des Wagens (Lagebild, 10-m-Abschnitte), sonst null.</summary>
+        private static float? FieldExpected(TrackCarPosition c)
+        {
+            var seen = c?.NativeName == null ? null : Field.FieldService.Fresh(.5)?.ByName(c.NativeName);
+            return seen != null && !float.IsNaN(seen.ExpectedSpeed) && seen.ExpectedSpeed >= 15 ? seen.ExpectedSpeed : (float?)null;
         }
 
         private float? NormalSpeedAt(TrackCarPosition c, GameStateData gs, DateTime now)
@@ -298,7 +307,12 @@ namespace CrewChiefV4.AiTeam
         /// er höchstens 250 m voraus liegt und das Lagebild ihn mindestens 0,3 s lang bestätigt. Weiter weg zählt der Wagen als
         /// langsam; steht er noch, wenn Rob näherkommt, meldet ihn die normale Abfang-Prüfung.
         /// </summary>
-        internal const double SpinReachM = 250;
+        /// <summary>
+        /// Rob 28.11. (iRacing Navarra): „Max 200 Meter vor und hinter mir, mehr nicht. Dann aber Echtzeit: Dreher, langsame
+        /// Fahrzeuge und Unfälle.“ Ersetzt P1.2 (3 bis 8 s voraus) und die Fernwarnung bis 1000 m.
+        /// </summary>
+        internal const double HazardReachM = 200;
+        internal const double SpinReachM = HazardReachM;
         internal static readonly TimeSpan SpinConfirm = TimeSpan.FromMilliseconds(300);
         internal static bool SpinCallable(double gapM, DateTime firstSeen, DateTime now) =>
             gapM > 0 && gapM <= SpinReachM && firstSeen != DateTime.MinValue && now >= firstSeen && now - firstSeen >= SpinConfirm;
@@ -340,6 +354,14 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Runde 0 und Rob ist noch nicht losgefahren (oder erst vor wenigen Sekunden): das Feld steht in der Aufstellung.</summary>
         internal static bool StartGridQuiet(int completedLaps, DateTime launchUtc, DateTime now) =>
             completedLaps <= 0 && (launchUtc == DateTime.MinValue || now < launchUtc || now - launchUtc < LaunchGrace);
+
+        /// <summary>
+        /// Rob 28.11.: Ein Startunfall ist nach 8 s zu spät gemeldet. Ab 2 s nach Robs Losfahren darf in der Startphase ein
+        /// stehendes Auto bis 200 m voraus genannt werden (Abwürger, Startcrash); Langsamfahrt und Dreher erst nach der Schonzeit.
+        /// </summary>
+        internal static readonly TimeSpan StallGrace = TimeSpan.FromSeconds(2);
+        internal static bool StallCallable(int completedLaps, DateTime launchUtc, DateTime now) =>
+            completedLaps <= 0 && launchUtc != DateTime.MinValue && now >= launchUtc && now - launchUtc >= StallGrace;
 
         public void Reset()
         {
@@ -398,12 +420,14 @@ namespace CrewChiefV4.AiTeam
             candidates=ConfirmWithFieldPicture(candidates,s,now);
             Volatile.Write(ref facts,new Facts {Utc=now,Epoch=epoch,Session=s.SessionId,Cars=candidates});
             if (launchUtc==DateTime.MinValue && gs.SessionData.CompletedLaps<=0 && s.PlayerSpeedMps>=LaunchSpeedMps) launchUtc=now;
-            if (StartGridQuiet(gs.SessionData.CompletedLaps,launchUtc,now))
+            bool gridQuiet=StartGridQuiet(gs.SessionData.CompletedLaps,launchUtc,now);
+            if (gridQuiet && !StallCallable(gs.SessionData.CompletedLaps,launchUtc,now))
             {
                 if (!gridQuietLogged) { gridQuietLogged=true; LiveDiagnostics.Decision("race-hazard-ahead","suppressed","start_grid_before_launch"); }
                 pending=null;
                 return;
             }
+            if (gridQuiet) candidates=candidates.Where(c=>c.RouteGapM>0 && c.RouteGapM<=HazardReachM && c.SpeedMps<=1).ToArray();
             var hazard=candidates.FirstOrDefault(c=>c.RouteGapM>0 && !string.IsNullOrWhiteSpace(c.Name) &&
                 (c.SpeedMps<=5 || spinning.Contains(c.Key) || CrewChiefSlow(c,gs)));
             if (hazard!=null)
@@ -421,6 +445,9 @@ namespace CrewChiefV4.AiTeam
                 bool rear=car.RouteGapM<0, stopped=!rear && car.SpeedMps<=1, otherClass=MulticlassTraffic.OtherClass(car);
                 bool spin=!rear && !stopped && spinning.Contains(car.Key);
                 bool classAhead=!rear && !stopped && !spin && otherClass && !CrewChiefSlow(car,gs);
+                // Rob 28.11.: Gefahren (steht, dreht, langsam) nur bis 200 m voraus. Verkehr von hinten und klassenfremder Verkehr
+                // voraus sind keine Gefahr und behalten ihr eigenes Zeitfenster.
+                if (!rear && !classAhead && car.RouteGapM>HazardReachM) continue;
                 // AMS2 Spa 23.11.: JJ drehte sich vor Rob, eine Minute nach einer (falschen) „langsam“-Meldung über ihn – die
                 // 60-s-Sperre je Auto schluckte den Dreher. Dreher und stehendes Auto haben jetzt eine eigene Sperre.
                 string key=car.Id+"|"+(rear?"rear":stopped?"stopped":spin?"spin":"hazard"); DateTime previous;
@@ -464,7 +491,8 @@ namespace CrewChiefV4.AiTeam
                     Position=-1, SessionId=s.SessionId, SessionType=s.SessionType,
                     DetectedUtc=now, ExpiresUtc=now.AddSeconds(3),
                     HazardIdentity=rear || classAhead ? null : car.NativeIdentity,
-                    Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions"),
+                    Evidence="local_route_motion;opponent="+opponentKey+";source="+(NativeConfirmed(car,now)?"native_multiclass_and_positions":"measured_positions")+
+                        ";gap_m="+(int)Math.Round(car.RouteGapM ?? 0)+FieldEvidence(car,now),
                     TimedValidity=(live,utc)=>generation==epoch && ValidNow(live,utc,opponentKey,id,stopped,group)
                 };
                 // Bei klassenfremdem Verkehr zuerst die Klasse (Rob 18.11.: „lass ihn durch, andere Klasse“), danach der Name
@@ -513,7 +541,7 @@ namespace CrewChiefV4.AiTeam
                 }
             }
             // Was das Lagebild als Gefahr voraus sieht, aber die Bewegungsprüfung oben noch nicht erfasst hat, kommt dazu.
-            foreach (var seen in view.Cars.Where(x=>!x.IsPlayer && !x.InPit && x.GapM>=15 && x.GapM<=400 &&
+            foreach (var seen in view.Cars.Where(x=>!x.IsPlayer && !x.InPit && x.GapM>=15 && x.GapM<=HazardReachM &&
                 (x.Motion==Field.CarMotion.Spun || x.Motion==Field.CarMotion.Stopped || x.Motion==Field.CarMotion.Slow)))
             {
                 var c=s.Cars.FirstOrDefault(x=>x.NativeName==seen.Name && !x.IsSafetyCar && !x.InPits && x.RouteGapM.HasValue && x.RouteGapM>0 && x.SpeedMps.HasValue);
@@ -530,6 +558,16 @@ namespace CrewChiefV4.AiTeam
             return kept.ToArray();
         }
         private readonly Dictionary<string,DateTime> rejectedByField=new Dictionary<string,DateTime>();
+
+        /// <summary>Was das Lagebild zum Wagen sagt (Bewegung, Tempo/Feldtempo, seit wann), damit der Log die Verzögerung zeigt.</summary>
+        private static string FieldEvidence(TrackCarPosition car, DateTime now)
+        {
+            var seen = car?.NativeName == null ? null : Field.FieldService.Fresh(.5)?.ByName(car.NativeName);
+            if (seen == null) return ";field=none";
+            return ";field=" + seen.Motion.ToString().ToLowerInvariant() + (seen.OffTrack ? ";off_track" : "") +
+                ";v=" + Math.Round(seen.Speed) + ";expected=" + (float.IsNaN(seen.ExpectedSpeed) ? "-" : Math.Round(seen.ExpectedSpeed).ToString()) +
+                (seen.MotionSinceUtc == default(DateTime) || now < seen.MotionSinceUtc ? "" : ";since_ms=" + (int)(now - seen.MotionSinceUtc).TotalMilliseconds);
+        }
 
         internal static string NameClipText(string name) => RadioLanguage.T("Das ist ", "That's ", "Es ") + name + ".";
 
@@ -573,7 +611,7 @@ namespace CrewChiefV4.AiTeam
             if (rear && NativeConfirmed(c,now) && c.SpeedMps>=s.PlayerSpeedMps+3 && Math.Abs(c.RouteGapM.Value)<=500) return true;
             // Dreher voraus (Rennen 20.11.): plötzlicher Einbruch zählt auch ohne Abfang-Zeitfenster, bis 400 m voraus.
             if (!rear && c.RouteGapM <= SpinReachM && c.SpeedMps < s.PlayerSpeedMps && motion.TryGetValue(c.Key ?? "", out var seen) &&
-                SuddenSlowdown(seen, (float)c.SpeedMps.Value, now, NormalSpeedAt(c, gs, now), (float)s.PlayerSpeedMps.Value))
+                SuddenSlowdown(seen, (float)c.SpeedMps.Value, now, NormalSpeedAt(c, gs, now) ?? FieldExpected(c), (float)s.PlayerSpeedMps.Value))
             { spinning.Add(c.Key); return true; }
             if (!c.ClosingMps.HasValue || !TrackSituationWatch.MotionPlausible(c,s.PlayerSpeedMps.Value,!rear)) return false;
             double closing=c.ClosingMps.Value;

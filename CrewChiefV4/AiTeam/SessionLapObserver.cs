@@ -1392,8 +1392,15 @@ namespace CrewChiefV4.AiTeam
             if (gs == null) return -1;
             var s = gs.SessionData;
             if (s.SessionType == SessionType.Race && s.CompletedLaps < 2) return -1;
+            // iRacing Navarra 28.11. (N6): „Zu deiner eigenen Bestzeit fehlen 20,9“ – die beste Rennrunde war die Startrunde mit
+            // Zwischenfall (2:01,865), heute ging 1:46,404. Mehr als 3 % über der Bestzeit von heute ist keine Referenz.
+            if (s.SessionType == SessionType.Race && !RaceLapRepresentative(s.PlayerLapTimeSessionBest, TodayBest(gs))) return -1;
             return s.PlayerLapTimeSessionBest;
         }
+
+        /// <summary>Die beste Rennrunde taugt als Bezug: höchstens 3 % langsamer als Robs Bestzeit von heute (ohne die: immer).</summary>
+        internal static bool RaceLapRepresentative(float raceBest, float todayBest) =>
+            !Good(todayBest) || !Good(raceBest) || raceBest <= todayBest * 1.03f;
 
         /// <summary>Die Sim übernimmt die Runde als Klassenbestzeit, und kein Gegner hält diese Zeit: Es ist Robs eigene Bestzeit.</summary>
         internal static bool SimCountsAsOwnBest(GameStateData gs, float lapTime)

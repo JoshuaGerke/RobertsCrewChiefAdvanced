@@ -2763,6 +2763,9 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         private void OfferHazardFarAhead(GameStateData current, DateTime now)
         {
+            // Rob 28.11. (iRacing Navarra): „Max 200 Meter vor und hinter mir, mehr nicht.“ Die Fernwarnung (3 bis 8 s, bis 1000 m)
+            // ist aus; Gefahren bis 200 m meldet die Nahbereichswarnung, Gelb, Safety Car und FCY bleiben unberührt.
+            if (!YellowAheadWatch.FarWarnings) return;
             if (current == null) return;
             var hazard = yellowAhead.Take(Field.FieldPicture.Shared.Current, current, now);
             if (hazard == null) return;
@@ -2797,14 +2800,15 @@ namespace CrewChiefV4.AiTeam
             if (incident == null) return;
             string name = settings.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(incident.Name) : null;
             string carName = incident.Name;
-            RaceChronicle.Current.Add(current, now, ChronicleKind.Hazard, detail: incident.Stopped ? "steht_hinten" : "dreher_hinten", source: "lagebild",
+            string kind = incident.Stopped ? "stopped" : incident.Slow ? "slow" : "spun";
+            RaceChronicle.Current.Add(current, now, ChronicleKind.Hazard, detail: incident.Stopped ? "steht_hinten" : incident.Slow ? "langsam_hinten" : "dreher_hinten", source: "lagebild",
                 subjectName: name, dedupe: TimeSpan.FromSeconds(30));
-            string rearText = incident.Others.Count == 0 ? rearIncident.Text(name, incident.Stopped) :
+            string rearText = incident.Others.Count == 0 ? rearIncident.Text(name, incident.Stopped, incident.Slow) :
                 rearIncident.CrashText(settings.SendDriverNames ? new[] { incident.Name }.Concat(incident.Others).Select(RadioPhraseCatalog.SafeRivalName).ToList() : null);
             liveWarnings.Offer("warning-incident-behind", rearText,
                 settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : TeamMember.Ben, 5, current, now,
                 live => live.SessionData.SessionPhase == SessionPhase.Green && !live.PitData.InPitlane,
-                "field_picture_" + (incident.Stopped ? "stopped" : "spun") + "_" + (int)(-incident.GapM) + "m_behind",
+                "field_picture_" + kind + "_" + (int)(-incident.GapM) + "m_behind",
                 timed: (live, at) => at - now <= TimeSpan.FromSeconds(6));
         }
 
@@ -2876,6 +2880,16 @@ namespace CrewChiefV4.AiTeam
             bool urgentPit=RadioRenderGate.IsUrgentPit(call) || call.Priority>=7 &&
                 (call.Topic=="race-hazard-ahead" || call.Topic=="race-traffic-rear" || call.Topic=="race-class-ahead" || call.Topic=="race-disqualified" ||
                 (call.Topic??"").StartsWith("warning-",StringComparison.Ordinal) && call.Topic!="warning-numeric-damage");
+            // iRacing Navarra 28.11. (N12): Nach „Disqualifikation gemeldet, sicher reinkommen“ kamen noch „Vorfallpunkte am Anschlag“
+            // und „Platz 10, zurückgefallen … das Rennen ist noch lang“. Nach einer Disqualifikation nur noch die Meldung selbst und die Bilanz.
+            if (!CrewSpeechPolicy.AllowedAfterDisqualification(call.Topic, CrewChief.currentGameState))
+            {
+                var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
+                call.MarkConsumed(at);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "player_disqualified", call.Text); radioSchedule.Arbiter.Done(call.Topic);
+                return;
+            }
             // Die Schadensmeldung mit Messwerten wird erst live gesprochen und darf Flaggen und Gefahren nicht sechs Sekunden blockieren
             if (CoveredByRecentCall(call, DateTime.UtcNow))
             {

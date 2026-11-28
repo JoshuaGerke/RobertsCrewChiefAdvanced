@@ -219,7 +219,11 @@ namespace CrewChiefV4.AiTeam.Field
                 int pos = (int)At(map, b, "CarIdxPosition", i); c.Place = pos > 0 ? pos : 0;
                 int cls = (int)At(map, b, "CarIdxClassPosition", i); c.PlaceClass = cls > 0 ? cls : c.Place;
                 c.InPit = At(map, b, "CarIdxOnPitRoad", i) > 0 || surface == 1 || surface == 2;
+                c.OffTrack = surface == 0 && i != player;
                 c.BestLap = MappedFieldSource.Time((float)At(map, b, "CarIdxBestLapTime", i));
+                double est = At(map, b, "CarIdxEstTime", i), repairs = At(map, b, "CarIdxFastRepairsUsed", i);
+                c.EstTime = !double.IsNaN(est) && est >= 0 && est < 3600 ? (float)est : float.NaN;
+                c.FastRepairsUsed = !double.IsNaN(repairs) && repairs >= 0 && repairs < 100 ? (int)repairs : -1;
                 c.LastLap = MappedFieldSource.Time((float)At(map, b, "CarIdxLastLapTime", i));
                 c.X = c.Y = c.Z = float.NaN;
                 // Tempo aus der Streckenposition (über die Ziellinie hinweg), sanft geglättet.

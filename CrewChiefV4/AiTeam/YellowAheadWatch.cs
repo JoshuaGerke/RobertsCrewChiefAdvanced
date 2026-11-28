@@ -16,6 +16,8 @@ namespace CrewChiefV4.AiTeam
     /// </summary>
     internal sealed class YellowAheadWatch
     {
+        /// <summary>Rob 28.11.: Gefahren nur bis 200 m – die Fernwarnung ist aus (siehe RaceTrafficWatch.HazardReachM).</summary>
+        internal static readonly bool FarWarnings = false;
         /// <summary>Näher als das übernimmt die Nahbereichswarnung (Abstand, Ausweichen).</summary>
         internal const float NearM = 250f;
         internal const float FarM = 1000f;

@@ -744,9 +744,10 @@ namespace CrewChiefV4.AiTeam
                     "El depósito lleva más de un minuto en " + litres + " litros. El consumo parece desactivado, no volveré a hablar de combustible hasta que se mueva.");
             // iRacing MX-5 28.11.: iRacing meldet Verschleiß nur beim Boxenstopp – „offenbar aus“ war falsch.
             if (Game.gameType == GameType.IRACING)
-                return RadioLanguage.T("iRacing meldet den Reifenverschleiß erst beim Boxenstopp. Bis dahin halte ich mich an die Temperaturen.",
-                    "iRacing only reports tyre wear at a pit stop. Until then I'll go by the temperatures.",
-                    "iRacing solo da el desgaste en una parada. Hasta entonces me guío por las temperaturas.");
+                // IR3: Auch die Temperaturen misst iRacing nur beim Halt; dort sagt Mik das Reifenbild.
+                return RadioLanguage.T("iRacing misst Reifenverschleiß und Temperaturen erst beim Halt in der Box. Dann sage ich dir das Reifenbild, bis dahin gehe ich nach den Rundenzeiten.",
+                    "iRacing only measures tyre wear and temperatures when you stop in the box. I'll give you the tyre picture then, until then I go by lap times.",
+                    "iRacing solo mide el desgaste y las temperaturas al parar en boxes. Te daré el estado de los neumáticos entonces; hasta ahí me guío por los tiempos.");
             return RadioLanguage.T("Die Reifen zeigen keinen Verschleiß. Der ist hier offenbar aus, dazu melde ich mich erst wieder, wenn sich etwas tut.",
                 "The tyres show no wear. It seems to be off here, I'll only report tyres again once something changes.",
                 "Los neumáticos no muestran desgaste. Parece desactivado, no volveré a hablar de ellos hasta que cambie algo.");
@@ -981,9 +982,10 @@ namespace CrewChiefV4.AiTeam
                 if (view?.Player != null && view.Fresh(DateTime.UtcNow, 3) && !float.IsNaN(view.Player.BestLap))
                 {
                     var own = Field.FieldFacts.Timesheet(view, true);
-                    if (own.Count > 0) { place = Field.FieldFacts.RankOf(own, view.Player.BestLap); inClass = Field.FieldFacts.Multiclass(view); }
+                    if (own.Count > 0) { place = Field.FieldFacts.TrustedRank(own, view.Player.BestLap, place); inClass = Field.FieldFacts.Multiclass(view); }
                 }
-                bool pos = place > 0; string p = place.ToString(RadioLanguage.Culture);
+                // iRacing Navarra 28.11. (N1): „Bestzeit bisher 1:54,562, damit Platz 1000“ – der Platzhalter ohne Zeitenliste.
+                bool pos = Field.FieldFacts.RealPlace(place); string p = place.ToString(RadioLanguage.Culture);
                 string de = inClass ? "Klassenplatz " : "Platz ", tail = inClass ? RadioLanguage.T("", " in class", " en tu clase") : "";
                 return Of(variant,
                     RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + best + "." +

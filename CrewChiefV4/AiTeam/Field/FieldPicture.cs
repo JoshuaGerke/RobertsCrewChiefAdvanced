@@ -17,6 +17,8 @@ namespace CrewChiefV4.AiTeam.Field
         public float LapDistance, Speed;
         /// <summary>Tempo, das das Feld an genau dieser Stelle normalerweise fährt (NaN = noch nicht gelernt).</summary>
         public float ExpectedSpeed = float.NaN;
+        /// <summary>Die Sim meldet den Wagen neben der Strecke (nur iRacing).</summary>
+        public bool OffTrack;
         public CarMotion Motion;
         public DateTime MotionSinceUtc;
         /// <summary>Auf der Strecke relativ zu Rob: positiv = vor ihm, negativ = hinter ihm (höchstens eine halbe Runde).</summary>
@@ -34,6 +36,9 @@ namespace CrewChiefV4.AiTeam.Field
         public DateTime DataUtc;
         /// <summary>Streckenmeter und Position zwischen zwei Wertungsbildern fortgeschrieben (nicht direkt gemessen).</summary>
         public bool Extrapolated;
+        /// <summary>iRacing: Zeitschätzung bis zur Streckenstelle (IR4) und verbrauchte Fast Repairs (IR5).</summary>
+        public float EstTime = float.NaN;
+        public int FastRepairsUsed = -1;
 
         /// <summary>Alter der Wagendaten in Millisekunden zum Zeitpunkt <paramref name="now"/>.</summary>
         public double DataAgeMs(DateTime now) => DataUtc == default(DateTime) || now < DataUtc ? 0 : (now - DataUtc).TotalMilliseconds;
@@ -190,6 +195,10 @@ namespace CrewChiefV4.AiTeam.Field
             }
         }
 
+        /// <summary>Neben der Strecke und unter 70 % des Feldtempos an dieser Stelle (oder ohne gelerntes Tempo unter 15 m/s).</summary>
+        internal static bool OffTrackSpin(bool offTrack, float v, float expected) =>
+            offTrack && v >= 0 && (float.IsNaN(expected) ? v < 15f : expected >= 15f && v < expected * .7f);
+
         /// <summary>Schnellster denkbarer Rundenschnitt (m/s, ~340 km/h); was schneller ist, war keine ganze Runde.</summary>
         internal const float MaxLapAverageSpeed = 95f;
 
@@ -246,6 +255,9 @@ namespace CrewChiefV4.AiTeam.Field
                     float rx = dirX[cell], rz = dirZ[cell], rl = (float)Math.Sqrt(rx * rx + rz * rz);
                     if (rl > .5f) spinCond = (s.DirX * rx + s.DirZ * rz) / rl < .34f; // mehr als ~70° quer zur Fahrtrichtung
                 }
+                // Rob 28.11. (iRacing Navarra): Abflüge sofort. Neben der Strecke und klar unter dem Feldtempo dieser Stelle ist
+                // ein Abflug, auch wenn sich die Streckenposition nicht rückwärts bewegt (iRacing hat keine Weltposition).
+                if (OffTrackSpin(c.OffTrack, v, expected)) spinCond = true;
                 s.StopSince = stopCond ? (s.StopSince == default(DateTime) ? now : s.StopSince) : default(DateTime);
                 s.SlowSince = slowCond ? (s.SlowSince == default(DateTime) ? now : s.SlowSince) : default(DateTime);
                 s.SpinSince = spinCond ? (s.SpinSince == default(DateTime) ? now : s.SpinSince) : default(DateTime);
@@ -291,10 +303,10 @@ namespace CrewChiefV4.AiTeam.Field
             var r = new FieldCarView
             {
                 Slot = c.Slot, Name = c.Name, ClassId = c.ClassId, Place = c.Place, PlaceClass = c.PlaceClass, CompletedLaps = c.CompletedLaps,
-                IsPlayer = c.IsPlayer, InPit = c.InPit, LapDistance = c.LapDistance, Speed = c.Speed, ExpectedSpeed = expected,
+                IsPlayer = c.IsPlayer, InPit = c.InPit, LapDistance = c.LapDistance, Speed = c.Speed, ExpectedSpeed = expected, OffTrack = c.OffTrack,
                 Motion = m, MotionSinceUtc = s.MotionSince, TopSpeed = s.Top, TopSpeedAtM = s.TopAt, BestLap = c.BestLap,
                 LastLap = s.LastLap, LastLapValid = s.LastLapValid, FastestAnyLap = s.FastestAny, LapsTimed = s.Laps.Count,
-                DataUtc = s.DataUtc, Extrapolated = c.Extrapolated
+                DataUtc = s.DataUtc, Extrapolated = c.Extrapolated, EstTime = c.EstTime, FastRepairsUsed = c.FastRepairsUsed
             };
             if (!float.IsNaN(c.SplitBest1) || !float.IsNaN(c.SplitBest2) || !float.IsNaN(c.SplitBest3))
             {

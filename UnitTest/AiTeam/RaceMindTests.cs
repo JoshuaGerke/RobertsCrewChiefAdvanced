@@ -53,8 +53,10 @@ namespace UnitTest.AiTeamTests
             var gs = Race(); gs.SessionData.HasLimitedIncidents = false; gs.SessionData.MaxIncidentCount = -1; gs.SessionData.CurrentIncidentCount = 10;
             watch.Observe(gs, T); gs.SessionData.CurrentIncidentCount = 20; watch.Observe(gs, T.AddSeconds(1));
             Assert.IsNull(watch.Take(gs, T.AddSeconds(1), false, true));
-            Assert.AreEqual(5, IncidentPointsWatch.Level(29, 30)); Assert.AreEqual(4, IncidentPointsWatch.Level(27, 30));
-            Assert.AreEqual(3, IncidentPointsWatch.Level(23, 30)); Assert.AreEqual(2, IncidentPointsWatch.Level(15, 30));
+            // P7 (Rob 28.11.): Drittel, zwei Drittel, kurz vor dem Limit (höchstens ein Sechstel übrig), letzter Punkt, erreicht.
+            Assert.AreEqual(5, IncidentPointsWatch.Level(30, 30)); Assert.AreEqual(4, IncidentPointsWatch.Level(29, 30));
+            Assert.AreEqual(3, IncidentPointsWatch.Level(27, 30)); Assert.AreEqual(2, IncidentPointsWatch.Level(23, 30));
+            Assert.AreEqual(1, IncidentPointsWatch.Level(15, 30)); Assert.AreEqual(0, IncidentPointsWatch.Level(9, 30));
         }
 
         private static GameStateData TimedExpired(float leaderDistance, float ownDistance)

@@ -3053,6 +3053,10 @@ namespace CrewChiefV4.GameState
 
         public Boolean IsInGarage;
 
+        /// <summary>iRacing `PlayerCarPitSvStatus`: 0 kein Service, 1 läuft, 2 fertig, 100–105 Fehler (zu weit links/rechts/vorn/hinten,
+        /// schräg, kann nicht repariert werden); -1 = Sim liefert es nicht.</summary>
+        public int SimPitServiceStatus = -1;
+
         public float DriverStintSecondsRemaining;   // time remaining before this driver needs to hand over
 
         public float DriverStintTotalSecondsRemaining;  // total time remaining that this driver is allowed to drive in the session

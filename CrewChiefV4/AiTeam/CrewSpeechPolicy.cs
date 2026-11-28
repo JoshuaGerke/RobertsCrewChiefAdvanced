@@ -34,6 +34,18 @@ namespace CrewChiefV4.AiTeam
     /// <summary>One voice identity throughout local and cloud radio; never silently substitute a provider.</summary>
     public static class CrewSpeechPolicy
     {
+        /// <summary>
+        /// N12 (iRacing Navarra 28.11.): Nach der eigenen Disqualifikation im Rennen spricht die Crew nur noch die Meldung selbst,
+        /// die Bilanz und Boxen-/Sicherheitshinweise – keine Plätze, Vorfallpunkte oder Zuspruch mehr.
+        /// </summary>
+        internal static bool AllowedAfterDisqualification(string topic, CrewChiefV4.GameState.GameStateData gs)
+        {
+            if (gs == null || gs.SessionData.SessionType != CrewChiefV4.GameState.SessionType.Race || !gs.SessionData.IsDisqualified) return true;
+            string t = topic ?? "";
+            return t == "race-disqualified" || t == "race-summary" || t == "session-debrief" || t == "pit-finish" ||
+                t.StartsWith("race-hazard", StringComparison.Ordinal) || t == "warning-incident-behind" || t.StartsWith("pit-limit", StringComparison.Ordinal);
+        }
+
         private static readonly string[] FirstTrackLimitPhrasesDe = {
             "Pass auf die Streckenbegrenzung auf.",
             "Die Rennkommissare melden Tracklimits. Lass etwas Platz zum Rand.",

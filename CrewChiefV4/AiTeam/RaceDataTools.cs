@@ -383,6 +383,13 @@ namespace CrewChiefV4.AiTeam
                 ["verschleiss"] = truth.Describe(SimChannel.TyreWear),
                 ["hinweis"] = "„eingefroren“ heißt: Die Simulation aktualisiert diese Werte während der Fahrt nicht (oft erst beim Boxenstopp). Dann nur als Stand vom letzten Stopp nennen, nie als aktuell."
             };
+            // iRacing Navarra 28.11. (N9): Die zweite Reifenantwort nannte 66–69 °C als aktuell – iRacing misst nur beim Boxenhalt.
+            if (PitTyreReport.Applies())
+            {
+                var last = PitTyreReport.LastReadingUtc;
+                o["datenstand"]["iracing"] = "Temperatur, Verschleiß und Druck misst iRacing nur beim Halt in der Box. Immer als „Stand letzter Boxenhalt“ nennen, nie als aktuell. Aktuell ableitbar sind nur Rundenzeit-Trend und Streckentemperatur.";
+                o["datenstand"]["letzter_boxenhalt_vor_min"] = last == DateTime.MinValue ? (JToken)JValue.CreateNull() : Math.Round((ctx.NowUtc - last).TotalMinutes, 1);
+            }
             if (t.TyreWearActive)
             {
                 o["verschleiss_prozent"] = CheckedArray(new[] { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear }, 1, 0, 100, "reifenverschleiss", missing);

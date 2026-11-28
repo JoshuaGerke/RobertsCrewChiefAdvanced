@@ -38,6 +38,21 @@ namespace CrewChiefV4.AiTeam.Field
         /// <summary>Rang einer Zeit in der Zeitenliste (andere Fahrer, die mehr als 5 ms schneller sind, plus eins).</summary>
         internal static int RankOf(IEnumerable<FieldCarView> timed, float mine) => timed.Count(c => !c.IsPlayer && c.BestLap < mine - SameTimeS) + 1;
 
+        /// <summary>Spielplatz ist ein echter Platz (iRacing meldet ohne Zeit den Platzhalter 1000).</summary>
+        internal static bool RealPlace(int place) => place > 0 && place < 200;
+
+        /// <summary>
+        /// iRacing Navarra 28.11. (N5): „Deine Marke 1:46,404, das ist Platz 5“, 12 s später „Quali durch, Platz 10“ – Startplatz war
+        /// 10. Die Zeitenliste im Lagebild hatte noch nicht alle Zeiten. Der Rang aus der Zeitenliste gilt nur, wenn sie mindestens
+        /// so viele Zeiten hat, wie der Spielplatz zählt; sonst der Spielplatz. Ohne echten Spielplatz (N1: 1000) gilt die Liste.
+        /// </summary>
+        internal static int TrustedRank(IList<FieldCarView> timed, float mine, int gamePlace)
+        {
+            if (timed == null || timed.Count == 0) return RealPlace(gamePlace) ? gamePlace : 0;
+            int rank = RankOf(timed, mine);
+            return !RealPlace(gamePlace) || timed.Count >= gamePlace ? rank : gamePlace;
+        }
+
         internal static string Motion(CarMotion m)
         {
             switch (m)

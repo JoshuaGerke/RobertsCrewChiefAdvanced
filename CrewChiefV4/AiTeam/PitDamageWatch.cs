@@ -17,7 +17,8 @@ namespace CrewChiefV4.AiTeam
     {
         internal const double ReminderSeconds = 40, RepairFirstSeconds = 30, RepairSecondSeconds = 90;
         private int session = int.MinValue, lostCorner = -1, reminders, variant;
-        private bool lostWheel, severe, urgentSpoken, arrivalSpoken, repairFirst, repairSecond, retiredSpoken, wasInPit, wasDnf, wasCrewReady, pitDamaged, repairTimeSpoken;
+        private bool lostWheel, severe, urgentSpoken, arrivalSpoken, repairFirst, repairSecond, retiredSpoken, wasInPit, wasDnf, wasCrewReady, pitDamaged, repairTimeSpoken, tyreReportSpoken;
+        private PitTyreReport.Reading tyresAtEntry;
         private DateTime lastUrgentUtc = DateTime.MinValue, stoppedSinceUtc = DateTime.MinValue, exitUtc = DateTime.MinValue, lastWearUtc = DateTime.MinValue;
         private float[] lastWear;
         private ObservedRaceCall call;
@@ -46,7 +47,8 @@ namespace CrewChiefV4.AiTeam
         internal void Reset()
         {
             session = int.MinValue; lostCorner = -1; reminders = 0; lostWheel = severe = urgentSpoken = arrivalSpoken = repairFirst = repairSecond = false;
-            retiredSpoken = wasInPit = wasDnf = wasCrewReady = pitDamaged = repairTimeSpoken = false;
+            retiredSpoken = wasInPit = wasDnf = wasCrewReady = pitDamaged = repairTimeSpoken = tyreReportSpoken = false; tyresAtEntry = null;
+            lastServiceError = impactLap = -1; impactReference = float.NaN; hadImpactDamage = lossSpoken = false; cleanLaps.Clear(); afterLaps.Clear();
             lastUrgentUtc = stoppedSinceUtc = exitUtc = lastWearUtc = urgentStartedUtc = damageReportStartedUtc = DateTime.MinValue; lastWear = null; call = null;
         }
 
@@ -241,6 +243,7 @@ namespace CrewChiefV4.AiTeam
             if (inPit && !wasInPit)
             {
                 if (pitDamaged && !arrivalSpoken && race && !s.IsDNF) Offer(gs, now, "pit-arrival-support", Arrival(name, variant++), "pit_lane_entered_with_confirmed_serious_damage", TeamMember.Mik, 6, 10);
+                tyresAtEntry = PitTyreReport.Applies() ? PitTyreReport.Read(gs) : null;
                 arrivalSpoken = true; severe = false; lostCorner = -1; lostWheel = false; reminders = 0;
             }
             if (inPit && gs.PositionAndMotionData.CarSpeed < .5f)
@@ -251,6 +254,19 @@ namespace CrewChiefV4.AiTeam
                 if (repairTime != null)
                 { repairTimeSpoken = true; Offer(gs, now, "pit-repair-time", repairTime, "sim_reports_repair_time_in_pit_stall", TeamMember.Mik, 5, 15, allowInPit: true); }
                 double stood = (now - stoppedSinceUtc).TotalSeconds;
+                // IR3 (Rob 28.11.): iRacing misst die Reifen beim Halt in der Box. Hat sich das Bild seit der Einfahrt geändert,
+                // sagt Mik es einmal pro Halt kurz an.
+                if (!tyreReportSpoken && call == null && stood >= 1.5 && PitTyreReport.Applies())
+                {
+                    var reading = PitTyreReport.Read(gs);
+                    if (reading != null && PitTyreReport.Changed(tyresAtEntry, reading))
+                    {
+                        tyreReportSpoken = true; tyresAtEntry = reading;
+                        PitTyreReport.NoteReading(now);
+                        string tyres = PitTyreReport.Compose(reading, variant++);
+                        if (tyres != null) Offer(gs, now, "pit-tyre-report", tyres, "iracing_tyre_values_measured_in_pit_stall", TeamMember.Mik, 4, 25, allowInPit: true);
+                    }
+                }
                 if (race && pitDamaged && !s.IsDNF && !repairFirst && stood >= RepairFirstSeconds)
                 { repairFirst = true; Offer(gs, now, "pit-repair-wait", RepairWait((int)stood, false, variant++), "measured_standstill_in_pit_with_damage", TeamMember.Ben, 4, 15); }
                 else if (race && pitDamaged && !s.IsDNF && !repairSecond && stood >= RepairSecondSeconds)
@@ -262,7 +278,8 @@ namespace CrewChiefV4.AiTeam
                 // LMU Sebring 23.11.: Die Startaufstellung verließ die Boxengasse in der Formationsphase; bei Grün kam „Rob, du bist
                 // raus“ statt des Startspruchs. Nur eine Boxenausfahrt im laufenden Rennen ist ein Wiedereinsetzen.
                 exitUtc = race && green && s.CompletedLaps >= 1 ? now : DateTime.MinValue;
-                pitDamaged = Major(gs.CarDamageData); arrivalSpoken = repairFirst = repairSecond = repairTimeSpoken = false;
+                pitDamaged = Major(gs.CarDamageData); arrivalSpoken = repairFirst = repairSecond = repairTimeSpoken = tyreReportSpoken = false;
+                ImpactRepaired(gs);
             }
             wasInPit = inPit;
             if (race && green && !inPit && !s.IsDNF && exitUtc != DateTime.MinValue && (now - exitUtc).TotalSeconds >= 3 && call == null)
@@ -294,6 +311,19 @@ namespace CrewChiefV4.AiTeam
                 Offer(gs, now, "pit-crew-ready", CrewReady(variant++), "game_message_crew_ready_for_pitstop", TeamMember.Mik, 5, 10);
             wasCrewReady = gs.PitData.IsPitCrewReady;
 
+            // 6. IR2 (Rob 28.11.): Boxenservice-Fehler der Sim (iRacing: zu weit vorn/hinten/links/rechts, schräg) sofort sagen.
+            int service = gs.PitData.SimPitServiceStatus;
+            if (inPit && service >= 100 && service <= 105 && service != lastServiceError && call == null)
+            {
+                lastServiceError = service;
+                Offer(gs, now, "pit-service-status", ServiceError(service, variant++), "sim_pit_service_status_" + service, TeamMember.Mik, 6, 10, allowInPit: true);
+            }
+            else if (service < 100) lastServiceError = -1;
+
+            // 7. IR2 (Rob 28.11., Simulator Controller „Impact“): Zeitverlust nach einem Treffer aus den Rundenzeiten davor und danach,
+            //    mit der Frage, ob sich die Reparatur bis zum Ende lohnt.
+            ObserveImpactLoss(gs, now, inPit, race, green);
+
             // 5. Aufgabe: ein paar gute Worte.
             if (race && s.IsDNF && !wasDnf && !retiredSpoken)
             {
@@ -302,6 +332,115 @@ namespace CrewChiefV4.AiTeam
                 Offer(gs, now, "race-retired", Retired(name, variant++), "game_reports_dnf", TeamMember.Ben, 6, 20, allowInPit: true);
             }
             wasDnf = s.IsDNF;
+        }
+
+        private int lastServiceError = -1;
+        private readonly System.Collections.Generic.List<float> cleanLaps = new System.Collections.Generic.List<float>(), afterLaps = new System.Collections.Generic.List<float>();
+        private int impactLap = -1;
+        private float impactReference = float.NaN;
+        private bool hadImpactDamage, lossSpoken;
+
+        internal static string ServiceError(int status, int variant)
+        {
+            switch (status)
+            {
+                case 100: return RadioVariants.At(variant, RadioLanguage.T("Zu weit links, die Crew kommt nicht ran.", "Too far left, the crew can't get to the car.", "Demasiado a la izquierda, el equipo no llega."),
+                    RadioLanguage.T("Du stehst zu weit links in der Box.", "You're too far left in the box.", "Estás demasiado a la izquierda en el box."));
+                case 101: return RadioVariants.At(variant, RadioLanguage.T("Zu weit rechts, die Crew kommt nicht ran.", "Too far right, the crew can't get to the car.", "Demasiado a la derecha, el equipo no llega."),
+                    RadioLanguage.T("Du stehst zu weit rechts in der Box.", "You're too far right in the box.", "Estás demasiado a la derecha en el box."));
+                case 102: return RadioVariants.At(variant, RadioLanguage.T("Zu weit vorn, die Crew kommt nicht ran.", "Too far forward, the crew can't get to the car.", "Demasiado adelante, el equipo no llega."),
+                    RadioLanguage.T("Du bist über die Markierung gerollt, zu weit vorn.", "You've rolled past the marks, too far forward.", "Te has pasado de la marca, demasiado adelante."));
+                case 103: return RadioVariants.At(variant, RadioLanguage.T("Zu weit hinten, die Crew kommt nicht ran.", "Too far back, the crew can't get to the car.", "Demasiado atrás, el equipo no llega."),
+                    RadioLanguage.T("Du stehst zu kurz, zu weit hinten.", "You've stopped short, too far back.", "Te has quedado corto, demasiado atrás."));
+                case 104: return RadioLanguage.T("Das Auto steht schräg, so kann die Crew nicht arbeiten.", "The car is at an angle, the crew can't work like that.", "El coche está torcido, así el equipo no puede trabajar.");
+                default: return RadioLanguage.T("Die Crew meldet: Das können wir hier nicht reparieren.", "The crew says: we can't fix that here.", "El equipo dice: eso no lo podemos reparar aquí.");
+            }
+        }
+
+        /// <summary>Ein Treffer, der das Tempo kosten kann: iRacing-Reparaturbedarf, sonst Aero/Motor/Getriebe ab „leicht“.</summary>
+        internal static bool ImpactDamage(CarDamageData d) =>
+            d != null && (RepairPicture.Applies(d) ? d.RepairRequired == true || d.RepairOptional == true :
+                d.OverallAeroDamage >= DamageLevel.MINOR && d.OverallAeroDamage != DamageLevel.UNKNOWN ||
+                d.OverallEngineDamage >= DamageLevel.MINOR || d.OverallTransmissionDamage >= DamageLevel.MINOR);
+
+        /// <summary>Restrunden: Rundenrennen aus der Rundenzahl, Zeitrennen aus Restzeit durch Rundenzeit; sonst -1.</summary>
+        internal static int LapsLeft(SessionData s, float lapTime)
+        {
+            if (!s.SessionHasFixedTime && s.SessionNumberOfLaps > 0) return Math.Max(0, s.SessionNumberOfLaps - s.CompletedLaps);
+            if (s.SessionTimeRemaining > 0 && lapTime > 10) return (int)Math.Floor(s.SessionTimeRemaining / lapTime);
+            return -1;
+        }
+
+        /// <summary>
+        /// „Seit dem Treffer verlierst du etwa 0,8 s pro Runde.“ Mit Reparaturzeit und Restrunden: lohnt die Reparatur (draußen
+        /// mehr als Reparatur plus etwa 25 s Boxengasse), lohnt nicht (draußen weniger als die Reparatur) oder nur bei ohnehin fälligem Stopp.
+        /// </summary>
+        internal static string ImpactLossText(float loss, CarDamageData d, int lapsLeft, int variant)
+        {
+            if (float.IsNaN(loss)) return null;
+            if (loss < .3f)
+                return RadioVariants.At(variant,
+                    RadioLanguage.T("Der Treffer kostet kaum Zeit, deine Runden sind so schnell wie vorher.", "The hit barely costs time, your laps are as quick as before.", "El golpe apenas cuesta tiempo, tus vueltas son igual de rápidas."),
+                    RadioLanguage.T("Gute Nachricht: Seit dem Treffer keine messbar langsameren Runden.", "Good news: no measurably slower laps since the hit.", "Buena noticia: desde el golpe no hay vueltas más lentas."));
+            string perLap = RadioLanguage.Num(loss, "0.0");
+            string text = RadioVariants.At(variant,
+                RadioLanguage.T("Seit dem Treffer verlierst du etwa " + perLap + " Sekunden pro Runde.", "Since the hit you're losing about " + perLap + " seconds a lap.", "Desde el golpe pierdes unos " + perLap + " segundos por vuelta."),
+                RadioLanguage.T("Der Schaden kostet dich rund " + perLap + " Sekunden je Runde.", "The damage is costing you around " + perLap + " seconds a lap.", "El daño te cuesta alrededor de " + perLap + " segundos por vuelta."));
+            if (d == null || lapsLeft <= 0) return text;
+            int outside = (int)Math.Round(loss * lapsLeft);
+            if (d.RepairRequired == true && d.RepairSecondsRequired > 0)
+                return text + RadioLanguage.T(" Die Pflichtreparatur kostet " + (int)Math.Round(d.RepairSecondsRequired) + " Sekunden, die kommt bei jedem Stopp ohnehin.",
+                    " The mandatory repair takes " + (int)Math.Round(d.RepairSecondsRequired) + " seconds, it comes with any stop anyway.",
+                    " La reparación obligatoria lleva " + (int)Math.Round(d.RepairSecondsRequired) + " segundos, llega con cualquier parada.");
+            if (d.RepairOptional != true || !(d.RepairSecondsOptional > 0)) return text;
+            int repair = (int)Math.Round(d.RepairSecondsOptional);
+            string laps = lapsLeft.ToString(RadioLanguage.Culture);
+            if (outside < repair)
+                return text + RadioLanguage.T(" Reparatur " + repair + " Sekunden, bei " + laps + " Runden verlierst du draußen nur etwa " + outside + ". Draußen bleiben.",
+                    " Repair " + repair + " seconds, over " + laps + " laps you only lose about " + outside + " out there. Stay out.",
+                    " Reparación " + repair + " segundos, en " + laps + " vueltas fuera solo pierdes unos " + outside + ". Sigue en pista.");
+            if (outside > repair + 25)
+                return text + RadioLanguage.T(" Reparatur " + repair + " Sekunden, bei " + laps + " Runden verlierst du draußen etwa " + outside + ". Die Reparatur lohnt sich.",
+                    " Repair " + repair + " seconds, over " + laps + " laps you'd lose about " + outside + " out there. The repair is worth it.",
+                    " Reparación " + repair + " segundos, en " + laps + " vueltas fuera perderías unos " + outside + ". La reparación compensa.");
+            return text + RadioLanguage.T(" Reparatur " + repair + " Sekunden, draußen etwa " + outside + ". Lohnt sich nur, wenn du ohnehin an die Box kommst.",
+                " Repair " + repair + " seconds, about " + outside + " out there. Only worth it if you're pitting anyway.",
+                " Reparación " + repair + " segundos, fuera unos " + outside + ". Solo compensa si vas a parar de todos modos.");
+        }
+
+        private void ObserveImpactLoss(GameStateData gs, DateTime now, bool inPit, bool race, bool green)
+        {
+            var s = gs.SessionData;
+            if (!race || s.IsDNF || s.IsDisqualified) return;
+            bool damaged = ImpactDamage(gs.CarDamageData);
+            if (damaged && !hadImpactDamage && impactLap < 0 && green)
+            {
+                impactLap = s.CompletedLaps; afterLaps.Clear(); lossSpoken = false;
+                impactReference = cleanLaps.Count == 0 ? float.NaN : cleanLaps.Skip(Math.Max(0, cleanLaps.Count - 2)).Average();
+                LiveDiagnostics.Decision("damage-time-loss", "armed", "impact_at_lap_" + impactLap + ";reference_s=" + (float.IsNaN(impactReference) ? "-" : impactReference.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            hadImpactDamage = damaged;
+            if (s.IsNewLap)
+            {
+                float t = s.LapTimePrevious;
+                bool clean = s.PreviousLapWasValid && t > 10 && t < 3600 && !inPit && !gs.PitData.OnInLap && !gs.PitData.OnOutLap && green;
+                if (impactLap < 0) { if (clean) { cleanLaps.Add(t); if (cleanLaps.Count > 4) cleanLaps.RemoveAt(0); } }
+                else if (clean && s.CompletedLaps > impactLap + 1) afterLaps.Add(t);
+            }
+            if (impactLap >= 0 && !lossSpoken && afterLaps.Count >= 2 && !float.IsNaN(impactReference) && call == null && !inPit && green)
+            {
+                lossSpoken = true;
+                float after = afterLaps.Skip(afterLaps.Count - 2).Average(), loss = after - impactReference;
+                string text = ImpactLossText(loss, gs.CarDamageData, LapsLeft(s, after), variant++);
+                if (text != null) Offer(gs, now, "damage-time-loss", text, "measured_lap_times_before_and_after_impact;loss_s=" + loss.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), TeamMember.Mik, 4, 20);
+            }
+        }
+
+        /// <summary>Nach der Boxenausfahrt: Wurde repariert, beginnt die Messung neu.</summary>
+        private void ImpactRepaired(GameStateData gs)
+        {
+            if (ImpactDamage(gs.CarDamageData)) return;
+            impactLap = -1; afterLaps.Clear(); lossSpoken = false; hadImpactDamage = false;
         }
 
         private static void Nearest(TrackAwareness tracks, GameStateData gs, out double ahead, out string aheadClass, out double behind, out string behindClass)
