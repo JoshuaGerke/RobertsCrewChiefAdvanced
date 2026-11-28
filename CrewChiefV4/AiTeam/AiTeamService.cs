@@ -2220,6 +2220,12 @@ namespace CrewChiefV4.AiTeam
                 if (!trackWelcomeDone) { trackWelcomeDone = true; LiveDiagnostics.Decision("greeting", "suppressed", "field_session_already_greeted"); }
                 return null;
             }
+            if (spoken != null && GreetedMomentsAgo(spokenGreetingTrack, spoken.SessionType, spokenGreetingUtc,
+                current.SessionData.TrackDefinition?.name, current.SessionData.SessionType, now))
+            {
+                if (!trackWelcomeDone) { trackWelcomeDone = true; LiveDiagnostics.Decision("greeting", "suppressed", "greeted_moments_ago_same_track_and_session"); }
+                return null;
+            }
             // Fährt Rob los, bevor die Begrüßung im Stand lief, gleich die kurze Begrüßung auf der Strecke (nicht erst nach 45 s).
             bool greetingMissed = pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 current.SessionData.SessionType != SessionType.Race && current.PositionAndMotionData.CarSpeed > 5 && !pendingGreeting.IsValid(current, now);
@@ -2389,7 +2395,14 @@ namespace CrewChiefV4.AiTeam
         private readonly StartHazardNames startNames = new StartHazardNames();
         private DateTime lastSafetyCallUtc = DateTime.MinValue;
         private DateTime lastPitLimitCallUtc = DateTime.MinValue;
-        private volatile string spokenGreetingField;
+        private volatile string spokenGreetingField, spokenGreetingTrack;
+        private DateTime spokenGreetingUtc = DateTime.MinValue;
+
+        /// <summary>iRacing Montreal 27.11.: vier Begrüßungen in 13 s, weil das Spiel beim Einstieg mehrfach eine neue Session
+        /// meldete und das Lagebild noch keinen Schlüssel hatte. Gleiche Strecke und Sitzungsart innerhalb von 3 Minuten: begrüßt.</summary>
+        internal static bool GreetedMomentsAgo(string greetedTrack, SessionType greetedType, DateTime greetedUtc, string track, SessionType type, DateTime now) =>
+            greetedUtc != DateTime.MinValue && now >= greetedUtc && now - greetedUtc < TimeSpan.FromMinutes(3) &&
+            !string.IsNullOrEmpty(greetedTrack) && greetedTrack == track && greetedType == type;
 
         /// <summary>Wurde die laut Spiel gleiche Session in den letzten 15 Minuten schon begrüßt?</summary>
         internal static bool FieldAlreadyGreeted(string greetedField, DateTime greetedUtc, string currentField, DateTime now) =>
@@ -2846,6 +2859,8 @@ namespace CrewChiefV4.AiTeam
             if (call.Topic == "greeting" || call.Topic == "track-welcome")
             {
                 spokenGreetingField = Field.MenuBriefing.Key(Field.FieldPicture.Shared.Current);
+                spokenGreetingTrack = CrewChief.currentGameState?.SessionData?.TrackDefinition?.name;
+                spokenGreetingUtc = DateTime.UtcNow;
                 spokenGreeting = call; // zählt erst, wenn die Wiedergabe wirklich begonnen hat
             }
             eventLog.Note(call, EventStatus.Detected, DateTime.UtcNow);

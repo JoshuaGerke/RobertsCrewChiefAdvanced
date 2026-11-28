@@ -798,6 +798,10 @@ namespace CrewChiefV4.AiTeam
                 Position = -1, SessionId = gs.SessionData.SessionId, SessionType = gs.SessionData.SessionType, DetectedUtc = now, ExpiresUtc = now.Add(life),
                 AdditionalValidity = live => !live.PitData.InPitlane && !live.FlagData.isLocalYellow
             };
+            // Audit 25.11. (P3.2/P3.3): Urteile zu einem Platzwechsel („zurückgeholt“, „Revanche“, Plätze verloren) nennen den Platz
+            // nicht ausdrücklich, gehören aber zur selben Lage. Mit dem Platz erkennt das Crew-Gedächtnis die Doppelung.
+            if (topic.StartsWith("judge-overtake", StringComparison.Ordinal) || topic == "judge-retake" || topic == "judge-dropped" || topic == "judge-slide")
+                call.StatedPosition = gs.SessionData.ClassPosition;
             LiveDiagnostics.Decision(topic, "detected", evidence, call.Text, call.EventId);
         }
 

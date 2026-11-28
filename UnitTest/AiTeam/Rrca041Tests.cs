@@ -266,6 +266,28 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Greeting_is_not_repeated_after_a_rejoin_on_the_same_track()
+        {
+            Assert.IsTrue(AiTeamService.GreetedMomentsAgo("montreal", SessionType.Practice, T, "montreal", SessionType.Practice, T.AddSeconds(12)));
+            Assert.IsFalse(AiTeamService.GreetedMomentsAgo("montreal", SessionType.Practice, T, "montreal", SessionType.Qualify, T.AddSeconds(12)), "neue Sitzungsart");
+            Assert.IsFalse(AiTeamService.GreetedMomentsAgo("montreal", SessionType.Practice, T, "snetterton 300", SessionType.Practice, T.AddSeconds(12)), "andere Strecke");
+            Assert.IsFalse(AiTeamService.GreetedMomentsAgo("montreal", SessionType.Practice, T, "montreal", SessionType.Practice, T.AddMinutes(4)), "später neu");
+        }
+
+        [Test]
+        public void Same_stopped_car_is_called_at_most_twice_per_incident()
+        {
+            var watch = new YellowAheadWatch();
+            var gs = RaceRoomQuali();
+            Assert.IsNotNull(watch.Take(Field(0, Parked("Mani Racing", 1244f, 330)), gs, T));
+            Assert.IsNotNull(watch.Take(Field(100, Parked("Mani Racing", 1244f, 330)), gs, T.AddSeconds(100)), "eine Erinnerung");
+            Assert.IsNull(watch.Take(Field(200, Parked("Mani Racing", 1244f, 330)), gs, T.AddSeconds(200)), "nicht jede Runde");
+            var moving = Parked("Mani Racing", 1300f, -200); moving.Motion = CrewChiefV4.AiTeam.Field.CarMotion.Normal; moving.Speed = 40;
+            watch.Take(Field(250, moving), gs, T.AddSeconds(250));
+            Assert.IsNotNull(watch.Take(Field(400, Parked("Mani Racing", 2000f, 330)), gs, T.AddSeconds(400)), "neuer Vorfall nach Weiterfahrt");
+        }
+
+        [Test]
         public void Games_with_part_damage_keep_their_report()
         {
             var d = new CarDamageData { DamageEnabled = true, OverallAeroDamage = DamageLevel.MAJOR, OverallEngineDamage = DamageLevel.NONE, OverallTransmissionDamage = DamageLevel.NONE };

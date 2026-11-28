@@ -40,7 +40,7 @@ namespace CrewChiefV4.AiTeam
         private int session = int.MinValue;
         private readonly List<float> garage = new List<float>();
 
-        internal void Reset() { called.Clear(); garage.Clear(); lastCall = DateTime.MinValue; session = int.MinValue; }
+        internal void Reset() { called.Clear(); garage.Clear(); times.Clear(); lastCall = DateTime.MinValue; session = int.MinValue; }
 
         /// <summary>Fahrzeit bis zum Wagen: gemessene Zeitlücke, sonst Meter durch Robs Tempo (mindestens 15 m/s).</summary>
         internal static float AheadSeconds(FieldCarView c, float playerSpeed) =>
@@ -110,18 +110,31 @@ namespace CrewChiefV4.AiTeam
         internal Hazard Take(FieldView view, GameStateData gs, DateTime now)
         {
             if (gs == null) return null;
-            if (gs.SessionData.SessionId != session) { called.Clear(); garage.Clear(); lastCall = DateTime.MinValue; session = gs.SessionData.SessionId; }
+            if (gs.SessionData.SessionId != session) { called.Clear(); garage.Clear(); times.Clear(); lastCall = DateTime.MinValue; session = gs.SessionData.SessionId; }
             if (view?.Cars != null && view.Fresh(now, 2))
                 foreach (float spot in GarageSpots(view))
                     if (!garage.Any(p => Math.Abs(p - spot) < 3)) { garage.Add(spot); LiveDiagnostics.Decision("warning-hazard-far", "skipped", "garage_spot_" + (int)spot + "m"); }
+            // P1.5 (LMU 25.11.): dasselbe stehende Auto kam jede Runde neu. Je Vorfall einmal und höchstens eine Erinnerung;
+            // fährt der Wagen wieder normal, beginnt ein neuer Vorfall.
+            foreach (var name in times.Keys.ToList())
+            {
+                var c = view?.ByName(name);
+                if (c != null && c.Motion == CarMotion.Normal) times.Remove(name);
+            }
             if (gs.PitData.InPitlane || gs.SessionData.SessionPhase != SessionPhase.Green) return null;
             if (!(gs.PositionAndMotionData.CarSpeed >= 15)) return null; // Rob steht oder rollt: keine Warnung nach vorn
             if (lastCall != DateTime.MinValue && now >= lastCall && now - lastCall < AnyAgain) return null;
             var hazard = Nearest(view, now, garage);
             if (hazard == null || string.IsNullOrWhiteSpace(hazard.Name)) return null;
             if (called.TryGetValue(hazard.Name, out var at) && now >= at && now - at < SameCarAgain) return null;
+            times.TryGetValue(hazard.Name, out int count);
+            if (count >= MaxCallsPerIncident) { LiveDiagnostics.Decision("warning-hazard-far", "skipped", "same_incident_already_called_twice", hazard.Name); return null; }
+            times[hazard.Name] = count + 1;
             called[hazard.Name] = now; lastCall = now;
             return hazard;
         }
+
+        internal const int MaxCallsPerIncident = 2;
+        private readonly Dictionary<string, int> times = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     }
 }
