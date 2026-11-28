@@ -212,6 +212,21 @@ namespace UnitTest.AiTeamTests
             StringAssert.Contains("vorn", PitDamageWatch.ServiceError(102, 0));
             Assert.IsTrue(PitDamageWatch.ImpactDamage(d));
             Assert.IsFalse(PitDamageWatch.ImpactDamage(new CarDamageData { DamageEnabled = true, RepairRequired = false, RepairOptional = false }));
+            StringAssert.Contains("fehlen rund 8 km/h", PitDamageWatch.ImpactLossText(.8f, d, 12, 0, 8f), "IR2.4 Topspeed");
+            StringAssert.DoesNotContain("km/h", PitDamageWatch.ImpactLossText(.8f, d, 12, 0, 3f), "Windschatten-Rauschen bleibt still");
+            StringAssert.DoesNotContain("km/h", PitDamageWatch.ImpactLossText(.1f, d, 12, 0, 9f), "ohne Zeitverlust kein Topspeed-Urteil");
+        }
+
+        // IR3.4: Beim Einfahren bestätigt Mik den eingestellten Service.
+        [Test]
+        public void Pit_service_plan_is_confirmed_in_words()
+        {
+            Assert.AreEqual("Service eingestellt: vier neue Reifen, 25 Liter, Fast Repair.", PitDamageWatch.ServicePlan(0x1F | 0x40, 24.6f, 0));
+            StringAssert.Contains("zwei neue vorn, kein Sprit", PitDamageWatch.ServicePlan(0x03, 0, 0));
+            StringAssert.Contains("zwei neue links", PitDamageWatch.ServicePlan(0x05, 0, 1));
+            StringAssert.Contains("keine Reifen, 10 Liter", PitDamageWatch.ServicePlan(0x10, 10, 2));
+            Assert.IsNull(PitDamageWatch.ServicePlan(0, 30, 0), "nichts eingestellt: nichts sagen");
+            Assert.IsNull(PitDamageWatch.ServicePlan(-1, 30, 0), "Sim liefert es nicht");
         }
     }
 }

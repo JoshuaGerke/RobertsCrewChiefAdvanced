@@ -113,6 +113,10 @@ namespace CrewChiefV4.AiTeam.Field
             };
             o["gefahren_auf_strecke"] = new JArray(v.Cars.Where(c => !c.IsPlayer && (c.Motion == CarMotion.Slow || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun))
                 .OrderBy(c => c.GapM < 0 ? c.GapM + v.TrackLength : c.GapM).Take(6).Select(c => Row(c, names, v.Utc)));
+            // IR5 (iRacing): Wer hat seinen Fast Repair schon verbraucht? Das heißt, er hatte Schaden.
+            var repaired = v.Cars.Where(c => !c.IsPlayer && c.FastRepairsUsed > 0).Take(12).ToList();
+            if (repaired.Count > 0)
+                o["fast_repair_genutzt"] = new JArray(repaired.Select(c => new JObject { ["fahrer"] = Label(c, names), ["anzahl"] = c.FastRepairsUsed }));
 
             // Zeitenliste: beste gültige Runde je Fahrer; Robs schnellste (auch gestrichene) dagegen eingeordnet.
             var timed = v.Cars.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();

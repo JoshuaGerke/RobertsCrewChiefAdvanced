@@ -501,7 +501,10 @@ namespace CrewChiefV4.AiTeam
                     pending.OpponentNameClip = NameClipText(car.Name);
                 // Dreher: sofort der kurze, vorbereitete Satz – keine Abstandsangabe, die erst gerechnet werden muss. Ein sich
                 // drehendes Auto passt oft kurz nicht zur Strecke (Lage/Distanz uneinig); die Warnung gilt deshalb 2 s ab Erkennung.
-                if (spin) { DateTime seenAt=now; pending.TimedValidity=(live,utc)=>generation==epoch && utc>=seenAt && utc-seenAt<=TimeSpan.FromSeconds(2) &&
+                // S5 (iRacing Navarra 28.11.): Funkte Rob gerade, verfiel der Dreher nach 2 s. Steht oder schleicht der Wagen laut
+                // Lagebild noch in 200 m vor Rob, gilt die Warnung bis 5 s und kommt direkt nach seinem Funkspruch.
+                if (spin) { DateTime seenAt=now; string spunName=car.NativeName; pending.ExpiresUtc=now.AddSeconds(5); pending.TimedValidity=(live,utc)=>generation==epoch && utc>=seenAt &&
+                    (utc-seenAt<=TimeSpan.FromSeconds(2) || utc-seenAt<=TimeSpan.FromSeconds(5) && StillHazardAhead(spunName)) &&
                     live.SessionData.SessionPhase==SessionPhase.Green && !live.PitData.InPitlane; }
                 if(!rear && !reminder && !classAhead && !spin) pending.PreparedDetail=(live,at)=>generation==epoch?HazardDetail(live,at,opponentKey,id,stopped):null;
                 pendingKey=key; pendingGroup=group; pendingOtherClass=otherClass; pendingHazardName=rear || classAhead ? null : car.Name; LiveDiagnostics.Decision(pending.Topic,"detected",pending.Evidence,pending.Text,pending.EventId); break;
@@ -558,6 +561,14 @@ namespace CrewChiefV4.AiTeam
             return kept.ToArray();
         }
         private readonly Dictionary<string,DateTime> rejectedByField=new Dictionary<string,DateTime>();
+
+        /// <summary>Der Wagen dreht, steht oder schleicht laut frischem Lagebild noch bis 200 m vor Rob.</summary>
+        private static bool StillHazardAhead(string nativeName)
+        {
+            var seen = nativeName == null ? null : Field.FieldService.Fresh(.5)?.ByName(nativeName);
+            return seen != null && !seen.InPit && (seen.Motion == Field.CarMotion.Spun || seen.Motion == Field.CarMotion.Stopped || seen.Motion == Field.CarMotion.Slow) &&
+                !float.IsNaN(seen.GapM) && seen.GapM > 15 && seen.GapM <= HazardReachM;
+        }
 
         /// <summary>Was das Lagebild zum Wagen sagt (Bewegung, Tempo/Feldtempo, seit wann), damit der Log die Verzögerung zeigt.</summary>
         private static string FieldEvidence(TrackCarPosition car, DateTime now)

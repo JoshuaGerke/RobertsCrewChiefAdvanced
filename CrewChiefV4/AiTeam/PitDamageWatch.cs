@@ -49,6 +49,7 @@ namespace CrewChiefV4.AiTeam
             session = int.MinValue; lostCorner = -1; reminders = 0; lostWheel = severe = urgentSpoken = arrivalSpoken = repairFirst = repairSecond = false;
             retiredSpoken = wasInPit = wasDnf = wasCrewReady = pitDamaged = repairTimeSpoken = tyreReportSpoken = false; tyresAtEntry = null;
             lastServiceError = impactLap = -1; impactReference = float.NaN; hadImpactDamage = lossSpoken = false; cleanLaps.Clear(); afterLaps.Clear();
+            cleanTops.Clear(); afterTops.Clear(); lapTop = 0;
             lastUrgentUtc = stoppedSinceUtc = exitUtc = lastWearUtc = urgentStartedUtc = damageReportStartedUtc = DateTime.MinValue; lastWear = null; call = null;
         }
 
@@ -244,6 +245,9 @@ namespace CrewChiefV4.AiTeam
             {
                 if (pitDamaged && !arrivalSpoken && race && !s.IsDNF) Offer(gs, now, "pit-arrival-support", Arrival(name, variant++), "pit_lane_entered_with_confirmed_serious_damage", TeamMember.Mik, 6, 10);
                 tyresAtEntry = PitTyreReport.Applies() ? PitTyreReport.Read(gs) : null;
+                // IR3.4 (Rob 28.11.): Beim Einfahren im Rennen bestätigt Mik den eingestellten Service (iRacing).
+                string plan = race && call == null && PitTyreReport.Applies() && !gs.PenaltiesData.HasDriveThrough ? ServicePlan(gs.PitData.SimPitServiceFlags, gs.PitData.SimPitServiceFuel, variant++) : null;
+                if (plan != null) Offer(gs, now, "pit-service-plan", plan, "sim_pit_service_flags_" + gs.PitData.SimPitServiceFlags, TeamMember.Mik, 4, 12, allowInPit: true);
                 arrivalSpoken = true; severe = false; lostCorner = -1; lostWheel = false; reminders = 0;
             }
             if (inPit && gs.PositionAndMotionData.CarSpeed < .5f)
@@ -336,9 +340,35 @@ namespace CrewChiefV4.AiTeam
 
         private int lastServiceError = -1;
         private readonly System.Collections.Generic.List<float> cleanLaps = new System.Collections.Generic.List<float>(), afterLaps = new System.Collections.Generic.List<float>();
+        private readonly System.Collections.Generic.List<float> cleanTops = new System.Collections.Generic.List<float>(), afterTops = new System.Collections.Generic.List<float>();
+        private float lapTop;
         private int impactLap = -1;
         private float impactReference = float.NaN;
         private bool hadImpactDamage, lossSpoken;
+
+        /// <summary>„Service: vier neue Reifen, 25 Liter, Fast Repair.“ null ohne eingestellten Service.</summary>
+        internal static string ServicePlan(int flags, float fuel, int variant)
+        {
+            if (flags <= 0) return null;
+            var parts = new System.Collections.Generic.List<string>();
+            int tyres = (flags & 1) + (flags >> 1 & 1) + (flags >> 2 & 1) + (flags >> 3 & 1);
+            if (tyres == 4) parts.Add(RadioLanguage.T("vier neue Reifen", "four new tyres", "cuatro neumáticos nuevos"));
+            else if ((flags & 3) == 3 && tyres == 2) parts.Add(RadioLanguage.T("zwei neue vorn", "two new fronts", "dos nuevos delante"));
+            else if ((flags & 12) == 12 && tyres == 2) parts.Add(RadioLanguage.T("zwei neue hinten", "two new rears", "dos nuevos detrás"));
+            else if ((flags & 5) == 5 && tyres == 2) parts.Add(RadioLanguage.T("zwei neue links", "two new lefts", "dos nuevos a la izquierda"));
+            else if ((flags & 10) == 10 && tyres == 2) parts.Add(RadioLanguage.T("zwei neue rechts", "two new rights", "dos nuevos a la derecha"));
+            else if (tyres > 0) parts.Add(tyres == 1 ? RadioLanguage.T("ein neuer Reifen", "one new tyre", "un neumático nuevo") :
+                tyres.ToString(RadioLanguage.Culture) + RadioLanguage.T(" neue Reifen", " new tyres", " neumáticos nuevos"));
+            else parts.Add(RadioLanguage.T("keine Reifen", "no tyres", "sin neumáticos"));
+            if ((flags & 0x10) != 0 && fuel >= .5f) parts.Add(((int)Math.Round(fuel)).ToString(RadioLanguage.Culture) + RadioLanguage.T(" Liter", " litres", " litros"));
+            else parts.Add(RadioLanguage.T("kein Sprit", "no fuel", "sin combustible"));
+            if ((flags & 0x40) != 0) parts.Add(RadioLanguage.T("Fast Repair", "fast repair", "reparación rápida"));
+            string list = string.Join(", ", parts);
+            return RadioVariants.At(variant,
+                RadioLanguage.T("Service eingestellt: " + list + ".", "Service set: " + list + ".", "Servicio preparado: " + list + "."),
+                RadioLanguage.T("Box ist bereit: " + list + ".", "Box is ready: " + list + ".", "Boxes listo: " + list + "."),
+                RadioLanguage.T("Wir machen: " + list + ".", "We're doing: " + list + ".", "Hacemos: " + list + "."));
+        }
 
         internal static string ServiceError(int status, int variant)
         {
@@ -375,7 +405,21 @@ namespace CrewChiefV4.AiTeam
         /// „Seit dem Treffer verlierst du etwa 0,8 s pro Runde.“ Mit Reparaturzeit und Restrunden: lohnt die Reparatur (draußen
         /// mehr als Reparatur plus etwa 25 s Boxengasse), lohnt nicht (draußen weniger als die Reparatur) oder nur bei ohnehin fälligem Stopp.
         /// </summary>
-        internal static string ImpactLossText(float loss, CarDamageData d, int lapsLeft, int variant)
+        internal static string ImpactLossText(float loss, CarDamageData d, int lapsLeft, int variant, float topLossKmh = float.NaN)
+        {
+            string text = ImpactLossCore(loss, d, lapsLeft, variant);
+            // IR2.4: Fehlt auf der Geraden deutlich Tempo, sagt Mik das dazu (Aero oder Motor).
+            if (text != null && loss >= .3f && !float.IsNaN(topLossKmh) && topLossKmh >= 6)
+            {
+                string kmh = ((int)Math.Round(topLossKmh)).ToString(RadioLanguage.Culture);
+                text += RadioLanguage.T(" Auf der Geraden fehlen rund " + kmh + " km/h, das deutet auf Aero oder Motor.",
+                    " You're about " + kmh + " km/h down on the straight, that points to aero or engine.",
+                    " En la recta te faltan unos " + kmh + " km/h, apunta a aerodinámica o motor.");
+            }
+            return text;
+        }
+
+        private static string ImpactLossCore(float loss, CarDamageData d, int lapsLeft, int variant)
         {
             if (float.IsNaN(loss)) return null;
             if (loss < .3f)
@@ -420,18 +464,22 @@ namespace CrewChiefV4.AiTeam
                 LiveDiagnostics.Decision("damage-time-loss", "armed", "impact_at_lap_" + impactLap + ";reference_s=" + (float.IsNaN(impactReference) ? "-" : impactReference.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)));
             }
             hadImpactDamage = damaged;
+            if (!inPit && green && gs.PositionAndMotionData.CarSpeed > lapTop) lapTop = gs.PositionAndMotionData.CarSpeed;
             if (s.IsNewLap)
             {
-                float t = s.LapTimePrevious;
+                float t = s.LapTimePrevious, top = lapTop; lapTop = 0;
                 bool clean = s.PreviousLapWasValid && t > 10 && t < 3600 && !inPit && !gs.PitData.OnInLap && !gs.PitData.OnOutLap && green;
-                if (impactLap < 0) { if (clean) { cleanLaps.Add(t); if (cleanLaps.Count > 4) cleanLaps.RemoveAt(0); } }
-                else if (clean && s.CompletedLaps > impactLap + 1) afterLaps.Add(t);
+                if (impactLap < 0) { if (clean) { cleanLaps.Add(t); cleanTops.Add(top); if (cleanLaps.Count > 4) { cleanLaps.RemoveAt(0); cleanTops.RemoveAt(0); } } }
+                else if (clean && s.CompletedLaps > impactLap + 1) { afterLaps.Add(t); afterTops.Add(top); }
             }
             if (impactLap >= 0 && !lossSpoken && afterLaps.Count >= 2 && !float.IsNaN(impactReference) && call == null && !inPit && green)
             {
                 lossSpoken = true;
                 float after = afterLaps.Skip(afterLaps.Count - 2).Average(), loss = after - impactReference;
-                string text = ImpactLossText(loss, gs.CarDamageData, LapsLeft(s, after), variant++);
+                // IR2.4: Topspeed vor und nach dem Treffer (Mittel der letzten zwei sauberen Runden), in km/h.
+                float topLoss = cleanTops.Count >= 1 && afterTops.Count >= 2 && cleanTops.All(v => v > 10) && afterTops.All(v => v > 10)
+                    ? (cleanTops.Skip(Math.Max(0, cleanTops.Count - 2)).Average() - afterTops.Skip(afterTops.Count - 2).Average()) * 3.6f : float.NaN;
+                string text = ImpactLossText(loss, gs.CarDamageData, LapsLeft(s, after), variant++, topLoss);
                 if (text != null) Offer(gs, now, "damage-time-loss", text, "measured_lap_times_before_and_after_impact;loss_s=" + loss.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), TeamMember.Mik, 4, 20);
             }
         }
@@ -440,7 +488,7 @@ namespace CrewChiefV4.AiTeam
         private void ImpactRepaired(GameStateData gs)
         {
             if (ImpactDamage(gs.CarDamageData)) return;
-            impactLap = -1; afterLaps.Clear(); lossSpoken = false; hadImpactDamage = false;
+            impactLap = -1; afterLaps.Clear(); afterTops.Clear(); lossSpoken = false; hadImpactDamage = false;
         }
 
         private static void Nearest(TrackAwareness tracks, GameStateData gs, out double ahead, out string aheadClass, out double behind, out string behindClass)

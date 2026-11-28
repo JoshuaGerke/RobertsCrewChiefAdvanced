@@ -3057,6 +3057,11 @@ namespace CrewChiefV4.GameState
         /// schräg, kann nicht repariert werden); -1 = Sim liefert es nicht.</summary>
         public int SimPitServiceStatus = -1;
 
+        /// <summary>iRacing `PitSvFlags` (Bits: 1/2/4/8 Reifen VL/VR/HL/HR, 0x10 Tanken, 0x40 Fast Repair) und `PitSvFuel` (Liter);
+        /// -1 = Sim liefert es nicht.</summary>
+        public int SimPitServiceFlags = -1;
+        public float SimPitServiceFuel = -1;
+
         public float DriverStintSecondsRemaining;   // time remaining before this driver needs to hand over
 
         public float DriverStintTotalSecondsRemaining;  // total time remaining that this driver is allowed to drive in the session

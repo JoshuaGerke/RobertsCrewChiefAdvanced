@@ -62,6 +62,9 @@ namespace CrewChiefV4.iRacing
             var d = gs.CarDamageData;
             // IR2 (Rob 28.11.): Boxenservice-Status, z. B. „zu weit vorn“ – wurde gelesen, aber nie weitergegeben.
             gs.PitData.SimPitServiceStatus = (int)t.PlayerCarPitSvStatus;
+            // IR3.4: geplanter Service (Reifen, Sprit, Fast Repair) – Mik bestätigt ihn beim Einfahren.
+            gs.PitData.SimPitServiceFlags = (int)(uint)t.PitSvFlags;
+            gs.PitData.SimPitServiceFuel = t.PitSvFuel;
             // iRacing MX-5 28.11.: Im Grün-Takt wurde DamageEnabled nicht gesetzt und danach nur weitergereicht – ab dem Start war das
             // Schadensmodell „aus“, Mik meldete nach dem Einschlag nichts und die Schadensfrage hieß „Werte fehlen“. iRacing hat immer eines.
             d.DamageEnabled = true;
