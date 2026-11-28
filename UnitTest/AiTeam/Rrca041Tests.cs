@@ -175,6 +175,23 @@ namespace UnitTest.AiTeamTests
             finally { FuelCarry.Reset(); }
         }
 
+        // Rob 28.11.: Boxenlimit nicht beim Joinen in der Box, erst beim Losfahren aus der eigenen Box.
+        [Test]
+        public void Pit_limit_waits_until_rob_drives_off()
+        {
+            var s = Session(SessionType.Practice, 3);
+            s.PitData.InPitlane = true; s.PitData.PitSpeedLimit = 60 / 3.6f; s.PositionAndMotionData.CarSpeed = 0; s.SessionData.SessionRunningTime = 10;
+            var watch = new PitLaneWatch();
+            watch.Observe(s, T); Assert.IsNull(watch.Take(s, T, false), "gerade gejoint, steht in der Box");
+            s.SessionData.SessionType = SessionType.LonePractice; s.SessionData.SessionRunningTime = 11;
+            watch.Observe(s, T.AddSeconds(1)); Assert.IsNull(watch.Take(s, T.AddSeconds(1), false), "Sitzungsart wechselt, Rob steht weiter");
+            s.PositionAndMotionData.CarSpeed = 4; s.SessionData.SessionRunningTime = 12;
+            watch.Observe(s, T.AddSeconds(2)); var call = watch.Take(s, T.AddSeconds(2), false);
+            Assert.IsNotNull(call, "losgefahren"); StringAssert.Contains("60", call.Text);
+            call.MarkPlaybackStarted(T.AddSeconds(2));
+            s.SessionData.SessionRunningTime = 13; watch.Observe(s, T.AddSeconds(3)); Assert.IsNull(watch.Take(s, T.AddSeconds(3), false), "einmal");
+        }
+
         [Test]
         public void Games_with_part_damage_keep_their_report()
         {

@@ -158,14 +158,18 @@ namespace CrewChiefV4.AiTeam
             if(inPits)
             {
                 bool entered=initialized && !wasInPits;
-                bool leavingBox=speed>=2 && (!initialized || lastSpeed<2) && !departureHandled;
+                bool moving=speed>=2;
+                bool leavingBox=moving && (!initialized || lastSpeed<2) && !departureHandled;
                 bool recentlyReminded=lastReminder!=DateTime.MinValue && now-lastReminder<TimeSpan.FromSeconds(20);
                 bool newLimit=Known(limit) && Math.Abs(reportedLimit-limit)>.1f;
-                // One current reminder covers entry/departure. Never restart it every tick.
-                if(newLimit || entered && !recentlyReminded && !remindedThisVisit || leavingBox && limitCall==null && !recentlyReminded)
+                // Rob 28.11.: „Beim Joinen stehe ich in der Box – das Limit muss erst kommen, wenn ich aus meiner Box losfahre.“
+                // Stehend in der Box wird nur das Limit gemerkt; angesagt wird beim Losfahren oder beim Einfahren von der Strecke.
+                // Wer gerade zu schnell ist, hört die Tempowarnung statt einer zweiten Erinnerung.
+                if(moving && !Speeding(gs,limit) && (leavingBox && limitCall==null && !recentlyReminded || entered && !recentlyReminded && !remindedThisVisit ||
+                    newLimit && !leavingBox && !entered && !recentlyReminded))
                 {
                     if(leavingBox) departureHandled=true;
-                    limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit",false,newLimit || leavingBox);
+                    limitCall=Reminder(gs,now,limit,7,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit",false,newLimit || leavingBox);
                 }
                 if(Known(limit)) reportedLimit=limit;
                 if(leavingBox) departureHandled=true;
