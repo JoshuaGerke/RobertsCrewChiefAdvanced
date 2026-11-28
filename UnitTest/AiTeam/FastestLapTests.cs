@@ -29,7 +29,8 @@ namespace UnitTest.AiTeamTests
             var o = new SessionLapObserver(); o.Observe(gs, null, T, true);
             var rival = gs.OpponentData["a"]; rival.CurrentBestLapTime = rival.LastLapTime = 111.834f;
             o.Observe(gs, null, T.AddSeconds(1), true);
-            var call = o.Take(gs, T.AddSeconds(1), false);
+            Assert.IsNull(o.Take(gs, T.AddSeconds(1), false), "kurz warten, ob gleich eine neuere Bestzeit kommt (Laguna 27.11.)");
+            var call = o.Take(gs, T.AddSeconds(6), false);
             Assert.IsNotNull(call);
             StringAssert.StartsWith("John Reilly fährt die schnellste Runde: " + LocalAnswers.LapTime(111.834f) + ". Dir fehlen 2,0 Sekunden. ", call.Text);
             CollectionAssert.Contains(SessionLapObserver.MotivationPhrases, call.Text.Substring(call.Text.IndexOf("Sekunden. ") + 10));
@@ -47,7 +48,7 @@ namespace UnitTest.AiTeamTests
             var o = new SessionLapObserver(); o.Observe(gs, null, T, true);
             rival.CurrentBestLapTime = rival.LastLapTime = 88.207f;
             o.Observe(gs, null, T.AddSeconds(1), true);
-            var call = o.Take(gs, T.AddSeconds(1), false);
+            var call = o.Take(gs, T.AddSeconds(6), false);
             Assert.IsNotNull(call, "auch die erste Zeit der Session zählt, wenn sie gerade gefahren wurde");
             Assert.AreEqual("rival-best", call.Topic);
             Assert.AreEqual(TeamMember.Ben, call.Member);

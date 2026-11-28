@@ -304,6 +304,16 @@ namespace CrewChiefV4.GameState
         public float LastImpactMagnitude = -1;
         /// <summary>Räder VL, VR, HL, HR: abgerissen bzw. platt.</summary>
         public bool[] WheelDetached = null, WheelFlat = null;
+        // RRCA 0.41 (iRacing): Reparaturbedarf statt Bauteilwerten. null = die Simulation liefert das nicht.
+        public bool? RepairRequired = null, RepairOptional = null;
+        /// <summary>Verbleibende Reparaturzeit in der Box (s), -1 = nicht bekannt bzw. keine Reparatur aktiv.</summary>
+        public float RepairSecondsRequired = -1, RepairSecondsOptional = -1;
+        /// <summary>Höchste waagerechte Beschleunigung rund um den letzten Einschlag (g), -1 = nicht gemessen.</summary>
+        public float ImpactPeakG = -1;
+        /// <summary>Art des letzten Einschlags laut Spiel: "wall", "car", "offtrack", "control"; null = nicht gemeldet.</summary>
+        public string ImpactKind = null;
+        /// <summary>Verbleibende Fast Repairs, -1 = nicht bekannt oder unbegrenzt.</summary>
+        public int FastRepairsLeft = -1;
     }
 
     public enum FrozenOrderPhase
@@ -3042,6 +3052,15 @@ namespace CrewChiefV4.GameState
         public TowDetection TowedToPits = TowDetection.TowNotSet;
 
         public Boolean IsInGarage;
+
+        /// <summary>iRacing `PlayerCarPitSvStatus`: 0 kein Service, 1 läuft, 2 fertig, 100–105 Fehler (zu weit links/rechts/vorn/hinten,
+        /// schräg, kann nicht repariert werden); -1 = Sim liefert es nicht.</summary>
+        public int SimPitServiceStatus = -1;
+
+        /// <summary>iRacing `PitSvFlags` (Bits: 1/2/4/8 Reifen VL/VR/HL/HR, 0x10 Tanken, 0x40 Fast Repair) und `PitSvFuel` (Liter);
+        /// -1 = Sim liefert es nicht.</summary>
+        public int SimPitServiceFlags = -1;
+        public float SimPitServiceFuel = -1;
 
         public float DriverStintSecondsRemaining;   // time remaining before this driver needs to hand over
 

@@ -92,6 +92,8 @@ namespace CrewChiefV4.AiTeam
         private bool initialized,wasInPits,approachHandled,departureHandled,wasNewSession,lastPitRequest,limitCallBeforeLane,remindedThisVisit;
         private DateTime speedingSince=DateTime.MinValue,lastWarning=DateTime.MinValue,lastProgress=DateTime.MinValue,lastTick=DateTime.MinValue,lastReminder=DateTime.MinValue;
         private ObservedRaceCall limitCall,speedCall;
+        /// <summary>Letzte Tempowarnung in der Boxengasse (iRacing Montreal 27.11.: danach Schwarz, „die Art meldet das Spiel nicht“).</summary>
+        internal static DateTime LastSpeedWarningUtc=DateTime.MinValue;
         public void Reset()
         {epoch++;session=int.MinValue;type=SessionType.Unavailable;track=null;reportedLimit=-1;lastSpeed=0;initialized=wasInPits=approachHandled=departureHandled=wasNewSession=lastPitRequest=limitCallBeforeLane=remindedThisVisit=false;
             speedingSince=lastWarning=lastProgress=lastTick=lastReminder=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
@@ -158,14 +160,18 @@ namespace CrewChiefV4.AiTeam
             if(inPits)
             {
                 bool entered=initialized && !wasInPits;
-                bool leavingBox=speed>=2 && (!initialized || lastSpeed<2) && !departureHandled;
+                bool moving=speed>=2;
+                bool leavingBox=moving && (!initialized || lastSpeed<2) && !departureHandled;
                 bool recentlyReminded=lastReminder!=DateTime.MinValue && now-lastReminder<TimeSpan.FromSeconds(20);
                 bool newLimit=Known(limit) && Math.Abs(reportedLimit-limit)>.1f;
-                // One current reminder covers entry/departure. Never restart it every tick.
-                if(newLimit || entered && !recentlyReminded && !remindedThisVisit || leavingBox && limitCall==null && !recentlyReminded)
+                // Rob 28.11.: „Beim Joinen stehe ich in der Box – das Limit muss erst kommen, wenn ich aus meiner Box losfahre.“
+                // Stehend in der Box wird nur das Limit gemerkt; angesagt wird beim Losfahren oder beim Einfahren von der Strecke.
+                // Wer gerade zu schnell ist, hört die Tempowarnung statt einer zweiten Erinnerung.
+                if(moving && !Speeding(gs,limit) && (leavingBox && limitCall==null && !recentlyReminded || entered && !recentlyReminded && !remindedThisVisit ||
+                    newLimit && !leavingBox && !entered && !recentlyReminded))
                 {
                     if(leavingBox) departureHandled=true;
-                    limitCall=Reminder(gs,now,limit,(leavingBox || entered)?7:3,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit",false,newLimit || leavingBox);
+                    limitCall=Reminder(gs,now,limit,7,false,leavingBox?"moving_from_pit_box":"measured_pit_lane_limit",false,newLimit || leavingBox);
                 }
                 if(Known(limit)) reportedLimit=limit;
                 if(leavingBox) departureHandled=true;
@@ -177,7 +183,7 @@ namespace CrewChiefV4.AiTeam
                 if(speedingSince==DateTime.MinValue) speedingSince=now;
                 if(now-speedingSince>=TimeSpan.FromMilliseconds(200) && now-lastWarning>=TimeSpan.FromSeconds(15))
                 {
-                    lastWarning=now;
+                    lastWarning=now;LastSpeedWarningUtc=now;
                     speedCall=Call(gs,now,"pit-speed",SpeedPhrases(limit)[variant++%SpeedPhrases(limit).Length],7,
                         live=>Speeding(live,limit),"measured_pit_lane_limit_and_speed");
                 }

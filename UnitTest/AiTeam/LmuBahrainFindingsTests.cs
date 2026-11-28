@@ -111,15 +111,18 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Spin_and_stopped_car_far_ahead_reach_sara_early()
         {
-            // 11:01:35: udo scharny gedreht 959 m vor Rob, kurz davor stehend; die Nahbereichswarnung prüfte nur das Auto direkt vor Rob.
+            // 11:01:35: udo scharny gedreht vor Rob; die Nahbereichswarnung prüfte nur das Auto direkt vor Rob.
+            // Seit P1.2 (Rob 25.11.) erst 3–8 s vor Rob: 959 m bei 50 m/s (19 s) ist zu früh, 380 m (7,6 s) passt.
             var watch = new YellowAheadWatch();
             var gs = Race(2);
-            var hazard = watch.Take(Field(Car("steve dionne", 380, CarMotion.Normal), Car("udo scharny", 959, CarMotion.Spun)), gs, T);
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("udo scharny", 959, CarMotion.Spun)), gs, T), "19 s voraus: noch zu früh");
+            var hazard = watch.Take(Field(Car("steve dionne", 300, CarMotion.Normal), Car("udo scharny", 380, CarMotion.Spun)), gs, T);
             Assert.IsNotNull(hazard);
             Assert.AreEqual("udo scharny", hazard.Name);
             Assert.IsFalse(hazard.Stopped);
-            Assert.IsNull(watch.Take(Field(Car("udo scharny", 700, CarMotion.Stopped)), gs, T.AddSeconds(20)), "derselbe Wagen nicht gleich wieder");
-            Assert.IsNotNull(new YellowAheadWatch().Take(Field(Car("udo scharny", 700, CarMotion.Stopped)), gs, T), "stehend");
+            Assert.IsNull(watch.Take(Field(Car("udo scharny", 350, CarMotion.Stopped)), gs, T.AddSeconds(20)), "derselbe Wagen nicht gleich wieder");
+            Assert.IsNotNull(new YellowAheadWatch().Take(Field(Car("udo scharny", 350, CarMotion.Stopped)), gs, T), "stehend");
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("udo scharny", 350, CarMotion.Stopped, since: 1)), gs, T), "stehend erst nach 2 s");
             Assert.IsTrue(YellowAheadWatch.StillThere(Field(Car("udo scharny", 600, CarMotion.Slow)), "udo scharny", T));
             Assert.IsFalse(YellowAheadWatch.StillThere(Field(Car("udo scharny", 600, CarMotion.Normal)), "udo scharny", T), "fährt wieder: Warnung überholt");
         }
@@ -130,14 +133,15 @@ namespace UnitTest.AiTeamTests
             var gs = Race(2);
             Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 150, CarMotion.Stopped)), gs, T), "Nahbereich hat eigene Warnung");
             Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 1500, CarMotion.Stopped)), gs, T), "zu weit");
-            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 600, CarMotion.Stopped, pit: true)), gs, T), "Box");
-            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 600, CarMotion.Slow)), gs, T), "langsam allein ist keine Gefahr voraus");
-            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 600, CarMotion.Spun, since: .1)), gs, T), "kurz bestätigen");
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 600, CarMotion.Stopped)), gs, T), "12 s voraus: zu früh (P1.2)");
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 350, CarMotion.Stopped, pit: true)), gs, T), "Box");
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 350, CarMotion.Slow)), gs, T), "langsam allein ist keine Gefahr voraus");
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 350, CarMotion.Spun, since: .1)), gs, T), "kurz bestätigen");
             var standing = Race(2); standing.PositionAndMotionData.CarSpeed = 3;
-            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 600, CarMotion.Stopped)), standing, T));
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 350, CarMotion.Stopped)), standing, T));
             var pitLane = Race(2); pitLane.PitData.InPitlane = true;
-            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 600, CarMotion.Stopped)), pitLane, T));
-            var stale = Field(Car("a", 600, CarMotion.Stopped)); stale.Utc = T.AddSeconds(-5);
+            Assert.IsNull(new YellowAheadWatch().Take(Field(Car("a", 350, CarMotion.Stopped)), pitLane, T));
+            var stale = Field(Car("a", 350, CarMotion.Stopped)); stale.Utc = T.AddSeconds(-5);
             Assert.IsNull(new YellowAheadWatch().Take(stale, gs, T), "altes Lagebild");
         }
 

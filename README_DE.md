@@ -6,7 +6,26 @@
 
 [English](README.md) · **Deutsch** · [Español](README_ES.md)
 
-> **Neu in Alpha 0.40: Sara startet auch auf Englisch und Spanisch.**
+> **Neu in Alpha 0.41: iRacing im Mittelpunkt, Sara in Echtzeit bis 200 Meter.**
+>
+> - **Sara meldet Gefahren bis 200 m vor und hinter dir, dafür sofort.** Dreher, stehende und langsame Autos kommen sofort, meist in unter einer Sekunde, auch hinter dir. Die Fernwarnung bis 1000 m ist weg. Ob ein Auto zu langsam ist, misst Sara am üblichen Tempo genau an dieser Stelle. Gemeinsames Bremsen im Pulk gilt nicht mehr als Dreher. In iRacing zählt zusätzlich die Meldung „neben der Strecke“. Ein Abwürger am Start kommt 2 s nach dem Losfahren.
+> - **Schaden in iRacing im Detail.** iRacing liefert keine Bauteilwerte. Mik sagt deshalb Pflicht- oder optionale Reparatur, die Wucht des Einschlags in g und ob es Mauer oder Auto war. In der Box nennt er die Reparaturzeit und die freien Fast Repairs. Nach dem Treffer misst er, wie viel Zeit du pro Runde verlierst, und sagt, ob sich die Reparatur bis zum Ende lohnt. Fehlt auf der Geraden Tempo, sagt er auch das. Der Schadensbefund nach Grün fehlte bisher ganz.
+> - **Reifen in iRacing.** iRacing misst Reifen nur beim Halt in der Box. Genau dann sagt Mik das Reifenbild: Schnitt vorn und hinten, auffällige Verteilung innen, Mitte und außen mit Deutung (Druck, Sturz) und den meistverschlissenen Reifen. Auf Nachfrage nennt die Crew diese Werte als „Stand letzter Boxenhalt“, nie als aktuell.
+> - **Boxenstopp in iRacing.** Beim Einfahren bestätigt Mik den eingestellten Service (Reifen, Liter, Fast Repair). Stehst du falsch, sagt er „zu weit vorn“ und Ähnliches.
+> - **Vorfallpunkte und Verwarnungen nach Dritteln.** Mit Limit kommen Warnungen bei einem Drittel, zwei Dritteln und kurz vor der Strafe: „Rob, jetzt kannst du dir nicht mehr viel erlauben …“. Ohne Limit gibt es Hinweise nach jedem Renndrittel, auch zu Tracklimits, aber nur wenn etwas dazukam.
+> - **Boxenlimit erst beim Losfahren.** Nicht mehr beim Joinen und nicht, solange du in der Box stehst.
+> - **Weniger Doppeltes.** Begrüßung einmal, Meatball und Schwarz einmal, Dreher einmal, die Rivalen-Bestzeit nur die neueste. Ben wiederholt Miks Vorfallpunkte nicht. Nach einer Disqualifikation kommen nur noch die Meldung und die Bilanz.
+> - **Richtige Zahlen.**
+>   - Platz und Rückstand gelten in deiner Klasse, auch im Mehrklassenfeld.
+>   - Kein „Platz 1000“ mehr, kein „1000 Autos“ im Feld.
+>   - Quali-Rang nur aus einer vollständigen Zeitenliste.
+>   - Die Startrunde mit Zwischenfall ist kein Bezug.
+>   - Streckentemperatur nur gemessen, der Streckenname ohne Anhängsel.
+>   - Gestrichene Runden zählen in der Bilanz mit.
+> - **Sprit.** Der Verbrauch aus Training und Quali ist der Startwert im Rennen. Hochgerechnet wird erst ab einer halben Runde, und Tanken in der Garage zählt nicht als Verbrauch.
+> - **Diagnose.** Die Aufzeichnung läuft nach 128 MB weiter. Verworfene Warnungen stehen im Gesprächslog, und jede Gefahrmeldung zeigt, seit wann das Auto auffällig war.
+>
+> **Seit Alpha 0.40: Sara startet auch auf Englisch und Spanisch.**
 >
 > - **Sara-Stimme in EN und ES.** Mit englischem oder spanischem Funk blieb RRCA bei „Saras gewählte Originalstimme ist vorbereitet, aber noch nicht in der Audioengine geladen“ stehen, auch nach einem Neustart. Die Startprüfung kennt jetzt die Sprache des Sara-Pakets. Danke an kamil-malinski für Fehlerbericht und Lösung.
 >

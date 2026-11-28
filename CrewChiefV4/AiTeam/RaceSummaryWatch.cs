@@ -245,6 +245,17 @@ namespace CrewChiefV4.AiTeam
 
             // Rob 20.11.: „wie ich mich die ersten Runden geschlagen habe“ – eigene Pace gegen die Klassenbestzeit.
             float pb = s.PlayerLapTimeSessionBest, cb = FieldCheckedClassBest(gs);
+            // iRacing Navarra 28.11. (N6): „Zur Klassenbestzeit fehlen 20,9 Sekunden, deine beste ist 2:01,865“ – das war die
+            // Startrunde mit Zwischenfall, heute ging 1:46,404. Dann gibt es keinen Pace-Vergleich, nur den Bezug von heute.
+            float today = SessionLapObserver.TodayBest(gs);
+            if (pb > 10 && pb < 3600 && !SessionLapObserver.RaceLapRepresentative(pb, today))
+            {
+                string ref0 = LocalAnswers.LapTime(today);
+                parts.Add(RadioVariants.Pick("summary-pace-noref",
+                    RadioLanguage.T("Eine saubere Rennrunde fehlt noch, dein Maßstab bleibt die " + ref0 + " von heute.", "No clean race lap yet, your benchmark stays the " + ref0 + " from today.", "Aún no hay una vuelta limpia en carrera, tu referencia sigue siendo el " + ref0 + " de hoy."),
+                    RadioLanguage.T("Rundenzeiten im Rennen noch nicht aussagekräftig, heute ging schon " + ref0 + ".", "Race lap times aren't telling yet, you already did " + ref0 + " today.", "Los tiempos de carrera aún no dicen mucho, hoy ya hiciste " + ref0 + ".")));
+                pb = -1;
+            }
             if (pb > 10 && cb > 10 && pb < 3600 && cb < 3600)
             {
                 string own = LocalAnswers.LapTime(pb);

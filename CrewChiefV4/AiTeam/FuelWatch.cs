@@ -59,6 +59,25 @@ namespace CrewChiefV4.AiTeam
 
         internal static int Laps(GameStateData gs) { string k = Key(gs); lock (gate) return k != null && k == key ? sessions.Sum(s => s.Value.Value) : 0; }
 
+        /// <summary>Mittel der früheren Sessions (ohne die laufende) und deren Runden; -1 = keines. Prüfliste 9 und RaceRoom 27.11.:
+        /// Das Training maß 2,0 l über 4 Runden, die Quali begann trotzdem mit einer eigenen Hochrechnung.</summary>
+        internal static float FromEarlierSessions(GameStateData gs, out int laps, out SessionType from)
+        {
+            laps = 0; from = SessionType.Unavailable;
+            string k = Key(gs);
+            if (gs == null || k == null) return -1;
+            string current = gs.SessionData.SessionType + "#" + gs.SessionData.SessionId;
+            lock (gate)
+            {
+                if (k != key) return -1;
+                var earlier = sessions.Where(s => s.Key != current).ToList();
+                laps = earlier.Sum(s => s.Value.Value);
+                if (laps == 0) return -1;
+                from = (SessionType)Enum.Parse(typeof(SessionType), earlier[earlier.Count - 1].Key.Substring(0, earlier[earlier.Count - 1].Key.IndexOf('#')));
+                return earlier.Sum(s => s.Value.Key * s.Value.Value) / laps;
+            }
+        }
+
         /// <summary>Je Session: Art, Mittel, Runden – in zeitlicher Reihenfolge.</summary>
         internal static List<KeyValuePair<SessionType, KeyValuePair<float, int>>> Breakdown(GameStateData gs)
         {
@@ -79,6 +98,8 @@ namespace CrewChiefV4.AiTeam
         public bool EstimatedFromTime;
         public bool ProvisionalConsumption;
         public string Source;
+        /// <summary>Restdistanz mit der besten Runde von heute gerechnet (vor der ersten Rennrunde), sonst NaN.</summary>
+        public float ReferenceLap = float.NaN;
 
         /// <summary>Woher der Verbrauch pro Runde stammt.</summary>
         internal enum Basis { None, Measured, Projected, Carried }
@@ -97,11 +118,14 @@ namespace CrewChiefV4.AiTeam
             if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale) return -1;
             float average = memory.AverageFuelPerLap(out fullLaps);
             if (fullLaps > 0) { basis = Basis.Measured; return average; }
-            float estimate = memory.ProvisionalFuelPerLap(state);
-            provisional = estimate > 0 && Finite(estimate);
-            if (provisional) { basis = Basis.Projected; return estimate; }
+            float estimate = memory.ProvisionalFuelPerLap(state, out float metres);
             // Rob 20.11.: Verbrauch aus Training und Quali ins Rennen mitnehmen, bis im Rennen selbst gemessen ist.
             float carried = FuelCarry.For(state);
+            // RaceRoom 27.11.: Eine Hochrechnung über weniger als eine halbe Runde (1,1 statt 2,0 l) schlägt keinen gemessenen Wert.
+            float length = state?.SessionData?.TrackDefinition?.trackLength ?? 0;
+            bool shortProjection = length > 0 && metres < length * .5f;
+            provisional = estimate > 0 && Finite(estimate) && !(carried > 0 && shortProjection);
+            if (provisional) { basis = Basis.Projected; return estimate; }
             provisional = carried > 0;
             if (provisional) basis = Basis.Carried;
             return provisional ? carried : -1;
@@ -117,14 +141,22 @@ namespace CrewChiefV4.AiTeam
             float perLap = Consumption(ctx.Memory, gs, out bool provisional, out int sampleCount);
             if ((!provisional && sampleCount < minimumMeasuredLaps) || !Finite(perLap) || perLap <= 0) return null;
 
-            float remaining;
+            float remaining, referenceLap = float.NaN;
             bool estimated = s.SessionHasFixedTime;
             if (estimated)
             {
                 var times = ctx.Memory.GetLaps().Where(l => !l.InPitLap && Finite(l.LapTime) &&
                     l.LapTime > 10 && l.LapTime < 3600).Reverse().Take(3).ToArray();
-                if (times.Length == 0 || !Finite(s.SessionTimeRemaining) || s.SessionTimeRemaining <= 0) return null;
-                remaining = s.SessionTimeRemaining / times.Average(l => l.LapTime) + 1;
+                // P2.2 (LMU 25.11., iRacing MX-5 28.11.): vor der ersten Rennrunde „die Restdistanz ist noch offen“, obwohl die Quali-Zeit
+                // bekannt war. Dann zählt Robs beste Runde von heute (2 % Rennzuschlag), in Formation die volle Renndauer.
+                float timeLeft = Finite(s.SessionTimeRemaining) && s.SessionTimeRemaining > 0 ? s.SessionTimeRemaining :
+                    (s.SessionPhase == SessionPhase.Formation || s.SessionPhase == SessionPhase.Countdown || s.SessionPhase == SessionPhase.Gridwalk) &&
+                    Finite(s.SessionTotalRunTime) && s.SessionTotalRunTime > 0 ? s.SessionTotalRunTime : -1;
+                float today = times.Length == 0 ? SessionLapObserver.TodayBest(gs) : -1;
+                if (timeLeft <= 0 || times.Length == 0 && !(today > 10 && today < 3600)) return null;
+                float lap = times.Length > 0 ? times.Average(l => l.LapTime) : today * 1.02f;
+                remaining = timeLeft / lap + 1;
+                if (times.Length == 0) referenceLap = today;
             }
             else
             {
@@ -143,7 +175,7 @@ namespace CrewChiefV4.AiTeam
             }
             bool crew = !provisional && Finite(ctx.CrewChiefAdditionalFuelNeeded) && Math.Abs(ctx.CrewChiefAdditionalFuelNeeded)<1000;
             return new FuelEstimate { PerLap=perLap, LapsRemaining=remaining, EstimatedFromTime=estimated,
-                ProvisionalConsumption=provisional,
+                ProvisionalConsumption=provisional, ReferenceLap=referenceLap,
                 AdditionalWithoutReserve=crew?ctx.CrewChiefAdditionalFuelNeeded:remaining*perLap-gs.FuelData.FuelLeft,
                 ReserveLitres=perLap*FuelWatch.SafetyMarginLaps,
                 Source=provisional && !(ctx.Memory.ProvisionalFuelPerLap(gs) > 0) && FuelCarry.For(gs) == perLap ? "Verbrauch aus Training und Quali dieser Strecke, im Rennen noch nicht gemessen" :

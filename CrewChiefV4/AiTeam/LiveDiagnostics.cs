@@ -284,6 +284,8 @@ namespace CrewChiefV4.AiTeam
         private static readonly AsyncLocal<string> flow = new AsyncLocal<string>();
         public static string DefaultFolder { get { return DataFiles.IsolatedRoot == null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrewChief20", "RCCA-LiveDiagnostics") : Path.Combine(DataFiles.IsolatedRoot,"Diagnostics"); } }
         public static bool Enabled { get { var r = Volatile.Read(ref recorder); return r != null && r.Accepting; } }
+        /// <summary>iRacing 27.11.: Die Aufnahme hielt nach 128 MB an und lief nie weiter, weil Sample nur bei Enabled kam.</summary>
+        public static bool WaitingToContinue { get { var r = Volatile.Read(ref recorder); return r != null && !r.Accepting && r.Status == "size_limit"; } }
         public static string Status { get { var r = Volatile.Read(ref recorder) ?? last; return r == null ? "aus" : r.Status + "; " + (r.BytesWritten / 1048576d).ToString("0.0",CultureInfo.InvariantCulture) + " MiB; verworfen=" + r.Dropped; } }
         public static string Start(string folder = null, DiagnosticLimits limits = null)
         {
@@ -342,11 +344,18 @@ namespace CrewChiefV4.AiTeam
         {
             if(status=="detected" || status=="delivered" || status=="suppressed" && eventId!=null &&
                 (topic=="position" || topic=="status" || topic=="formation" || topic=="rear-pressure" ||
-                    topic=="near-best" || topic=="own-lap" || topic=="field-fastest" || topic=="field-fastest-overall"))
+                    topic=="near-best" || topic=="own-lap" || topic=="field-fastest" || topic=="field-fastest-overall") ||
+                DroppedSafetyCall(topic,status))
                 DriverMemory.RememberObservation(topic,status,reason,text,CrewChief.currentGameState==null?int.MinValue:CrewChief.currentGameState.SessionData.SessionId);
             if(status!="detected" && status!="delivered")RoutineLedger.Current.Reason(topic,status+"/"+reason);
             if(Enabled)Emit("decision",Data("topic",topic,"status",status,"reason",reason,"text",text,"event_id",eventId),eventId);
         }
+        /// <summary>Audit 25.11.: Verworfene oder zurückgehaltene Gefahren- und Warnmeldungen stehen auch ohne eingeschaltete
+        /// Diagnose im Gesprächslog, damit ein Rennlog zeigt, was Sara erkannt, aber nicht gesagt hat.</summary>
+        internal static bool DroppedSafetyCall(string topic,string status)=>
+            (status=="suppressed" || status=="rejected" || status=="held" || status=="deferred" || status=="skipped" || status=="hazard_lead_skipped") &&
+            topic!=null && (topic.StartsWith("race-hazard",StringComparison.Ordinal) || topic.StartsWith("warning-",StringComparison.Ordinal) ||
+                topic.StartsWith("battle-",StringComparison.Ordinal));
         public static string NoTrend(string topic,string reason) { Decision(topic,"rejected",reason); return null; }
         public static void Sample(GameStateData previous,GameStateData current)
         {

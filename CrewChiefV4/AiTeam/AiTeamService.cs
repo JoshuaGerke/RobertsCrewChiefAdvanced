@@ -2039,6 +2039,10 @@ namespace CrewChiefV4.AiTeam
                 // Lagebild („kann ich nicht bestätigen“), obwohl dort „Iban Garcia, gedreht, 80 m hinter dir“ stand. Vorfälle und
                 // Sektorvergleiche brauchen das Lagebild.
                 "gedreht", "dreher", "unfall", "unfäll", "vorfall", "vorfäll", "vorkommnis", "abgeflogen", "steht", "sektor",
+                // iRacing 27.11.: „alles kaputt oder was siehst du?“ lief ohne Werkzeug und ohne Schadensdaten.
+                "kaputt", "beschädig", "reparat", "einschlag", "mauer", "broken", "repair", "roto", "repar",
+                // iRacing MX-5 28.11.: „Ich sehe nur Mazda MX-5, wo sind die anderen?“ ohne Werkzeug – Ben erfand ein reines MX-5-Feld.
+                "klasse", "andere", "welche autos", "class", "other cars", "clase",
                 "spun", "spin", "crash", "accident", "incident", "stopped", "sector",
                 "trompo", "accidente", "incidente", "parado", "sectores" };
             return markers.Any(m => q.Contains(m)) || gs != null && RaceFieldTools.NamedInQuestion(question, gs).Count > 0;
@@ -2218,6 +2222,12 @@ namespace CrewChiefV4.AiTeam
                 if (!trackWelcomeDone) { trackWelcomeDone = true; LiveDiagnostics.Decision("greeting", "suppressed", "field_session_already_greeted"); }
                 return null;
             }
+            if (spoken != null && GreetedMomentsAgo(spokenGreetingTrack, spoken.SessionType, spokenGreetingUtc,
+                current.SessionData.TrackDefinition?.name, current.SessionData.SessionType, now))
+            {
+                if (!trackWelcomeDone) { trackWelcomeDone = true; LiveDiagnostics.Decision("greeting", "suppressed", "greeted_moments_ago_same_track_and_session"); }
+                return null;
+            }
             // Fährt Rob los, bevor die Begrüßung im Stand lief, gleich die kurze Begrüßung auf der Strecke (nicht erst nach 45 s).
             bool greetingMissed = pendingGreeting != null && pendingGreeting.DeliveryStartedUtc == DateTime.MinValue &&
                 current.SessionData.SessionType != SessionType.Race && current.PositionAndMotionData.CarSpeed > 5 && !pendingGreeting.IsValid(current, now);
@@ -2295,7 +2305,11 @@ namespace CrewChiefV4.AiTeam
                 {
                     text = Field.SessionDebrief.ComposeRace(v, radioName, RaceChronicle.Current.All(), debriefVariant++);
                 }
-                else text = Field.SessionDebrief.Compose(v, radioName, fuel, fuelLaps, debriefVariant++);
+                else
+                {
+                    float ownBest = CrewChief.currentGameState?.SessionData?.PlayerLapTimeSessionBest ?? -1;
+                    text = Field.SessionDebrief.Compose(v, radioName, fuel, fuelLaps, debriefVariant++, ownBest > 10 ? ownBest : float.NaN);
+                }
                 if (text == null) return;
                 debriefDoneKey = key;
             }
@@ -2387,7 +2401,14 @@ namespace CrewChiefV4.AiTeam
         private readonly StartHazardNames startNames = new StartHazardNames();
         private DateTime lastSafetyCallUtc = DateTime.MinValue;
         private DateTime lastPitLimitCallUtc = DateTime.MinValue;
-        private volatile string spokenGreetingField;
+        private volatile string spokenGreetingField, spokenGreetingTrack;
+        private DateTime spokenGreetingUtc = DateTime.MinValue;
+
+        /// <summary>iRacing Montreal 27.11.: vier Begrüßungen in 13 s, weil das Spiel beim Einstieg mehrfach eine neue Session
+        /// meldete und das Lagebild noch keinen Schlüssel hatte. Gleiche Strecke und Sitzungsart innerhalb von 3 Minuten: begrüßt.</summary>
+        internal static bool GreetedMomentsAgo(string greetedTrack, SessionType greetedType, DateTime greetedUtc, string track, SessionType type, DateTime now) =>
+            greetedUtc != DateTime.MinValue && now >= greetedUtc && now - greetedUtc < TimeSpan.FromMinutes(3) &&
+            !string.IsNullOrEmpty(greetedTrack) && greetedTrack == track && greetedType == type;
 
         /// <summary>Wurde die laut Spiel gleiche Session in den letzten 15 Minuten schon begrüßt?</summary>
         internal static bool FieldAlreadyGreeted(string greetedField, DateTime greetedUtc, string currentField, DateTime now) =>
@@ -2742,6 +2763,9 @@ namespace CrewChiefV4.AiTeam
         /// </summary>
         private void OfferHazardFarAhead(GameStateData current, DateTime now)
         {
+            // Rob 28.11. (iRacing Navarra): „Max 200 Meter vor und hinter mir, mehr nicht.“ Die Fernwarnung (3 bis 8 s, bis 1000 m)
+            // ist aus; Gefahren bis 200 m meldet die Nahbereichswarnung, Gelb, Safety Car und FCY bleiben unberührt.
+            if (!YellowAheadWatch.FarWarnings) return;
             if (current == null) return;
             var hazard = yellowAhead.Take(Field.FieldPicture.Shared.Current, current, now);
             if (hazard == null) return;
@@ -2760,7 +2784,7 @@ namespace CrewChiefV4.AiTeam
                 RaceChronicle.Current.Add(current, now, ChronicleKind.Yellow, detail: hazard.Stopped ? "steht_voraus" : "dreher_voraus", source: "lagebild",
                     subjectName: spokenName, dedupe: TimeSpan.FromSeconds(20));
             liveWarnings.Offer("warning-hazard-far", text, settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : TeamMember.Ben, 7, current, now,
-                live => YellowAheadWatch.StillThere(Field.FieldPicture.Shared.Current, hazardName, DateTime.UtcNow),
+                live => YellowAheadWatch.StillThere(Field.FieldPicture.Shared.Current, hazardName, DateTime.UtcNow, hazard.LapDistance),
                 "field_picture_" + (hazard.Stopped ? "stopped" : "spun") + "_" + (int)hazard.GapM + "m_ahead",
                 opponentNameClip: spokenName == null ? null : RaceTrafficWatch.NameClipText(spokenName));
         }
@@ -2776,14 +2800,15 @@ namespace CrewChiefV4.AiTeam
             if (incident == null) return;
             string name = settings.SendDriverNames ? RadioPhraseCatalog.SafeRivalName(incident.Name) : null;
             string carName = incident.Name;
-            RaceChronicle.Current.Add(current, now, ChronicleKind.Hazard, detail: incident.Stopped ? "steht_hinten" : "dreher_hinten", source: "lagebild",
+            string kind = incident.Stopped ? "stopped" : incident.Slow ? "slow" : "spun";
+            RaceChronicle.Current.Add(current, now, ChronicleKind.Hazard, detail: incident.Stopped ? "steht_hinten" : incident.Slow ? "langsam_hinten" : "dreher_hinten", source: "lagebild",
                 subjectName: name, dedupe: TimeSpan.FromSeconds(30));
-            string rearText = incident.Others.Count == 0 ? rearIncident.Text(name, incident.Stopped) :
+            string rearText = incident.Others.Count == 0 ? rearIncident.Text(name, incident.Stopped, incident.Slow) :
                 rearIncident.CrashText(settings.SendDriverNames ? new[] { incident.Name }.Concat(incident.Others).Select(RadioPhraseCatalog.SafeRivalName).ToList() : null);
             liveWarnings.Offer("warning-incident-behind", rearText,
                 settings.IsMemberEnabled(TeamMember.Sara) ? TeamMember.Sara : TeamMember.Ben, 5, current, now,
                 live => live.SessionData.SessionPhase == SessionPhase.Green && !live.PitData.InPitlane,
-                "field_picture_" + (incident.Stopped ? "stopped" : "spun") + "_" + (int)(-incident.GapM) + "m_behind",
+                "field_picture_" + kind + "_" + (int)(-incident.GapM) + "m_behind",
                 timed: (live, at) => at - now <= TimeSpan.FromSeconds(6));
         }
 
@@ -2844,6 +2869,8 @@ namespace CrewChiefV4.AiTeam
             if (call.Topic == "greeting" || call.Topic == "track-welcome")
             {
                 spokenGreetingField = Field.MenuBriefing.Key(Field.FieldPicture.Shared.Current);
+                spokenGreetingTrack = CrewChief.currentGameState?.SessionData?.TrackDefinition?.name;
+                spokenGreetingUtc = DateTime.UtcNow;
                 spokenGreeting = call; // zählt erst, wenn die Wiedergabe wirklich begonnen hat
             }
             eventLog.Note(call, EventStatus.Detected, DateTime.UtcNow);
@@ -2853,6 +2880,16 @@ namespace CrewChiefV4.AiTeam
             bool urgentPit=RadioRenderGate.IsUrgentPit(call) || call.Priority>=7 &&
                 (call.Topic=="race-hazard-ahead" || call.Topic=="race-traffic-rear" || call.Topic=="race-class-ahead" || call.Topic=="race-disqualified" ||
                 (call.Topic??"").StartsWith("warning-",StringComparison.Ordinal) && call.Topic!="warning-numeric-damage");
+            // iRacing Navarra 28.11. (N12): Nach „Disqualifikation gemeldet, sicher reinkommen“ kamen noch „Vorfallpunkte am Anschlag“
+            // und „Platz 10, zurückgefallen … das Rennen ist noch lang“. Nach einer Disqualifikation nur noch die Meldung selbst und die Bilanz.
+            if (!CrewSpeechPolicy.AllowedAfterDisqualification(call.Topic, CrewChief.currentGameState))
+            {
+                var at = DateTime.UtcNow;
+                radioSchedule.ReleaseBundle(call, at);
+                call.MarkConsumed(at);
+                LiveDiagnostics.Decision(call.Topic, "suppressed", "player_disqualified", call.Text); radioSchedule.Arbiter.Done(call.Topic);
+                return;
+            }
             // Die Schadensmeldung mit Messwerten wird erst live gesprochen und darf Flaggen und Gefahren nicht sechs Sekunden blockieren
             if (CoveredByRecentCall(call, DateTime.UtcNow))
             {
@@ -2968,6 +3005,15 @@ namespace CrewChiefV4.AiTeam
                     // vorbereiteten Satz (keine Wartezeit auf eine neue Stimme für den ganzen Satz).
                     byte[] leadPcm = null;
                     string lead = SaraFlagPolicy.HazardLead(call.Topic, CrewChief.currentGameState, call.OpponentNameClip, DateTime.UtcNow);
+                    // Audit 25.11.: Gefahr voraus wartet nicht auf neue Clips; was fehlt, wird fürs nächste Mal erzeugt.
+                    bool noRenderWait = SaraFlagPolicy.NoRenderWait(call.Topic);
+                    if (lead != null && noRenderWait && PreparedSpeech(call.Member, lead) == null && CachedOpponentName(call.Member, lead) == null)
+                    {
+                        LiveDiagnostics.Decision(call.Topic, "hazard_lead_skipped", "clip_not_prepared_no_wait", lead, call.EventId);
+                        string warmLead = lead; var warmMember = call.Member; string warmEvent = call.EventId;
+                        _ = Task.Run(() => RenderPhraseNow(warmMember, warmLead, generation, warmEvent));
+                        lead = null;
+                    }
                     if (lead != null && (leadPcm = PreparedSpeech(call.Member, lead) ?? CachedOpponentName(call.Member, lead) ??
                             await RenderPhraseNow(call.Member, lead, generation, call.EventId).ConfigureAwait(false)) != null)
                     {
@@ -2979,8 +3025,8 @@ namespace CrewChiefV4.AiTeam
                     // AC 20.11.: „Dreher vor dir“, Gelb und langsame Autos ohne Namen – der Name war nur dabei, wenn er zufällig
                     // schon vorbereitet war. Fehlt er, wird er jetzt sofort in derselben Stimme erzeugt (kurze Frist).
                     if (call.OpponentNameClip != null && settings.SendDriverNames &&
-                        (namePcm = CachedOpponentName(call.Member, call.OpponentNameClip) ??
-                            await RenderOpponentNameNow(call.Member, call.OpponentNameClip, generation, call.EventId).ConfigureAwait(false)) != null)
+                        (namePcm = CachedOpponentName(call.Member, call.OpponentNameClip) ?? (noRenderWait ? null :
+                            await RenderOpponentNameNow(call.Member, call.OpponentNameClip, generation, call.EventId).ConfigureAwait(false))) != null)
                     {
                         text += " " + call.OpponentNameClip;
                         detailUsesNames = true;
@@ -3120,6 +3166,8 @@ namespace CrewChiefV4.AiTeam
             string Keep(string why)
             {
                 LiveDiagnostics.Decision(call.Topic, "template_kept", "battle_voice:" + why, text, call.EventId);
+                // Audit 25.11. (P3.1): verworfene Zweikampfsätze messbar machen, auch ohne Diagnose.
+                DriverMemory.RememberObservation(call.Topic, "template_kept", "battle_voice:" + why, text, call.SessionId);
                 if (call.EventId != null) humanLines[call.EventId] = text;
                 BattleVoice.Remember(text);
                 return text;

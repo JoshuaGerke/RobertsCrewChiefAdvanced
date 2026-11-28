@@ -6,7 +6,26 @@
 
 **English** · [Deutsch](README_DE.md) · [Español](README_ES.md)
 
-> **New in Alpha 0.40: Sara starts in English and Spanish too.**
+> **New in Alpha 0.41: iRacing in focus, Sara in real time up to 200 metres.**
+>
+> - **Sara reports hazards up to 200 m ahead and behind, but instantly.** Spins, stopped and slow cars come right away, usually in under a second, behind you too. The far warning up to 1000 m is gone. Sara judges "slow" against the usual speed at exactly that spot, so a pack braking together is no longer a spin. In iRacing the "off track" flag counts as well. A stall at the start is called 2 s after you get going.
+> - **iRacing damage in detail.** iRacing has no per-part values, so Mik reports mandatory or optional repair, the force of the hit in g and whether it was a wall or a car. In the box he gives the repair time and the fast repairs left. After a hit he measures how much time you lose per lap and says whether the repair is worth it before the end. If you're down on top speed, he says that too. After green, damage was previously not reported at all.
+> - **iRacing tyres.** iRacing only measures tyres when you stop in the box. That's when Mik gives the tyre picture: front and rear averages, a notable inside/middle/outside spread with what it suggests (pressure, camber) and the most worn tyre. Asked later, the crew gives these values as "from the last stop", never as current.
+> - **iRacing pit stops.** Entering the pits, Mik confirms the service you set (tyres, litres, fast repair). If you stop in the wrong spot, he says "too far forward" and the like.
+> - **Incident points and warnings by thirds.** With a limit, warnings come at one third, two thirds and shortly before the penalty: "Rob, you can't afford much more now …". Without a limit, a hint follows each third of the race, track limits included, but only if something was added.
+> - **Pit limiter reminder only when you drive off.** Not when joining, not while standing in the box.
+> - **Less repetition.** Greeting once, meatball and black flag once, a spin once, only the newest rival best lap. Ben no longer repeats Mik's incident points. After a disqualification only the call itself and the summary.
+> - **Correct numbers.**
+>   - Place and gap are in your class, also in multiclass fields.
+>   - No more "P1000" and no "1000 cars" in the field.
+>   - Qualifying rank only from a complete timesheet.
+>   - A lap-one incident lap is no reference.
+>   - Track temperature is measured only, and track names come without suffixes.
+>   - Deleted laps count in the summary.
+> - **Fuel.** Practice and qualifying consumption is the starting value for the race. Projection starts only after half a lap, and garage refuelling no longer counts as consumption.
+> - **Diagnostics.** The capture keeps running after 128 MB. Dropped warnings appear in the conversation log, and every hazard call shows since when the car looked suspicious.
+>
+> **Since Alpha 0.40: Sara starts in English and Spanish too.**
 >
 > - **Sara's voice in EN and ES.** With English or Spanish radio, RRCA got stuck at "Sara's selected voice is prepared but not loaded in the audio engine", even after a restart. The startup check now knows the language of Sara's pack. Thanks to kamil-malinski for the report and the fix.
 >

@@ -153,6 +153,8 @@
     <Compile Include="AiTeam\InternalCrewUpgradeTests.cs" />
     <Compile Include="AiTeam\NativeFieldEventsTests.cs" />
     <Compile Include="AiTeam\NativeIncidentTests.cs" />
+    <Compile Include="AiTeam\Rrca041Tests.cs" />
+    <Compile Include="AiTeam\Rrca041NavarraTests.cs" />
     <Compile Include="AiTeam\NativeTimingEventsTests.cs" />
     <Compile Include="AiTeam\RaceFactStoreTests.cs" />
     <Compile Include="AiTeam\EvidenceAccuracyTests.cs" />

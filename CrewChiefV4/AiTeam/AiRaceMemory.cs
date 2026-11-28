@@ -197,7 +197,8 @@ namespace CrewChiefV4.AiTeam
                     {
                         record.PeakTyreTemps = peaks;
                     }
-                    if (!record.Valid && record.LapTime > 0) RecordedInvalidLaps++;
+                    // Audit 25.11. (P4.1): Mik sagt gestrichene Runden auch mit selbst gestoppter Zeit an; die Bilanz zählt dieselben.
+                    if (!record.Valid && (record.LapTime > 0 || record.ClockLapTime > 0)) RecordedInvalidLaps++;
                     laps.Add(record);
                     if (laps.Count > MaxLaps)
                     {
@@ -249,7 +250,8 @@ namespace CrewChiefV4.AiTeam
             }
 
             float fuel = current.FuelData.FuelLeft;
-            if (previous != null && segmentStartFuel >= 0 && previousFuel >= 0 && fuel <= previousFuel + FuelNoiseLitres &&
+            // RaceRoom 27.11.: Tank in der Garage von 24,5 auf 18 l gesetzt. Ein Sprung nach unten in einem Takt ist kein Verbrauch.
+            if (previous != null && segmentStartFuel >= 0 && previousFuel >= 0 && fuel <= previousFuel + FuelNoiseLitres && fuel >= previousFuel - 1f &&
                 string.Equals(previous.carName, current.carName, StringComparison.Ordinal) &&
                 string.Equals(previous.SessionData.TrackDefinition?.name, session.TrackDefinition?.name, StringComparison.Ordinal))
             {

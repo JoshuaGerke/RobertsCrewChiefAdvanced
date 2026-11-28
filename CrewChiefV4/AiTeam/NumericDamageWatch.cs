@@ -46,6 +46,7 @@ namespace CrewChiefV4.AiTeam
         internal static bool? NothingNotable(CarDamageData d)
         {
             if (d == null || !d.DamageEnabled) return null;
+            if (RepairPicture.Applies(d)) return d.RepairRequired != true && d.RepairOptional != true;
             var known = Values(d).Where(Good).ToArray();
             if (known.Length > 0) return known.All(v => v < 1f);
             var levels = new[] { d.OverallAeroDamage, d.OverallEngineDamage, d.OverallTransmissionDamage };

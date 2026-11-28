@@ -39,6 +39,10 @@ namespace CrewChiefV4.AiTeam
             stable = candidate;
             // Die erste Lage nach dem Start erklärt das Startfazit; danach nur echte Wechsel.
             if (previous == RaceFocus.None || stable == RaceFocus.None || now - lastCall < MinGap || call != null && call.IsValid(gs, now)) return;
+            // iRacing Navarra 28.11. (N10): Ben „Vorfallpunkte werden knapp“ und 6 s später Mik „15 von 17“. Hat Mik die Punkte
+            // gerade gemeldet (oder meldet sie gleich), sagt Ben das Gleiche nicht noch einmal.
+            if (stable == RaceFocus.Safe && IncidentPointsWatch.SpokeRecently(now, TimeSpan.FromSeconds(90)))
+            { LiveDiagnostics.Decision("focus-brief", "suppressed", "incident_points_just_reported_by_mik"); return; }
             string text = Compose(x, stable, previous, frontName, rearName, driver, variants[(int)stable]++);
             if (text == null) return;
             lastCall = now;

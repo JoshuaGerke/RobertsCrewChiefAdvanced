@@ -14,9 +14,14 @@ namespace CrewChiefV4.AiTeam
     /// bis etwa 4 s (höchstens 400 m) hinter Rob sich dreht oder stehen bleibt – bestätigt nach 300 ms, je Wagen höchstens alle
     /// 90 s und insgesamt höchstens alle 12 s.
     /// </summary>
+    /// <remarks>
+    /// Rob 28.11. (iRacing Navarra): „Max 200 Meter vor und hinter mir, dann aber Echtzeit: Dreher, langsame Fahrzeuge, Unfälle.“
+    /// Lucas Raine brach 70 m hinter Rob von 37 auf 13 m/s ein, Ali Yüksel drehte sich 90 m dahinter – beides blieb ungesagt,
+    /// weil hinten nur Dreher (rückwärts) und Stillstand zählten. Jetzt: bis 200 m hinter Rob (ohne Zeitgrenze), auch langsam.
+    /// </remarks>
     internal sealed class RearIncidentWatch
     {
-        internal const float MaxBehindS = 4f, MaxBehindM = 400f, MinBehindM = 5f;
+        internal const float MaxBehindM = (float)RaceTrafficWatch.HazardReachM, MinBehindM = 5f;
         internal static readonly TimeSpan Confirm = TimeSpan.FromMilliseconds(300);
         internal static readonly TimeSpan SameCarAgain = TimeSpan.FromSeconds(90);
         internal static readonly TimeSpan AnyAgain = TimeSpan.FromSeconds(12);
@@ -25,7 +30,7 @@ namespace CrewChiefV4.AiTeam
         {
             public string Name;
             public float GapS, GapM;
-            public bool Stopped;
+            public bool Stopped, Slow;
             /// <summary>Weitere Wagen, die im selben Moment hinter Rob stehen oder sich gedreht haben (Massenunfall).</summary>
             public List<string> Others = new List<string>();
         }
@@ -38,10 +43,9 @@ namespace CrewChiefV4.AiTeam
 
         internal static bool Relevant(FieldCarView c, DateTime now) =>
             c != null && !c.IsPlayer && !c.InPit && !string.IsNullOrWhiteSpace(c.Name) && c.LapDelta == 0 &&
-            (c.Motion == CarMotion.Spun || c.Motion == CarMotion.Stopped) &&
+            (c.Motion == CarMotion.Spun || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Slow) &&
             c.MotionSinceUtc != default(DateTime) && now >= c.MotionSinceUtc && now - c.MotionSinceUtc >= Confirm &&
-            !float.IsNaN(c.GapM) && c.GapM <= -MinBehindM && c.GapM >= -MaxBehindM &&
-            (float.IsNaN(c.GapS) || c.GapS >= -MaxBehindS);
+            !float.IsNaN(c.GapM) && c.GapM <= -MinBehindM && c.GapM >= -MaxBehindM;
 
         /// <summary>Nächster gedrehter oder stehender Wagen direkt hinter Rob, sonst null.</summary>
         internal static Incident Nearest(FieldView view, DateTime now)
@@ -49,8 +53,11 @@ namespace CrewChiefV4.AiTeam
             if (view == null || view.Cars == null || view.Player == null || !view.Fresh(now, 2) || view.InMenus || view.Paused || view.InReplay) return null;
             var cars = view.Cars.Where(c => Relevant(c, now)).OrderByDescending(c => c.GapM).ToList();
             var car = cars.FirstOrDefault();
+            // Massenunfall nur mit Wagen, die stehen oder sich gedreht haben; ein langsamer Wagen daneben ist kein Beteiligter.
             return car == null ? null : new Incident { Name = car.Name, GapS = car.GapS, GapM = car.GapM, Stopped = car.Motion == CarMotion.Stopped,
-                Others = cars.Skip(1).Select(c => c.Name).Take(3).ToList() };
+                Slow = car.Motion == CarMotion.Slow,
+                Others = car.Motion == CarMotion.Slow ? new List<string>() :
+                    cars.Skip(1).Where(c => c.Motion != CarMotion.Slow).Select(c => c.Name).Take(3).ToList() };
         }
 
         internal Incident Take(FieldView view, GameStateData gs, DateTime now)
@@ -89,11 +96,17 @@ namespace CrewChiefV4.AiTeam
         }
 
         /// <summary>Kurz wie eine Spotterin, mit Namen; ohne Namen „hinter dir“.</summary>
-        internal string Text(string name, bool stopped)
+        internal string Text(string name, bool stopped, bool slow = false)
         {
             bool named = !string.IsNullOrWhiteSpace(name);
             string who = named ? name : RadioLanguage.T("Einer", "Someone", "Alguien");
             int v = variant++;
+            if (slow && !stopped)
+                return RadioVariants.At(v,
+                    RadioLanguage.T(who + " hinter dir wird plötzlich langsam.", who + " behind you is suddenly slow.", who + " detrás de ti va lento de repente."),
+                    RadioLanguage.T("Hinter dir: " + who + " hat Probleme, viel langsamer.", "Behind you: " + who + " has a problem, much slower.", "Detrás: " + who + " tiene problemas, mucho más lento."),
+                    RadioLanguage.T(who + " hinter dir bricht ein, du gewinnst Luft.", who + " behind you is dropping away, you're gaining room.", who + " detrás de ti se descuelga, ganas aire."),
+                    RadioLanguage.T("Langsamer Wagen hinter dir, " + who + ".", "Slow car behind you, " + who + ".", "Coche lento detrás de ti, " + who + "."));
             if (stopped)
                 return RadioVariants.At(v,
                     RadioLanguage.T(who + " steht hinter dir.", who + " has stopped behind you.", who + " se ha parado detrás de ti."),

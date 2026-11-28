@@ -742,6 +742,12 @@ namespace CrewChiefV4.AiTeam
                 return RadioLanguage.T("Der Tank steht seit über einer Minute Fahrt bei " + litres + " Litern. Verbrauch ist hier offenbar aus, zum Sprit melde ich mich erst wieder, wenn er sich bewegt.",
                     "Fuel has been stuck at " + litres + " litres for over a minute of driving. Consumption seems to be off here, I'll only report fuel again once it moves.",
                     "El depósito lleva más de un minuto en " + litres + " litros. El consumo parece desactivado, no volveré a hablar de combustible hasta que se mueva.");
+            // iRacing MX-5 28.11.: iRacing meldet Verschleiß nur beim Boxenstopp – „offenbar aus“ war falsch.
+            if (Game.gameType == GameType.IRACING)
+                // IR3: Auch die Temperaturen misst iRacing nur beim Halt; dort sagt Mik das Reifenbild.
+                return RadioLanguage.T("iRacing misst Reifenverschleiß und Temperaturen erst beim Halt in der Box. Dann sage ich dir das Reifenbild, bis dahin gehe ich nach den Rundenzeiten.",
+                    "iRacing only measures tyre wear and temperatures when you stop in the box. I'll give you the tyre picture then, until then I go by lap times.",
+                    "iRacing solo mide el desgaste y las temperaturas al parar en boxes. Te daré el estado de los neumáticos entonces; hasta ahí me guío por los tiempos.");
             return RadioLanguage.T("Die Reifen zeigen keinen Verschleiß. Der ist hier offenbar aus, dazu melde ich mich erst wieder, wenn sich etwas tut.",
                 "The tyres show no wear. It seems to be off here, I'll only report tyres again once something changes.",
                 "Los neumáticos no muestran desgaste. Parece desactivado, no volveré a hablar de ellos hasta que cambie algo.");
@@ -885,8 +891,14 @@ namespace CrewChiefV4.AiTeam
                     template=catalog.ReferenceFor("fuel-tank",variant);
                     string tank = catalog.Format("fuel-tank", variant, litres);
                     // Noch keine volle gemessene Runde: ausdrücklich geschätzte Hochrechnung aus gefahrener Strecke (Rob 16.11.).
-                    float estimate = ctx.Memory == null ? -1 : ctx.Memory.ProvisionalFuelPerLap(gs);
-                    return Good(estimate, .1, 100) ? tank + " " + FuelEstimateLine(estimate, gs.FuelData.FuelLeft / estimate, variant) : tank;
+                    // RaceRoom 27.11.: Gemessenes aus Training/Quali vor einer Hochrechnung über weniger als eine halbe Runde.
+                    var basis = FuelEstimate.Basis.None;
+                    float estimate = ctx.Memory == null ? -1 : FuelEstimate.Consumption(ctx.Memory, gs, out bool _, out int _, out basis);
+                    if (basis == FuelEstimate.Basis.Carried && Good(estimate, .1, 100))
+                        return tank + RadioLanguage.T(" Aus Training und Quali gemessen: " + Number(estimate) + " Liter pro Runde, reicht für etwa " + ((int)Math.Floor(gs.FuelData.FuelLeft / estimate)) + " Runden.",
+                            " Measured in practice and qualifying: " + Number(estimate) + " litres a lap, good for about " + ((int)Math.Floor(gs.FuelData.FuelLeft / estimate)) + " laps.",
+                            " Medido en libres y clasificación: " + Number(estimate) + " litros por vuelta, da para unas " + ((int)Math.Floor(gs.FuelData.FuelLeft / estimate)) + " vueltas.");
+                    return Good(estimate, .1, 100) && basis == FuelEstimate.Basis.Projected ? tank + " " + FuelEstimateLine(estimate, gs.FuelData.FuelLeft / estimate, variant) : tank;
                 }
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
                 template=catalog.ReferenceFor("fuel-range",variant);
@@ -962,14 +974,26 @@ namespace CrewChiefV4.AiTeam
                 }
                 var s=gs.SessionData;
                 if (!Good(s.PlayerLapTimeSessionBest,10,3600)) return null;
-                string best = LocalAnswers.LapTime(s.PlayerLapTimeSessionBest); bool pos = s.ClassPosition > 0; string p = s.ClassPosition.ToString(RadioLanguage.Culture);
+                string best = LocalAnswers.LapTime(s.PlayerLapTimeSessionBest);
+                // RaceRoom Laguna 27.11.: „Platz 1“ ohne Klasse, Rob sah Platz 2 gesamt; der Spielplatz blieb auch nach Albanesis
+                // schnellerer Klassenzeit auf 1. Das Lagebild ordnet die Bestzeit selbst ein, im Mehrklassenfeld in der eigenen Klasse.
+                int place = s.ClassPosition; bool inClass = RaceRadioLanguage.SeparateClass(s);
+                var view = Field.FieldPicture.Shared.Current;
+                if (view?.Player != null && view.Fresh(DateTime.UtcNow, 3) && !float.IsNaN(view.Player.BestLap))
+                {
+                    var own = Field.FieldFacts.Timesheet(view, true);
+                    if (own.Count > 0) { place = Field.FieldFacts.TrustedRank(own, view.Player.BestLap, place); inClass = Field.FieldFacts.Multiclass(view); }
+                }
+                // iRacing Navarra 28.11. (N1): „Bestzeit bisher 1:54,562, damit Platz 1000“ – der Platzhalter ohne Zeitenliste.
+                bool pos = Field.FieldFacts.RealPlace(place); string p = place.ToString(RadioLanguage.Culture);
+                string de = inClass ? "Klassenplatz " : "Platz ", tail = inClass ? RadioLanguage.T("", " in class", " en tu clase") : "";
                 return Of(variant,
                     RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + best + "." +
-                        (pos ? RadioLanguage.T(" Aktuell Platz "+p+" in der Zeitenliste.", " Currently P"+p+" on the timesheet.", " Ahora mismo P"+p+" en la tabla de tiempos.") : ""),
-                    RadioLanguage.T("Bestzeit bisher " + best + (pos ? ", damit Platz " + p : "") + ".", "Best so far " + best + (pos ? ", that's P" + p : "") + ".", "Mejor tiempo hasta ahora " + best + (pos ? ", eso es P" + p : "") + "."),
-                    pos ? RadioLanguage.T("Zeitenliste: Platz " + p + " mit " + best + ".", "Timesheet: P" + p + " with " + best + ".", "Tabla de tiempos: P" + p + " con " + best + ".")
+                        (pos ? RadioLanguage.T(" Aktuell "+de+p+" in der Zeitenliste.", " Currently P"+p+tail+" on the timesheet.", " Ahora mismo P"+p+tail+" en la tabla de tiempos.") : ""),
+                    RadioLanguage.T("Bestzeit bisher " + best + (pos ? ", damit " + de + p : "") + ".", "Best so far " + best + (pos ? ", that's P" + p + tail : "") + ".", "Mejor tiempo hasta ahora " + best + (pos ? ", eso es P" + p + tail : "") + "."),
+                    pos ? RadioLanguage.T("Zeitenliste: " + de + p + " mit " + best + ".", "Timesheet: P" + p + tail + " with " + best + ".", "Tabla de tiempos: P" + p + tail + " con " + best + ".")
                         : RadioLanguage.T("Deine Marke: " + best + ".", "Your benchmark: " + best + ".", "Tu marca: " + best + "."),
-                    RadioLanguage.T("Deine Marke steht bei " + best + (pos ? " – das ist Platz " + p : "") + ".", "Your mark stands at " + best + (pos ? " – that's P" + p : "") + ".", "Tu marca está en " + best + (pos ? ": eso es P" + p : "") + "."));
+                    RadioLanguage.T("Deine Marke steht bei " + best + (pos ? " – das ist " + de + p : "") + ".", "Your mark stands at " + best + (pos ? " – that's P" + p + tail : "") + ".", "Tu marca está en " + best + (pos ? ": eso es P" + p + tail : "") + "."));
             }
             if (topic == "vehicle") return VehicleCheck(gs, variant) ?? VehicleReport(gs, brief: true);
             if (topic == "progress") {

@@ -204,12 +204,17 @@ namespace CrewChiefV4.AiTeam.Field
                 "moving", v.Cars.Count(c => c.Motion == CarMotion.Slow || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun)));
         }
 
-        private static string Row(FieldCarView c) => c.Name + "|" + Math.Round(c.GapS, 2) + "s|" + Math.Round(c.GapM) + "m|" + c.Motion + "|" + c.LapDelta;
+        private static string Row(FieldCarView c) => c.Name + "|" + Math.Round(c.GapS, 2) + "s|" + Math.Round(c.GapM) + "m|" + c.Motion + "|" + c.LapDelta + (c.OffTrack ? "|off" : "") +
+            (float.IsNaN(c.EstTime) ? "" : "|est=" + Math.Round(c.EstTime, 2).ToString(System.Globalization.CultureInfo.InvariantCulture)) +
+            (c.FastRepairsUsed > 0 ? "|fr=" + c.FastRepairsUsed : "") +
+            (c.Motion == CarMotion.Slow || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun ? "|" + Math.Round(c.Speed) + "/" + Math.Round(c.ExpectedSpeed) + "|since_ms=" +
+                (c.MotionSinceUtc == default(DateTime) ? -1 : (int)(DateTime.UtcNow - c.MotionSinceUtc).TotalMilliseconds) : "");
 
         private static void EmitRelative(FieldView v)
         {
             LiveDiagnostics.Emit("field.relative", LiveDiagnostics.Data("ahead", string.Join("; ", v.Ahead(3).Select(Row)),
                 "behind", string.Join("; ", v.Behind(3).Select(Row)), "player_dist_m", v.Player.LapDistance, "player_speed", v.Player.Speed,
+                "player_est_s", float.IsNaN(v.Player.EstTime) ? (object)null : Math.Round(v.Player.EstTime, 2),
                 "hazards", string.Join("; ", v.Cars.Where(c => c.Motion == CarMotion.Slow || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun)
                     .Select(Row).Take(6))));
         }

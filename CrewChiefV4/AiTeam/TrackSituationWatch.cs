@@ -110,6 +110,18 @@ namespace CrewChiefV4.AiTeam
             return Math.Abs(car.ClosingMps.Value-expected)<=Math.Max(5,ownSpeed*.15);
         }
         public Func<string,bool> CoveredAhead;
+        /// <summary>iRacing MX-5 28.11.: „Vorsicht, der Wagen direkt vor dir steht“ – acht Autos aus der Garage standen alle genau bei 0 m
+        /// (nicht auf der Strecke), Tempo 0. Wie die RaceRoom-Garage (27.11.): mehrere stehende Autos auf demselben Meter oder genau auf
+        /// 0 m sind geparkt, keine Gefahr.</summary>
+        internal static HashSet<int> Parked(IEnumerable<TrackCarPosition> cars)
+        {
+            var still=cars.Where(c=>c!=null && c.LapDistanceM.HasValue && c.SpeedMps.HasValue && c.SpeedMps.Value<.05).ToList();
+            var parked=new HashSet<int>();
+            foreach(var c in still)
+                if(c.LapDistanceM.Value==0 || still.Any(o=>!ReferenceEquals(o,c) && Math.Abs(o.LapDistanceM.Value-c.LapDistanceM.Value)<.5))
+                    parked.Add(c.Id);
+            return parked;
+        }
         private static bool Relevant(TrackCarPosition car,double ownSpeed,bool ahead,double upperSeconds, bool ordinaryClosing = false)
         {
             if(!Usable(car) || ownSpeed<5 || car.ClosingMps<(ahead?8:3) || !MotionPlausible(car,ownSpeed,ahead) || Math.Abs(car.RouteGapM.Value)<15) return false;
@@ -151,7 +163,8 @@ namespace CrewChiefV4.AiTeam
                 state.SessionData.SessionId!=s.SessionId || state.SessionData.SessionType!=s.SessionType ||
                 state.SessionData.SessionPhase!=SessionPhase.Green || state.PitData.InPitlane || !s.PlayerSpeedMps.HasValue ||
                 pending!=null || now<lastAny || now-lastAny<TimeSpan.FromSeconds(4)) return null;
-            var candidates=s.Cars.Where(c=>(c.RouteGapM<=0 || CoveredAhead==null || !CoveredAhead(c.Key)) &&
+            var parked=Parked(s.Cars);
+            var candidates=s.Cars.Where(c=>!parked.Contains(c.Id) && (c.RouteGapM<=0 || CoveredAhead==null || !CoveredAhead(c.Key)) &&
                 (Relevant(c,s.PlayerSpeedMps.Value,c.RouteGapM>0,c.RouteGapM>0 ? AlertSeconds : rearAlertSeconds) ||
                     state.SessionData.SessionType == SessionType.Practice && Relevant(c,s.PlayerSpeedMps.Value,true,AlertSeconds,true)))
                 .OrderBy(c=>Math.Abs(c.RouteGapM.Value)/c.ClosingMps.Value);

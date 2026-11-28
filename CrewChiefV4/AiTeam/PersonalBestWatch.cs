@@ -23,13 +23,28 @@ namespace CrewChiefV4.AiTeam
 
         internal static string Time(float s) => LocalAnswers.LapTime(s);
 
+        /// <summary>RaceRoom 27.11.: „Reifen R3E_2017_HARD“ wurde wörtlich vorgelesen. Interne Kennungen werden zur Mischung, sonst weggelassen.</summary>
+        internal static string SpokenCompound(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            string u = raw.ToUpperInvariant();
+            if (u.Contains("HARD")) return RadioLanguage.T("harten Reifen", "hard tyres", "neumáticos duros");
+            if (u.Contains("MEDIUM")) return RadioLanguage.T("mittleren Reifen", "medium tyres", "neumáticos medios");
+            if (u.Contains("SOFT")) return RadioLanguage.T("weichen Reifen", "soft tyres", "neumáticos blandos");
+            if (u.Contains("INTER")) return RadioLanguage.T("Intermediates", "intermediates", "intermedios");
+            if (u.Contains("WET") || u.Contains("RAIN")) return RadioLanguage.T("Regenreifen", "wet tyres", "neumáticos de lluvia");
+            if (raw.Contains("_") || System.Text.RegularExpressions.Regex.IsMatch(raw, @"\d{3,}")) return null;
+            return RadioLanguage.T("Reifen " + raw, raw + " tyres", "neumáticos " + raw);
+        }
+
         /// <summary>„gefahren mit 30 Litern, Soft, 27 Grad Strecke und 30 Grad Luft“ – nur was gespeichert ist.</summary>
         internal static string Conditions(PersonalBest pb)
         {
             var parts = new System.Collections.Generic.List<string>();
             if (pb.FuelAtStart >= 0) parts.Add(RadioLanguage.T(RadioLanguage.Num(pb.FuelAtStart, "0") + " Litern Sprit", RadioLanguage.Num(pb.FuelAtStart, "0") + " litres",
                 RadioLanguage.Num(pb.FuelAtStart, "0") + " litros"));
-            if (!string.IsNullOrWhiteSpace(pb.Compound)) parts.Add(RadioLanguage.T("Reifen " + pb.Compound, pb.Compound + " tyres", "neumáticos " + pb.Compound));
+            string compound = SpokenCompound(pb.Compound);
+            if (compound != null) parts.Add(compound);
             if (PersonalBest.Finite(pb.TrackC)) parts.Add(RadioLanguage.T(RadioLanguage.Num(pb.TrackC, "0") + " Grad Strecke", RadioLanguage.Num(pb.TrackC, "0") + " degrees track",
                 RadioLanguage.Num(pb.TrackC, "0") + " grados de pista"));
             if (PersonalBest.Finite(pb.AirC)) parts.Add(RadioLanguage.T(RadioLanguage.Num(pb.AirC, "0") + " Grad Luft", RadioLanguage.Num(pb.AirC, "0") + " degrees air",

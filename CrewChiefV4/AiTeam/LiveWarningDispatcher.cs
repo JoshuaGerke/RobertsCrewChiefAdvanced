@@ -114,7 +114,7 @@ namespace CrewChiefV4.AiTeam
         public static IEnumerable<string> MikPhrases {get{return OilPhrases.Concat(WaterPhrases).Concat(BothPhrases).Concat(LimitPhrases);}}
         private sealed class Native
         {
-            public string Kind, Source;public int Session,Lap;public SessionType Type;
+            public string Kind, Source, Text;public int Session,Lap;public SessionType Type;
             public DateTime Utc;public float Oil,Water;
         }
         private sealed class Pending
@@ -197,9 +197,66 @@ namespace CrewChiefV4.AiTeam
             }
             return null;
         }
+        /// <summary>
+        /// RaceRoom Laguna 27.11.: Crew Chief meldete Reifen- und Bremstemperaturen (3-mal Reifen, 1-mal Bremsen), das KI-Team
+        /// verwarf sie und sagte nichts – die Reifen lagen in der Quali unter dem Fenster. Grundsatz: Crew Chief erkennt, Mik spricht.
+        /// </summary>
+        internal static string TemperatureLine(IEnumerable<string> folders)
+        {
+            var parts=new List<string>();
+            foreach(string raw in folders??new string[0])
+            {
+                string f=(raw??"").Replace('\\','/').Trim('/');
+                if(!f.StartsWith("tyre_monitor/",StringComparison.Ordinal))continue;
+                string t=TemperaturePart(f.Substring(13));
+                if(t!=null && !parts.Contains(t))parts.Add(t);
+                if(parts.Count==2)break;
+            }
+            if(parts.Count==0)return null;
+            string s=string.Join(", ",parts)+".";
+            return char.ToUpper(s[0],RadioLanguage.Culture)+s.Substring(1);
+        }
+        private static string TemperaturePart(string f)
+        {
+            switch(f)
+            {
+                case "cold_tyres_all_round":return RadioLanguage.T("Reifen rundum noch kalt, erst aufwärmen","tyres still cold all round, warm them up first","neumáticos aún fríos, caliéntalos primero");
+                case "cold_front_tyres":return RadioLanguage.T("Vorderreifen noch kalt","front tyres still cold","delanteros aún fríos");
+                case "cold_rear_tyres":return RadioLanguage.T("Hinterreifen noch kalt","rear tyres still cold","traseros aún fríos");
+                case "cold_left_tyres":return RadioLanguage.T("linke Reifen noch kalt","left tyres still cold","neumáticos izquierdos aún fríos");
+                case "cold_right_tyres":return RadioLanguage.T("rechte Reifen noch kalt","right tyres still cold","neumáticos derechos aún fríos");
+                case "hot_tyres_all_round":return RadioLanguage.T("Reifen rundum zu heiß, etwas schonen","tyres too hot all round, ease off a bit","neumáticos demasiado calientes, cuídalos un poco");
+                case "hot_front_tyres":return RadioLanguage.T("Vorderreifen zu heiß","front tyres too hot","delanteros demasiado calientes");
+                case "hot_rear_tyres":return RadioLanguage.T("Hinterreifen zu heiß","rear tyres too hot","traseros demasiado calientes");
+                case "hot_left_tyres":return RadioLanguage.T("linke Reifen zu heiß","left tyres too hot","neumáticos izquierdos demasiado calientes");
+                case "hot_right_tyres":return RadioLanguage.T("rechte Reifen zu heiß","right tyres too hot","neumáticos derechos demasiado calientes");
+                case "hot_left_front_tyre":return RadioLanguage.T("Reifen vorne links zu heiß","front left too hot","delantero izquierdo demasiado caliente");
+                case "hot_right_front_tyre":return RadioLanguage.T("Reifen vorne rechts zu heiß","front right too hot","delantero derecho demasiado caliente");
+                case "hot_left_rear_tyre":return RadioLanguage.T("Reifen hinten links zu heiß","rear left too hot","trasero izquierdo demasiado caliente");
+                case "hot_right_rear_tyre":return RadioLanguage.T("Reifen hinten rechts zu heiß","rear right too hot","trasero derecho demasiado caliente");
+                case "good_tyre_temps":return RadioLanguage.T("Reifen im Fenster","tyres in the window","neumáticos en ventana");
+                case "cold_brakes_all_round":return RadioLanguage.T("Bremsen noch kalt","brakes still cold","frenos aún fríos");
+                case "cold_front_brakes":return RadioLanguage.T("Vorderbremsen noch kalt","front brakes still cold","frenos delanteros aún fríos");
+                case "cold_rear_brakes":return RadioLanguage.T("Hinterbremsen noch kalt","rear brakes still cold","frenos traseros aún fríos");
+                case "hot_front_brakes":return RadioLanguage.T("Vorderbremsen heiß","front brakes hot","frenos delanteros calientes");
+                case "hot_rear_brakes":return RadioLanguage.T("Hinterbremsen heiß","rear brakes hot","frenos traseros calientes");
+                case "hot_brakes_all_round":return RadioLanguage.T("Bremsen rundum heiß","brakes hot all round","frenos calientes");
+                case "cooking_brakes_all_round":return RadioLanguage.T("Bremsen überhitzen, früher lupfen","brakes overheating, lift earlier","frenos sobrecalentados, levanta antes");
+                case "good_brake_temps":return RadioLanguage.T("Bremsen im Fenster","brakes in the window","frenos en ventana");
+                default:return null;
+            }
+        }
         public bool Capture(QueuedMessage message,GameStateData gs,DateTime now)
         {
             if(message==null || gs==null)return false;
+            string temps=TemperatureLine(message.messageFolders);
+            if(temps!=null)
+            {
+                native.Enqueue(new Native {Kind="temps",Source=message.messageName,Text=temps,Session=gs.SessionData.SessionId,
+                    Type=gs.SessionData.SessionType,Lap=gs.SessionData.CompletedLaps,Utc=now});
+                LiveDiagnostics.Decision("native-warning","captured","temps",message.messageName);
+                return true;
+            }
             string raceControl=NativeRaceControl.Classify(message.messageFolders);
             string kind=Classify(message.messageFolders) ?? (raceControl==null?null:NativeRaceControl.Resolve(raceControl,gs));
             if(kind==null)return false;
@@ -218,7 +275,9 @@ namespace CrewChiefV4.AiTeam
             DateTime last;
             if(delivered.TryGetValue(topic,out last) && now>=last && now-last<TimeSpan.FromSeconds(topic=="warning-tracklimit"?15:30))return;
             // RaceRoom Monza 17.11.: „Schon wieder über den Limits“ und 3 s später „Noch eine ungültige Runde“ – dasselbe Ereignis.
-            string twin=topic=="warning-invalid-lap"?"warning-tracklimit":topic=="warning-tracklimit"?"warning-invalid-lap":null;
+            string twin=topic=="warning-invalid-lap"?"warning-tracklimit":topic=="warning-tracklimit"?"warning-invalid-lap":
+                // iRacing 27.11.: Meatball kam zweimal (Spielmeldung und Sitzungsflagge) – dasselbe Ereignis.
+                topic=="warning-rc-meatball"?"warning-rc-pen-meatball":topic=="warning-rc-pen-meatball"?"warning-rc-meatball":null;
             if(twin!=null && delivered.TryGetValue(twin,out last) && now>=last && now-last<TimeSpan.FromSeconds(20))
             {LiveDiagnostics.Decision(topic,"suppressed","same_event_as_"+twin);return;}
             // AC 20.11.: „Gelb im Sektor.“ und 0,1 s später „Gelb, Gelb! Tempo anpassen.“ – Spielflagge und Crew-Chief-Meldung
@@ -236,6 +295,8 @@ namespace CrewChiefV4.AiTeam
             if((topic=="warning-engine-oil" || topic=="warning-engine-water") && pending.TryGetValue("warning-engine-both",out old) && old.Relevant(gs))return;
             if(topic=="warning-invalid-lap")pending.Remove("warning-tracklimit");
             if(topic=="warning-tracklimit" && pending.TryGetValue("warning-invalid-lap",out old) && old.Relevant(gs))return;
+            if(twin!=null && twin.StartsWith("warning-rc-",StringComparison.Ordinal) && pending.TryGetValue(twin,out old) && old.Relevant(gs))
+            {LiveDiagnostics.Decision(topic,"suppressed","same_event_pending_as_"+twin);return;}
             if(pending.Count>=16){LiveDiagnostics.Decision(topic,"suppressed","warning_capacity");return;}
             pending[topic]=new Pending {Topic=topic,Text=text,Member=member,Priority=priority,Session=gs.SessionData.SessionId,
                 Type=gs.SessionData.SessionType,Lap=lap,Relevant=relevant,TimedRelevant=timed,CapturedUtc=now,Evidence=evidence,
@@ -278,6 +339,14 @@ namespace CrewChiefV4.AiTeam
                     n.Kind.StartsWith("giveback",StringComparison.Ordinal))
                 {
                     string kind=n.Kind, text=NativeRaceControl.Text(kind);
+                    if(kind=="pen-black")
+                    {
+                        if(now>=IncidentWatch.LastGenericPenaltyUtc && now-IncidentWatch.LastGenericPenaltyUtc<TimeSpan.FromSeconds(15))
+                        {LiveDiagnostics.Decision(NativeRaceControl.Topic(kind),"suppressed","same_penalty_already_announced");continue;}
+                        NativeRaceControl.LastBlackUtc=now;
+                        if(text!=null && now>=PitLaneWatch.LastSpeedWarningUtc && now-PitLaneWatch.LastSpeedWarningUtc<TimeSpan.FromSeconds(30))
+                            text+=RadioLanguage.T(" Vermutlich wegen zu hohem Tempo in der Boxengasse."," Probably for speeding in the pit lane."," Probablemente por exceso de velocidad en boxes.");
+                    }
                     // Ein neuer Gelb-/Grün-Stand löst den alten ab.
                     string sector=kind.Contains(":")?kind.Substring(kind.IndexOf(':')+1):"";
                     if(kind.StartsWith("green",StringComparison.Ordinal)){pending.Remove("warning-rc-yellow-"+sector);pending.Remove("warning-rc-dyellow-"+sector);}
@@ -289,6 +358,11 @@ namespace CrewChiefV4.AiTeam
                     Offer(NativeRaceControl.Topic(kind),text,NativeRaceControl.Member(kind),NativeRaceControl.Priority(kind),gs,now,
                         live=>NativeRaceControl.StillCurrent(kind,live),"native:"+n.Source+";captured="+n.Utc.ToString("o"),
                         opponentNameClip:who==null?null:RaceTrafficWatch.NameClipText(who));
+                }
+                else if(n.Kind=="temps")
+                {
+                    Offer("warning-temps",n.Text,TeamMember.Mik,4,gs,now,live=>!live.PitData.InPitlane,
+                        "native:"+n.Source+";captured="+n.Utc.ToString("o"));
                 }
                 else if(n.Kind=="limits")
                 {

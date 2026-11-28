@@ -102,9 +102,13 @@ namespace CrewChiefV4.AiTeam
         internal static int FieldSize(GameStateData gs)
         {
             int mapped = gs?.OpponentData == null ? 1 : gs.OpponentData.Values.Count(o => o != null && o.IsActive) + 1;
-            int own = gs == null ? 0 : Math.Max(gs.SessionData.ClassPosition, gs.SessionData.OverallPosition);
+            // iRacing 27.11.: Crew Chief meldet im Training Platz 1000 als Platzhalter – daraus wurden „1000 Autos im Feld“.
+            int own = gs == null ? 0 : Math.Max(Plausible(gs.SessionData.ClassPosition), Plausible(gs.SessionData.OverallPosition));
             return Math.Max(Math.Max(mapped, NativeFieldSize()), own);
         }
+
+        private static int Plausible(int position) => position > 0 && position < MaxPlausibleField ? position : 0;
+        internal const int MaxPlausibleField = 200;
 
         internal static string FieldLine(GameStateData gs)
         {
@@ -112,6 +116,9 @@ namespace CrewChiefV4.AiTeam
             var active = gs.OpponentData.Values.Where(o => o != null && o.IsActive).ToList();
             if (active.Count == 0 && NativeFieldSize() <= 1) return ""; // beim Laden fehlen Gegnerdaten oft noch – dann lieber nichts behaupten
             int cars = FieldSize(gs);
+            // RaceRoom Laguna 27.11.: „2 Autos im Feld“ beim Laden, es waren 16. Ein so kleines Feld außerhalb des Rennens ist meist noch
+            // nicht geladen – dann lieber nichts behaupten.
+            if (cars <= 2 && gs.SessionData.SessionType != SessionType.Race) return "";
             string c = cars.ToString(RadioLanguage.Culture);
             if (gs.SessionData.SessionType == SessionType.Race)
                 return gs.SessionData.ClassPosition > 0 ? "" : RadioLanguage.T(c + " Autos am Start. ", c + " cars on the grid. ", c + " coches en parrilla. ");
@@ -172,7 +179,9 @@ namespace CrewChiefV4.AiTeam
             string opening = Openings[NextVariant()].Replace("Rob", name).Replace("Ben", TeamRouter.DisplayName(speaker));
             var type = gs.SessionData.SessionType;
             bool race = type == SessionType.Race, qualifying = type == SessionType.Qualify || type == SessionType.PrivateQualify;
-            string place = " " + SpokenTrack(track) + ", " + RadioLanguage.T(race ? "Rennen" : qualifying ? "Qualifying" : "Training",
+            // iRacing MX-5 28.11.: „Watkinsglen 2021 Fullnoloop“ ist der interne Name; das Lagebild kennt „Watkins Glen“.
+            string display = Field.FieldService.Fresh(2)?.Track;
+            string place = " " + SpokenTrack(!string.IsNullOrWhiteSpace(display) ? display : track) + ", " + RadioLanguage.T(race ? "Rennen" : qualifying ? "Qualifying" : "Training",
                 race ? "race" : qualifying ? "qualifying" : "practice", race ? "carrera" : qualifying ? "clasificación" : "libres") + ". ";
             string weather = GreetingWeather(context);
             string field = FieldLine(gs);
@@ -255,7 +264,8 @@ namespace CrewChiefV4.AiTeam
         /// <summary>Interne Streckennamen wie "Monza:Monza_2020" so, wie man sie spricht ("Monza").</summary>
         internal static string SpokenTrack(string track)
         {
-            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Trim();
+            // iRacing 27.11.: der Name kam mit Anführungszeichen ("snetterton 300").
+            string name = (RadioPhraseCatalog.RepairEncoding(track) ?? "").Split(':')[0].Trim().Trim('"', '\'').Trim();
             // AC 20.11.: „ks nurburgring“ – Kunos- und Mod-Kürzel vor dem Namen sind kein Streckenname.
             name = System.Text.RegularExpressions.Regex.Replace(name, @"^(?:ks|rt|acu|rss|vrc|rj|sx)_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             name = name.Replace('_', ' ').Trim();

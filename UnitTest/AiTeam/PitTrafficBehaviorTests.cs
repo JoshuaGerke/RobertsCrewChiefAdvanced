@@ -176,11 +176,12 @@ namespace UnitTest.AiTeamTests
         [Test]
         public void Departure_after_parking_gives_one_fresh_varied_limit_reminder()
         {
+            // Rob 28.11.: Beim Joinen in der Box stehend kein Limit, erst beim Losfahren.
             var s=State();s.PitData.InPitlane=true;s.PitData.PitSpeedLimit=80/3.6f;s.PositionAndMotionData.CarSpeed=0;
-            var watch=new PitLaneWatch();watch.Observe(s,T);var first=watch.Take(s,T,false);first.MarkPlaybackStarted(T);
-            for(int i=1;i<=25;i++){s.SessionData.SessionRunningTime=100+i;watch.Observe(s,T.AddSeconds(i));watch.Take(s,T.AddSeconds(i),false);}
+            var watch=new PitLaneWatch();watch.Observe(s,T);Assert.IsNull(watch.Take(s,T,false),"stehend in der Box");
+            for(int i=1;i<=25;i++){s.SessionData.SessionRunningTime=100+i;watch.Observe(s,T.AddSeconds(i));Assert.IsNull(watch.Take(s,T.AddSeconds(i),false));}
             s.PositionAndMotionData.CarSpeed=4;s.SessionData.SessionRunningTime=126;watch.Observe(s,T.AddSeconds(26));var call=watch.Take(s,T.AddSeconds(26),false);
-            Assert.IsNotNull(call);StringAssert.Contains("80",call.Text);Assert.AreNotEqual(first.Text,call.Text);call.MarkPlaybackStarted(T.AddSeconds(26));
+            Assert.IsNotNull(call);StringAssert.Contains("80",call.Text);Assert.AreEqual(7,call.Priority);call.MarkPlaybackStarted(T.AddSeconds(26));
             s.SessionData.SessionRunningTime=127;watch.Observe(s,T.AddSeconds(27));Assert.IsNull(watch.Take(s,T.AddSeconds(27),false));
         }
 

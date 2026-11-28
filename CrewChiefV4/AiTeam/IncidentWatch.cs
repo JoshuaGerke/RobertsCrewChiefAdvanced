@@ -32,6 +32,15 @@ namespace CrewChiefV4.AiTeam
         private DateTime pendingDamageCheckUtc = DateTime.MinValue;
         private DateTime lastFastUtc = DateTime.MinValue;
         private DateTime lastStopUtc = DateTime.MinValue;
+        /// <summary>Wann Mik zuletzt nach einem Stillstand nachgefragt hat (RaceRoom 27.11.: Mik und Ben reagierten auf denselben Dreher).</summary>
+        internal static DateTime LastStopCheckUtc = DateTime.MinValue;
+        /// <summary>iRacing Snetterton 27.11.: eine eingerollte schwarze Flagge für 0,5 s wurde zu „Slow-down-Strafe“ und sofort
+        /// „Strafe abgesessen“. Ein Slow-down zählt erst, wenn er 2 s ansteht.</summary>
+        internal static readonly TimeSpan SlowDownConfirm = TimeSpan.FromSeconds(2);
+        private DateTime slowDownSinceUtc = DateTime.MinValue;
+        private bool slowDownAnnounced;
+        /// <summary>Allgemeine Strafe („Art unbekannt“) zuletzt gesagt; die Schwarze Flagge der Rennleitung ist dasselbe Ereignis.</summary>
+        internal static DateTime LastGenericPenaltyUtc = DateTime.MinValue;
         private int lastInvalidLap = -1;
         private int lastReportedCutWarnings = -1;
         private readonly RaceRadioLanguage language = new RaceRadioLanguage();
@@ -55,7 +64,8 @@ namespace CrewChiefV4.AiTeam
 
         public void Reset()
         {
-            lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = lastCheckUtc = DateTime.MinValue;
+            lastContactUtc = pendingDamageCheckUtc = lastFastUtc = lastStopUtc = lastCheckUtc = LastStopCheckUtc = slowDownSinceUtc = LastGenericPenaltyUtc = DateTime.MinValue;
+            slowDownAnnounced = false;
             lastInvalidLap = -1;
             lastReportedCutWarnings = -1;
             TrackLimitWarnings = Spins = InvalidLaps = Penalties = OffTracks = 0;
@@ -255,7 +265,7 @@ namespace CrewChiefV4.AiTeam
                         RadioLanguage.T(" Zuletzt etwa " + gap + " bis zum nächsten Auto hinter dir.", " Last gap to the next car behind was about " + gap + ".",
                             " La última diferencia con el siguiente coche era de unos " + gap + "."));
                 }
-                if (!RecentCheck(nowUtc)) { result.Add(Say(TeamMember.Mik, text)); lastCheckUtc = nowUtc; }
+                if (!RecentCheck(nowUtc)) { result.Add(Say(TeamMember.Mik, text)); lastCheckUtc = nowUtc; LastStopCheckUtc = nowUtc; }
             }
 
             // Ausritt: nur Spiele, die den Untergrund melden (RaceRoom z. B. nicht). Kurz übers Gras zählt nicht.
@@ -290,15 +300,24 @@ namespace CrewChiefV4.AiTeam
             var p = current.PenaltiesData;
             var pp = previous.PenaltiesData;
             string penalty = null;
+            bool slowDownRising = p.HasSlowDown && !pp.HasSlowDown;
+            if (slowDownRising) slowDownSinceUtc = nowUtc;
+            bool slowDownDue = p.HasSlowDown && !slowDownAnnounced && slowDownSinceUtc != DateTime.MinValue && nowUtc - slowDownSinceUtc >= SlowDownConfirm;
+            bool nativeBlack = nowUtc >= NativeRaceControl.LastBlackUtc && nowUtc - NativeRaceControl.LastBlackUtc < TimeSpan.FromSeconds(15);
             if (p.HasDriveThrough && !pp.HasDriveThrough) penalty = RadioLanguage.T("eine Durchfahrtsstrafe", "a drive-through penalty", "un drive-through");
             else if (p.HasStopAndGo && !pp.HasStopAndGo) penalty = RadioLanguage.T("eine Stop-and-Go-Strafe", "a stop-and-go penalty", "un stop and go");
             else if (p.HasTimeDeduction && !pp.HasTimeDeduction) penalty = RadioLanguage.T("eine Zeitstrafe", "a time penalty", "una penalización de tiempo");
-            else if (p.HasSlowDown && !pp.HasSlowDown) penalty = RadioLanguage.T("eine Slow-down-Strafe; reduziere das Tempo entsprechend der Spielanzeige",
-                "a slow-down penalty; reduce your speed as the game display shows", "una penalización de slow-down; reduce la velocidad según indique el juego");
+            else if (slowDownDue) { slowDownAnnounced = true; penalty = RadioLanguage.T("eine Slow-down-Strafe; reduziere das Tempo entsprechend der Spielanzeige",
+                "a slow-down penalty; reduce your speed as the game display shows", "una penalización de slow-down; reduce la velocidad según indique el juego"); }
             // LMU 18.11. (Quali): Stop-and-go wurde nicht erkannt. LMU meldet Strafen als Spielmeldung, die Crew Chief in
             // Strafart und Grund übersetzt; die Anzahl offener Strafen bleibt dabei teils unverändert.
             else if (p.PenaltyType != pp.PenaltyType && p.PenaltyType != PenatiesData.DetailedPenaltyType.NONE) penalty = DetailedPenalty(p.PenaltyType, p.PenaltyCause);
-            else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties) penalty = RadioLanguage.T("eine Strafe", "a penalty", "una penalización");
+            else if (p.NumOutstandingPenalties > pp.NumOutstandingPenalties && !slowDownRising)
+            {
+                // iRacing Montreal 27.11.: „Schwarz, diese Runde an die Box“ und gleich danach „eine Strafe, die Art meldet das Spiel nicht“.
+                if (nativeBlack) LiveDiagnostics.Decision("incident-penalty", "suppressed", "same_black_flag_as_race_control", null);
+                else { penalty = RadioLanguage.T("eine Strafe", "a penalty", "una penalización"); LastGenericPenaltyUtc = nowUtc; }
+            }
             if (penalty != null)
             {
                 Penalties++;
@@ -327,7 +346,9 @@ namespace CrewChiefV4.AiTeam
                 penaltyCall = got + serveText + unknownType;
                 result.Add(Say(TeamMember.Ben, penaltyCall));
             }
-            else if (PenaltyServed(pp, p, current, previous) && !(nowUtc >= NativeRaceControl.LastServedUtc && nowUtc - NativeRaceControl.LastServedUtc < TimeSpan.FromSeconds(30)))
+            else if (PenaltyServed(pp, p, current, previous) && !(nowUtc >= NativeRaceControl.LastServedUtc && nowUtc - NativeRaceControl.LastServedUtc < TimeSpan.FromSeconds(30)) &&
+                // Kurze Verwarnung ohne Ansage ist auch nichts „Abgesessenes“.
+                !(pp.HasSlowDown && !p.HasSlowDown && !slowDownAnnounced))
             {
                 NativeRaceControl.LastServedUtc = nowUtc;
                 // Rob 20.11.: „Ihr müsst auch erkennen, wenn ich sie abgesessen habe.“
@@ -336,6 +357,7 @@ namespace CrewChiefV4.AiTeam
                     RaceChronicle.Current.Add(current, nowUtc, ChronicleKind.PenaltyServed, source: "strafdaten", dedupe: TimeSpan.FromSeconds(30));
                 result.Add(Say(TeamMember.Ben, ServedText(p.NumOutstandingPenalties)));
             }
+            if (!p.HasSlowDown) { slowDownSinceUtc = DateTime.MinValue; slowDownAnnounced = false; }
 
             // 4. An invalid lap does not prove why it was invalidated. Only a mapped cut-warning
             // increase supports a track-limit comment; a warning need not invalidate the lap.
@@ -405,6 +427,8 @@ namespace CrewChiefV4.AiTeam
             // Im kurzen Routinebericht nur Werte ab 1 Prozent; die ausführliche Auskunft nennt weiter alles ab 0,05.
             var numeric = brief ? NumericDamageWatch.Report(d, 1f) : NumericDamageWatch.Report(d);
             if (!d.DamageEnabled) return numeric;
+            // iRacing: keine Bauteile, aber Reparaturbedarf, Art und Wucht (Rob 27.11.).
+            if (RepairPicture.Applies(d)) return RepairPicture.Report(d, brief, includeAdvice, out _);
             var parts = new List<string>();
             if (numeric != null) parts.Add(numeric.TrimEnd('.'));
             bool serious = false;
@@ -551,7 +575,8 @@ namespace CrewChiefV4.AiTeam
 
         public static bool IsSerious(CarDamageData d)
         {
-            return d.OverallAeroDamage >= DamageLevel.MAJOR || d.OverallEngineDamage >= DamageLevel.MAJOR || d.OverallTransmissionDamage >= DamageLevel.MAJOR ||
+            return d.RepairRequired == true ||
+                d.OverallAeroDamage >= DamageLevel.MAJOR || d.OverallEngineDamage >= DamageLevel.MAJOR || d.OverallTransmissionDamage >= DamageLevel.MAJOR ||
                 CornerText(d.SuspensionDamageStatus, DamageLevel.MAJOR) != null || CornerText(d.SuspensionDamageStatus, DamageLevel.DESTROYED) != null ||
                 CornerText(d.BrakeDamageStatus, DamageLevel.MAJOR) != null || CornerText(d.BrakeDamageStatus, DamageLevel.DESTROYED) != null;
         }

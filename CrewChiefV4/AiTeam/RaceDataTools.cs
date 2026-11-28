@@ -383,6 +383,13 @@ namespace CrewChiefV4.AiTeam
                 ["verschleiss"] = truth.Describe(SimChannel.TyreWear),
                 ["hinweis"] = "„eingefroren“ heißt: Die Simulation aktualisiert diese Werte während der Fahrt nicht (oft erst beim Boxenstopp). Dann nur als Stand vom letzten Stopp nennen, nie als aktuell."
             };
+            // iRacing Navarra 28.11. (N9): Die zweite Reifenantwort nannte 66–69 °C als aktuell – iRacing misst nur beim Boxenhalt.
+            if (PitTyreReport.Applies())
+            {
+                var last = PitTyreReport.LastReadingUtc;
+                o["datenstand"]["iracing"] = "Temperatur, Verschleiß und Druck misst iRacing nur beim Halt in der Box. Immer als „Stand letzter Boxenhalt“ nennen, nie als aktuell. Aktuell ableitbar sind nur Rundenzeit-Trend und Streckentemperatur.";
+                o["datenstand"]["letzter_boxenhalt_vor_min"] = last == DateTime.MinValue ? (JToken)JValue.CreateNull() : Math.Round((ctx.NowUtc - last).TotalMinutes, 1);
+            }
             if (t.TyreWearActive)
             {
                 o["verschleiss_prozent"] = CheckedArray(new[] { t.FrontLeftPercentWear, t.FrontRightPercentWear, t.RearLeftPercentWear, t.RearRightPercentWear }, 1, 0, 100, "reifenverschleiss", missing);
@@ -1026,6 +1033,21 @@ namespace CrewChiefV4.AiTeam
                 ["bremsen"]=brakePercent,["aufhaengung"]=suspensionPercent,["reihenfolge"]="VL, VR, HL, HR"
             };
             o["messwerte"]=TelemetryMeasurementTools.Read(ctx);
+            // iRacing (Rob 27.11.): keine Bauteile, aber Reparaturbedarf, Art und Wucht des Einschlags, Reparaturzeit in der Box.
+            if (RepairPicture.Applies(d))
+            {
+                o["reparatur"] = new JObject
+                {
+                    ["pflicht"] = d.RepairRequired == true, ["optional"] = d.RepairOptional == true,
+                    ["pflicht_sekunden_in_der_box"] = d.RepairSecondsRequired > 0 ? (JToken)Math.Round(d.RepairSecondsRequired) : null,
+                    ["optional_sekunden_in_der_box"] = d.RepairSecondsOptional > 0 ? (JToken)Math.Round(d.RepairSecondsOptional) : null,
+                    ["einschlag_g"] = d.ImpactPeakG >= 0 ? (JToken)Math.Round(d.ImpactPeakG, 1) : null,
+                    ["einschlag_art"] = d.ImpactKind, ["fast_repairs_frei"] = d.FastRepairsLeft >= 0 ? (JToken)d.FastRepairsLeft : null,
+                    ["technik_flagge"] = ctx.GameState.PenaltiesData.HasMeatballFlag,
+                    ["befund"] = RepairPicture.Report(d, false, false, out _),
+                    ["hinweis"] = "iRacing meldet keine Bauteilschäden. Pflicht = Auto ist so nicht rennfähig und muss in die Box; optional = fährt, verliert aber Zeit. Einschlag_g ist die gemessene Spitzenbeschleunigung. Sekunden nur während der Reparatur in der Box."
+                };
+            }
             var body = Body(d);
             if (body != null) o["karosserie"] = body;
             if(!d.DamageEnabled && !ctx.GameState.Measurements.Keys.Any(k=>k.StartsWith("damage.",StringComparison.Ordinal)))missing.Add("schaden_prozent");

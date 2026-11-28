@@ -179,7 +179,7 @@ namespace CrewChiefV4.AiTeam.Field
             new[] { "Chin up, we'll get it back next race.", "Tough one today, but we've got the data. Next time it clicks.", "Tick it off, learn from it, and attack again next race.", "You pushed through to the flag, that counts. More next time.", "Not our day, but you kept at it. The next race is ours." },
             new[] { "Ánimo, en la próxima carrera lo recuperamos.", "Hoy costó, pero tenemos los datos. La próxima saldrá.", "Olvídalo, aprende de ello y a atacar en la próxima carrera.", "Llegaste hasta la bandera, eso cuenta. La próxima habrá más.", "No fue nuestro día, pero no aflojaste. La próxima carrera es nuestra." });
 
-        internal static string Compose(FieldView v, string driverName, float fuelPerLap, int fuelLaps, int variant)
+        internal static string Compose(FieldView v, string driverName, float fuelPerLap, int fuelLaps, int variant, float ownValidBest = float.NaN)
         {
             if (v?.Player == null || v.Session != FieldSession.Practice && v.Session != FieldSession.Qualify && v.Session != FieldSession.Warmup) return null;
             var p = v.Player;
@@ -200,7 +200,13 @@ namespace CrewChiefV4.AiTeam.Field
 
             bool valid = !float.IsNaN(p.BestLap);
             float mine = valid ? p.BestLap : p.FastestAnyLap;
-            var timed = v.Cars.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();
+            // iRacing MX-5 28.11.: „Deine schnellste Runde war 2:09,619, leider gestrichen“ – gültig war eine 2:08,518. Das Lagebild hatte
+            // die Bestzeit noch nicht; die gemessene gültige Bestzeit der Session gilt vor dem Lagebild.
+            if (ownValidBest > 10 && (!valid || ownValidBest < p.BestLap - FieldFacts.SameTimeS)) { valid = true; mine = ownValidBest; }
+            // RaceRoom Laguna 27.11.: im Mehrklassenfeld Rang und Rückstand in der eigenen Klasse, gleiche Zeit (5 ms) ist kein Rückstand.
+            bool multi = FieldFacts.Multiclass(v) && p.ClassId >= 0;
+            var timed = FieldFacts.Timesheet(v, true);
+            string inClass = multi ? RadioLanguage.T(" in deiner Klasse", " in your class", " en tu clase") : "";
             // Mantorp 22.11.: eine gestrichene „Runde“ von 28 s war ein Rundenstück und hieß dann „gültig Rang 1“. Eine gestrichene Zeit
             // zählt nur, wenn sie eine ganze Runde sein kann: nicht unter der Streckenlänge bei Höchstschnitt und nicht 10 % unter der Feldbestzeit.
             if (!valid && !float.IsNaN(mine) && (!FieldPicture.PlausibleLap(mine, v.TrackLength) || timed.Count > 0 && mine < timed[0].BestLap * .9f))
@@ -208,12 +214,12 @@ namespace CrewChiefV4.AiTeam.Field
             if (!float.IsNaN(mine))
             {
                 string t = LocalAnswers.LapTime(mine);
-                int rank = timed.Count(c => !c.IsPlayer && c.BestLap < mine) + 1;
+                int rank = FieldFacts.RankOf(timed, mine);
                 parts.Add(valid
-                    ? RadioLanguage.T("Deine Bestzeit: " + t + ", das ist Rang " + rank + ".", "Your best: " + t + ", that's P" + rank + ".", "Tu mejor vuelta: " + t + ", puesto " + rank + ".")
-                    : RadioLanguage.T("Deine schnellste Runde war " + t + ", leider gestrichen. Gültig wäre das Rang " + rank + " gewesen.",
-                        "Your fastest lap was " + t + ", deleted unfortunately. Valid, that would have been P" + rank + ".",
-                        "Tu vuelta más rápida fue " + t + ", anulada por desgracia. Válida habría sido el puesto " + rank + "."));
+                    ? RadioLanguage.T("Deine Bestzeit: " + t + ", das ist Rang " + rank + inClass + ".", "Your best: " + t + ", that's P" + rank + inClass + ".", "Tu mejor vuelta: " + t + ", puesto " + rank + inClass + ".")
+                    : RadioLanguage.T("Deine schnellste Runde war " + t + ", leider gestrichen. Gültig wäre das Rang " + rank + inClass + " gewesen.",
+                        "Your fastest lap was " + t + ", deleted unfortunately. Valid, that would have been P" + rank + inClass + ".",
+                        "Tu vuelta más rápida fue " + t + ", anulada por desgracia. Válida habría sido el puesto " + rank + inClass + "."));
                 if (timed.Count > 0 && rank > 1)
                 {
                     var gaps = new List<string>();
@@ -225,9 +231,11 @@ namespace CrewChiefV4.AiTeam.Field
             }
             else parts.Add(RadioLanguage.T("Eine gezeitete Runde hatten wir nicht.", "We didn't get a timed lap.", "No tuvimos vuelta cronometrada."));
 
-            var fastest = v.Cars.Where(c => !float.IsNaN(c.TopSpeed)).OrderByDescending(c => c.TopSpeed).ToList();
+            // Topspeed im Mehrklassenfeld nur gegen die eigene Klasse (Laguna 27.11.: „nur Rang 10“ gegen schnellere Klassen).
+            var fastest = v.Cars.Where(c => !float.IsNaN(c.TopSpeed) && (!multi || c.ClassId == p.ClassId)).OrderByDescending(c => c.TopSpeed).ToList();
             int speedRank = fastest.FindIndex(c => c.IsPlayer) + 1;
-            if (speedRank > 0 && fastest.Count >= 5)
+            // iRacing MX-5 28.11.: ohne gezeitete Runde („nur Rang 6, früher ans Gas“) stammt der Topspeed aus Out-Laps – kein Urteil.
+            if (speedRank > 0 && fastest.Count >= 5 && !float.IsNaN(mine))
             {
                 string kmh = RadioLanguage.Num(p.TopSpeed * 3.6f, "0");
                 if (speedRank <= 3)

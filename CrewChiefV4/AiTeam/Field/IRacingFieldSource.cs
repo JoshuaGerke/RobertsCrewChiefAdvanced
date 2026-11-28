@@ -198,7 +198,10 @@ namespace CrewChiefV4.AiTeam.Field
             }
             f.Upcoming = upcoming.ConvertAll(s => new FieldUpcoming { Session = s.Type, Minutes = float.IsNaN(s.Seconds) ? -1 : (int)Math.Round(s.Seconds / 60), Laps = s.Laps }).ToArray();
             double air = Val(map, b, "AirTemp"), track = Val(map, b, "TrackTempCrew");
-            f.AirTempC = !double.IsNaN(air) ? (float)air : info.AirC; f.TrackTempC = !double.IsNaN(track) ? (float)track : info.TrackC;
+            f.AirTempC = !double.IsNaN(air) ? (float)air : info.AirC;
+            // iRacing MX-5 28.11.: Begrüßung „Strecke 26 Grad“ aus der Session-Info (Startwert), 19 s später „verändert: jetzt 21,7“ aus der
+            // Messung. Die Streckentemperatur kommt nur aus der Messung der Crew.
+            f.TrackTempC = !double.IsNaN(track) ? (float)track : float.NaN;
             bool garage = Val(map, b, "IsInGarage") > 0, onTrack = Val(map, b, "IsOnTrack") > 0;
             f.InMenus = !onTrack; f.PlayerInGarage = garage; f.Paused = false; f.InReplay = Val(map, b, "IsReplayPlaying") > 0;
             f.PositionsToGiveBack = -1;
@@ -216,7 +219,11 @@ namespace CrewChiefV4.AiTeam.Field
                 int pos = (int)At(map, b, "CarIdxPosition", i); c.Place = pos > 0 ? pos : 0;
                 int cls = (int)At(map, b, "CarIdxClassPosition", i); c.PlaceClass = cls > 0 ? cls : c.Place;
                 c.InPit = At(map, b, "CarIdxOnPitRoad", i) > 0 || surface == 1 || surface == 2;
+                c.OffTrack = surface == 0 && i != player;
                 c.BestLap = MappedFieldSource.Time((float)At(map, b, "CarIdxBestLapTime", i));
+                double est = At(map, b, "CarIdxEstTime", i), repairs = At(map, b, "CarIdxFastRepairsUsed", i);
+                c.EstTime = !double.IsNaN(est) && est >= 0 && est < 3600 ? (float)est : float.NaN;
+                c.FastRepairsUsed = !double.IsNaN(repairs) && repairs >= 0 && repairs < 100 ? (int)repairs : -1;
                 c.LastLap = MappedFieldSource.Time((float)At(map, b, "CarIdxLastLapTime", i));
                 c.X = c.Y = c.Z = float.NaN;
                 // Tempo aus der Streckenposition (über die Ziellinie hinweg), sanft geglättet.

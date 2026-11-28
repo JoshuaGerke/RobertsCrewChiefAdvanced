@@ -343,7 +343,7 @@ namespace CrewChiefV4.AiTeam
             var s = gs.SessionData;
             bool weather = AllowPitlane && (Topic ?? "").StartsWith("weather-", StringComparison.Ordinal);
             bool pit = AllowPitlane && (Topic == "pit-limit" || Topic == "pit-speed" || Topic == "pit-exit" ||
-                Topic == "pit-arrival-support" || Topic == "pit-repair-wait" || Topic == "race-retired");
+                Topic == "pit-arrival-support" || Topic == "pit-repair-wait" || Topic == "pit-repair-time" || Topic == "pit-tyre-report" || Topic == "pit-service-status" || Topic == "pit-service-plan" || Topic == "race-retired");
             bool greeting = AllowPitlane && Topic == "greeting" && SessionGreetingDirector.SafeToGreet(
                 s.SessionType, s.SessionPhase, gs.PitData.InPitlane, gs.PositionAndMotionData.CarSpeed);
             if (Topic == "greeting" && !greeting) return false;

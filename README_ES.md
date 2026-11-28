@@ -6,7 +6,26 @@
 
 [English](README.md) · [Deutsch](README_DE.md) · **Español**
 
-> **Novedades de Alpha 0.40: Sara también arranca en inglés y español.**
+> **Novedades de Alpha 0.41: iRacing en el centro, Sara en tiempo real hasta 200 metros.**
+>
+> - **Sara avisa de peligros hasta 200 m delante y detrás, pero al instante.** Trompos, coches parados y lentos llegan al momento, casi siempre en menos de un segundo, también detrás de ti. El aviso lejano hasta 1000 m desaparece. Sara mide «lento» con la velocidad habitual en ese punto exacto; un grupo que frena a la vez ya no es un trompo. En iRacing cuenta además el aviso «fuera de pista». Un coche calado en la salida se avisa 2 s después de arrancar.
+> - **Daños de iRacing en detalle.** iRacing no da valores por pieza, así que Mik dice reparación obligatoria u opcional, la fuerza del golpe en g y si fue contra el muro o un coche. En boxes da el tiempo de reparación y las reparaciones rápidas que quedan. Tras un golpe mide cuánto pierdes por vuelta y dice si la reparación compensa hasta el final. Si te falta velocidad punta, también lo dice. Antes, tras la bandera verde no se informaba de ningún daño.
+> - **Neumáticos en iRacing.** iRacing solo mide los neumáticos al parar en boxes. Justo entonces Mik da su estado: media delante y detrás, el reparto interior/centro/exterior llamativo con su lectura (presión, caída) y el neumático más gastado. Si preguntas después, el equipo da esos valores como «de la última parada», nunca como actuales.
+> - **Paradas en iRacing.** Al entrar en boxes Mik confirma el servicio elegido (neumáticos, litros, reparación rápida). Si paras mal, dice «demasiado adelante» o similar.
+> - **Puntos de incidente y avisos por tercios.** Con límite, avisos a un tercio, dos tercios y justo antes de la sanción: «Rob, ya no te puedes permitir mucho…». Sin límite, una indicación tras cada tercio de la carrera, también por límites de pista, pero solo si hubo algo nuevo.
+> - **El limitador de boxes solo al salir.** No al conectarte ni mientras estás parado en el box.
+> - **Menos repeticiones.** Saludo una vez, bandera de daños y negra una vez, un trompo una vez, solo el mejor tiempo rival más reciente. Ben ya no repite los puntos de incidente de Mik. Tras una descalificación solo el aviso y el resumen.
+> - **Cifras correctas.**
+>   - Posición y diferencia en tu clase, también en multiclase.
+>   - Se acabó «P1000» y los «1000 coches».
+>   - Posición de clasificación solo con la tabla completa.
+>   - Una primera vuelta con incidente no sirve de referencia.
+>   - Temperatura de pista solo medida, y nombres de circuito sin añadidos.
+>   - Las vueltas anuladas cuentan en el resumen.
+> - **Combustible.** El consumo de entrenamientos y clasificación es el valor inicial de la carrera. La proyección empieza tras media vuelta y repostar en el garaje ya no cuenta como consumo.
+> - **Diagnóstico.** La grabación sigue tras 128 MB. Los avisos descartados aparecen en el registro de conversación, y cada aviso de peligro indica desde cuándo el coche resultaba sospechoso.
+>
+> **Desde Alpha 0.40: Sara también arranca en inglés y español.**
 >
 > - **La voz de Sara en EN y ES.** Con la radio en inglés o español, RRCA se quedaba en «la voz elegida de Sara está preparada pero no cargada», incluso tras reiniciar. La comprobación de inicio ahora conoce el idioma del paquete de Sara. Gracias a kamil-malinski por el aviso y la solución.
 >

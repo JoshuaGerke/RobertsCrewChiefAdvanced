@@ -17,6 +17,42 @@ namespace CrewChiefV4.AiTeam.Field
 
         internal static string Label(FieldCarView c, bool names) => names && !string.IsNullOrWhiteSpace(c.Name) ? c.Name : "P" + c.Place;
 
+        /// <summary>RaceRoom 27.11.: „Rang 2, 0,0 Sekunden Rückstand“ – dieselbe Runde lag mit 83,88214 statt 83,88257 im Feld.
+        /// Zeiten innerhalb von 5 ms gelten als gleich.</summary>
+        internal const float SameTimeS = .005f;
+
+        /// <summary>Mehr als eine Klasse mit gezeiteten Runden im Feld.</summary>
+        internal static bool Multiclass(FieldView v) =>
+            v?.Cars != null && v.Cars.Where(c => c != null && !float.IsNaN(c.BestLap) && c.BestLap > 0 && c.ClassId >= 0).Select(c => c.ClassId).Distinct().Count() > 1;
+
+        /// <summary>Zeitenliste für Robs Vergleich: im Mehrklassenfeld nur seine Klasse (RaceRoom Laguna 27.11.: „Platz 1“ bzw.
+        /// „Rang 2“, Rob sah Platz 2 gesamt und war Klassenerster).</summary>
+        internal static List<FieldCarView> Timesheet(FieldView v, bool ownClassOnly)
+        {
+            var p = v?.Player;
+            if (v?.Cars == null || p == null) return new List<FieldCarView>();
+            bool cls = ownClassOnly && p.ClassId >= 0 && Multiclass(v);
+            return v.Cars.Where(c => c != null && !float.IsNaN(c.BestLap) && c.BestLap > 0 && (!cls || c.ClassId == p.ClassId)).OrderBy(c => c.BestLap).ToList();
+        }
+
+        /// <summary>Rang einer Zeit in der Zeitenliste (andere Fahrer, die mehr als 5 ms schneller sind, plus eins).</summary>
+        internal static int RankOf(IEnumerable<FieldCarView> timed, float mine) => timed.Count(c => !c.IsPlayer && c.BestLap < mine - SameTimeS) + 1;
+
+        /// <summary>Spielplatz ist ein echter Platz (iRacing meldet ohne Zeit den Platzhalter 1000).</summary>
+        internal static bool RealPlace(int place) => place > 0 && place < 200;
+
+        /// <summary>
+        /// iRacing Navarra 28.11. (N5): „Deine Marke 1:46,404, das ist Platz 5“, 12 s später „Quali durch, Platz 10“ – Startplatz war
+        /// 10. Die Zeitenliste im Lagebild hatte noch nicht alle Zeiten. Der Rang aus der Zeitenliste gilt nur, wenn sie mindestens
+        /// so viele Zeiten hat, wie der Spielplatz zählt; sonst der Spielplatz. Ohne echten Spielplatz (N1: 1000) gilt die Liste.
+        /// </summary>
+        internal static int TrustedRank(IList<FieldCarView> timed, float mine, int gamePlace)
+        {
+            if (timed == null || timed.Count == 0) return RealPlace(gamePlace) ? gamePlace : 0;
+            int rank = RankOf(timed, mine);
+            return !RealPlace(gamePlace) || timed.Count >= gamePlace ? rank : gamePlace;
+        }
+
         internal static string Motion(CarMotion m)
         {
             switch (m)
@@ -77,6 +113,10 @@ namespace CrewChiefV4.AiTeam.Field
             };
             o["gefahren_auf_strecke"] = new JArray(v.Cars.Where(c => !c.IsPlayer && (c.Motion == CarMotion.Slow || c.Motion == CarMotion.Stopped || c.Motion == CarMotion.Spun))
                 .OrderBy(c => c.GapM < 0 ? c.GapM + v.TrackLength : c.GapM).Take(6).Select(c => Row(c, names, v.Utc)));
+            // IR5 (iRacing): Wer hat seinen Fast Repair schon verbraucht? Das heißt, er hatte Schaden.
+            var repaired = v.Cars.Where(c => !c.IsPlayer && c.FastRepairsUsed > 0).Take(12).ToList();
+            if (repaired.Count > 0)
+                o["fast_repair_genutzt"] = new JArray(repaired.Select(c => new JObject { ["fahrer"] = Label(c, names), ["anzahl"] = c.FastRepairsUsed }));
 
             // Zeitenliste: beste gültige Runde je Fahrer; Robs schnellste (auch gestrichene) dagegen eingeordnet.
             var timed = v.Cars.Where(c => !float.IsNaN(c.BestLap) && c.BestLap > 0).OrderBy(c => c.BestLap).ToList();
@@ -87,14 +127,16 @@ namespace CrewChiefV4.AiTeam.Field
                 mine = float.NaN;
             if (!float.IsNaN(mine) && timed.Count > 0)
             {
-                int wouldBe = timed.Count(c => !c.IsPlayer && c.BestLap < mine) + 1;
+                var own = Timesheet(v, true);
+                bool multi = Multiclass(v);
                 var gaps = new JObject();
                 foreach (int rank in new[] { 1, 3, 5 })
-                    if (timed.Count >= rank) gaps["p" + rank] = N(mine - timed[rank - 1].BestLap);
+                    if (own.Count >= rank) gaps["p" + rank] = N(Math.Max(0, mine - own[rank - 1].BestLap));
                 o["robs_zeit_im_vergleich"] = new JObject
                 {
                     ["verglichene_zeit_s"] = N(mine), ["zeit_ist_gestrichen"] = float.IsNaN(p.BestLap),
-                    ["waere_rang"] = wouldBe, ["rueckstand_s"] = gaps
+                    ["waere_rang"] = RankOf(own, mine), ["rang_bezieht_sich_auf"] = multi ? "eigene Klasse" : "ganzes Feld",
+                    ["waere_rang_gesamt"] = multi ? (JToken)RankOf(timed, mine) : JValue.CreateNull(), ["rueckstand_s"] = gaps
                 };
             }
             var fastest = v.Cars.Where(c => !float.IsNaN(c.TopSpeed)).OrderByDescending(c => c.TopSpeed).ToList();

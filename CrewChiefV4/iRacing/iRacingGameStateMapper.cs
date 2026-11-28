@@ -52,6 +52,40 @@ namespace CrewChiefV4.iRacing
         private DateTime lastTimeEngineOilPressureWarning = DateTime.MaxValue;
         private DateTime lastTimeEngineFuelPressureWarning = DateTime.MaxValue;
 
+        // RRCA 0.41 (Rob 27.11.: „er erkennt meinen Schaden nicht im Detail“): iRacing nennt keine Bauteile, aber Pflicht- und
+        // optionale Reparatur, die Art des Vorfalls, die Wucht über die Beschleunigung und in der Box die Reparaturzeit.
+        private float recentPeakG = 0, recentPeakAt = -1, impactPeakG = -1, impactAt = -1, impactKindAt = -1;
+        private string impactKind = null;
+
+        private void MapRepairPicture(iRacingData t, GameStateData gs)
+        {
+            var d = gs.CarDamageData;
+            // IR2 (Rob 28.11.): Boxenservice-Status, z. B. „zu weit vorn“ – wurde gelesen, aber nie weitergegeben.
+            gs.PitData.SimPitServiceStatus = (int)t.PlayerCarPitSvStatus;
+            // IR3.4: geplanter Service (Reifen, Sprit, Fast Repair) – Mik bestätigt ihn beim Einfahren.
+            gs.PitData.SimPitServiceFlags = (int)(uint)t.PitSvFlags;
+            gs.PitData.SimPitServiceFuel = t.PitSvFuel;
+            // iRacing MX-5 28.11.: Im Grün-Takt wurde DamageEnabled nicht gesetzt und danach nur weitergereicht – ab dem Start war das
+            // Schadensmodell „aus“, Mik meldete nach dem Einschlag nichts und die Schadensfrage hieß „Werte fehlen“. iRacing hat immer eines.
+            d.DamageEnabled = true;
+            float now = gs.SessionData.SessionRunningTime;
+            if (now < recentPeakAt || now < impactAt) { recentPeakG = 0; recentPeakAt = impactAt = impactKindAt = impactPeakG = -1; impactKind = null; }
+            float g = (float)Math.Sqrt(t.LongAccel * t.LongAccel + t.LatAccel * t.LatAccel) / 9.81f;
+            if (recentPeakAt < 0 || now - recentPeakAt > 2 || g > recentPeakG) { recentPeakG = g; recentPeakAt = now; }
+            if (d.LastImpactTime > 0 && d.LastImpactTime != impactAt) { impactAt = d.LastImpactTime; impactPeakG = recentPeakG; }
+            if (impactAt > 0 && now - impactAt <= 2 && g > impactPeakG) impactPeakG = g;
+            string kind = AiTeam.RepairPicture.IncidentKind(t.PlayerIncidents);
+            if (kind != null && (impactKind == null || AiTeam.RepairPicture.KindRank(kind) >= AiTeam.RepairPicture.KindRank(impactKind) || now - impactKindAt > 10))
+            { impactKind = kind; impactKindAt = now; }
+            d.RepairRequired = t.EngineWarnings.HasFlag(EngineWarnings.MandRepNeeded);
+            d.RepairOptional = t.EngineWarnings.HasFlag(EngineWarnings.OptRepNeeded);
+            d.RepairSecondsRequired = t.PitRepairLeft > 0 ? t.PitRepairLeft : -1;
+            d.RepairSecondsOptional = t.PitOptRepairLeft > 0 ? t.PitOptRepairLeft : -1;
+            d.ImpactPeakG = impactAt > 0 ? impactPeakG : -1;
+            d.ImpactKind = impactAt > 0 && impactKindAt > 0 && Math.Abs(impactKindAt - impactAt) <= 5 ? impactKind : null;
+            d.FastRepairsLeft = t.FastRepairAvailable >= 0 && t.FastRepairAvailable < 255 ? t.FastRepairAvailable : -1;
+        }
+
         private readonly bool enableFCYPitStateMessages = UserSettings.GetUserSettings().getBoolean("enable_iracing_pit_state_during_fcy");
         private readonly Boolean invalidateCutTrackLaps = UserSettings.GetUserSettings().getBoolean("iracing_invalidate_cut_track_laps");
         private readonly Boolean iracing_overrides_units = UserSettings.GetUserSettings().getBoolean("iracing_overrides_units");
@@ -489,6 +523,7 @@ namespace CrewChiefV4.iRacing
                 {
                     currentGameState.CarDamageData.OverallGeneralDamage = DamageLevel.NONE;
                 }
+                MapRepairPicture(shared.Telemetry, currentGameState);
             }
 
             currentGameState.SessionData.LicenseLevel = playerCar.licensLevel;
@@ -532,22 +567,23 @@ namespace CrewChiefV4.iRacing
             {
                 lastTimeEngineOilPressureWarning = currentGameState.Now;
             }
-            if (previousGameState != null && !previousGameState.EngineData.EngineWaterTempWarning && !shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.EngineStalled) &&
+            // RRCA 0.41: Öl- und Benzindruck setzten bisher die Wassertemperatur-Warnung (Kopierfehler aus Crew Chief).
+            if (previousGameState != null && !previousGameState.EngineData.EngineOilPressureWarning && !shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.EngineStalled) &&
                 currentGameState.SessionData.SessionRunningTime > 60 && shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.OilPressureWarning) &&
                 lastTimeEngineOilPressureWarning < currentGameState.Now.Subtract(TimeSpan.FromSeconds(2)) && additionalEngineCheckFlags)
             {
-                currentGameState.EngineData.EngineWaterTempWarning = true;
+                currentGameState.EngineData.EngineOilPressureWarning = true;
                 lastTimeEngineOilPressureWarning = DateTime.MaxValue;
             }
             if (!shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.FuelPressureWarning))
             {
                 lastTimeEngineFuelPressureWarning = currentGameState.Now;
             }
-            if (previousGameState != null && !previousGameState.EngineData.EngineWaterTempWarning && !shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.EngineStalled) &&
+            if (previousGameState != null && !previousGameState.EngineData.EngineFuelPressureWarning && !shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.EngineStalled) &&
                 currentGameState.SessionData.SessionRunningTime > 60 && shared.Telemetry.EngineWarnings.HasFlag(EngineWarnings.FuelPressureWarning) &&
                 lastTimeEngineFuelPressureWarning < currentGameState.Now.Subtract(TimeSpan.FromSeconds(2)) && additionalEngineCheckFlags)
             {
-                currentGameState.EngineData.EngineWaterTempWarning = true;
+                currentGameState.EngineData.EngineFuelPressureWarning = true;
                 lastTimeEngineFuelPressureWarning = DateTime.MaxValue;
             }
 

@@ -58,6 +58,8 @@ namespace CrewChiefV4.AiTeam.Field
         public float Speed = float.NaN;
         public float X = float.NaN, Y = float.NaN, Z = float.NaN;
         public bool InPit;
+        /// <summary>iRacing `CarIdxTrackSurface` = neben der Strecke (Rob 28.11.: Abflüge sofort sehen, nicht erst am Tempo).</summary>
+        public bool OffTrack;
         public bool CurrentLapValid = true;
         public float LapTimeCurrent = float.NaN;
         /// <summary>Kumuliert wie in der Sim: S1, S1+S2, Rundenzeit. Unbekannt = NaN.</summary>
@@ -73,6 +75,10 @@ namespace CrewChiefV4.AiTeam.Field
         public bool IsPlayer;
         /// <summary>Streckenmeter/Position zwischen zwei Wertungsbildern aus Tempo und Zeit fortgeschrieben.</summary>
         public bool Extrapolated;
+        /// <summary>IR4: iRacings eigene Zeitschätzung bis zur aktuellen Streckenstelle (`CarIdxEstTime`, Grundlage der Relativanzeige).</summary>
+        public float EstTime = float.NaN;
+        /// <summary>IR5: verbrauchte Fast Repairs (`CarIdxFastRepairsUsed`), -1 = unbekannt.</summary>
+        public int FastRepairsUsed = -1;
 
         public FieldCarFrame Copy() => (FieldCarFrame)MemberwiseClone();
     }
