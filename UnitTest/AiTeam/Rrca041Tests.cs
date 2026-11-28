@@ -114,6 +114,38 @@ namespace UnitTest.AiTeamTests
             Assert.IsFalse(YellowAheadWatch.StillThere(Field(0, Parked("claudio ciao", 3032f, 330)), "claudio ciao", T, 2054f), "in die Garage gesprungen");
         }
 
+        // R2: gleiche Zeit mit 0,4 ms Unterschied ist kein Rückstand; im Mehrklassenfeld zählt die eigene Klasse.
+        private static CrewChiefV4.AiTeam.Field.FieldView Timesheet(params CrewChiefV4.AiTeam.Field.FieldCarView[] others)
+        {
+            var player = new CrewChiefV4.AiTeam.Field.FieldCarView { IsPlayer = true, Name = "Robert Gerke", ClassId = 1, BestLap = 83.88257f, FastestAnyLap = 83.88257f };
+            var cars = new System.Collections.Generic.List<CrewChiefV4.AiTeam.Field.FieldCarView> { player };
+            cars.AddRange(others);
+            return new CrewChiefV4.AiTeam.Field.FieldView { Utc = T, Sim = "RaceRoom", Track = "Laguna Seca", TrackLength = 3585.5f, Player = player, Cars = cars,
+                Session = CrewChiefV4.AiTeam.Field.FieldSession.Practice };
+        }
+        private static CrewChiefV4.AiTeam.Field.FieldCarView Timed(string name, int cls, float best) =>
+            new CrewChiefV4.AiTeam.Field.FieldCarView { Name = name, ClassId = cls, BestLap = best };
+
+        [Test]
+        public void Same_lap_within_5_ms_is_rank_one_without_gap()
+        {
+            var v = Timesheet(Timed("Echo", 1, 83.88214f), Timed("Wolfgang Kuck", 1, 87.343f));
+            Assert.AreEqual(1, CrewChiefV4.AiTeam.Field.FieldFacts.RankOf(CrewChiefV4.AiTeam.Field.FieldFacts.Timesheet(v, true), 83.88257f));
+            string text = CrewChiefV4.AiTeam.Field.SessionDebrief.Compose(v, "Rob", 2.0f, 4, 0);
+            StringAssert.Contains("Rang 1.", text);
+            StringAssert.DoesNotContain("Rückstand", text);
+        }
+
+        [Test]
+        public void Multiclass_debrief_ranks_in_own_class()
+        {
+            var v = Timesheet(Timed("Tobias Maesgen", 2, 79.0f), Timed("Wolfgang Kuck", 1, 87.343f));
+            string text = CrewChiefV4.AiTeam.Field.SessionDebrief.Compose(v, "Rob", 2.0f, 4, 0);
+            StringAssert.Contains("Rang 1 in deiner Klasse", text);
+            StringAssert.DoesNotContain("Rückstand", text);
+            Assert.AreEqual(2, CrewChiefV4.AiTeam.Field.FieldFacts.RankOf(CrewChiefV4.AiTeam.Field.FieldFacts.Timesheet(v, false), 83.88257f), "gesamt");
+        }
+
         [Test]
         public void Games_with_part_damage_keep_their_report()
         {

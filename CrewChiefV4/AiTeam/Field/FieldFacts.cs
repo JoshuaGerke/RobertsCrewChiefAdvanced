@@ -17,6 +17,27 @@ namespace CrewChiefV4.AiTeam.Field
 
         internal static string Label(FieldCarView c, bool names) => names && !string.IsNullOrWhiteSpace(c.Name) ? c.Name : "P" + c.Place;
 
+        /// <summary>RaceRoom 27.11.: „Rang 2, 0,0 Sekunden Rückstand“ – dieselbe Runde lag mit 83,88214 statt 83,88257 im Feld.
+        /// Zeiten innerhalb von 5 ms gelten als gleich.</summary>
+        internal const float SameTimeS = .005f;
+
+        /// <summary>Mehr als eine Klasse mit gezeiteten Runden im Feld.</summary>
+        internal static bool Multiclass(FieldView v) =>
+            v?.Cars != null && v.Cars.Where(c => c != null && !float.IsNaN(c.BestLap) && c.BestLap > 0 && c.ClassId >= 0).Select(c => c.ClassId).Distinct().Count() > 1;
+
+        /// <summary>Zeitenliste für Robs Vergleich: im Mehrklassenfeld nur seine Klasse (RaceRoom Laguna 27.11.: „Platz 1“ bzw.
+        /// „Rang 2“, Rob sah Platz 2 gesamt und war Klassenerster).</summary>
+        internal static List<FieldCarView> Timesheet(FieldView v, bool ownClassOnly)
+        {
+            var p = v?.Player;
+            if (v?.Cars == null || p == null) return new List<FieldCarView>();
+            bool cls = ownClassOnly && p.ClassId >= 0 && Multiclass(v);
+            return v.Cars.Where(c => c != null && !float.IsNaN(c.BestLap) && c.BestLap > 0 && (!cls || c.ClassId == p.ClassId)).OrderBy(c => c.BestLap).ToList();
+        }
+
+        /// <summary>Rang einer Zeit in der Zeitenliste (andere Fahrer, die mehr als 5 ms schneller sind, plus eins).</summary>
+        internal static int RankOf(IEnumerable<FieldCarView> timed, float mine) => timed.Count(c => !c.IsPlayer && c.BestLap < mine - SameTimeS) + 1;
+
         internal static string Motion(CarMotion m)
         {
             switch (m)
@@ -87,14 +108,16 @@ namespace CrewChiefV4.AiTeam.Field
                 mine = float.NaN;
             if (!float.IsNaN(mine) && timed.Count > 0)
             {
-                int wouldBe = timed.Count(c => !c.IsPlayer && c.BestLap < mine) + 1;
+                var own = Timesheet(v, true);
+                bool multi = Multiclass(v);
                 var gaps = new JObject();
                 foreach (int rank in new[] { 1, 3, 5 })
-                    if (timed.Count >= rank) gaps["p" + rank] = N(mine - timed[rank - 1].BestLap);
+                    if (own.Count >= rank) gaps["p" + rank] = N(Math.Max(0, mine - own[rank - 1].BestLap));
                 o["robs_zeit_im_vergleich"] = new JObject
                 {
                     ["verglichene_zeit_s"] = N(mine), ["zeit_ist_gestrichen"] = float.IsNaN(p.BestLap),
-                    ["waere_rang"] = wouldBe, ["rueckstand_s"] = gaps
+                    ["waere_rang"] = RankOf(own, mine), ["rang_bezieht_sich_auf"] = multi ? "eigene Klasse" : "ganzes Feld",
+                    ["waere_rang_gesamt"] = multi ? (JToken)RankOf(timed, mine) : JValue.CreateNull(), ["rueckstand_s"] = gaps
                 };
             }
             var fastest = v.Cars.Where(c => !float.IsNaN(c.TopSpeed)).OrderByDescending(c => c.TopSpeed).ToList();

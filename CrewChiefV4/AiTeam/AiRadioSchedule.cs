@@ -962,14 +962,25 @@ namespace CrewChiefV4.AiTeam
                 }
                 var s=gs.SessionData;
                 if (!Good(s.PlayerLapTimeSessionBest,10,3600)) return null;
-                string best = LocalAnswers.LapTime(s.PlayerLapTimeSessionBest); bool pos = s.ClassPosition > 0; string p = s.ClassPosition.ToString(RadioLanguage.Culture);
+                string best = LocalAnswers.LapTime(s.PlayerLapTimeSessionBest);
+                // RaceRoom Laguna 27.11.: „Platz 1“ ohne Klasse, Rob sah Platz 2 gesamt; der Spielplatz blieb auch nach Albanesis
+                // schnellerer Klassenzeit auf 1. Das Lagebild ordnet die Bestzeit selbst ein, im Mehrklassenfeld in der eigenen Klasse.
+                int place = s.ClassPosition; bool inClass = RaceRadioLanguage.SeparateClass(s);
+                var view = Field.FieldPicture.Shared.Current;
+                if (view?.Player != null && view.Fresh(DateTime.UtcNow, 3) && !float.IsNaN(view.Player.BestLap))
+                {
+                    var own = Field.FieldFacts.Timesheet(view, true);
+                    if (own.Count > 0) { place = Field.FieldFacts.RankOf(own, view.Player.BestLap); inClass = Field.FieldFacts.Multiclass(view); }
+                }
+                bool pos = place > 0; string p = place.ToString(RadioLanguage.Culture);
+                string de = inClass ? "Klassenplatz " : "Platz ", tail = inClass ? RadioLanguage.T("", " in class", " en tu clase") : "";
                 return Of(variant,
                     RadioLanguage.T("Deine bisherige Bestzeit: ", "Your best time so far: ", "Tu mejor tiempo hasta ahora: ") + best + "." +
-                        (pos ? RadioLanguage.T(" Aktuell Platz "+p+" in der Zeitenliste.", " Currently P"+p+" on the timesheet.", " Ahora mismo P"+p+" en la tabla de tiempos.") : ""),
-                    RadioLanguage.T("Bestzeit bisher " + best + (pos ? ", damit Platz " + p : "") + ".", "Best so far " + best + (pos ? ", that's P" + p : "") + ".", "Mejor tiempo hasta ahora " + best + (pos ? ", eso es P" + p : "") + "."),
-                    pos ? RadioLanguage.T("Zeitenliste: Platz " + p + " mit " + best + ".", "Timesheet: P" + p + " with " + best + ".", "Tabla de tiempos: P" + p + " con " + best + ".")
+                        (pos ? RadioLanguage.T(" Aktuell "+de+p+" in der Zeitenliste.", " Currently P"+p+tail+" on the timesheet.", " Ahora mismo P"+p+tail+" en la tabla de tiempos.") : ""),
+                    RadioLanguage.T("Bestzeit bisher " + best + (pos ? ", damit " + de + p : "") + ".", "Best so far " + best + (pos ? ", that's P" + p + tail : "") + ".", "Mejor tiempo hasta ahora " + best + (pos ? ", eso es P" + p + tail : "") + "."),
+                    pos ? RadioLanguage.T("Zeitenliste: " + de + p + " mit " + best + ".", "Timesheet: P" + p + tail + " with " + best + ".", "Tabla de tiempos: P" + p + tail + " con " + best + ".")
                         : RadioLanguage.T("Deine Marke: " + best + ".", "Your benchmark: " + best + ".", "Tu marca: " + best + "."),
-                    RadioLanguage.T("Deine Marke steht bei " + best + (pos ? " – das ist Platz " + p : "") + ".", "Your mark stands at " + best + (pos ? " – that's P" + p : "") + ".", "Tu marca está en " + best + (pos ? ": eso es P" + p : "") + "."));
+                    RadioLanguage.T("Deine Marke steht bei " + best + (pos ? " – das ist " + de + p : "") + ".", "Your mark stands at " + best + (pos ? " – that's P" + p + tail : "") + ".", "Tu marca está en " + best + (pos ? ": eso es P" + p + tail : "") + "."));
             }
             if (topic == "vehicle") return VehicleCheck(gs, variant) ?? VehicleReport(gs, brief: true);
             if (topic == "progress") {
