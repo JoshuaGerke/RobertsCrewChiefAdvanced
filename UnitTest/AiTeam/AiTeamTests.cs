@@ -558,6 +558,23 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(1, stats.TtsCalls);
         }
 
+        [TestCase("en")]
+        [TestCase("es")]
+        public async Task ElevenLabs_language_code_folgt_der_Funksprache(string language)
+        {
+            string before = RadioLanguage.Current;
+            try
+            {
+                RadioLanguage.Current = language;
+                var server = new FakeServer();
+                server.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[2]) });
+                var client = new ElevenLabsClient(() => "k", TimeSpan.FromSeconds(5), null, server);
+                await client.SpeechPcmAsync("v", "eleven_flash_v2_5", "Left clear.", TeamMember.Sara, CancellationToken.None);
+                Assert.AreEqual(language, (string)JObject.Parse(server.Requests[0])["language_code"]);
+            }
+            finally { RadioLanguage.Current = before; }
+        }
+
         [Test]
         public async Task ElevenLabs_multilingual_v2_ohne_language_code()
         {
