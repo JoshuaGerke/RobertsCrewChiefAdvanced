@@ -456,6 +456,13 @@ namespace CrewChiefV4.AiTeam
             if (spinUtc != DateTime.MinValue)
             {
                 if (now - spinUtc > TimeSpan.FromSeconds(40) || now - lastImpact < TimeSpan.FromSeconds(15)) spinUtc = DateTime.MinValue;
+                else if (now - spinUtc >= TimeSpan.FromSeconds(5) && gs.PositionAndMotionData.CarSpeed > 15 && now - lastSpinCall > TimeSpan.FromMinutes(2) &&
+                    IncidentWatch.LastStopCheckUtc != DateTime.MinValue && now >= IncidentWatch.LastStopCheckUtc && now - IncidentWatch.LastStopCheckUtc < TimeSpan.FromSeconds(40))
+                {
+                    // RaceRoom Laguna 27.11.: Mik („Alles okay? …“) und 5 s später Ben („Ausrutscher abhaken“) zum selben Dreher.
+                    LiveDiagnostics.Decision("judge-spin", "suppressed", "same_spin_as_mik_incident_check", null);
+                    lastSpinCall = now; spinUtc = DateTime.MinValue;
+                }
                 else if (now - spinUtc >= TimeSpan.FromSeconds(5) && gs.PositionAndMotionData.CarSpeed > 15 && now - lastSpinCall > TimeSpan.FromMinutes(2))
                 {
                     Offer(gs, now, "judge-spin", DriverJudgement.Spin(name, Variant("spin", 6, alt => DriverJudgement.Spin(name, alt))), "speed_from_above_20_to_below_3_mps_within_3s_no_impact", 5, TimeSpan.FromSeconds(25));
@@ -476,6 +483,13 @@ namespace CrewChiefV4.AiTeam
             if (impactUtc != DateTime.MinValue)
             {
                 if (now - impactUtc > TimeSpan.FromSeconds(30)) impactUtc = DateTime.MinValue;
+                // iRacing Montreal 27.11.: Pflichtreparatur, Meatball – und Ben: „Konzentrier dich auf die nächste Runde“. Bei schwerem
+                // Schaden sagt die Schadensmeldung, was zu tun ist; kein Weiterfahr-Zuspruch.
+                else if (IncidentWatch.IsSerious(gs.CarDamageData))
+                {
+                    LiveDiagnostics.Decision("judge-impact", "suppressed", "serious_damage_needs_the_pit_not_encouragement", null);
+                    lastImpactCall = now; impactUtc = DateTime.MinValue;
+                }
                 else if (now - impactUtc >= TimeSpan.FromSeconds(8) && gs.PositionAndMotionData.CarSpeed > 25 && now - lastImpactCall > TimeSpan.FromSeconds(90))
                 {
                     Offer(gs, now, "judge-impact", DriverJudgement.Impact(name, impactRepeated, Variant(impactRepeated ? "impact2" : "impact", 5)),

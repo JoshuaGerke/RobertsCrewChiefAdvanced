@@ -1714,6 +1714,8 @@ namespace CrewChiefV4.AiTeam
             LiveDiagnostics.Decision(topic,"detected",evidence,text,call.EventId);
             return call;
         }
+        internal static readonly TimeSpan RivalBestSettle = TimeSpan.FromSeconds(5);
+
         public ObservedRaceCall Take(GameStateData gs, DateTime now, bool busy, bool routineBusy = false, bool ownLapOnly = false)
         {
             foreach (var delivered in pending.Where(c => c.DeliveryStartedUtc != DateTime.MinValue).ToArray())
@@ -1731,7 +1733,10 @@ namespace CrewChiefV4.AiTeam
                 pending.Remove(expired);
             }
             if (busy) return null;
-            var call = pending.Where(c => c.CanReserve(now) && (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
+            // RaceRoom Laguna 27.11.: zwei Feldbestzeiten in 4 s (Verfool, dann Kuck), beide gesagt. Eine Bestzeit wartet kurz;
+            // kommt eine neuere, verfällt die alte, und nur die aktuelle wird gesagt.
+            var call = pending.Where(c => c.CanReserve(now) && !(c.Topic == "rival-best" && now - c.DetectedUtc < RivalBestSettle) &&
+                (c.Topic == "own-lap" || c.Topic == "qualifying-last" ||
                 c.Topic == "first-lap-fuel" || c.Topic == "fuel-baseline" || c.Topic == "fuel-early" ||
                 (c.Topic == "race-lap" || c.Topic == "rival-best") && now - lastRadio >= TimeSpan.FromSeconds(3) ||
                 // Rob 24.11.: Sektor-Bestzeiten im Training/Qualifying kommen sofort, nicht erst nach acht Sekunden Funkstille.

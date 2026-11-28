@@ -218,7 +218,9 @@ namespace CrewChiefV4.AiTeam
             DateTime last;
             if(delivered.TryGetValue(topic,out last) && now>=last && now-last<TimeSpan.FromSeconds(topic=="warning-tracklimit"?15:30))return;
             // RaceRoom Monza 17.11.: „Schon wieder über den Limits“ und 3 s später „Noch eine ungültige Runde“ – dasselbe Ereignis.
-            string twin=topic=="warning-invalid-lap"?"warning-tracklimit":topic=="warning-tracklimit"?"warning-invalid-lap":null;
+            string twin=topic=="warning-invalid-lap"?"warning-tracklimit":topic=="warning-tracklimit"?"warning-invalid-lap":
+                // iRacing 27.11.: Meatball kam zweimal (Spielmeldung und Sitzungsflagge) – dasselbe Ereignis.
+                topic=="warning-rc-meatball"?"warning-rc-pen-meatball":topic=="warning-rc-pen-meatball"?"warning-rc-meatball":null;
             if(twin!=null && delivered.TryGetValue(twin,out last) && now>=last && now-last<TimeSpan.FromSeconds(20))
             {LiveDiagnostics.Decision(topic,"suppressed","same_event_as_"+twin);return;}
             // AC 20.11.: „Gelb im Sektor.“ und 0,1 s später „Gelb, Gelb! Tempo anpassen.“ – Spielflagge und Crew-Chief-Meldung
@@ -236,6 +238,8 @@ namespace CrewChiefV4.AiTeam
             if((topic=="warning-engine-oil" || topic=="warning-engine-water") && pending.TryGetValue("warning-engine-both",out old) && old.Relevant(gs))return;
             if(topic=="warning-invalid-lap")pending.Remove("warning-tracklimit");
             if(topic=="warning-tracklimit" && pending.TryGetValue("warning-invalid-lap",out old) && old.Relevant(gs))return;
+            if(twin!=null && twin.StartsWith("warning-rc-",StringComparison.Ordinal) && pending.TryGetValue(twin,out old) && old.Relevant(gs))
+            {LiveDiagnostics.Decision(topic,"suppressed","same_event_pending_as_"+twin);return;}
             if(pending.Count>=16){LiveDiagnostics.Decision(topic,"suppressed","warning_capacity");return;}
             pending[topic]=new Pending {Topic=topic,Text=text,Member=member,Priority=priority,Session=gs.SessionData.SessionId,
                 Type=gs.SessionData.SessionType,Lap=lap,Relevant=relevant,TimedRelevant=timed,CapturedUtc=now,Evidence=evidence,
@@ -278,6 +282,14 @@ namespace CrewChiefV4.AiTeam
                     n.Kind.StartsWith("giveback",StringComparison.Ordinal))
                 {
                     string kind=n.Kind, text=NativeRaceControl.Text(kind);
+                    if(kind=="pen-black")
+                    {
+                        if(now>=IncidentWatch.LastGenericPenaltyUtc && now-IncidentWatch.LastGenericPenaltyUtc<TimeSpan.FromSeconds(15))
+                        {LiveDiagnostics.Decision(NativeRaceControl.Topic(kind),"suppressed","same_penalty_already_announced");continue;}
+                        NativeRaceControl.LastBlackUtc=now;
+                        if(text!=null && now>=PitLaneWatch.LastSpeedWarningUtc && now-PitLaneWatch.LastSpeedWarningUtc<TimeSpan.FromSeconds(30))
+                            text+=RadioLanguage.T(" Vermutlich wegen zu hohem Tempo in der Boxengasse."," Probably for speeding in the pit lane."," Probablemente por exceso de velocidad en boxes.");
+                    }
                     // Ein neuer Gelb-/Grün-Stand löst den alten ab.
                     string sector=kind.Contains(":")?kind.Substring(kind.IndexOf(':')+1):"";
                     if(kind.StartsWith("green",StringComparison.Ordinal)){pending.Remove("warning-rc-yellow-"+sector);pending.Remove("warning-rc-dyellow-"+sector);}

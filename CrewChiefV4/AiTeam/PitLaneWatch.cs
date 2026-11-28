@@ -92,6 +92,8 @@ namespace CrewChiefV4.AiTeam
         private bool initialized,wasInPits,approachHandled,departureHandled,wasNewSession,lastPitRequest,limitCallBeforeLane,remindedThisVisit;
         private DateTime speedingSince=DateTime.MinValue,lastWarning=DateTime.MinValue,lastProgress=DateTime.MinValue,lastTick=DateTime.MinValue,lastReminder=DateTime.MinValue;
         private ObservedRaceCall limitCall,speedCall;
+        /// <summary>Letzte Tempowarnung in der Boxengasse (iRacing Montreal 27.11.: danach Schwarz, „die Art meldet das Spiel nicht“).</summary>
+        internal static DateTime LastSpeedWarningUtc=DateTime.MinValue;
         public void Reset()
         {epoch++;session=int.MinValue;type=SessionType.Unavailable;track=null;reportedLimit=-1;lastSpeed=0;initialized=wasInPits=approachHandled=departureHandled=wasNewSession=lastPitRequest=limitCallBeforeLane=remindedThisVisit=false;
             speedingSince=lastWarning=lastProgress=lastTick=lastReminder=DateTime.MinValue;lastSessionSeconds=float.NaN;limitCall=speedCall=null;}
@@ -181,7 +183,7 @@ namespace CrewChiefV4.AiTeam
                 if(speedingSince==DateTime.MinValue) speedingSince=now;
                 if(now-speedingSince>=TimeSpan.FromMilliseconds(200) && now-lastWarning>=TimeSpan.FromSeconds(15))
                 {
-                    lastWarning=now;
+                    lastWarning=now;LastSpeedWarningUtc=now;
                     speedCall=Call(gs,now,"pit-speed",SpeedPhrases(limit)[variant++%SpeedPhrases(limit).Length],7,
                         live=>Speeding(live,limit),"measured_pit_lane_limit_and_speed");
                 }

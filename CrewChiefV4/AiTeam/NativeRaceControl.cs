@@ -112,6 +112,8 @@ namespace CrewChiefV4.AiTeam
 
         /// <summary>Zuletzt gemeldete abgesessene Strafe (gegen doppelte Meldung aus Zählung und Rennleitung).</summary>
         internal static DateTime LastServedUtc = DateTime.MinValue;
+        /// <summary>Schwarze Flagge der Rennleitung zuletzt aufgenommen (gegen die doppelte allgemeine Strafansage).</summary>
+        internal static DateTime LastBlackUtc = DateTime.MinValue;
 
         internal static int Priority(string kind) => kind.StartsWith("giveback:", StringComparison.Ordinal) ? 9 :
             kind == "pen-black" || kind == "pen-meatball" || kind == "pen-dq" || kind == "pen-warn:wrongway" ? 9 :
@@ -274,7 +276,7 @@ namespace CrewChiefV4.AiTeam
                         RadioLanguage.T("Achtung {n}, schwarze Flagge mit orangem Punkt. Wir müssen reparieren.", "Heads up {n}, black flag with the orange disc. We need to repair.", "Atención {n}, bandera negra con disco naranja. Hay que reparar."),
                         RadioLanguage.T("{n}, die Rennleitung holt uns wegen des Schadens rein. Diese Runde Box.", "{n}, race control is calling us in for the damage. Box this lap.", "{n}, dirección de carrera nos llama por los daños. A boxes esta vuelta."),
                         RadioLanguage.T("Meatball für uns, {n}. Ab in die Box, Schaden beheben.", "Meatball for us, {n}. Into the pits, fix the damage.", "Bandera de daños, {n}. A boxes a reparar."),
-                        RadioLanguage.T("{n}, Strafe wegen Schaden: an die Box, sonst gibt es mehr.", "{n}, damage flag: pit now or it gets worse.", "{n}, sanción por daños: a boxes o será peor."))
+                        RadioLanguage.T("{n}, Schadensflagge: Das Auto muss repariert werden, sonst droht Schwarz. Ab an die Box.", "{n}, damage flag: the car must be repaired or it turns black. Box.", "{n}, bandera de daños: hay que reparar o vendrá la negra. A boxes."))
                         .Select(t => Lead(t, DriverName)).ToArray();
                 case "pen-dq":
                     return V("rc-pen-dq",

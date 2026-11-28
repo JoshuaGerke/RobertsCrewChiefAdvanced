@@ -74,7 +74,7 @@ namespace UnitTest.AiTeamTests
             gs.OpponentData["car1"]=new OpponentData { DriverRawName="Alex",CarClass=gs.carClass,IsActive=true,CurrentBestLapTime=89 };
             gs.SessionData.PlayerClassSessionBestLapTime=89;
             observer.Observe(gs,null,T.AddSeconds(1),true);
-            var call=observer.Take(gs,T.AddSeconds(1),false);
+            var call=observer.Take(gs,T.AddSeconds(6),false);
             Assert.IsNotNull(call); StringAssert.Contains("Alex",call.Text); StringAssert.Contains("schnellste Runde",call.Text);
         }
 

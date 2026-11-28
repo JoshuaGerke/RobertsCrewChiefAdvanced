@@ -193,6 +193,79 @@ namespace UnitTest.AiTeamTests
         }
 
         [Test]
+        public void Repair_time_is_said_once_while_standing_in_the_pit()
+        {
+            var s = Session(SessionType.Practice, 4);
+            s.PitData.InPitlane = true; s.PositionAndMotionData.CarSpeed = 0;
+            s.CarDamageData = IRacingDamage(true, true); s.CarDamageData.RepairSecondsRequired = 45; s.CarDamageData.RepairSecondsOptional = 70;
+            var watch = new PitDamageWatch();
+            watch.Observe(s, null, "Rob", T);
+            var call = watch.Take(s, T, false, m => true);
+            Assert.IsNotNull(call); Assert.AreEqual("pit-repair-time", call.Topic); StringAssert.Contains("45 Sekunden Pflicht", call.Text);
+            call.MarkPlaybackStarted(T);
+            s.CarDamageData.RepairSecondsRequired = 40;
+            watch.Observe(s, null, "Rob", T.AddSeconds(5)); Assert.IsNull(watch.Take(s, T.AddSeconds(5), false, m => true), "einmal pro Stopp");
+        }
+
+        private static GameStateData Driving(float kmh, SessionType type = SessionType.Practice)
+        {
+            var s = Session(type, 5);
+            s.PositionAndMotionData.CarSpeed = kmh / 3.6f;
+            s.CarDamageData = IRacingDamage(false, false);
+            return s;
+        }
+
+        // I1 im Ablauf: „Ich schau nach dem Auto“ wird nach 4 s mit dem iRacing-Befund eingelöst.
+        [Test]
+        public void IRacing_contact_promise_is_followed_by_the_repair_picture()
+        {
+            var watch = new IncidentWatch();
+            var before = Driving(150);
+            var hit = Driving(10);
+            hit.CarDamageData = IRacingDamage(true, false, 71.4f, "wall");
+            hit.CarDamageData.LastImpactTime = 442.9f;
+            var first = watch.Evaluate(before, hit, T, false);
+            Assert.AreEqual(1, first.Count, "Kontakt-Satz");
+            watch.Evaluate(hit, hit, T.AddSeconds(4.5), false);
+            var a = watch.TakeDamageAssessment();
+            Assert.IsNotNull(a, "Befund kommt von selbst");
+            Assert.IsTrue(a.Serious);
+            StringAssert.Contains("71 g", a.LocalReport);
+        }
+
+        // I4: eingerollte schwarze Flagge für 0,5 s ist weder Slow-down-Strafe noch „abgesessen“.
+        [Test]
+        public void Brief_furled_flag_is_neither_penalty_nor_served()
+        {
+            var watch = new IncidentWatch();
+            var quiet = Driving(150);
+            var furled = Driving(150); furled.PenaltiesData.HasSlowDown = true; furled.PenaltiesData.NumOutstandingPenalties = 1;
+            Assert.AreEqual(0, watch.Evaluate(quiet, furled, T, false).Count, "nicht sofort");
+            var gone = Driving(150);
+            var after = watch.Evaluate(furled, gone, T.AddSeconds(.5), false);
+            Assert.AreEqual(0, after.Count, "kein „Strafe abgesessen“");
+            Assert.AreEqual(0, watch.Evaluate(quiet, furled, T.AddSeconds(10), false).Count);
+            var still = watch.Evaluate(furled, furled, T.AddSeconds(12.1), false);
+            Assert.AreEqual(1, still.Count, "steht 2 s an: Slow-down gilt");
+            StringAssert.Contains("Slow-down", still[0].Value);
+            Assert.AreEqual(0, watch.Evaluate(furled, furled, T.AddSeconds(13), false).Count, "einmal");
+        }
+
+        [Test]
+        public void Meatball_from_game_message_and_session_flag_is_said_once()
+        {
+            var gs = Driving(150);
+            var o = new LiveWarningDispatcher();
+            o.Offer("warning-rc-meatball", "Technik-Flagge. Rein in die Box, sobald es geht.", TeamMember.Ben, 8, gs, T, live => true, "race_control:iracing_session_flags:meatball");
+            o.Offer("warning-rc-pen-meatball", "Rob, Meatball-Flagge: Das Auto muss zur Reparatur an die Box.", TeamMember.Ben, 9, gs, T, live => true, "native:cc");
+            var first = o.Take(gs, T, false, m => true);
+            Assert.IsNotNull(first);
+            first.MarkPlaybackStarted(T);
+            o.Observe(gs, T.AddSeconds(1));
+            Assert.IsNull(o.Take(gs, T.AddSeconds(1), false, m => true), "zweite Meldung zum selben Meatball");
+        }
+
+        [Test]
         public void Games_with_part_damage_keep_their_report()
         {
             var d = new CarDamageData { DamageEnabled = true, OverallAeroDamage = DamageLevel.MAJOR, OverallEngineDamage = DamageLevel.NONE, OverallTransmissionDamage = DamageLevel.NONE };
