@@ -885,8 +885,14 @@ namespace CrewChiefV4.AiTeam
                     template=catalog.ReferenceFor("fuel-tank",variant);
                     string tank = catalog.Format("fuel-tank", variant, litres);
                     // Noch keine volle gemessene Runde: ausdrücklich geschätzte Hochrechnung aus gefahrener Strecke (Rob 16.11.).
-                    float estimate = ctx.Memory == null ? -1 : ctx.Memory.ProvisionalFuelPerLap(gs);
-                    return Good(estimate, .1, 100) ? tank + " " + FuelEstimateLine(estimate, gs.FuelData.FuelLeft / estimate, variant) : tank;
+                    // RaceRoom 27.11.: Gemessenes aus Training/Quali vor einer Hochrechnung über weniger als eine halbe Runde.
+                    var basis = FuelEstimate.Basis.None;
+                    float estimate = ctx.Memory == null ? -1 : FuelEstimate.Consumption(ctx.Memory, gs, out bool _, out int _, out basis);
+                    if (basis == FuelEstimate.Basis.Carried && Good(estimate, .1, 100))
+                        return tank + RadioLanguage.T(" Aus Training und Quali gemessen: " + Number(estimate) + " Liter pro Runde, reicht für etwa " + ((int)Math.Floor(gs.FuelData.FuelLeft / estimate)) + " Runden.",
+                            " Measured in practice and qualifying: " + Number(estimate) + " litres a lap, good for about " + ((int)Math.Floor(gs.FuelData.FuelLeft / estimate)) + " laps.",
+                            " Medido en libres y clasificación: " + Number(estimate) + " litros por vuelta, da para unas " + ((int)Math.Floor(gs.FuelData.FuelLeft / estimate)) + " vueltas.");
+                    return Good(estimate, .1, 100) && basis == FuelEstimate.Basis.Projected ? tank + " " + FuelEstimateLine(estimate, gs.FuelData.FuelLeft / estimate, variant) : tank;
                 }
                 string laps = Number(gs.FuelData.FuelLeft / perLap);
                 template=catalog.ReferenceFor("fuel-range",variant);

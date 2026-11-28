@@ -146,6 +146,35 @@ namespace UnitTest.AiTeamTests
             Assert.AreEqual(2, CrewChiefV4.AiTeam.Field.FieldFacts.RankOf(CrewChiefV4.AiTeam.Field.FieldFacts.Timesheet(v, false), 83.88257f), "gesamt");
         }
 
+        // R3: Verbrauch aus dem Training gilt in der Quali vom Start weg.
+        private static GameStateData Session(SessionType type, int id)
+        {
+            var s = new GameStateData(T.Ticks);
+            s.SessionData.SessionId = id; s.SessionData.SessionType = type; s.SessionData.SessionPhase = SessionPhase.Green;
+            s.SessionData.TrackDefinition = new TrackDefinition("WeatherTech Raceway Laguna Seca - Modern", 3585.5f);
+            s.carName = "r3e-model-13572";
+            return s;
+        }
+
+        [Test]
+        public void Practice_fuel_is_the_baseline_for_quali()
+        {
+            try
+            {
+                FuelCarry.Reset();
+                var practice = Session(SessionType.Practice, 1);
+                FuelCarry.Remember(practice, 2.01f, 4);
+                Assert.AreEqual(-1, FuelCarry.FromEarlierSessions(practice, out _, out _), "die laufende Session zählt nicht als frühere");
+                var quali = Session(SessionType.Qualify, 2);
+                Assert.AreEqual(2.01f, FuelCarry.FromEarlierSessions(quali, out int laps, out SessionType from), 1e-5);
+                Assert.AreEqual(4, laps); Assert.AreEqual(SessionType.Practice, from);
+                FuelCarry.Remember(quali, 2.05f, 2);
+                Assert.AreEqual(2.01f, FuelCarry.FromEarlierSessions(quali, out _, out _), 1e-5, "eigene Quali-Runden bleiben außen vor");
+                StringAssert.Contains("aus dem Training", SessionLapObserver.CarriedFuelText("2,0 Liter", 4, SessionType.Practice));
+            }
+            finally { FuelCarry.Reset(); }
+        }
+
         [Test]
         public void Games_with_part_damage_keep_their_report()
         {

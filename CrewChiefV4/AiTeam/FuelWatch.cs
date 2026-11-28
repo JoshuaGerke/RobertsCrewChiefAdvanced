@@ -59,6 +59,25 @@ namespace CrewChiefV4.AiTeam
 
         internal static int Laps(GameStateData gs) { string k = Key(gs); lock (gate) return k != null && k == key ? sessions.Sum(s => s.Value.Value) : 0; }
 
+        /// <summary>Mittel der früheren Sessions (ohne die laufende) und deren Runden; -1 = keines. Prüfliste 9 und RaceRoom 27.11.:
+        /// Das Training maß 2,0 l über 4 Runden, die Quali begann trotzdem mit einer eigenen Hochrechnung.</summary>
+        internal static float FromEarlierSessions(GameStateData gs, out int laps, out SessionType from)
+        {
+            laps = 0; from = SessionType.Unavailable;
+            string k = Key(gs);
+            if (gs == null || k == null) return -1;
+            string current = gs.SessionData.SessionType + "#" + gs.SessionData.SessionId;
+            lock (gate)
+            {
+                if (k != key) return -1;
+                var earlier = sessions.Where(s => s.Key != current).ToList();
+                laps = earlier.Sum(s => s.Value.Value);
+                if (laps == 0) return -1;
+                from = (SessionType)Enum.Parse(typeof(SessionType), earlier[earlier.Count - 1].Key.Substring(0, earlier[earlier.Count - 1].Key.IndexOf('#')));
+                return earlier.Sum(s => s.Value.Key * s.Value.Value) / laps;
+            }
+        }
+
         /// <summary>Je Session: Art, Mittel, Runden – in zeitlicher Reihenfolge.</summary>
         internal static List<KeyValuePair<SessionType, KeyValuePair<float, int>>> Breakdown(GameStateData gs)
         {
@@ -97,11 +116,14 @@ namespace CrewChiefV4.AiTeam
             if (DataTruth.Current.State(SimChannel.Fuel) == ChannelState.Stale) return -1;
             float average = memory.AverageFuelPerLap(out fullLaps);
             if (fullLaps > 0) { basis = Basis.Measured; return average; }
-            float estimate = memory.ProvisionalFuelPerLap(state);
-            provisional = estimate > 0 && Finite(estimate);
-            if (provisional) { basis = Basis.Projected; return estimate; }
+            float estimate = memory.ProvisionalFuelPerLap(state, out float metres);
             // Rob 20.11.: Verbrauch aus Training und Quali ins Rennen mitnehmen, bis im Rennen selbst gemessen ist.
             float carried = FuelCarry.For(state);
+            // RaceRoom 27.11.: Eine Hochrechnung über weniger als eine halbe Runde (1,1 statt 2,0 l) schlägt keinen gemessenen Wert.
+            float length = state?.SessionData?.TrackDefinition?.trackLength ?? 0;
+            bool shortProjection = length > 0 && metres < length * .5f;
+            provisional = estimate > 0 && Finite(estimate) && !(carried > 0 && shortProjection);
+            if (provisional) { basis = Basis.Projected; return estimate; }
             provisional = carried > 0;
             if (provisional) basis = Basis.Carried;
             return provisional ? carried : -1;

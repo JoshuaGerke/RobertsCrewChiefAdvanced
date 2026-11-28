@@ -1486,16 +1486,43 @@ namespace CrewChiefV4.AiTeam
         private void OfferEarlyFuel(GameStateData gs, DateTime now, bool race, bool green, AiRaceMemory fuelHistory)
         {
             if (race || !green || earlyFuelOffered || firstFuelOffered || fuelHistory == null || gs.PitData.InPitlane) return;
+            // Prüfliste 9 (RaceRoom 27.11.): Gemessenes aus Training/Quali gilt vom Start weg, statt neu hochzurechnen.
+            float carried = FuelCarry.FromEarlierSessions(gs, out int carriedLaps, out SessionType from);
+            if (TrackAwareness.InRange(carried, .05, 50).HasValue && gs.FuelData.FuelUseActive)
+            {
+                earlyFuelOffered = true;
+                var carry = Add(gs, now, "fuel-early", CarriedFuelText(FuelWatch.Litres(carried), carriedLaps, from), "measured_fuel_from_earlier_session_" + carriedLaps + "_laps", 4);
+                carry.AdditionalValidity = live => live.FuelData.FuelUseActive && !live.PitData.InPitlane;
+                return;
+            }
             float length = gs.SessionData.TrackDefinition == null ? 0 : gs.SessionData.TrackDefinition.trackLength;
             float estimate = fuelHistory.ProvisionalFuelPerLap(gs, out float metres);
-            if (!(length > 500) || metres < Math.Max(EarlyFuelMinimumMetres, length * .15f) || !TrackAwareness.InRange(estimate, .05, 50).HasValue) return;
+            // RaceRoom 27.11.: nach 537 m „1,1 Liter“ (echt 2,0), nach einem Start-Ziel-Stück „2,6“. Der Verbrauch ist über die Runde
+            // ungleich verteilt; erst ab einer halben Runde ist die Hochrechnung brauchbar.
+            if (!(length > 500) || metres < Math.Max(EarlyFuelMinimumMetres, length * EarlyFuelMinimumLapShare) || !TrackAwareness.InRange(estimate, .05, 50).HasValue) return;
             earlyFuelOffered = true;
             string used = FuelWatch.Litres(estimate);
             var call = Add(gs, now, "fuel-early", EarlyFuelText(used), "provisional_fuel_from_tank_and_distance_" + (int)metres + "m", 4);
             call.AdditionalValidity = live => live.FuelData.FuelUseActive && !live.PitData.InPitlane;
         }
 
-        internal const float EarlyFuelMinimumMetres = 400;
+        internal const float EarlyFuelMinimumMetres = 400, EarlyFuelMinimumLapShare = .5f;
+
+        internal static string CarriedFuelText(string used, int laps, SessionType from)
+        {
+            string de = from == SessionType.Qualify ? "aus der Quali" : "aus dem Training", en = from == SessionType.Qualify ? "from qualifying" : "from practice",
+                es = from == SessionType.Qualify ? "de la clasificación" : "de los libres";
+            string n = laps.ToString(RadioLanguage.Culture);
+            return RadioVariants.Pick("fuel-carried",
+                RadioLanguage.T("Verbrauch " + de + ": " + used + " pro Runde, über " + n + (laps == 1 ? " Runde" : " Runden") + " gemessen. Wir messen hier weiter.",
+                    "Fuel " + en + ": " + used + " per lap, measured over " + n + (laps == 1 ? " lap" : " laps") + ". We keep measuring here.",
+                    "Consumo " + es + ": " + used + " por vuelta, medido en " + n + (laps == 1 ? " vuelta" : " vueltas") + ". Seguimos midiendo aquí."),
+                RadioLanguage.T("Wir starten mit dem gemessenen Wert " + de + ": " + used + " je Runde.",
+                    "We start with the measured figure " + en + ": " + used + " a lap.", "Partimos del valor medido " + es + ": " + used + " por vuelta."),
+                RadioLanguage.T("Als Ausgangswert gilt " + de + " " + used + " pro Runde, gemessen. Die erste volle Runde hier bestätigt es.",
+                    "Baseline " + en + " is " + used + " per lap, measured. The first full lap here will confirm it.",
+                    "La referencia " + es + " son " + used + " por vuelta, medidos. La primera vuelta completa aquí lo confirmará."));
+        }
 
         internal static string EarlyFuelText(string used) => RadioVariants.Pick("fuel-early",
             RadioLanguage.T("Erste Schätzung Verbrauch: etwa " + used + " pro Runde. Genauer nach der ersten vollen Runde.",
